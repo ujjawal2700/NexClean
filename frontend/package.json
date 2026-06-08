@@ -1,0 +1,38 @@
+{
+  "name": "@nexclean/frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "NexClean web app — role-based modules (landing, customer, agent, admin).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.2.5",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "gsap": "^3.12.7",
+    "lenis": "^1.1.18",
+    "lucide-react": "^0.471.0",
+    "motion": "^11.18.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1",
+    "split-type": "^0.3.4",
+    "tailwind-merge": "^2.6.0",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.19.20",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}

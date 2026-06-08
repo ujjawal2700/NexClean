@@ -1,0 +1,16 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="nc" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F7CFF" />
+      <stop offset="1" stop-color="#00C2FF" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#nc)" />
+  <!-- water droplet -->
+  <path
+    d="M32 16c6.5 8 11 13.2 11 18.8A11 11 0 0 1 21 34.8C21 29.2 25.5 24 32 16Z"
+    fill="#fff"
+    fill-opacity="0.96"
+  />
+  <circle cx="28" cy="35" r="2.4" fill="#4F7CFF" fill-opacity="0.55" />
+</svg>

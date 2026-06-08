@@ -1,0 +1,7 @@
+{
+  // Use the project's own TypeScript (5.7) instead of the editor's older
+  // bundled compiler, so modern compilerOptions like
+  // "noUncheckedSideEffectImports" are recognized and don't show false warnings.
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}
