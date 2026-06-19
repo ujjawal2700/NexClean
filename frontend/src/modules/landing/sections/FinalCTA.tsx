@@ -34,7 +34,7 @@ export function FinalCTA() {
           </Reveal>
           <Reveal delay={0.2}>
             <div className="mt-10 flex flex-wrap justify-center gap-3">
-              <MagneticButton size="lg" className="bg-white text-primary hover:bg-white">
+              <MagneticButton size="lg" className="bg-none bg-white text-primary hover:bg-white">
                 Book your cleaning <ArrowRight className="size-5" />
               </MagneticButton>
               <Button size="lg" variant="glass" className="text-white">
