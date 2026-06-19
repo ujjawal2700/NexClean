@@ -21,7 +21,7 @@ export function createApp(): Application {
         if (!origin || env.clientOrigins.includes("*") || env.clientOrigins.includes(normalized!)) {
           callback(null, true);
         } else {
-          callback(new Error(`Origin ${origin} is not allowed by CORS`));
+          callback(null, false);
         }
       },
       credentials: true,
