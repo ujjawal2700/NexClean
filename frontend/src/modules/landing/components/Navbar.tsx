@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
@@ -16,6 +17,7 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const { scrollTo } = useSmoothScroll();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -53,7 +55,12 @@ export function Navbar() {
           </ul>
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hidden sm:inline-flex"
+              onClick={() => navigate("/app/login")}
+            >
               Sign in
             </Button>
             <Button size="sm" onClick={() => go("#plans")}>
@@ -83,6 +90,14 @@ export function Navbar() {
                   </button>
                 </li>
               ))}
+              <li className="sm:hidden">
+                <button
+                  onClick={() => navigate("/app/login")}
+                  className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium text-ink-soft hover:bg-surface-muted"
+                >
+                  Sign in
+                </button>
+              </li>
             </ul>
           </div>
         )}
