@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
-import { useSmoothScroll } from "@shared/motion/SmoothScroll";
+import { useSectionLink } from "@shared/hooks/useSectionLink";
 
 const LINKS = [
   { label: "How it works", href: "#how-it-works" },
@@ -16,8 +16,9 @@ const LINKS = [
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
-  const { scrollTo } = useSmoothScroll();
+  const goToSection = useSectionLink();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -28,7 +29,16 @@ export function Navbar() {
 
   const go = (href: string) => {
     setOpen(false);
-    scrollTo(href);
+    goToSection(href);
+  };
+
+  const goHome = () => {
+    setOpen(false);
+    if (location.pathname === "/") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      navigate("/");
+    }
   };
 
   return (
@@ -40,7 +50,7 @@ export function Navbar() {
         )}
       >
         <div className="flex items-center justify-between px-5 py-2.5">
-          <button onClick={() => scrollTo(0)} className="text-[1.2rem]" aria-label="NexClean home">
+          <button onClick={goHome} className="text-[1.2rem]" aria-label="NexClean home">
             <Logo variant="full" />
           </button>
 

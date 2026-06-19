@@ -1,22 +1,43 @@
+import { Link } from "react-router-dom";
 import { Logo } from "@shared/components/brand/Logo";
 import { Container } from "@shared/components/layout/Container";
+import { useSectionLink } from "@shared/hooks/useSectionLink";
 
-const COLUMNS = [
+type FooterLink = { label: string; section: string } | { label: string; to: string };
+
+const COLUMNS: { title: string; links: FooterLink[] }[] = [
   {
     title: "Service",
-    links: ["How it works", "Vehicle types", "Subscription plans", "NexClean Nearby"],
+    links: [
+      { label: "How it works", section: "#how-it-works" },
+      { label: "Vehicle types", section: "#vehicles" },
+      { label: "Subscription plans", section: "#plans" },
+      { label: "NexClean Nearby", section: "#nearby" },
+    ],
   },
   {
     title: "Company",
-    links: ["About us", "Careers", "Become an agent", "Contact"],
+    links: [
+      { label: "About us", to: "/about" },
+      { label: "Careers", to: "/careers" },
+      { label: "Become an agent", to: "/agent/signup" },
+      { label: "Contact", to: "/contact" },
+    ],
   },
   {
     title: "Support",
-    links: ["Help center", "Privacy policy", "Terms of service", "Refund policy"],
+    links: [
+      { label: "Help center", to: "/help" },
+      { label: "Privacy policy", to: "/privacy" },
+      { label: "Terms of service", to: "/terms" },
+      { label: "Refund policy", to: "/refund" },
+    ],
   },
 ];
 
 export function Footer() {
+  const goToSection = useSectionLink();
+
   return (
     <footer className="border-t border-line/60 bg-surface/50">
       <Container className="py-16">
@@ -33,10 +54,22 @@ export function Footer() {
               <p className="text-sm font-semibold text-ink">{col.title}</p>
               <ul className="mt-4 space-y-2.5">
                 {col.links.map((link) => (
-                  <li key={link}>
-                    <a href="#" className="text-sm text-muted transition-colors hover:text-primary">
-                      {link}
-                    </a>
+                  <li key={link.label}>
+                    {"to" in link ? (
+                      <Link
+                        to={link.to}
+                        className="text-sm text-muted transition-colors hover:text-primary"
+                      >
+                        {link.label}
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={() => goToSection(link.section)}
+                        className="text-sm text-muted transition-colors hover:text-primary"
+                      >
+                        {link.label}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

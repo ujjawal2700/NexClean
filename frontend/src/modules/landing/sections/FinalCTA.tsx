@@ -1,11 +1,16 @@
+import { useNavigate } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { Section } from "@shared/components/layout/Section";
 import { MagneticButton } from "@shared/ui/MagneticButton";
 import { Button } from "@shared/ui/Button";
 import { SplitReveal } from "@shared/motion/SplitReveal";
 import { Reveal } from "@shared/motion/Reveal";
+import { useSectionLink } from "@shared/hooks/useSectionLink";
 
 export function FinalCTA() {
+  const navigate = useNavigate();
+  const goToSection = useSectionLink();
+
   return (
     <Section bleed className="px-6 py-24">
       <div className="relative mx-auto max-w-5xl overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-[#1a2a6c] via-primary to-[#0a1f5c] px-8 py-20 text-center shadow-[var(--shadow-lift)] sm:px-16">
@@ -34,10 +39,14 @@ export function FinalCTA() {
           </Reveal>
           <Reveal delay={0.2}>
             <div className="mt-10 flex flex-wrap justify-center gap-3">
-              <MagneticButton size="lg" className="bg-none bg-white text-primary hover:bg-white">
+              <MagneticButton
+                size="lg"
+                className="bg-none bg-white text-primary hover:bg-white"
+                onClick={() => navigate("/app/book")}
+              >
                 Book your cleaning <ArrowRight className="size-5" />
               </MagneticButton>
-              <Button size="lg" variant="glass" className="text-white">
+              <Button size="lg" variant="glass" className="text-white" onClick={() => goToSection("#plans")}>
                 View plans
               </Button>
             </div>

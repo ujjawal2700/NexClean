@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { useNavigate } from "react-router-dom";
 import { Play, MapPin, Car, ShieldCheck, Star } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Badge } from "@shared/ui/Badge";
@@ -8,10 +9,14 @@ import { Container } from "@shared/components/layout/Container";
 import { SplitReveal } from "@shared/motion/SplitReveal";
 import { Reveal } from "@shared/motion/Reveal";
 import { easing } from "@shared/theme/tokens";
+import { useSectionLink } from "@shared/hooks/useSectionLink";
 
 const VEHICLES = ["Hatchback", "Sedan", "SUV", "Luxury"];
 
 export function Hero() {
+  const navigate = useNavigate();
+  const goToSection = useSectionLink();
+
   return (
     <section className="relative flex min-h-dvh items-center overflow-hidden pt-28 pb-16">
       <Aurora />
@@ -42,8 +47,10 @@ export function Hero() {
 
           <Reveal delay={0.65}>
             <div className="mt-9 flex flex-wrap items-center gap-3">
-              <MagneticButton size="lg">Book cleaning</MagneticButton>
-              <Button variant="outline" size="lg">
+              <MagneticButton size="lg" onClick={() => navigate("/app/book")}>
+                Book cleaning
+              </MagneticButton>
+              <Button variant="outline" size="lg" onClick={() => goToSection("#how-it-works")}>
                 <Play className="size-4 fill-current" />
                 Watch how it works
               </Button>

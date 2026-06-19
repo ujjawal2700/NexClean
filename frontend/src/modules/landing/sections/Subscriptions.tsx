@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Check } from "lucide-react";
 import { Section } from "@shared/components/layout/Section";
 import { SectionHeading } from "@shared/ui/SectionHeading";
@@ -52,6 +53,8 @@ const PLANS: Plan[] = [
 ];
 
 export function Subscriptions() {
+  const navigate = useNavigate();
+
   return (
     <Section id="plans" className="border-t border-line/60">
       <SectionHeading
@@ -109,7 +112,8 @@ export function Subscriptions() {
               <div className="mt-auto pt-8">
                 <Button
                   variant={plan.featured ? "glass" : "primary"}
-                  className={cn("w-full", plan.featured && "bg-white text-primary hover:bg-white")}
+                  className={cn("w-full", plan.featured && "bg-none bg-white text-primary hover:bg-white")}
+                  onClick={() => navigate("/app/plans")}
                 >
                   Choose {plan.name}
                 </Button>

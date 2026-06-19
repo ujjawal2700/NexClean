@@ -86,11 +86,11 @@ export function AppShowcase() {
 
           <Reveal delay={0.25}>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button variant="primary">
-                <Apple className="size-5" /> App Store
+              <Button variant="primary" disabled title="Coming soon">
+                <Apple className="size-5" /> App Store · Coming soon
               </Button>
-              <Button variant="outline">
-                <Play className="size-5 fill-current" /> Google Play
+              <Button variant="outline" disabled title="Coming soon">
+                <Play className="size-5 fill-current" /> Google Play · Coming soon
               </Button>
             </div>
           </Reveal>

@@ -1,3 +1,6 @@
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { useSmoothScroll } from "@shared/motion/SmoothScroll";
 import { Navbar } from "./components/Navbar";
 import { Footer } from "./components/Footer";
 import { Hero } from "./sections/Hero";
@@ -19,6 +22,17 @@ import { FinalCTA } from "./sections/FinalCTA";
  * why → plans → app → reviews → stats → final CTA.
  */
 export function LandingPage() {
+  const location = useLocation();
+  const { scrollTo } = useSmoothScroll();
+
+  // Arriving here with a hash (e.g. navigated from another page's "#plans"
+  // link) — wait a tick for sections to mount, then scroll to it.
+  useEffect(() => {
+    if (!location.hash) return;
+    const id = window.setTimeout(() => scrollTo(location.hash), 80);
+    return () => window.clearTimeout(id);
+  }, [location.hash, scrollTo]);
+
   return (
     <>
       <a
