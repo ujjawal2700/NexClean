@@ -85,7 +85,7 @@ npm run dev
 ### Demo logins
 - Customer: `/app` → any 10-digit number, code `123456`
 - Agent: `/agent` → seeded numbers `9000000001`–`9000000004`, code `123456`
-- Admin: `/admin` → `admin@nexclean.com` / `admin123`
+- Admin: `/admin` → `superadmin@gmail.com` / `password123`
 
 Enable real integrations by setting env vars — no code changes:
 `FIREBASE_SERVICE_ACCOUNT_BASE64` (push), `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` (payments).

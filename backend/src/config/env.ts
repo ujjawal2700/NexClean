@@ -26,8 +26,8 @@ export const env = {
   razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? "",
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? "",
   // Demo admin credentials (seeded on startup). Change for production.
-  adminEmail: process.env.ADMIN_EMAIL ?? "admin@nexclean.com",
-  adminPassword: process.env.ADMIN_PASSWORD ?? "admin123",
+  adminEmail: process.env.ADMIN_EMAIL ?? "superadmin@gmail.com",
+  adminPassword: process.env.ADMIN_PASSWORD ?? "password123",
 };
 
 export const pushEnabled = env.firebaseServiceAccount.length > 0;

@@ -15,7 +15,7 @@ export function Login() {
   const setSession = useAdminSession((s) => s.setSession);
   const login = useAdminLogin();
 
-  const [email, setEmail] = useState("admin@nexclean.com");
+  const [email, setEmail] = useState("superadmin@gmail.com");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
@@ -58,7 +58,7 @@ export function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
-              hint="Demo: admin@nexclean.com / admin123"
+              hint="Demo: superadmin@gmail.com / password123"
               error={error}
             />
             <Button className="w-full" onClick={submit} disabled={login.isPending}>
