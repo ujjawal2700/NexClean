@@ -15,12 +15,12 @@ export function Logo({ variant = "full", className }: LogoProps) {
       <img
         src={LOGO_SRC}
         alt="NexClean"
-        className={cn("size-[2.2em] rounded-[0.5em] object-cover", className)}
+        className={cn("size-[2.9em] rounded-[0.5em] object-cover", className)}
       />
     );
   }
 
   return (
-    <img src={LOGO_SRC} alt="NexClean" className={cn("h-[2.6em] w-auto object-contain", className)} />
+    <img src={LOGO_SRC} alt="NexClean" className={cn("h-[3.6em] w-auto object-contain", className)} />
   );
 }
