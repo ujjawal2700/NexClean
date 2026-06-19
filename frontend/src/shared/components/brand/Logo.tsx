@@ -6,9 +6,9 @@ type LogoProps = {
   className?: string;
 };
 
-const LOGO_SRC = "/logo.jpeg";
+const LOGO_SRC = "/logo.png";
 
-/** NexClean brand mark. Single source image at /public/logo.jpeg, swap there to rebrand. */
+/** NexClean brand mark. Single source image at /public/logo.png, swap there to rebrand. */
 export function Logo({ variant = "full", className }: LogoProps) {
   if (variant === "mark") {
     return (
