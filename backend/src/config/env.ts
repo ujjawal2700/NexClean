@@ -12,7 +12,12 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "30d",
   otpExpiryMin: Number(process.env.OTP_EXPIRY_MIN ?? 5),
   demoOtp: process.env.DEMO_OTP ?? "123456",
-  clientOrigin: process.env.CLIENT_ORIGIN ?? "http://localhost:5173",
+  // Comma-separated CORS allow-list, normalized (trailing slashes stripped) so
+  // a value like "https://app.vercel.app/" still matches the browser's Origin.
+  clientOrigins: (process.env.CLIENT_ORIGIN ?? "http://localhost:5173")
+    .split(",")
+    .map((s) => s.trim().replace(/\/+$/, ""))
+    .filter(Boolean),
   // Base64-encoded Firebase service-account JSON. When empty, push runs in
   // mock mode (logs instead of sending) so the engine is fully testable offline.
   firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ?? "",

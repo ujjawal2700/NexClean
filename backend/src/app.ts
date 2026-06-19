@@ -12,7 +12,21 @@ export function createApp(): Application {
   const app = express();
 
   app.use(helmet());
-  app.use(cors({ origin: env.clientOrigin, credentials: true }));
+  app.use(
+    cors({
+      origin(origin, callback) {
+        // Allow non-browser requests (no Origin), a "*" wildcard, or any
+        // configured origin (compared with trailing slashes normalized away).
+        const normalized = origin?.replace(/\/+$/, "");
+        if (!origin || env.clientOrigins.includes("*") || env.clientOrigins.includes(normalized!)) {
+          callback(null, true);
+        } else {
+          callback(new Error(`Origin ${origin} is not allowed by CORS`));
+        }
+      },
+      credentials: true,
+    }),
+  );
   app.use(express.json());
   if (!isProd) app.use(morgan("dev"));
 
