@@ -22,7 +22,7 @@ export function Footer() {
       <Container className="py-16">
         <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
-            <Logo variant="full" withTagline />
+            <Logo variant="full" />
             <p className="mt-5 max-w-xs text-sm text-muted">
               Premium on-demand vehicle care, delivered to your doorstep. Your car. Our care.
             </p>
