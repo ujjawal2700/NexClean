@@ -1,5 +1,6 @@
 import { createApp } from "./app";
 import { connectDb } from "./config/db";
+import { seedDemoData } from "./config/seed";
 import { env } from "./config/env";
 
 const app = createApp();
@@ -11,11 +12,13 @@ const server = app.listen(env.port, () => {
 
 // Connect to MongoDB after the server is already listening so the health
 // endpoint stays available even if the database is temporarily unreachable.
-connectDb().catch((err: unknown) => {
-  const message = err instanceof Error ? err.message : String(err);
-  console.error(`✗ MongoDB connection failed: ${message}`);
-  console.error("  Set MONGODB_URI in .env (see .env.example).");
-});
+connectDb()
+  .then(() => seedDemoData())
+  .catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`✗ MongoDB connection/seed failed: ${message}`);
+    console.error("  Set MONGODB_URI in .env (see .env.example).");
+  });
 
 const shutdown = (signal: string) => {
   console.log(`\n${signal} received — shutting down.`);

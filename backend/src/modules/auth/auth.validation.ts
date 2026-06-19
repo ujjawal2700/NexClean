@@ -9,5 +9,10 @@ export const verifyOtpSchema = z.object({
   code: z.string().length(6, "Code must be 6 digits"),
 });
 
+export const adminLoginSchema = z.object({
+  email: z.string().email("Enter a valid email"),
+  password: z.string().min(1, "Password is required"),
+});
+
 export type SendOtpInput = z.infer<typeof sendOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;

@@ -2,7 +2,8 @@ import { Check } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
-import { useBookingsStore } from "../store/bookingsStore";
+import { useMe } from "../api/queries";
+import { useSubscribe, useUnsubscribe } from "../api/mutations";
 import type { PlanId } from "../types";
 
 type Plan = {
@@ -40,7 +41,11 @@ const PLANS: Plan[] = [
 ];
 
 export function Subscriptions() {
-  const { activePlan, setPlan } = useBookingsStore();
+  const { data: me } = useMe();
+  const activePlan = me?.activePlan ?? null;
+  const subscribe = useSubscribe();
+  const unsubscribe = useUnsubscribe();
+  const busy = subscribe.isPending || unsubscribe.isPending;
 
   return (
     <div>
@@ -101,7 +106,8 @@ export function Subscriptions() {
                   <Button
                     variant={plan.featured ? "glass" : "outline"}
                     className={cn("w-full", plan.featured && "bg-white/20 text-white")}
-                    onClick={() => setPlan(null)}
+                    disabled={busy}
+                    onClick={() => unsubscribe.mutate()}
                   >
                     Cancel plan
                   </Button>
@@ -109,7 +115,8 @@ export function Subscriptions() {
                   <Button
                     variant={plan.featured ? "glass" : "primary"}
                     className={cn("w-full", plan.featured && "bg-white text-primary hover:bg-white")}
-                    onClick={() => setPlan(plan.id)}
+                    disabled={busy}
+                    onClick={() => subscribe.mutate(plan.id)}
                   >
                     Choose {plan.name}
                   </Button>

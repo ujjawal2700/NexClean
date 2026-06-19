@@ -2,7 +2,7 @@ import { Otp } from "./otp.model";
 import { User } from "../user/user.model";
 import { env } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
-import { signToken } from "../../shared/utils/jwt";
+import { signToken, type Role } from "../../shared/utils/jwt";
 import { generateOtp } from "../../shared/utils/otp";
 
 /** Normalize a phone string to a consistent stored form. */
@@ -49,7 +49,21 @@ export async function verifyOtp(rawPhone: string, code: string) {
     { upsert: true, new: true },
   );
 
-  const token = signToken(user.id);
+  const token = signToken(user.id, user.role as Role);
+  return { token, user };
+}
+
+/** Email + password login for the admin console (seeded demo credentials). */
+export async function adminLogin(email: string, password: string) {
+  if (email.trim().toLowerCase() !== env.adminEmail.toLowerCase() || password !== env.adminPassword) {
+    throw ApiError.unauthorized("Invalid email or password");
+  }
+  const user = await User.findOneAndUpdate(
+    { phone: `admin:${env.adminEmail}` },
+    { $setOnInsert: { phone: `admin:${env.adminEmail}`, name: "Admin", role: "admin" } },
+    { upsert: true, new: true },
+  );
+  const token = signToken(user.id, "admin");
   return { token, user };
 }
 

@@ -46,3 +46,22 @@ export type Booking = {
 };
 
 export type PlanId = "basic" | "premium" | "elite";
+
+export type User = {
+  id: string;
+  name: string;
+  phone: string;
+  role: string;
+  vehicles: Vehicle[];
+  addresses: Address[];
+  activePlan: PlanId | null;
+};
+
+export type AppNotification = {
+  id: string;
+  type: "booking" | "area_alert" | "system";
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+};

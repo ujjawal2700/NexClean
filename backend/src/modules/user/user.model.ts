@@ -1,13 +1,24 @@
 import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
 import { VEHICLE_TYPES, PLANS } from "../catalog/catalog.data";
 
+/** Map _id → id and drop internal fields when serializing subdocuments. */
+const subdocJson = {
+  virtuals: true,
+  transform: (_doc: unknown, ret: Record<string, unknown>) => {
+    ret.id = ret._id;
+    delete ret._id;
+    delete ret.__v;
+    return ret;
+  },
+};
+
 const vehicleSchema = new Schema(
   {
     type: { type: String, enum: VEHICLE_TYPES, required: true },
     name: { type: String, required: true, trim: true },
     plate: { type: String, default: "—", trim: true },
   },
-  { _id: true },
+  { _id: true, toJSON: subdocJson },
 );
 
 const addressSchema = new Schema(
@@ -16,7 +27,7 @@ const addressSchema = new Schema(
     line: { type: String, required: true, trim: true },
     society: { type: String, default: "", trim: true },
   },
-  { _id: true },
+  { _id: true, toJSON: subdocJson },
 );
 
 const userSchema = new Schema(
@@ -27,6 +38,14 @@ const userSchema = new Schema(
     vehicles: { type: [vehicleSchema], default: [] },
     addresses: { type: [addressSchema], default: [] },
     activePlan: { type: String, enum: [...PLANS.map((p) => p.id), null], default: null },
+    deviceTokens: { type: [String], default: [] },
+
+    // Agent profile (only meaningful when role === "agent")
+    area: { type: String, default: "" },
+    rating: { type: Number, default: 4.8 },
+    jobsDone: { type: Number, default: 0 },
+    online: { type: Boolean, default: true },
+    agentStatus: { type: String, enum: ["verified", "pending", "suspended"], default: "verified" },
   },
   {
     timestamps: true,
@@ -36,6 +55,7 @@ const userSchema = new Schema(
         ret.id = ret._id;
         delete ret._id;
         delete ret.__v;
+        delete ret.deviceTokens; // never expose push tokens to clients
         return ret;
       },
     },

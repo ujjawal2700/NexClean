@@ -8,11 +8,11 @@ import { PageLoader } from "@shared/components/PageLoader";
 const CustomerApp = lazy(() =>
   import("@modules/customer/CustomerApp").then((m) => ({ default: m.CustomerApp })),
 );
-const AgentHome = lazy(() =>
-  import("@modules/agent/AgentHome").then((m) => ({ default: m.AgentHome })),
+const AgentApp = lazy(() =>
+  import("@modules/agent/AgentApp").then((m) => ({ default: m.AgentApp })),
 );
-const AdminHome = lazy(() =>
-  import("@modules/admin/AdminHome").then((m) => ({ default: m.AdminHome })),
+const AdminApp = lazy(() =>
+  import("@modules/admin/AdminApp").then((m) => ({ default: m.AdminApp })),
 );
 
 /**
@@ -30,10 +30,10 @@ export function AppRoutes() {
         <Route path="/app/*" element={<CustomerApp />} />
 
         {/* Agent (cleaner) module */}
-        <Route path="/agent/*" element={<AgentHome />} />
+        <Route path="/agent/*" element={<AgentApp />} />
 
         {/* Admin module (web-based, role-routed) */}
-        <Route path="/admin/*" element={<AdminHome />} />
+        <Route path="/admin/*" element={<AdminApp />} />
 
         {/* Fallback */}
         <Route path="*" element={<LandingPage />} />

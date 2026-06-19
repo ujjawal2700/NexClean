@@ -6,6 +6,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
 import { Subscriptions } from "./pages/Subscriptions";
 import { Profile } from "./pages/Profile";
+import { Notifications } from "./pages/Notifications";
 import { BookingFlow } from "./pages/booking/BookingFlow";
 
 /**
@@ -30,6 +31,7 @@ export function CustomerApp() {
         <Route path="book" element={<BookingFlow />} />
         <Route path="bookings" element={<Bookings />} />
         <Route path="plans" element={<Subscriptions />} />
+        <Route path="notifications" element={<Notifications />} />
         <Route path="profile" element={<Profile />} />
       </Route>
 

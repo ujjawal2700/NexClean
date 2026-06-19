@@ -1,4 +1,4 @@
-/** Shared date/money formatting for the customer module. */
+/** Shared date/money/time formatting helpers used across modules. */
 
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", {

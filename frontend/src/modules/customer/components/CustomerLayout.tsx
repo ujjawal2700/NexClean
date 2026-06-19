@@ -1,10 +1,14 @@
-import { type ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, CalendarPlus, ClipboardList, CreditCard, User, LogOut } from "lucide-react";
+import { useEffect, useRef, type ReactNode } from "react";
+import { NavLink, Link, useNavigate } from "react-router-dom";
+import { LayoutDashboard, CalendarPlus, ClipboardList, CreditCard, User, LogOut, Bell } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
-import { useAuthStore } from "../store/authStore";
+import { getOrCreateDeviceToken } from "@shared/lib/push";
+import { useSessionStore } from "../store/sessionStore";
+import { useMe, useNotifications } from "../api/queries";
+import { useRegisterToken } from "../api/mutations";
 
 const NAV = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -16,10 +20,27 @@ const NAV = [
 
 export function CustomerLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const { name, logout } = useAuthStore();
+  const qc = useQueryClient();
+  const clear = useSessionStore((s) => s.clear);
+  const { data: me } = useMe();
+  const { data: notifications = [] } = useNotifications();
+  const registerToken = useRegisterToken();
+  const registered = useRef(false);
+
+  const unread = notifications.filter((n) => !n.read).length;
+
+  // Register this device for push once per session so the customer can
+  // receive Smart Area Alerts and booking updates.
+  useEffect(() => {
+    if (registered.current) return;
+    registered.current = true;
+    registerToken.mutate(getOrCreateDeviceToken());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onLogout = () => {
-    logout();
+    clear();
+    qc.clear();
     navigate("/app/login");
   };
 
@@ -51,8 +72,20 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-muted sm:inline">{name || "Member"}</span>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/app/notifications"
+              className="relative grid size-9 place-items-center rounded-full text-ink-soft transition-colors hover:bg-surface-muted hover:text-primary"
+              aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+            >
+              <Bell className="size-5" />
+              {unread > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
+            </Link>
+            <span className="hidden text-sm text-muted sm:inline">{me?.name || "Member"}</span>
             <Button variant="ghost" size="sm" onClick={onLogout} aria-label="Log out">
               <LogOut className="size-4" />
             </Button>

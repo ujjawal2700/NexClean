@@ -1,18 +1,25 @@
 import { useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Phone, ArrowRight, ArrowLeft, ShieldCheck } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2 } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Badge } from "@shared/ui/Badge";
-import { useAuthStore } from "../store/authStore";
+import { ApiError } from "@shared/lib/api";
+import { useSessionStore } from "../store/sessionStore";
+import { useSendOtp, useVerifyOtp } from "../api/mutations";
+import { meKey } from "../api/queries";
 
 const DEMO_OTP = "123456";
 
 export function Login() {
   const navigate = useNavigate();
-  const login = useAuthStore((s) => s.login);
+  const qc = useQueryClient();
+  const setToken = useSessionStore((s) => s.setToken);
+  const sendOtp = useSendOtp();
+  const verifyOtp = useVerifyOtp();
 
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
@@ -20,24 +27,35 @@ export function Login() {
   const [error, setError] = useState("");
   const phoneRef = useRef(phone);
 
-  const sendOtp = () => {
+  const send = async () => {
     if (!/^\d{10}$/.test(phone)) {
       setError("Enter a valid 10-digit number");
       return;
     }
     setError("");
     phoneRef.current = phone;
-    setStep("otp");
+    try {
+      await sendOtp.mutateAsync(phone);
+      setStep("otp");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't send OTP. Is the API running?");
+    }
   };
 
-  const verify = () => {
+  const verify = async () => {
     if (otp.length !== 6) {
       setError("Enter the 6-digit code");
       return;
     }
-    // mock: any 6-digit code works (demo: 123456)
-    login(`+91 ${phoneRef.current}`);
-    navigate("/app", { replace: true });
+    setError("");
+    try {
+      const { token, user } = await verifyOtp.mutateAsync({ phone: phoneRef.current, code: otp });
+      setToken(token);
+      qc.setQueryData(meKey, user);
+      navigate("/app", { replace: true });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Verification failed");
+    }
   };
 
   return (
@@ -69,11 +87,11 @@ export function Login() {
                   leading={<Phone className="size-4" />}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                  onKeyDown={(e) => e.key === "Enter" && sendOtp()}
+                  onKeyDown={(e) => e.key === "Enter" && send()}
                   error={error}
                 />
-                <Button className="w-full" onClick={sendOtp}>
-                  Send OTP <ArrowRight className="size-4" />
+                <Button className="w-full" onClick={send} disabled={sendOtp.isPending}>
+                  {sendOtp.isPending ? <Loader2 className="size-4 animate-spin" /> : <>Send OTP <ArrowRight className="size-4" /></>}
                 </Button>
               </div>
             </>
@@ -104,11 +122,11 @@ export function Login() {
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && verify()}
-                  hint={`Demo code: ${DEMO_OTP} (any 6 digits work)`}
+                  hint={`Demo code: ${DEMO_OTP}`}
                   error={error}
                 />
-                <Button className="w-full" onClick={verify}>
-                  Verify &amp; continue <ArrowRight className="size-4" />
+                <Button className="w-full" onClick={verify} disabled={verifyOtp.isPending}>
+                  {verifyOtp.isPending ? <Loader2 className="size-4 animate-spin" /> : <>Verify &amp; continue <ArrowRight className="size-4" /></>}
                 </Button>
               </div>
             </>

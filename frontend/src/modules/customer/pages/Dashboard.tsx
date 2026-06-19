@@ -3,17 +3,18 @@ import { ArrowRight, CalendarPlus, MapPin, Sparkles, Plus, CreditCard } from "lu
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
-import { useAuthStore } from "../store/authStore";
-import { useBookingsStore } from "../store/bookingsStore";
+import { useMe, useBookings } from "../api/queries";
 import { VEHICLE_LABEL, PACKAGES } from "../data/catalog";
-import { formatDate, formatMoney, greeting } from "../lib/format";
+import { formatDate, formatMoney, greeting } from "@shared/lib/format";
 
 export function Dashboard() {
-  const { name, vehicles } = useAuthStore();
-  const { bookings, activePlan } = useBookingsStore();
+  const { data: me } = useMe();
+  const { data: bookings = [] } = useBookings();
 
-  const upcoming = bookings.filter((b) => b.status === "upcoming");
-  const next = upcoming[0];
+  const name = me?.name ?? "Member";
+  const vehicles = me?.vehicles ?? [];
+  const activePlan = me?.activePlan ?? null;
+  const next = bookings.filter((b) => b.status === "upcoming")[0];
 
   return (
     <div className="space-y-8">

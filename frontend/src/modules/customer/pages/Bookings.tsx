@@ -5,9 +5,10 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
-import { useBookingsStore } from "../store/bookingsStore";
+import { useBookings } from "../api/queries";
+import { useCancelBooking } from "../api/mutations";
 import type { BookingStatus } from "../types";
-import { formatDate, formatMoney } from "../lib/format";
+import { formatDate, formatMoney } from "@shared/lib/format";
 
 const FILTERS: { id: BookingStatus | "all"; label: string }[] = [
   { id: "all", label: "All" },
@@ -23,7 +24,8 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
 };
 
 export function Bookings() {
-  const { bookings, cancelBooking } = useBookingsStore();
+  const { data: bookings = [] } = useBookings();
+  const cancelBooking = useCancelBooking();
   const [filter, setFilter] = useState<BookingStatus | "all">("all");
 
   const list = filter === "all" ? bookings : bookings.filter((b) => b.status === filter);
@@ -98,7 +100,12 @@ export function Bookings() {
               <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
                 <p className="font-display text-xl font-semibold text-ink">{formatMoney(b.price)}</p>
                 {b.status === "upcoming" && (
-                  <Button variant="ghost" size="sm" onClick={() => cancelBooking(b.id)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={cancelBooking.isPending}
+                    onClick={() => cancelBooking.mutate(b.id)}
+                  >
                     Cancel
                   </Button>
                 )}

@@ -1,4 +1,4 @@
-import { Schema, model, Types } from "mongoose";
+import { Schema, model, Types, type HydratedDocument, type InferSchemaType } from "mongoose";
 import { VEHICLE_TYPES } from "../catalog/catalog.data";
 
 const bookingSchema = new Schema(
@@ -12,6 +12,7 @@ const bookingSchema = new Schema(
     slot: { type: String, required: true },
     addressLabel: { type: String, required: true },
     addressLine: { type: String, required: true },
+    society: { type: String, default: "" },
     price: { type: Number, required: true },
     status: {
       type: String,
@@ -19,6 +20,17 @@ const bookingSchema = new Schema(
       default: "upcoming",
       index: true,
     },
+
+    // Agent fulfilment
+    assignedAgent: { type: Types.ObjectId, ref: "User", default: null, index: true },
+    agentName: { type: String, default: null },
+    jobStatus: {
+      type: String,
+      enum: ["assigned", "enroute", "arrived", "in_progress", "completed"],
+      default: "assigned",
+    },
+    hasBefore: { type: Boolean, default: false },
+    hasAfter: { type: Boolean, default: false },
   },
   {
     timestamps: true,
@@ -33,4 +45,5 @@ const bookingSchema = new Schema(
   },
 );
 
+export type BookingDocument = HydratedDocument<InferSchemaType<typeof bookingSchema>>;
 export const Booking = model("Booking", bookingSchema);

@@ -15,8 +15,10 @@ import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
-import { useAuthStore } from "../../store/authStore";
-import { useBookingsStore } from "../../store/bookingsStore";
+import { ApiError } from "@shared/lib/api";
+import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
+import { useMe } from "../../api/queries";
+import { useCreateOrder, useVerifyPayment } from "../../api/mutations";
 import {
   PACKAGES,
   VEHICLE_TYPES,
@@ -25,8 +27,8 @@ import {
   upcomingDates,
   priceFor,
 } from "../../data/catalog";
-import type { CarType, Booking } from "../../types";
-import { formatMoney } from "../../lib/format";
+import type { CarType, Booking, Vehicle, Address } from "../../types";
+import { formatMoney } from "@shared/lib/format";
 import { Stepper, STEP_LABELS } from "./Stepper";
 
 type Draft = {
@@ -49,12 +51,16 @@ const EMPTY: Draft = {
 
 export function BookingFlow() {
   const navigate = useNavigate();
-  const { vehicles, addresses } = useAuthStore();
-  const addBooking = useBookingsStore((s) => s.addBooking);
+  const { data: me } = useMe();
+  const vehicles = me?.vehicles ?? [];
+  const addresses = me?.addresses ?? [];
+  const createOrder = useCreateOrder();
+  const verifyPayment = useVerifyPayment();
 
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(EMPTY);
-  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState("");
+  const [processing, setProcessing] = useState(false);
   const [confirmed, setConfirmed] = useState<Booking | null>(null);
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
@@ -71,23 +77,61 @@ export function BookingFlow() {
     true,
   ][step];
 
-  const pay = () => {
+  const pay = async () => {
     if (!draft.vehicleType || !pkg || !draft.date || !draft.slot || !address) return;
-    setPaying(true);
-    setTimeout(() => {
-      const booking = addBooking({
-        vehicleType: draft.vehicleType!,
-        vehicleName: draft.vehicleName || VEHICLE_LABEL[draft.vehicleType!],
-        packageName: pkg.name,
-        date: draft.date!,
-        slot: draft.slot!,
-        addressLabel: address.label,
-        addressLine: address.line,
-        price: total,
+    setPayError("");
+    setProcessing(true);
+
+    const bookingInput = {
+      vehicleType: draft.vehicleType,
+      vehicleName: draft.vehicleName || VEHICLE_LABEL[draft.vehicleType],
+      packageId: pkg.id,
+      date: draft.date,
+      slot: draft.slot,
+      addressLabel: address.label,
+      addressLine: address.line,
+    };
+
+    try {
+      const order = await createOrder.mutateAsync(bookingInput);
+
+      // Mock mode (no Razorpay keys): confirm + book without the checkout modal.
+      if (order.mock) {
+        const booking = await verifyPayment.mutateAsync({ booking: bookingInput });
+        setConfirmed(booking);
+        setProcessing(false);
+        return;
+      }
+
+      // Live mode: open Razorpay Checkout, then verify the signature server-side.
+      const loaded = await loadRazorpay();
+      if (!loaded) throw new Error("Couldn't load the payment gateway");
+
+      openRazorpay({
+        key: order.keyId,
+        amount: order.amount * 100,
+        currency: order.currency,
+        order_id: order.orderId,
+        name: "NexClean",
+        description: `${pkg.name} · ${bookingInput.vehicleName}`,
+        prefill: { name: me?.name, contact: me?.phone },
+        theme: { color: "#4F7CFF" },
+        handler: async (r) => {
+          try {
+            const booking = await verifyPayment.mutateAsync({ booking: bookingInput, ...r });
+            setConfirmed(booking);
+          } catch (e) {
+            setPayError(e instanceof ApiError ? e.message : "Payment verification failed");
+          } finally {
+            setProcessing(false);
+          }
+        },
+        modal: { ondismiss: () => setProcessing(false) },
       });
-      setPaying(false);
-      setConfirmed(booking);
-    }, 1600);
+    } catch (e) {
+      setPayError(e instanceof ApiError ? e.message : "Payment failed. Please try again.");
+      setProcessing(false);
+    }
   };
 
   if (confirmed) return <Confirmation booking={confirmed} />;
@@ -136,8 +180,8 @@ export function BookingFlow() {
                 Continue <ArrowRight className="size-4" />
               </Button>
             ) : (
-              <Button onClick={pay} disabled={paying} className="min-w-44">
-                {paying ? (
+              <Button onClick={pay} disabled={processing} className="min-w-44">
+                {processing ? (
                   <>
                     <Loader2 className="size-4 animate-spin" /> Processing…
                   </>
@@ -147,6 +191,7 @@ export function BookingFlow() {
               </Button>
             )}
           </div>
+          {payError && <p className="mt-3 text-right text-sm text-red-500">{payError}</p>}
         </div>
 
         {/* live summary */}
@@ -174,7 +219,7 @@ function VehicleStep({
 }: {
   draft: Draft;
   set: (p: Partial<Draft>) => void;
-  vehicles: ReturnType<typeof useAuthStore.getState>["vehicles"];
+  vehicles: Vehicle[];
 }) {
   return (
     <div>
@@ -353,7 +398,7 @@ function AddressStep({
 }: {
   draft: Draft;
   set: (p: Partial<Draft>) => void;
-  addresses: ReturnType<typeof useAuthStore.getState>["addresses"];
+  addresses: Address[];
 }) {
   return (
     <div>
@@ -421,8 +466,9 @@ function PaymentSummary({ draft, total }: { draft: Draft; total: number }) {
         ))}
       </div>
       <div className="mt-5 rounded-2xl border border-line bg-surface-muted/50 p-4 text-sm text-muted">
-        Payments are mocked in this build. {formatMoney(total)} will be charged via the selected
-        method when the backend (Razorpay) is connected.
+        Secured by <span className="font-medium text-ink">Razorpay</span>. {formatMoney(total)} will
+        be collected on confirmation. Without test keys configured, payment is simulated and the
+        booking is still created.
       </div>
       {draft.vehicleType && (
         <p className="mt-4 text-xs text-muted">

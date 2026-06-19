@@ -1,28 +1,37 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Car, MapPin, Trash2, Plus, User, Phone, Check } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
-import { useAuthStore } from "../store/authStore";
+import { useMe } from "../api/queries";
+import {
+  useUpdateProfile,
+  useAddVehicle,
+  useRemoveVehicle,
+  useAddAddress,
+  useRemoveAddress,
+} from "../api/mutations";
 import { VEHICLE_LABEL, VEHICLE_TYPES } from "../data/catalog";
 import type { CarType } from "../types";
 
 export function Profile() {
-  const {
-    name,
-    phone,
-    vehicles,
-    addresses,
-    updateProfile,
-    addVehicle,
-    removeVehicle,
-    addAddress,
-    removeAddress,
-  } = useAuthStore();
+  const { data: me } = useMe();
+  const vehicles = me?.vehicles ?? [];
+  const addresses = me?.addresses ?? [];
 
-  const [displayName, setDisplayName] = useState(name);
+  const updateProfile = useUpdateProfile();
+  const addVehicle = useAddVehicle();
+  const removeVehicle = useRemoveVehicle();
+  const addAddress = useAddAddress();
+  const removeAddress = useRemoveAddress();
+
+  const [displayName, setDisplayName] = useState("");
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (me?.name) setDisplayName(me.name);
+  }, [me?.name]);
 
   const [showVehicle, setShowVehicle] = useState(false);
   const [vName, setVName] = useState("");
@@ -34,26 +43,41 @@ export function Profile() {
   const [aLine, setALine] = useState("");
 
   const saveName = () => {
-    updateProfile(displayName.trim() || "NexClean Member");
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1800);
+    updateProfile.mutate(displayName.trim() || "NexClean Member", {
+      onSuccess: () => {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1800);
+      },
+    });
   };
 
   const saveVehicle = () => {
     if (!vName.trim()) return;
-    addVehicle({ name: vName.trim(), type: vType, plate: vPlate.trim() || "—" });
-    setVName("");
-    setVPlate("");
-    setVType("sedan");
-    setShowVehicle(false);
+    addVehicle.mutate(
+      { name: vName.trim(), type: vType, plate: vPlate.trim() || "—" },
+      {
+        onSuccess: () => {
+          setVName("");
+          setVPlate("");
+          setVType("sedan");
+          setShowVehicle(false);
+        },
+      },
+    );
   };
 
   const saveAddress = () => {
     if (!aLabel.trim() || !aLine.trim()) return;
-    addAddress({ label: aLabel.trim(), line: aLine.trim(), society: aLine.trim() });
-    setALabel("");
-    setALine("");
-    setShowAddr(false);
+    addAddress.mutate(
+      { label: aLabel.trim(), line: aLine.trim(), society: aLine.trim() },
+      {
+        onSuccess: () => {
+          setALabel("");
+          setALine("");
+          setShowAddr(false);
+        },
+      },
+    );
   };
 
   return (
@@ -76,11 +100,11 @@ export function Profile() {
             name="phone"
             label="Mobile number"
             leading={<Phone className="size-4" />}
-            value={phone}
+            value={me?.phone ?? ""}
             disabled
           />
         </div>
-        <Button className="mt-4" size="sm" onClick={saveName}>
+        <Button className="mt-4" size="sm" onClick={saveName} disabled={updateProfile.isPending}>
           {saved ? (
             <>
               <Check className="size-4" /> Saved
@@ -119,7 +143,7 @@ export function Profile() {
             </div>
             <Input name="vplate" label="Plate" placeholder="GJ 01 AB 1234" value={vPlate} onChange={(e) => setVPlate(e.target.value)} />
             <div className="sm:col-span-3">
-              <Button size="sm" onClick={saveVehicle}>
+              <Button size="sm" onClick={saveVehicle} disabled={addVehicle.isPending}>
                 Save vehicle
               </Button>
             </div>
@@ -139,7 +163,7 @@ export function Profile() {
                 </p>
               </div>
               <button
-                onClick={() => removeVehicle(v.id)}
+                onClick={() => removeVehicle.mutate(v.id)}
                 className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:bg-red-50 hover:text-red-500"
                 aria-label={`Remove ${v.name}`}
               >
@@ -169,7 +193,7 @@ export function Profile() {
             <Input name="alabel" label="Label" placeholder="Home / Office" value={aLabel} onChange={(e) => setALabel(e.target.value)} />
             <Input name="aline" label="Address" placeholder="Flat, society, area" value={aLine} onChange={(e) => setALine(e.target.value)} />
             <div className="sm:col-span-2">
-              <Button size="sm" onClick={saveAddress}>
+              <Button size="sm" onClick={saveAddress} disabled={addAddress.isPending}>
                 Save address
               </Button>
             </div>
@@ -187,7 +211,7 @@ export function Profile() {
                 <p className="truncate text-sm text-muted">{a.line}</p>
               </div>
               <button
-                onClick={() => removeAddress(a.id)}
+                onClick={() => removeAddress.mutate(a.id)}
                 className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:bg-red-50 hover:text-red-500"
                 aria-label={`Remove ${a.label}`}
               >
