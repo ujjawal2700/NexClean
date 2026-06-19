@@ -27,7 +27,8 @@ export function createApp(): Application {
       credentials: true,
     }),
   );
-  app.use(express.json());
+  // 12mb cap accommodates base64-encoded Aadhar KYC photos from agent signup.
+  app.use(express.json({ limit: "12mb" }));
   if (!isProd) app.use(morgan("dev"));
 
   // Health check — works even if the database is unreachable.

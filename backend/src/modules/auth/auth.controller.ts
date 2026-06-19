@@ -17,6 +17,16 @@ export async function adminLogin(req: Request, res: Response): Promise<Response>
   return ok(res, { token, user }, "Logged in");
 }
 
+export async function customerSignup(req: Request, res: Response): Promise<Response> {
+  const result = await authService.customerSignup(req.body);
+  return ok(res, result, "Account created — verification code sent");
+}
+
+export async function agentSignup(req: Request, res: Response): Promise<Response> {
+  const result = await authService.agentSignup(req.body);
+  return ok(res, result, "Application submitted — verification code sent");
+}
+
 export async function me(req: Request, res: Response): Promise<Response> {
   const user = await authService.getMe(req.userId!);
   return ok(res, user);

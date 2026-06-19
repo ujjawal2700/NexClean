@@ -23,6 +23,22 @@ export function useVerifyOtp() {
   });
 }
 
+export type AgentSignupInput = {
+  name: string;
+  phone: string;
+  area: string;
+  aadharNumber: string;
+  aadharFront: string;
+  aadharBack: string;
+};
+
+export function useAgentSignup() {
+  return useMutation({
+    mutationFn: (vars: AgentSignupInput) =>
+      apiFetch<{ sent: boolean }>("/auth/agent/signup", { method: "POST", body: vars }),
+  });
+}
+
 /* ------------------------------- Queries --------------------------------- */
 
 export function useAgentMe() {

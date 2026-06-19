@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { CustomerLayout } from "./components/CustomerLayout";
 import { Login } from "./pages/Login";
+import { Signup } from "./pages/Signup";
 import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
 import { Subscriptions } from "./pages/Subscriptions";
@@ -17,6 +18,7 @@ export function CustomerApp() {
   return (
     <Routes>
       <Route path="login" element={<Login />} />
+      <Route path="signup" element={<Signup />} />
 
       <Route
         element={

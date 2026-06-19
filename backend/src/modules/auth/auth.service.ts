@@ -4,6 +4,7 @@ import { env } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
 import { signToken, type Role } from "../../shared/utils/jwt";
 import { generateOtp } from "../../shared/utils/otp";
+import type { CustomerSignupInput, AgentSignupInput } from "./auth.validation";
 
 /** Normalize a phone string to a consistent stored form. */
 function normalize(phone: string): string {
@@ -51,6 +52,43 @@ export async function verifyOtp(rawPhone: string, code: string) {
 
   const token = signToken(user.id, user.role as Role);
   return { token, user };
+}
+
+/** Register a new customer account, then send the verification OTP. */
+export async function customerSignup(input: CustomerSignupInput) {
+  const phone = normalize(input.phone);
+  const existing = await User.findOne({ phone });
+  if (existing) throw ApiError.badRequest("An account with this number already exists. Please log in.");
+
+  await User.create({
+    phone,
+    name: input.name,
+    email: input.email ?? "",
+    role: "customer",
+  });
+
+  return sendOtp(phone);
+}
+
+/** Register a new agent account with KYC documents (pending admin review), then send the OTP. */
+export async function agentSignup(input: AgentSignupInput) {
+  const phone = normalize(input.phone);
+  const existing = await User.findOne({ phone });
+  if (existing) throw ApiError.badRequest("An account with this number already exists. Please log in.");
+
+  await User.create({
+    phone,
+    name: input.name,
+    role: "agent",
+    area: input.area,
+    online: false,
+    agentStatus: "pending",
+    aadharNumber: input.aadharNumber,
+    aadharFrontUrl: input.aadharFront,
+    aadharBackUrl: input.aadharBack,
+  });
+
+  return sendOtp(phone);
 }
 
 /** Email + password login for the admin console (seeded demo credentials). */

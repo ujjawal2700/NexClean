@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Phone, ArrowRight, ArrowLeft, BadgeCheck, Loader2 } from "lucide-react";
+import { User, Mail, Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2 } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
@@ -9,31 +9,37 @@ import { Input } from "@shared/ui/Input";
 import { Badge } from "@shared/ui/Badge";
 import { Stepper } from "@shared/ui/Stepper";
 import { ApiError } from "@shared/lib/api";
-import { useAgentSession } from "../store/sessionStore";
-import { useSendOtp, useVerifyOtp, meKey } from "../api/agent.api";
+import { useSessionStore } from "../store/sessionStore";
+import { useCustomerSignup, useVerifyOtp } from "../api/mutations";
+import { meKey } from "../api/queries";
 
-export function Login() {
+const DEMO_OTP = "123456";
+
+export function Signup() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const setToken = useAgentSession((s) => s.setToken);
-  const sendOtp = useSendOtp();
+  const setToken = useSessionStore((s) => s.setToken);
+  const signup = useCustomerSignup();
   const verifyOtp = useVerifyOtp();
 
-  const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [step, setStep] = useState<"details" | "otp">("details");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const phoneRef = useRef(phone);
 
-  const send = async () => {
+  const submitDetails = async () => {
+    if (name.trim().length < 2) return setError("Enter your full name");
     if (!/^\d{10}$/.test(phone)) return setError("Enter a valid 10-digit number");
     setError("");
     phoneRef.current = phone;
     try {
-      await sendOtp.mutateAsync(phone);
+      await signup.mutateAsync({ name: name.trim(), phone, email: email.trim() || undefined });
       setStep("otp");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn't send OTP. Is the API running?");
+      setError(e instanceof ApiError ? e.message : "Couldn't create account. Is the API running?");
     }
   };
 
@@ -42,13 +48,9 @@ export function Login() {
     setError("");
     try {
       const { token, user } = await verifyOtp.mutateAsync({ phone: phoneRef.current, code: otp });
-      if (user.role !== "agent") {
-        setError("This number isn't registered as an agent.");
-        return;
-      }
       setToken(token);
       qc.setQueryData(meKey, user);
-      navigate("/agent", { replace: true });
+      navigate("/app", { replace: true });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Verification failed");
     }
@@ -65,45 +67,68 @@ export function Login() {
         </div>
 
         <div className="glass rounded-card p-8 shadow-[var(--shadow-lift)]">
-          <Stepper steps={["Number", "Verify"]} current={step === "phone" ? 0 : 1} />
-          {step === "phone" ? (
+          <Stepper steps={["Details", "Verify"]} current={step === "details" ? 0 : 1} />
+          {step === "details" ? (
             <>
-              <Badge className="mb-5">Agent Login</Badge>
-              <h1 className="text-2xl text-ink">Welcome, specialist</h1>
-              <p className="mt-2 text-sm text-muted">Sign in to see today's jobs and start earning.</p>
+              <Badge className="mb-5">Create account</Badge>
+              <h1 className="text-2xl text-ink">Join NexClean</h1>
+              <p className="mt-2 text-sm text-muted">A few details and we'll get your garage set up.</p>
+
               <div className="mt-6 space-y-4">
+                <Input
+                  name="name"
+                  autoComplete="name"
+                  label="Full name"
+                  placeholder="Aisha Sharma"
+                  leading={<User className="size-4" />}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+                <Input
+                  name="email"
+                  autoComplete="email"
+                  label="Email (optional)"
+                  type="email"
+                  placeholder="you@example.com"
+                  leading={<Mail className="size-4" />}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
                 <Input
                   name="phone"
                   type="tel"
                   autoComplete="tel"
-                  label="Registered mobile number"
+                  label="Mobile number"
                   inputMode="numeric"
                   maxLength={10}
-                  placeholder="90000 00001"
+                  placeholder="98765 43210"
                   leading={<Phone className="size-4" />}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                  onKeyDown={(e) => e.key === "Enter" && send()}
-                  hint="Demo agent: 9000000001"
-                  error={error}
+                  onKeyDown={(e) => e.key === "Enter" && submitDetails()}
                 />
-                <Button className="w-full" onClick={send} disabled={sendOtp.isPending}>
-                  {sendOtp.isPending ? <Loader2 className="size-4 animate-spin" /> : <>Send OTP <ArrowRight className="size-4" /></>}
+                {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-500">{error}</p>}
+                <Button className="w-full" onClick={submitDetails} disabled={signup.isPending}>
+                  {signup.isPending ? <Loader2 className="size-4 animate-spin" /> : <>Create account <ArrowRight className="size-4" /></>}
                 </Button>
               </div>
             </>
           ) : (
             <>
               <button
-                onClick={() => { setStep("phone"); setError(""); }}
+                onClick={() => {
+                  setStep("details");
+                  setError("");
+                }}
                 className="mb-5 inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary"
               >
-                <ArrowLeft className="size-4" /> Change number
+                <ArrowLeft className="size-4" /> Edit details
               </button>
               <h1 className="text-2xl text-ink">Verify your number</h1>
               <p className="mt-2 text-sm text-muted">
                 Enter the 6-digit code sent to <span className="font-medium text-ink">+91 {phoneRef.current}</span>.
               </p>
+
               <div className="mt-6 space-y-4">
                 <Input
                   name="otp"
@@ -116,7 +141,7 @@ export function Login() {
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && verify()}
-                  hint="Demo code: 123456"
+                  hint={`Demo code: ${DEMO_OTP}`}
                   error={error}
                 />
                 <Button className="w-full" onClick={verify} disabled={verifyOtp.isPending}>
@@ -127,19 +152,15 @@ export function Login() {
           )}
 
           <p className="mt-6 flex items-center justify-center gap-2 text-xs text-muted">
-            <BadgeCheck className="size-3.5 text-primary" /> Verified specialists only
+            <ShieldCheck className="size-3.5 text-primary" /> Secured with end-to-end verification
           </p>
         </div>
 
         <p className="mt-6 text-center text-sm text-muted">
-          New cleaner?{" "}
-          <Link to="/agent/signup" className="font-medium text-primary hover:underline">
-            Apply to join
+          Already have an account?{" "}
+          <Link to="/app/login" className="font-medium text-primary hover:underline">
+            Log in
           </Link>
-        </p>
-        <p className="mt-2 text-center text-sm text-muted">
-          Looking to book a wash?{" "}
-          <Link to="/app" className="font-medium text-primary hover:underline">Customer app</Link>
         </p>
       </div>
     </main>

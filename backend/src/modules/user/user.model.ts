@@ -34,6 +34,7 @@ const userSchema = new Schema(
   {
     phone: { type: String, required: true, unique: true, index: true },
     name: { type: String, default: "NexClean Member", trim: true },
+    email: { type: String, default: "", trim: true, lowercase: true },
     role: { type: String, enum: ["customer", "agent", "admin"], default: "customer" },
     vehicles: { type: [vehicleSchema], default: [] },
     addresses: { type: [addressSchema], default: [] },
@@ -46,6 +47,11 @@ const userSchema = new Schema(
     jobsDone: { type: Number, default: 0 },
     online: { type: Boolean, default: true },
     agentStatus: { type: String, enum: ["verified", "pending", "suspended"], default: "verified" },
+
+    // Agent KYC (submitted at signup, reviewed by admin before activation)
+    aadharNumber: { type: String, default: "" },
+    aadharFrontUrl: { type: String, default: "" },
+    aadharBackUrl: { type: String, default: "" },
   },
   {
     timestamps: true,

@@ -7,6 +7,7 @@ import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Badge } from "@shared/ui/Badge";
+import { Stepper } from "@shared/ui/Stepper";
 import { ApiError } from "@shared/lib/api";
 import { useSessionStore } from "../store/sessionStore";
 import { useSendOtp, useVerifyOtp } from "../api/mutations";
@@ -69,6 +70,7 @@ export function Login() {
         </div>
 
         <div className="glass rounded-card p-8 shadow-[var(--shadow-lift)]">
+          <Stepper steps={["Number", "Verify"]} current={step === "phone" ? 0 : 1} />
           {step === "phone" ? (
             <>
               <Badge className="mb-5">Customer Login</Badge>
@@ -80,6 +82,8 @@ export function Login() {
               <div className="mt-6 space-y-4">
                 <Input
                   name="phone"
+                  type="tel"
+                  autoComplete="tel"
                   label="Mobile number"
                   inputMode="numeric"
                   maxLength={10}
@@ -114,6 +118,7 @@ export function Login() {
               <div className="mt-6 space-y-4">
                 <Input
                   name="otp"
+                  autoComplete="one-time-code"
                   label="One-time code"
                   inputMode="numeric"
                   maxLength={6}
@@ -138,6 +143,12 @@ export function Login() {
         </div>
 
         <p className="mt-6 text-center text-sm text-muted">
+          New to NexClean?{" "}
+          <Link to="/app/signup" className="font-medium text-primary hover:underline">
+            Create an account
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-sm text-muted">
           Are you a cleaner?{" "}
           <Link to="/agent" className="font-medium text-primary hover:underline">
             Agent login

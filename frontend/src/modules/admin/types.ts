@@ -39,6 +39,9 @@ export type AdminAgent = {
   jobsDone: number;
   online: boolean;
   status: AgentStatus;
+  aadharNumber: string;
+  aadharFrontUrl: string;
+  aadharBackUrl: string;
 };
 
 export type Pricing = {

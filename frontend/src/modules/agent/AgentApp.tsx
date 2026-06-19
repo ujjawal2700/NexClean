@@ -1,7 +1,9 @@
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { KycGate } from "./components/KycGate";
 import { AgentLayout } from "./components/AgentLayout";
 import { Login } from "./pages/Login";
+import { Signup } from "./pages/Signup";
 import { Dashboard } from "./pages/Dashboard";
 import { Jobs } from "./pages/Jobs";
 import { JobDetail } from "./pages/JobDetail";
@@ -16,13 +18,16 @@ export function AgentApp() {
   return (
     <Routes>
       <Route path="login" element={<Login />} />
+      <Route path="signup" element={<Signup />} />
 
       <Route
         element={
           <ProtectedRoute>
-            <AgentLayout>
-              <Outlet />
-            </AgentLayout>
+            <KycGate>
+              <AgentLayout>
+                <Outlet />
+              </AgentLayout>
+            </KycGate>
           </ProtectedRoute>
         }
       >

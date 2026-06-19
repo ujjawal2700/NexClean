@@ -1,4 +1,4 @@
-import { Star, MapPin, BadgeCheck, Ban, RotateCcw } from "lucide-react";
+import { Star, MapPin, BadgeCheck, Ban, RotateCcw, CreditCard } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -62,6 +62,33 @@ export function Agents() {
             <p className="mt-3 flex items-center gap-1.5 text-sm text-muted">
               <MapPin className="size-4 text-primary" /> {a.area}
             </p>
+
+            {(a.aadharFrontUrl || a.aadharBackUrl) && (
+              <div className="mt-3 rounded-2xl border border-line bg-surface/60 p-3">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                  <CreditCard className="size-3.5 text-primary" /> Aadhar {a.aadharNumber || "—"}
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {[
+                    { label: "Front", url: a.aadharFrontUrl },
+                    { label: "Back", url: a.aadharBackUrl },
+                  ].map(
+                    (doc) =>
+                      doc.url && (
+                        <a
+                          key={doc.label}
+                          href={doc.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block overflow-hidden rounded-xl border border-line"
+                        >
+                          <img src={doc.url} alt={`Aadhar ${doc.label}`} className="aspect-[4/3] w-full object-cover" />
+                        </a>
+                      ),
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="mt-4 flex gap-2 border-t border-line/70 pt-4">
               {a.status === "pending" && (

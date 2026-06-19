@@ -70,6 +70,9 @@ function mapAgent(a: UserDoc) {
     jobsDone: a.jobsDone ?? 0,
     online: a.online ?? false,
     status: a.agentStatus ?? "pending",
+    aadharNumber: a.aadharNumber ?? "",
+    aadharFrontUrl: a.aadharFrontUrl ?? "",
+    aadharBackUrl: a.aadharBackUrl ?? "",
   };
 }
 

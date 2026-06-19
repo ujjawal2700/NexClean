@@ -73,6 +73,9 @@ export type AgentProfile = {
   jobsDone: number;
   online: boolean;
   agentStatus: "verified" | "pending" | "suspended";
+  aadharNumber?: string;
+  aadharFrontUrl?: string;
+  aadharBackUrl?: string;
 };
 
 export type AgentSummary = {

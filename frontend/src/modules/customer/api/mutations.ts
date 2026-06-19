@@ -42,6 +42,13 @@ export function useVerifyOtp() {
   });
 }
 
+export function useCustomerSignup() {
+  return useMutation({
+    mutationFn: (vars: { name: string; phone: string; email?: string }) =>
+      apiFetch<{ sent: boolean }>("/auth/customer/signup", { method: "POST", body: vars }),
+  });
+}
+
 /* ------------------------- Profile (updates `me`) ------------------------ */
 
 function useUserMutation<TVars>(fn: (vars: TVars) => Promise<User>) {
