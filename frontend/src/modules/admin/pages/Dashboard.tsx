@@ -1,29 +1,24 @@
 import { Link } from "react-router-dom";
-import { IndianRupee, CalendarRange, Users, Radar, ArrowRight } from "lucide-react";
+import { IndianRupee, CalendarRange, Users, Radar, ArrowRight, UserRound, Car } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { cn } from "@shared/lib/utils";
 import { formatMoney, formatDate } from "@shared/lib/format";
-import { useStats, useBookings, useTriggered } from "../api/admin.api";
+import { useStats, useBookings, useTriggered, useReports } from "../api/admin.api";
 import { StatCard } from "../components/StatCard";
 import { BarChart } from "../components/BarChart";
 import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
-
-const WEEKLY_REVENUE = [
-  { label: "Mon", value: 18400 },
-  { label: "Tue", value: 22100 },
-  { label: "Wed", value: 16800 },
-  { label: "Thu", value: 26500 },
-  { label: "Fri", value: 31200 },
-  { label: "Sat", value: 38900 },
-  { label: "Sun", value: 29700 },
-];
 
 export function Dashboard() {
   const { data: stats } = useStats();
   const { data: bookings = [] } = useBookings();
   const { data: triggered = [] } = useTriggered();
+  const { data: reports } = useReports();
 
   const recent = bookings.slice(0, 5);
+  const weeklyRevenue = (reports?.revenueTrend ?? []).slice(-7).map((d) => ({
+    label: new Date(d.date).toLocaleDateString("en-IN", { weekday: "short" }),
+    value: d.revenue,
+  }));
 
   return (
     <div className="space-y-8">
@@ -32,9 +27,11 @@ export function Dashboard() {
         <p className="mt-1 text-muted">Operations overview at a glance.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <StatCard icon={UserRound} label="Total users" value={String(stats?.totalUsers ?? 0)} />
         <StatCard icon={IndianRupee} label="Revenue (completed)" value={formatMoney(stats?.revenue ?? 0)} delta="12.4% vs last week" trend="up" />
         <StatCard icon={CalendarRange} label="Active bookings" value={String(stats?.activeBookings ?? 0)} delta="today" trend="up" />
+        <StatCard icon={Car} label="Active services" value={String(stats?.activeServices ?? 0)} delta="in progress" trend="up" />
         <StatCard icon={Users} label="Agents online" value={`${stats?.agentsOnline ?? 0}/${stats?.agentsTotal ?? 0}`} />
         <StatCard icon={Radar} label="Alerts triggered" value={String(stats?.alertsTriggered ?? 0)} delta="this week" trend="up" />
       </div>
@@ -48,10 +45,10 @@ export function Dashboard() {
               <p className="text-sm text-muted">Last 7 days</p>
             </div>
             <p className="font-display text-xl font-semibold text-ink">
-              {formatMoney(WEEKLY_REVENUE.reduce((s, d) => s + d.value, 0))}
+              {formatMoney(weeklyRevenue.reduce((s, d) => s + d.value, 0))}
             </p>
           </div>
-          <BarChart data={WEEKLY_REVENUE} format={formatMoney} />
+          <BarChart data={weeklyRevenue} format={formatMoney} />
         </GlassCard>
 
         {/* alerts triggered */}

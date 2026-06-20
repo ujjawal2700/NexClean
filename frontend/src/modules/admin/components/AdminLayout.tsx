@@ -4,6 +4,8 @@ import {
   LayoutDashboard,
   CalendarRange,
   Users,
+  Contact2,
+  Wallet,
   Tag,
   Radar,
   Megaphone,
@@ -12,6 +14,7 @@ import {
   LogOut,
   Menu,
   X,
+  MapPin,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@shared/lib/utils";
@@ -22,11 +25,14 @@ import { useAdminSession } from "../store/sessionStore";
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/admin/bookings", label: "Bookings", icon: CalendarRange, end: false },
+  { to: "/admin/customers", label: "Customers", icon: Contact2, end: false },
   { to: "/admin/agents", label: "Agents", icon: Users, end: false },
+  { to: "/admin/payments", label: "Payments", icon: Wallet, end: false },
   { to: "/admin/pricing", label: "Pricing", icon: Tag, end: false },
   { to: "/admin/area-alerts", label: "Area Alerts", icon: Radar, end: false },
   { to: "/admin/notifications", label: "Notifications", icon: Megaphone, end: false },
   { to: "/admin/plans", label: "Plans", icon: CreditCard, end: false },
+  { to: "/admin/locations", label: "Locations", icon: MapPin, end: false },
   { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false },
 ];
 

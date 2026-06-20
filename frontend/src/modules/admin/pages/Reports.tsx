@@ -1,32 +1,40 @@
-import { IndianRupee, CheckCircle2, XCircle, Star } from "lucide-react";
+import { IndianRupee, CheckCircle2, XCircle, Star, Users, Repeat } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { formatMoney } from "@shared/lib/format";
-import { useBookings, useAgents } from "../api/admin.api";
-import { VEHICLE_LABEL, VEHICLE_TYPES } from "../types";
+import { useBookings, useAgents, useReports } from "../api/admin.api";
+import { VEHICLE_LABEL } from "../types";
 import { StatCard } from "../components/StatCard";
 import { BarChart } from "../components/BarChart";
+
+function dayLabel(iso: string, everyNth: number, index: number, total: number) {
+  if (index !== 0 && index !== total - 1 && index % everyNth !== 0) return "";
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
 
 export function Reports() {
   const { data: bookings = [] } = useBookings();
   const { data: agents = [] } = useAgents();
-
-  const revenueByVehicle = VEHICLE_TYPES.map((t) => ({
-    label: VEHICLE_LABEL[t].slice(0, 4),
-    value: bookings.filter((b) => b.vehicleType === t && b.status === "completed").reduce((s, b) => s + b.price, 0),
-  }));
+  const { data: reports } = useReports();
 
   const completed = bookings.filter((b) => b.status === "completed").length;
   const cancelled = bookings.filter((b) => b.status === "cancelled").length;
   const revenue = bookings.filter((b) => b.status === "completed").reduce((s, b) => s + b.price, 0);
   const avgRating = agents.length ? (agents.reduce((s, a) => s + a.rating, 0) / agents.length).toFixed(1) : "0.0";
 
-  // top societies by booking count
-  const societyCounts = bookings.reduce<Record<string, number>>((acc, b) => {
-    acc[b.society] = (acc[b.society] ?? 0) + 1;
-    return acc;
-  }, {});
-  const topSocieties = Object.entries(societyCounts).sort((a, b) => b[1] - a[1]);
-  const maxSociety = Math.max(...topSocieties.map(([, n]) => n), 1);
+  if (!reports) {
+    return <p className="text-muted">Loading reports…</p>;
+  }
+
+  const trendBars = reports.revenueTrend.map((d, i) => ({
+    label: dayLabel(d.date, 5, i, reports.revenueTrend.length),
+    value: d.revenue,
+  }));
+  const revenueByVehicle = reports.revenueByVehicle.map((v) => ({
+    label: VEHICLE_LABEL[v.vehicleType].slice(0, 4),
+    value: v.revenue,
+  }));
+  const maxSociety = Math.max(...reports.topSocieties.map((s) => s.count), 1);
+  const { customerRetention: retention } = reports;
 
   return (
     <div className="space-y-8">
@@ -42,6 +50,14 @@ export function Reports() {
         <StatCard icon={Star} label="Avg agent rating" value={`${avgRating}★`} />
       </div>
 
+      <GlassCard>
+        <p className="font-display text-lg font-semibold text-ink">Revenue trend</p>
+        <p className="text-sm text-muted">Last 30 days, completed bookings</p>
+        <div className="mt-6">
+          <BarChart data={trendBars} format={formatMoney} />
+        </div>
+      </GlassCard>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <GlassCard>
           <p className="font-display text-lg font-semibold text-ink">Revenue by vehicle type</p>
@@ -55,20 +71,86 @@ export function Reports() {
           <p className="font-display text-lg font-semibold text-ink">Top societies</p>
           <p className="text-sm text-muted">By booking volume</p>
           <div className="mt-6 space-y-4">
-            {topSocieties.map(([society, count]) => (
-              <div key={society}>
+            {reports.topSocieties.map((s) => (
+              <div key={s.society}>
                 <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="font-medium text-ink">{society}</span>
-                  <span className="text-muted">{count} bookings</span>
+                  <span className="font-medium text-ink">{s.society}</span>
+                  <span className="text-muted">{s.count} bookings</span>
                 </div>
                 <div className="h-2.5 overflow-hidden rounded-full bg-surface-muted">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
-                    style={{ width: `${(count / maxSociety) * 100}%` }}
+                    style={{ width: `${(s.count / maxSociety) * 100}%` }}
                   />
                 </div>
               </div>
             ))}
+            {reports.topSocieties.length === 0 && <p className="text-sm text-muted">No bookings yet.</p>}
+          </div>
+        </GlassCard>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        <GlassCard>
+          <p className="font-display text-lg font-semibold text-ink">Agent performance</p>
+          <p className="text-sm text-muted">Revenue generated and completion rate</p>
+          <div className="mt-5 -mx-2 overflow-x-auto">
+            <table className="w-full min-w-[480px] text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-muted">
+                  <th className="px-2 py-2 font-medium">Agent</th>
+                  <th className="px-2 py-2 font-medium">Rating</th>
+                  <th className="px-2 py-2 font-medium">Completed</th>
+                  <th className="px-2 py-2 font-medium">Completion rate</th>
+                  <th className="px-2 py-2 text-right font-medium">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.agentPerformance.map((a) => (
+                  <tr key={a.id} className="border-t border-line/70">
+                    <td className="px-2 py-3 font-medium text-ink">{a.name}</td>
+                    <td className="px-2 py-3 text-ink-soft">{a.rating}★</td>
+                    <td className="px-2 py-3 text-ink-soft">{a.jobsCompleted}</td>
+                    <td className="px-2 py-3 text-ink-soft">{a.completionRate}%</td>
+                    <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(a.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {reports.agentPerformance.length === 0 && <p className="px-2 py-3 text-sm text-muted">No agents yet.</p>}
+          </div>
+        </GlassCard>
+
+        <GlassCard>
+          <p className="font-display text-lg font-semibold text-ink">Customer retention</p>
+          <p className="text-sm text-muted">Repeat booking behaviour</p>
+          <div className="mt-5 grid grid-cols-2 gap-4">
+            <div className="rounded-2xl border border-line bg-surface/60 p-4">
+              <p className="flex items-center gap-1.5 font-display text-2xl font-semibold text-ink">
+                <Repeat className="size-4 text-primary" /> {retention.repeatRate}%
+              </p>
+              <p className="mt-1 text-xs text-muted">Repeat rate</p>
+            </div>
+            <div className="rounded-2xl border border-line bg-surface/60 p-4">
+              <p className="flex items-center gap-1.5 font-display text-2xl font-semibold text-ink">
+                <Users className="size-4 text-primary" /> {retention.totalCustomers}
+              </p>
+              <p className="mt-1 text-xs text-muted">Total customers</p>
+            </div>
+            <div className="rounded-2xl border border-line bg-surface/60 p-4">
+              <p className="font-display text-2xl font-semibold text-ink">{retention.repeatCustomers}</p>
+              <p className="mt-1 text-xs text-muted">Repeat customers</p>
+            </div>
+            <div className="rounded-2xl border border-line bg-surface/60 p-4">
+              <p className="font-display text-2xl font-semibold text-ink">{retention.newThisMonth}</p>
+              <p className="mt-1 text-xs text-muted">
+                New this month{" "}
+                <span className={retention.newThisMonth >= retention.newLastMonth ? "text-emerald-600" : "text-red-500"}>
+                  ({retention.newThisMonth >= retention.newLastMonth ? "+" : ""}
+                  {retention.newThisMonth - retention.newLastMonth} vs last month)
+                </span>
+              </p>
+            </div>
           </div>
         </GlassCard>
       </div>

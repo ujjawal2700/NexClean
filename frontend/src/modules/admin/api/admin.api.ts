@@ -11,6 +11,16 @@ import type {
   TriggeredAlert,
   Campaign,
   AgentStatus,
+  AdminCustomer,
+  AdminCustomerDetail,
+  CustomerActivity,
+  AdminPayment,
+  PaymentStats,
+  BookingStatus,
+  ServiceCity,
+  ServiceZone,
+  AdminReports,
+  AudienceSizes,
 } from "../types";
 
 const keys = {
@@ -22,6 +32,15 @@ const keys = {
   campaigns: ["admin", "campaigns"] as const,
   settings: ["admin", "alert-settings"] as const,
   triggered: ["admin", "triggered"] as const,
+  customers: ["admin", "customers"] as const,
+  customer: (id: string) => ["admin", "customers", id] as const,
+  customerActivity: (id: string) => ["admin", "customers", id, "activity"] as const,
+  payments: ["admin", "payments"] as const,
+  paymentStats: ["admin", "payments", "stats"] as const,
+  cities: ["admin", "cities"] as const,
+  zones: ["admin", "zones"] as const,
+  reports: ["admin", "reports"] as const,
+  audienceSizes: ["admin", "campaigns", "audience-sizes"] as const,
 };
 
 function useAuthedQuery<T>(key: readonly unknown[], path: string) {
@@ -51,6 +70,18 @@ export const usePlans = () => useAuthedQuery<AdminPlan[]>(keys.plans, "/admin/pl
 export const useCampaigns = () => useAuthedQuery<Campaign[]>(keys.campaigns, "/admin/campaigns");
 export const useAlertSettings = () => useAuthedQuery<AlertSettings>(keys.settings, "/area-alerts/settings");
 export const useTriggered = () => useAuthedQuery<TriggeredAlert[]>(keys.triggered, "/area-alerts/triggered");
+export const useCustomers = () => useAuthedQuery<AdminCustomer[]>(keys.customers, "/admin/customers");
+export const useCustomer = (id: string) =>
+  useAuthedQuery<AdminCustomerDetail>(keys.customer(id), `/admin/customers/${id}`);
+export const useCustomerActivity = (id: string) =>
+  useAuthedQuery<CustomerActivity>(keys.customerActivity(id), `/admin/customers/${id}/activity`);
+export const usePayments = () => useAuthedQuery<AdminPayment[]>(keys.payments, "/admin/payments");
+export const usePaymentStats = () => useAuthedQuery<PaymentStats>(keys.paymentStats, "/admin/payments/stats");
+export const useCities = () => useAuthedQuery<ServiceCity[]>(keys.cities, "/admin/cities");
+export const useZones = () => useAuthedQuery<ServiceZone[]>(keys.zones, "/admin/zones");
+export const useReports = () => useAuthedQuery<AdminReports>(keys.reports, "/admin/reports");
+export const useAudienceSizes = () =>
+  useAuthedQuery<AudienceSizes>(keys.audienceSizes, "/admin/campaigns/audience-sizes");
 
 /* ------------------------------ Mutations -------------------------------- */
 
@@ -97,5 +128,146 @@ export function useSendCampaign() {
     mutationFn: (vars: { title: string; body: string; audience: string }) =>
       apiFetch<Campaign>("/admin/campaigns", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.campaigns }),
+  });
+}
+
+export function useSetBookingStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; status: BookingStatus }) =>
+      apiFetch<AdminBooking>(`/admin/bookings/${vars.id}/status`, { method: "PATCH", body: { status: vars.status } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.bookings });
+      qc.invalidateQueries({ queryKey: keys.stats });
+    },
+  });
+}
+
+export function useAssignBooking() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; agentId: string }) =>
+      apiFetch<AdminBooking>(`/admin/bookings/${vars.id}/assign`, { method: "PATCH", body: { agentId: vars.agentId } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.bookings }),
+  });
+}
+
+export function useAutoAssignBooking() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<AdminBooking>(`/admin/bookings/${id}/auto-assign`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.bookings }),
+  });
+}
+
+export function useRefundPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; amount?: number; reason?: string }) =>
+      apiFetch<AdminPayment>(`/admin/payments/${vars.id}/refund`, {
+        method: "PATCH",
+        body: { amount: vars.amount, reason: vars.reason },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.payments });
+      qc.invalidateQueries({ queryKey: keys.paymentStats });
+    },
+  });
+}
+
+export function useSettlePayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<AdminPayment>(`/admin/payments/${id}/settle`, { method: "PATCH" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.payments });
+      qc.invalidateQueries({ queryKey: keys.paymentStats });
+    },
+  });
+}
+
+export function useUpdateAgentArea() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; area: string }) =>
+      apiFetch<AdminAgent>(`/admin/agents/${vars.id}/area`, { method: "PATCH", body: { area: vars.area } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.agents }),
+  });
+}
+
+export function useCreatePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { name: string; price: number; washesPerMonth: number }) =>
+      apiFetch<AdminPlan>("/admin/plans", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.plans }),
+  });
+}
+
+export function useUpdatePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; name?: string; price?: number; washesPerMonth?: number; active?: boolean }) =>
+      apiFetch<AdminPlan>(`/admin/plans/${vars.id}`, { method: "PATCH", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.plans }),
+  });
+}
+
+export function useDeletePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<null>(`/admin/plans/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.plans }),
+  });
+}
+
+export function useCreateCity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { name: string }) => apiFetch<ServiceCity>("/admin/cities", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.cities }),
+  });
+}
+
+export function useUpdateCity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; name?: string; active?: boolean }) =>
+      apiFetch<ServiceCity>(`/admin/cities/${vars.id}`, { method: "PATCH", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.cities }),
+  });
+}
+
+export function useDeleteCity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<null>(`/admin/cities/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.cities }),
+  });
+}
+
+export function useCreateZone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { name: string; cityId: string }) =>
+      apiFetch<ServiceZone>("/admin/zones", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.zones }),
+  });
+}
+
+export function useUpdateZone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; name?: string; active?: boolean; cityId?: string }) =>
+      apiFetch<ServiceZone>(`/admin/zones/${vars.id}`, { method: "PATCH", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.zones }),
+  });
+}
+
+export function useDeleteZone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<null>(`/admin/zones/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.zones }),
   });
 }

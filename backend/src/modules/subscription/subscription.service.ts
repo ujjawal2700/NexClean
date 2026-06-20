@@ -1,12 +1,12 @@
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
-import { PLANS, type PlanId } from "../catalog/catalog.data";
+import { isValidActivePlan } from "../catalog/plan.service";
 
-export function isPlanId(value: string): value is PlanId {
-  return PLANS.some((p) => p.id === value);
+export async function isPlanId(value: string): Promise<boolean> {
+  return isValidActivePlan(value);
 }
 
-export async function subscribe(userId: string, planId: PlanId) {
+export async function subscribe(userId: string, planId: string) {
   const user = await User.findById(userId);
   if (!user) throw ApiError.notFound("User not found");
   user.activePlan = planId;

@@ -1,5 +1,5 @@
 import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
-import { VEHICLE_TYPES, PLANS } from "../catalog/catalog.data";
+import { VEHICLE_TYPES } from "../catalog/catalog.data";
 
 /** Map _id → id and drop internal fields when serializing subdocuments. */
 const subdocJson = {
@@ -38,7 +38,7 @@ const userSchema = new Schema(
     role: { type: String, enum: ["customer", "agent", "admin"], default: "customer" },
     vehicles: { type: [vehicleSchema], default: [] },
     addresses: { type: [addressSchema], default: [] },
-    activePlan: { type: String, enum: [...PLANS.map((p) => p.id), null], default: null },
+    activePlan: { type: String, default: null },
     deviceTokens: { type: [String], default: [] },
 
     // Agent profile (only meaningful when role === "agent")

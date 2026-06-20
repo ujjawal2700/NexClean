@@ -8,17 +8,45 @@ export const adminRouter = Router();
 adminRouter.use(requireRole("admin"));
 
 adminRouter.get("/stats", asyncHandler(c.stats));
+adminRouter.get("/reports", asyncHandler(c.reports));
 
 adminRouter.get("/bookings", asyncHandler(c.bookings));
 adminRouter.patch("/bookings/:id/cancel", asyncHandler(c.cancelBooking));
+adminRouter.patch("/bookings/:id/status", asyncHandler(c.setBookingStatus));
+adminRouter.patch("/bookings/:id/assign", asyncHandler(c.assignBooking));
+adminRouter.post("/bookings/:id/auto-assign", asyncHandler(c.autoAssignBooking));
 
 adminRouter.get("/agents", asyncHandler(c.agents));
 adminRouter.patch("/agents/:id/status", asyncHandler(c.setAgentStatus));
+adminRouter.patch("/agents/:id/area", asyncHandler(c.updateAgentArea));
+
+adminRouter.get("/customers", asyncHandler(c.customers));
+adminRouter.get("/customers/:id", asyncHandler(c.customerDetail));
+adminRouter.get("/customers/:id/activity", asyncHandler(c.customerActivity));
+
+adminRouter.get("/payments", asyncHandler(c.payments));
+adminRouter.get("/payments/stats", asyncHandler(c.paymentStats));
+adminRouter.patch("/payments/:id/refund", asyncHandler(c.refundPayment));
+adminRouter.patch("/payments/:id/settle", asyncHandler(c.settlePayment));
 
 adminRouter.get("/pricing", asyncHandler(c.pricing));
 adminRouter.put("/pricing", asyncHandler(c.updatePricingCtl));
 
 adminRouter.get("/plans", asyncHandler(c.plans));
+adminRouter.post("/plans", asyncHandler(c.createPlan));
+adminRouter.patch("/plans/:id", asyncHandler(c.updatePlan));
+adminRouter.delete("/plans/:id", asyncHandler(c.deletePlan));
+
+adminRouter.get("/cities", asyncHandler(c.cities));
+adminRouter.post("/cities", asyncHandler(c.createCity));
+adminRouter.patch("/cities/:id", asyncHandler(c.updateCity));
+adminRouter.delete("/cities/:id", asyncHandler(c.deleteCity));
+
+adminRouter.get("/zones", asyncHandler(c.zones));
+adminRouter.post("/zones", asyncHandler(c.createZone));
+adminRouter.patch("/zones/:id", asyncHandler(c.updateZone));
+adminRouter.delete("/zones/:id", asyncHandler(c.deleteZone));
 
 adminRouter.get("/campaigns", asyncHandler(c.campaigns));
+adminRouter.get("/campaigns/audience-sizes", asyncHandler(c.campaignAudienceSizes));
 adminRouter.post("/campaigns", asyncHandler(c.sendCampaign));

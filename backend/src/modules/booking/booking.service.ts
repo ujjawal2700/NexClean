@@ -1,8 +1,7 @@
 import { Booking } from "./booking.model";
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
-import { getPackage } from "../catalog/catalog.data";
-import { getPrice } from "../pricing/pricing.service";
+import { getPrice, getPackageRecord } from "../pricing/pricing.service";
 import { notifyUser } from "../notification/notification.service";
 import type { CreateBookingInput } from "./booking.validation";
 
@@ -11,8 +10,8 @@ export async function listBookings(userId: string) {
 }
 
 export async function createBooking(userId: string, input: CreateBookingInput) {
-  const pkg = getPackage(input.packageId);
-  if (!pkg) throw ApiError.badRequest("Unknown package");
+  const pkg = await getPackageRecord(input.packageId);
+  if (!pkg || pkg.active === false) throw ApiError.badRequest("Unknown package");
 
   // Price is computed server-side from the live pricing — never trusted from the client.
   const price = await getPrice(input.vehicleType, pkg.id);

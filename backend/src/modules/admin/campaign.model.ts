@@ -6,6 +6,8 @@ const campaignSchema = new Schema(
     body: { type: String, required: true },
     audience: { type: String, default: "All customers" },
     sentCount: { type: Number, default: 0 },
+    pushDelivered: { type: Number, default: 0 },
+    inAppOnly: { type: Number, default: 0 },
   },
   {
     timestamps: true,

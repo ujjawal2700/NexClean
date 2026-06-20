@@ -1,16 +1,17 @@
 import { useState } from "react";
-import { Megaphone, Send, Check, Users } from "lucide-react";
+import { Megaphone, Send, Check, Users, Bell, Smartphone } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { formatDate } from "@shared/lib/format";
-import { useCampaigns, useSendCampaign } from "../api/admin.api";
+import { useCampaigns, useSendCampaign, useAudienceSizes } from "../api/admin.api";
 
 const AUDIENCES = ["All customers", "Active customers", "Lapsed customers", "Subscribers"];
 
 export function Notifications() {
   const { data: campaigns = [] } = useCampaigns();
+  const { data: audienceSizes } = useAudienceSizes();
   const sendCampaign = useSendCampaign();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -66,6 +67,11 @@ export function Notifications() {
                   )}
                 >
                   {a}
+                  {audienceSizes && (
+                    <span className="ml-1 text-xs opacity-70">
+                      ({(audienceSizes[a] ?? 0).toLocaleString("en-IN")})
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -121,6 +127,14 @@ export function Notifications() {
                 <p className="font-medium text-ink">{c.title}</p>
                 <p className="truncate text-sm text-muted">{c.body}</p>
                 <p className="mt-1 text-xs text-muted">{c.audience} · {formatDate(c.createdAt)}</p>
+                <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted">
+                  <span className="inline-flex items-center gap-1">
+                    <Bell className="size-3" /> {c.pushDelivered.toLocaleString("en-IN")} push
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Smartphone className="size-3" /> {c.inAppOnly.toLocaleString("en-IN")} in-app only
+                  </span>
+                </div>
               </div>
               <span className="shrink-0 text-sm font-semibold text-primary">
                 {c.sentCount.toLocaleString("en-IN")}

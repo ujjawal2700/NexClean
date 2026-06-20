@@ -1,9 +1,57 @@
-import { Star, MapPin, BadgeCheck, Ban, RotateCcw, CreditCard } from "lucide-react";
+import { useState } from "react";
+import { Star, MapPin, BadgeCheck, Ban, RotateCcw, CreditCard, Pencil, Check, X } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
-import { useAgents, useSetAgentStatus } from "../api/admin.api";
+import { useAgents, useSetAgentStatus, useUpdateAgentArea } from "../api/admin.api";
 import { AGENT_STATUS_STYLE } from "../lib/status";
+import type { AdminAgent } from "../types";
+
+function AreaEditor({ agent }: { agent: AdminAgent }) {
+  const updateArea = useUpdateAgentArea();
+  const [editing, setEditing] = useState(false);
+  const [area, setArea] = useState(agent.area);
+
+  if (!editing) {
+    return (
+      <p className="flex items-center gap-1.5 text-sm text-muted">
+        <MapPin className="size-4 text-primary" /> {agent.area}
+        <button
+          onClick={() => {
+            setArea(agent.area);
+            setEditing(true);
+          }}
+          aria-label="Edit area"
+          className="ml-auto text-muted hover:text-ink"
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <MapPin className="size-4 shrink-0 text-primary" />
+      <input
+        value={area}
+        onChange={(e) => setArea(e.target.value)}
+        className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-sm text-ink outline-none focus:border-primary/50"
+      />
+      <button
+        disabled={updateArea.isPending || !area.trim()}
+        onClick={() => updateArea.mutate({ id: agent.id, area: area.trim() }, { onSuccess: () => setEditing(false) })}
+        aria-label="Save area"
+        className="text-emerald-600 disabled:opacity-50"
+      >
+        <Check className="size-4" />
+      </button>
+      <button onClick={() => setEditing(false)} aria-label="Cancel" className="text-muted hover:text-ink">
+        <X className="size-4" />
+      </button>
+    </div>
+  );
+}
 
 export function Agents() {
   const { data: agents = [] } = useAgents();
@@ -59,9 +107,9 @@ export function Agents() {
               </div>
             </div>
 
-            <p className="mt-3 flex items-center gap-1.5 text-sm text-muted">
-              <MapPin className="size-4 text-primary" /> {a.area}
-            </p>
+            <div className="mt-3">
+              <AreaEditor agent={a} />
+            </div>
 
             {(a.aadharFrontUrl || a.aadharBackUrl) && (
               <div className="mt-3 rounded-2xl border border-line bg-surface/60 p-3">

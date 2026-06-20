@@ -1,11 +1,19 @@
 import { useState, useEffect } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Plus, Trash2 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { formatMoney } from "@shared/lib/format";
 import { usePricing, useUpdatePricing } from "../api/admin.api";
-import { VEHICLE_LABEL, VEHICLE_TYPES, type Pricing as PricingType } from "../types";
+import { VEHICLE_LABEL, VEHICLE_TYPES, type Pricing as PricingType, type PricingPackage } from "../types";
+
+function slugify(name: string) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
 
 export function Pricing() {
   const { data: serverPricing } = usePricing();
@@ -23,8 +31,23 @@ export function Pricing() {
 
   const setBase = (type: string, value: number) =>
     setDraft((d) => (d ? { ...d, base: { ...d.base, [type]: value } } : d));
-  const setFactor = (id: string, factor: number) =>
-    setDraft((d) => (d ? { ...d, packages: d.packages.map((p) => (p.id === id ? { ...p, factor } : p)) } : d));
+  const patchPackage = (id: string, patch: Partial<PricingPackage>) =>
+    setDraft((d) => (d ? { ...d, packages: d.packages.map((p) => (p.id === id ? { ...p, ...patch } : p)) } : d));
+  const removePackage = (id: string) =>
+    setDraft((d) => (d ? { ...d, packages: d.packages.filter((p) => p.id !== id) } : d));
+  const addPackage = () =>
+    setDraft((d) => {
+      if (!d) return d;
+      let name = "New package";
+      let id = slugify(name);
+      let i = 1;
+      while (d.packages.some((p) => p.id === id)) {
+        i += 1;
+        name = `New package ${i}`;
+        id = slugify(name);
+      }
+      return { ...d, packages: [...d.packages, { id, name, factor: 1, durationMinutes: null, active: true }] };
+    });
 
   const save = () => {
     update.mutate(draft, {
@@ -66,13 +89,28 @@ export function Pricing() {
       </GlassCard>
 
       <GlassCard>
-        <p className="font-display text-lg font-semibold text-ink">Package multipliers</p>
-        <p className="mt-1 text-sm text-muted">Final price = base × multiplier (rounded to ₹10).</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-display text-lg font-semibold text-ink">Service packages</p>
+            <p className="mt-1 text-sm text-muted">Final price = base × multiplier (rounded to ₹10).</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={addPackage}>
+            <Plus className="size-4" /> Add package
+          </Button>
+        </div>
         <div className="mt-5 space-y-3">
           {draft.packages.map((p) => (
-            <div key={p.id} className="flex flex-wrap items-center gap-4 rounded-2xl border border-line bg-surface/60 p-4">
-              <div className="min-w-40 flex-1">
-                <p className="font-display font-semibold text-ink">{p.name}</p>
+            <div
+              key={p.id}
+              className={`flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface/60 p-4 ${p.active === false ? "opacity-50" : ""}`}
+            >
+              <div className="min-w-40 flex-1 space-y-1">
+                <input
+                  type="text"
+                  value={p.name}
+                  onChange={(e) => patchPackage(p.id, { name: e.target.value })}
+                  className="h-9 w-full rounded-lg border border-line bg-surface px-2 font-display font-semibold text-ink outline-none focus:border-primary/50"
+                />
                 <p className="text-xs text-muted">
                   e.g. Sedan → {formatMoney(Math.round(((draft.base.sedan ?? 0) * p.factor) / 10) * 10)}
                 </p>
@@ -83,12 +121,35 @@ export function Pricing() {
                   type="number"
                   step="0.1"
                   value={p.factor}
-                  onChange={(e) => setFactor(p.id, Number(e.target.value) || 0)}
-                  className="h-10 w-24 rounded-xl border border-line bg-surface px-3 text-ink outline-none focus:border-primary/50"
+                  onChange={(e) => patchPackage(p.id, { factor: Number(e.target.value) || 0 })}
+                  className="h-10 w-20 rounded-xl border border-line bg-surface px-3 text-ink outline-none focus:border-primary/50"
                 />
               </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  value={p.durationMinutes ?? ""}
+                  placeholder="min"
+                  onChange={(e) =>
+                    patchPackage(p.id, { durationMinutes: e.target.value ? Number(e.target.value) : null })
+                  }
+                  className="h-10 w-20 rounded-xl border border-line bg-surface px-3 text-ink outline-none focus:border-primary/50"
+                />
+                <span className="text-xs text-muted">min</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => patchPackage(p.id, { active: p.active === false })}
+              >
+                {p.active === false ? "Inactive" : "Active"}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => removePackage(p.id)}>
+                <Trash2 className="size-4" />
+              </Button>
             </div>
           ))}
+          {draft.packages.length === 0 && <p className="text-sm text-muted">No packages — add one above.</p>}
         </div>
       </GlassCard>
 

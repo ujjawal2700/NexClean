@@ -4,7 +4,10 @@ import { Schema, model } from "mongoose";
 const pricingSchema = new Schema(
   {
     base: { type: Object, required: true }, // { hatchback: 299, ... }
-    packages: { type: [{ id: String, name: String, factor: Number }], default: [] },
+    packages: {
+      type: [{ id: String, name: String, factor: Number, durationMinutes: Number, active: Boolean }],
+      default: [],
+    },
   },
   {
     timestamps: true,

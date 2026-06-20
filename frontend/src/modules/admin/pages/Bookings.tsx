@@ -1,13 +1,20 @@
 import { useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Wand2 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { formatMoney, formatDate } from "@shared/lib/format";
-import { useBookings, useCancelBooking } from "../api/admin.api";
-import { VEHICLE_LABEL, type BookingStatus } from "../types";
-import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
+import {
+  useBookings,
+  useCancelBooking,
+  useAgents,
+  useAssignBooking,
+  useAutoAssignBooking,
+  useSetBookingStatus,
+} from "../api/admin.api";
+import { VEHICLE_LABEL, type BookingStatus, type AdminBooking } from "../types";
+import { BOOKING_STATUS_STYLE } from "../lib/status";
 
 const FILTERS: { id: BookingStatus | "all"; label: string }[] = [
   { id: "all", label: "All" },
@@ -16,6 +23,71 @@ const FILTERS: { id: BookingStatus | "all"; label: string }[] = [
   { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
 ];
+
+const STATUS_OPTIONS: { id: BookingStatus; label: string }[] = [
+  { id: "upcoming", label: "Upcoming" },
+  { id: "in_progress", label: "In progress" },
+  { id: "completed", label: "Completed" },
+  { id: "cancelled", label: "Cancelled" },
+];
+
+function AgentCell({ booking }: { booking: AdminBooking }) {
+  const { data: agents = [] } = useAgents();
+  const assign = useAssignBooking();
+  const autoAssign = useAutoAssignBooking();
+  const verifiedAgents = agents.filter((a) => a.status === "verified");
+
+  if (booking.status === "cancelled" || booking.status === "completed") {
+    return <span className="text-ink-soft">{booking.agentName ?? "—"}</span>;
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <select
+        value={booking.assignedAgentId ?? ""}
+        onChange={(e) => e.target.value && assign.mutate({ id: booking.id, agentId: e.target.value })}
+        disabled={assign.isPending}
+        className="h-9 rounded-xl border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-primary/50"
+      >
+        <option value="">{booking.agentName ?? "Unassigned"}</option>
+        {verifiedAgents.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name}
+          </option>
+        ))}
+      </select>
+      <button
+        title="Auto-assign nearest available agent"
+        disabled={autoAssign.isPending}
+        onClick={() => autoAssign.mutate(booking.id)}
+        className="grid size-8 shrink-0 place-items-center rounded-xl border border-line text-muted transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50"
+      >
+        <Wand2 className="size-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function StatusCell({ booking }: { booking: AdminBooking }) {
+  const setStatus = useSetBookingStatus();
+  return (
+    <select
+      value={booking.status}
+      onChange={(e) => setStatus.mutate({ id: booking.id, status: e.target.value as BookingStatus })}
+      disabled={setStatus.isPending}
+      className={cn(
+        "h-8 rounded-pill border-none px-2.5 text-xs font-medium outline-none",
+        BOOKING_STATUS_STYLE[booking.status],
+      )}
+    >
+      {STATUS_OPTIONS.map((s) => (
+        <option key={s.id} value={s.id}>
+          {s.label}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 export function Bookings() {
   const { data: bookings = [] } = useBookings();
@@ -39,7 +111,7 @@ export function Bookings() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-3xl text-ink">Bookings</h1>
-        <p className="mt-1 text-muted">{bookings.length} total · manage and resolve.</p>
+        <p className="mt-1 text-muted">{bookings.length} total · assign agents and control status.</p>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -69,7 +141,7 @@ export function Bookings() {
       </div>
 
       <GlassCard className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[860px] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-muted">
               <th className="px-2 py-2 font-medium">Booking</th>
@@ -92,11 +164,11 @@ export function Bookings() {
                 <td className="px-2 py-3 text-ink-soft">{b.customerName}</td>
                 <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)} · {b.slot}</td>
                 <td className="px-2 py-3 text-ink-soft">{b.society}</td>
-                <td className="px-2 py-3 text-ink-soft">{b.agentName ?? "—"}</td>
                 <td className="px-2 py-3">
-                  <span className={cn("rounded-pill px-2.5 py-0.5 text-xs font-medium", BOOKING_STATUS_STYLE[b.status])}>
-                    {BOOKING_STATUS_LABEL[b.status]}
-                  </span>
+                  <AgentCell booking={b} />
+                </td>
+                <td className="px-2 py-3">
+                  <StatusCell booking={b} />
                 </td>
                 <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(b.price)}</td>
                 <td className="px-2 py-3 text-right">
