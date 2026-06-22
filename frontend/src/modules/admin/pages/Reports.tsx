@@ -1,5 +1,7 @@
-import { IndianRupee, CheckCircle2, XCircle, Star, Users, Repeat } from "lucide-react";
+import { IndianRupee, CheckCircle2, XCircle, Star, Users, Repeat, AlertTriangle, RefreshCw } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
+import { Button } from "@shared/ui/Button";
+import { Skeleton, SkeletonStatCards } from "@shared/ui/Skeleton";
 import { formatMoney } from "@shared/lib/format";
 import { useBookings, useAgents, useReports } from "../api/admin.api";
 import { VEHICLE_LABEL } from "../types";
@@ -14,15 +16,53 @@ function dayLabel(iso: string, everyNth: number, index: number, total: number) {
 export function Reports() {
   const { data: bookings = [] } = useBookings();
   const { data: agents = [] } = useAgents();
-  const { data: reports } = useReports();
+  const { data: reports, isLoading, isError, refetch, isRefetching } = useReports();
 
   const completed = bookings.filter((b) => b.status === "completed").length;
   const cancelled = bookings.filter((b) => b.status === "cancelled").length;
   const revenue = bookings.filter((b) => b.status === "completed").reduce((s, b) => s + b.price, 0);
   const avgRating = agents.length ? (agents.reduce((s, a) => s + a.rating, 0) / agents.length).toFixed(1) : "0.0";
 
-  if (!reports) {
-    return <p className="text-muted">Loading reports…</p>;
+  if (isError) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="font-display text-3xl text-ink">Reports &amp; Analytics</h1>
+          <p className="mt-1 text-muted">Business insights from your operations.</p>
+        </div>
+        <GlassCard className="flex flex-col items-center gap-3 py-16 text-center">
+          <span className="grid size-12 place-items-center rounded-2xl bg-red-500/10 text-red-500">
+            <AlertTriangle className="size-6" />
+          </span>
+          <p className="font-display text-lg font-semibold text-ink">Couldn't load reports</p>
+          <p className="max-w-sm text-sm text-muted">
+            The reports service didn't respond. Check that the API is reachable, then try again.
+          </p>
+          <Button variant="outline" size="sm" disabled={isRefetching} onClick={() => refetch()}>
+            <RefreshCw className="size-4" /> {isRefetching ? "Retrying…" : "Retry"}
+          </Button>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  if (isLoading || !reports) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="font-display text-3xl text-ink">Reports &amp; Analytics</h1>
+          <p className="mt-1 text-muted">Business insights from your operations.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <SkeletonStatCards count={4} />
+        </div>
+        <GlassCard>
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="mt-2 h-4 w-56" />
+          <Skeleton className="mt-6 h-40 w-full" />
+        </GlassCard>
+      </div>
+    );
   }
 
   const trendBars = reports.revenueTrend.map((d, i) => ({

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Plus, Trash2, Check, GripVertical } from "lucide-react";
+import { Plus, Trash2, Check, GripVertical, AlertTriangle, RefreshCw } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
+import { Skeleton, SkeletonText } from "@shared/ui/Skeleton";
 import { cn } from "@shared/lib/utils";
 import type {
   SiteContent,
@@ -703,7 +704,50 @@ function ContentEditor({ initial }: { initial: SiteContent }) {
 }
 
 export function ContentManagement() {
-  const { data } = useContent();
-  if (!data) return <p className="text-muted">Loading content…</p>;
+  const { data, isLoading, isError, refetch, isRefetching } = useContent();
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-display text-3xl text-ink">Content</h1>
+          <p className="mt-1 text-muted">Edit the footer and public pages of the marketing site.</p>
+        </div>
+        <GlassCard className="flex flex-col items-center gap-3 py-16 text-center">
+          <span className="grid size-12 place-items-center rounded-2xl bg-red-500/10 text-red-500">
+            <AlertTriangle className="size-6" />
+          </span>
+          <p className="font-display text-lg font-semibold text-ink">Couldn't load content</p>
+          <p className="max-w-sm text-sm text-muted">
+            The content service didn't respond. Check that the API is reachable, then try again.
+          </p>
+          <Button variant="outline" size="sm" disabled={isRefetching} onClick={() => refetch()}>
+            <RefreshCw className="size-4" /> {isRefetching ? "Retrying…" : "Retry"}
+          </Button>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="font-display text-3xl text-ink">Content</h1>
+          <p className="mt-1 text-muted">Edit the footer and public pages of the marketing site.</p>
+        </div>
+        <div className="flex flex-wrap gap-2 border-b border-line/70 pb-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 w-24" />
+          ))}
+        </div>
+        <GlassCard className="space-y-4">
+          <Skeleton className="h-5 w-32" />
+          <SkeletonText lines={3} />
+        </GlassCard>
+      </div>
+    );
+  }
+
   return <ContentEditor initial={data} />;
 }
