@@ -4,6 +4,7 @@ import { ImageSlot } from "@shared/components/visual/ImageSlot";
 import { SplitReveal } from "@shared/motion/SplitReveal";
 import { Reveal } from "@shared/motion/Reveal";
 import { useSiteContent } from "@shared/hooks/useSiteContent";
+import emotionalStoryArt from "@/assets/emotional-story.webp";
 
 export function EmotionalStory() {
   const { emotionalStory: c } = useSiteContent();
@@ -14,7 +15,12 @@ export function EmotionalStory() {
         <Reveal>
           <div className="relative">
             <div className="aspect-[4/5] w-full">
-              <ImageSlot label="Lifestyle photo · owner with their car" className="h-full" />
+              <ImageSlot
+                src={emotionalStoryArt}
+                alt="Soft indigo and cyan light, like a reflection caught on a freshly cleaned car"
+                label="Lifestyle photo · owner with their car"
+                className="h-full"
+              />
             </div>
             <div className="glass absolute -bottom-6 -right-4 max-w-[15rem] rounded-card p-5 shadow-(--shadow-lift) sm:right-6">
               <p className="text-sm leading-relaxed text-ink">{c.caption}</p>
