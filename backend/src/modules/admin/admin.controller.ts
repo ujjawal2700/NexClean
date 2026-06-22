@@ -5,6 +5,16 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { getPricing, updatePricing } from "../pricing/pricing.service";
 import * as locationService from "../location/location.service";
 import * as service from "./admin.service";
+import { getContent, updateContent } from "../content/content.service";
+
+/** A positive price for every vehicle type. */
+const pricesSchema = z.object({
+  hatchback: z.number().positive(),
+  sedan: z.number().positive(),
+  suv: z.number().positive(),
+  luxury: z.number().positive(),
+  premium: z.number().positive(),
+});
 
 export async function stats(_req: Request, res: Response): Promise<Response> {
   return ok(res, await service.stats());
@@ -83,18 +93,18 @@ export async function plans(_req: Request, res: Response): Promise<Response> {
 
 const createPlanSchema = z.object({
   name: z.string().min(1),
-  price: z.number().positive(),
+  prices: pricesSchema,
   washesPerMonth: z.number().int(),
 });
 export async function createPlan(req: Request, res: Response): Promise<Response> {
   const parsed = createPlanSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest("Name, price and washes per month are required");
+  if (!parsed.success) throw ApiError.badRequest("Name, per-vehicle prices and washes per month are required");
   return created(res, await service.createPlan(parsed.data), "Plan created");
 }
 
 const updatePlanSchema = z.object({
   name: z.string().min(1).optional(),
-  price: z.number().positive().optional(),
+  prices: pricesSchema.optional(),
   washesPerMonth: z.number().int().optional(),
   active: z.boolean().optional(),
 });
@@ -215,4 +225,126 @@ export async function refundPayment(req: Request, res: Response): Promise<Respon
 
 export async function settlePayment(req: Request, res: Response): Promise<Response> {
   return ok(res, await service.settlePayment(String(req.params.id)), "Payment settled");
+}
+
+// ── Site content (footer + landing pages) ──────────────────────────────────
+const linkSchema = z.object({ label: z.string(), href: z.string() });
+const footerSchema = z.object({
+  tagline: z.string(),
+  columns: z.array(z.object({ title: z.string(), links: z.array(linkSchema) })),
+  bottomLeft: z.string(),
+  bottomRight: z.string(),
+});
+const prosePageSchema = z.object({
+  eyebrow: z.string(),
+  title: z.string(),
+  subtitle: z.string(),
+  body: z.string(),
+});
+const pagesSchema = z.object({
+  about: prosePageSchema,
+  careers: prosePageSchema,
+  privacy: prosePageSchema,
+  terms: prosePageSchema,
+  refund: prosePageSchema,
+});
+const contactSchema = z.object({
+  eyebrow: z.string(),
+  title: z.string(),
+  subtitle: z.string(),
+  body: z.string(),
+  channels: z.array(
+    z.object({ type: z.enum(["email", "phone", "address"]), label: z.string(), value: z.string(), href: z.string() }),
+  ),
+});
+const helpSchema = z.object({
+  eyebrow: z.string(),
+  title: z.string(),
+  subtitle: z.string(),
+  faqs: z.array(z.object({ q: z.string(), a: z.string() })),
+});
+const headingSchema = z.object({ eyebrow: z.string(), title: z.string(), subtitle: z.string() });
+const landingSchema = z.object({
+  hero: z.object({
+    badge: z.string(),
+    title: z.string(),
+    subtitle: z.string(),
+    primaryCta: z.string(),
+    secondaryCta: z.string(),
+    trust: z.array(z.string()),
+  }),
+  emotionalStory: z.object({
+    badge: z.string(),
+    title: z.string(),
+    body: z.string(),
+    caption: z.string(),
+    moments: z.array(z.string()),
+  }),
+  problemSolution: headingSchema.extend({
+    oldWayLabel: z.string(),
+    newWayLabel: z.string(),
+    problems: z.array(z.string()),
+    solutions: z.array(z.string()),
+  }),
+  howItWorks: headingSchema.extend({
+    steps: z.array(z.object({ title: z.string(), body: z.string() })),
+  }),
+  vehicleCategories: headingSchema,
+  smartAreaAlert: z.object({
+    badge: z.string(),
+    title: z.string(),
+    body: z.string(),
+    features: z.array(z.string()),
+  }),
+  whyChoose: headingSchema.extend({
+    reasons: z.array(z.object({ title: z.string(), body: z.string() })),
+  }),
+  subscriptions: headingSchema.extend({ footnote: z.string() }),
+  appShowcase: z.object({
+    badge: z.string(),
+    title: z.string(),
+    body: z.string(),
+    features: z.array(z.string()),
+  }),
+  testimonials: headingSchema.extend({
+    reviews: z.array(
+      z.object({ name: z.string(), role: z.string(), initials: z.string(), quote: z.string() }),
+    ),
+  }),
+  stats: z.object({
+    items: z.array(
+      z.object({
+        value: z.number(),
+        decimals: z.number().optional(),
+        suffix: z.string(),
+        label: z.string(),
+      }),
+    ),
+  }),
+  finalCta: z.object({
+    title: z.string(),
+    body: z.string(),
+    primaryCta: z.string(),
+    secondaryCta: z.string(),
+  }),
+});
+
+const contentSchema = z
+  .object({
+    footer: footerSchema,
+    pages: pagesSchema,
+    contact: contactSchema,
+    help: helpSchema,
+    landing: landingSchema,
+  })
+  .partial();
+
+export async function content(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await getContent());
+}
+
+export async function updateContentCtl(req: Request, res: Response): Promise<Response> {
+  const parsed = contentSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid content");
+  return ok(res, await updateContent(parsed.data), "Content updated");
 }

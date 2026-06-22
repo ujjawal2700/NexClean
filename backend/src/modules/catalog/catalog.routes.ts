@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
-import { getPackages, getPricing, getPlans } from "./catalog.controller";
+import { getPackages, getPricing, getPlans, getContentCtl } from "./catalog.controller";
 
 export const catalogRouter = Router();
 
@@ -8,3 +8,4 @@ export const catalogRouter = Router();
 catalogRouter.get("/packages", getPackages);
 catalogRouter.get("/pricing", getPricing);
 catalogRouter.get("/plans", asyncHandler(getPlans));
+catalogRouter.get("/content", asyncHandler(getContentCtl));

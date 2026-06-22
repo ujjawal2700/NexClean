@@ -10,12 +10,15 @@ import { SplitReveal } from "@shared/motion/SplitReveal";
 import { Reveal } from "@shared/motion/Reveal";
 import { easing } from "@shared/theme/tokens";
 import { useSectionLink } from "@shared/hooks/useSectionLink";
+import { useSiteContent } from "@shared/hooks/useSiteContent";
 
 const VEHICLES = ["Hatchback", "Sedan", "SUV", "Luxury"];
+const TRUST_ICONS = [ShieldCheck, Star, MapPin];
 
 export function Hero() {
   const navigate = useNavigate();
   const goToSection = useSectionLink();
+  const { hero } = useSiteContent();
 
   return (
     <section className="relative flex min-h-dvh items-center overflow-hidden pt-28 pb-16">
@@ -28,46 +31,42 @@ export function Hero() {
           <Reveal>
             <Badge>
               <span className="size-1.5 rounded-full bg-accent" />
-              Premium On-Demand Vehicle Care
+              {hero.badge}
             </Badge>
           </Reveal>
 
           <SplitReveal
             as="h1"
-            text="Premium car care, delivered to your doorstep."
+            text={hero.title}
             className="mt-6 max-w-[14ch] text-5xl leading-[1.02] text-ink sm:text-6xl lg:text-7xl"
           />
 
           <Reveal delay={0.5}>
-            <p className="mt-7 max-w-md text-lg text-muted">
-              Schedule professional cleaning in seconds. Certified specialists arrive at your
-              location and transform your vehicle — while you relax.
-            </p>
+            <p className="mt-7 max-w-md text-lg text-muted">{hero.subtitle}</p>
           </Reveal>
 
           <Reveal delay={0.65}>
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <MagneticButton size="lg" onClick={() => navigate("/app/book")}>
-                Book cleaning
+                {hero.primaryCta}
               </MagneticButton>
               <Button variant="outline" size="lg" onClick={() => goToSection("#how-it-works")}>
                 <Play className="size-4 fill-current" />
-                Watch how it works
+                {hero.secondaryCta}
               </Button>
             </div>
           </Reveal>
 
           <Reveal delay={0.8}>
             <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-muted">
-              <span className="inline-flex items-center gap-2">
-                <ShieldCheck className="size-4 text-primary" /> Verified professionals
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <Star className="size-4 fill-primary text-primary" /> 4.9 average rating
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <MapPin className="size-4 text-primary" /> 15+ cities
-              </span>
+              {hero.trust.map((item, i) => {
+                const Icon = TRUST_ICONS[i] ?? ShieldCheck;
+                return (
+                  <span key={item} className="inline-flex items-center gap-2">
+                    <Icon className="size-4 text-primary" /> {item}
+                  </span>
+                );
+              })}
             </div>
           </Reveal>
         </div>

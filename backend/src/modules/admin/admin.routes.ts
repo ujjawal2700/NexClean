@@ -50,3 +50,6 @@ adminRouter.delete("/zones/:id", asyncHandler(c.deleteZone));
 adminRouter.get("/campaigns", asyncHandler(c.campaigns));
 adminRouter.get("/campaigns/audience-sizes", asyncHandler(c.campaignAudienceSizes));
 adminRouter.post("/campaigns", asyncHandler(c.sendCampaign));
+
+adminRouter.get("/content", asyncHandler(c.content));
+adminRouter.put("/content", asyncHandler(c.updateContentCtl));

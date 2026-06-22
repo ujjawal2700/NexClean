@@ -14,6 +14,7 @@ import { Notifications } from "./pages/Notifications";
 import { Plans } from "./pages/Plans";
 import { Locations } from "./pages/Locations";
 import { Reports } from "./pages/Reports";
+import { ContentManagement } from "./pages/ContentManagement";
 
 /**
  * Admin module router (base path /admin). Login is public; everything else
@@ -45,6 +46,7 @@ export function AdminApp() {
         <Route path="plans" element={<Plans />} />
         <Route path="locations" element={<Locations />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="content" element={<ContentManagement />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/admin" replace />} />

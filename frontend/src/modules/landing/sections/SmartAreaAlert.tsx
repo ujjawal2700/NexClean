@@ -5,6 +5,7 @@ import { Badge } from "@shared/ui/Badge";
 import { Button } from "@shared/ui/Button";
 import { SplitReveal } from "@shared/motion/SplitReveal";
 import { Reveal } from "@shared/motion/Reveal";
+import { useSiteContent } from "@shared/hooks/useSiteContent";
 
 // Nearby cars that "light up" when the specialist enters the area
 const CARS = [
@@ -119,6 +120,7 @@ function PushCard() {
 }
 
 export function SmartAreaAlert() {
+  const { smartAreaAlert: c } = useSiteContent();
   return (
     <Section id="nearby" className="relative overflow-hidden border-t border-line/60">
       <div
@@ -131,29 +133,22 @@ export function SmartAreaAlert() {
           <Reveal>
             <Badge>
               <span className="size-1.5 rounded-full bg-accent" />
-              The Signature Feature
+              {c.badge}
             </Badge>
           </Reveal>
           <SplitReveal
             onScroll
             as="h2"
-            text="NexClean Nearby — care that finds you."
+            text={c.title}
             className="mt-5 max-w-[16ch] text-4xl text-ink sm:text-5xl"
           />
           <Reveal delay={0.1}>
-            <p className="mt-6 max-w-md text-lg text-muted">
-              When a specialist arrives in your area, nearby customers get a personalized offer to
-              clean their vehicle too — instantly. The admin sets the radius, rules, and message.
-            </p>
+            <p className="mt-6 max-w-md text-lg text-muted">{c.body}</p>
           </Reveal>
 
           <Reveal delay={0.2}>
             <ul className="mt-8 space-y-3">
-              {[
-                "Smart radius detection around the active specialist",
-                "Personalized push notifications via Firebase Cloud Messaging",
-                "Fully customizable templates, radius & trigger rules",
-              ].map((item) => (
+              {c.features.map((item) => (
                 <li key={item} className="flex items-start gap-3 text-ink-soft">
                   <span className="mt-2 size-1.5 shrink-0 rounded-full bg-gradient-to-r from-primary to-accent" />
                   {item}

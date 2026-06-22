@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { meKey, bookingsKey, notificationsKey } from "./queries";
-import type { User, Booking, PlanId, CarType } from "../types";
+import type { User, Booking, CarType } from "../types";
 
 /* ---------------------------- Notifications ------------------------------ */
 
@@ -90,7 +90,7 @@ export function useRemoveAddress() {
 }
 
 export function useSubscribe() {
-  return useUserMutation((planId: PlanId) =>
+  return useUserMutation((planId: string) =>
     apiFetch<User>("/subscriptions", { method: "POST", body: { planId } }),
   );
 }

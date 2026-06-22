@@ -6,21 +6,62 @@ import { Input } from "@shared/ui/Input";
 import { formatMoney } from "@shared/lib/format";
 import { StatCard } from "../components/StatCard";
 import { usePlans, useCreatePlan, useUpdatePlan, useDeletePlan } from "../api/admin.api";
-import type { AdminPlan } from "../types";
+import { VEHICLE_TYPES, VEHICLE_LABEL, type AdminPlan, type CarType, type PlanPrices } from "../types";
 
-type Draft = { name: string; price: string; washesPerMonth: string };
-const EMPTY_DRAFT: Draft = { name: "", price: "", washesPerMonth: "" };
+type PriceDraft = Record<CarType, string>;
+const EMPTY_PRICES: PriceDraft = VEHICLE_TYPES.reduce(
+  (acc, v) => ({ ...acc, [v]: "" }),
+  {} as PriceDraft,
+);
+
+/** Turn a string price draft into a numeric PlanPrices (blank/invalid → 0). */
+function toPrices(draft: PriceDraft): PlanPrices {
+  return VEHICLE_TYPES.reduce(
+    (acc, v) => ({ ...acc, [v]: Number(draft[v]) || 0 }),
+    {} as PlanPrices,
+  );
+}
+
+function VehiclePriceInputs({
+  draft,
+  onChange,
+}: {
+  draft: PriceDraft;
+  onChange: (v: CarType, value: string) => void;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {VEHICLE_TYPES.map((v) => (
+        <label key={v} className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3">
+          <span className="text-sm text-muted">{VEHICLE_LABEL[v]}</span>
+          <span className="flex items-center gap-1">
+            <span className="text-muted">₹</span>
+            <input
+              type="number"
+              value={draft[v]}
+              onChange={(e) => onChange(v, e.target.value)}
+              placeholder="0"
+              className="h-9 w-24 bg-transparent text-right text-ink outline-none"
+            />
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
 
 function PlanCard({ plan }: { plan: AdminPlan }) {
   const update = useUpdatePlan();
   const remove = useDeletePlan();
   const [editing, setEditing] = useState(false);
-  const [price, setPrice] = useState(String(plan.price));
+  const [prices, setPrices] = useState<PriceDraft>(
+    () => VEHICLE_TYPES.reduce((acc, v) => ({ ...acc, [v]: String(plan.prices[v] ?? "") }), {} as PriceDraft),
+  );
   const [washes, setWashes] = useState(String(plan.washesPerMonth));
 
   const save = () => {
     update.mutate(
-      { id: plan.id, price: Number(price) || 0, washesPerMonth: Number(washes) || 0 },
+      { id: plan.id, prices: toPrices(prices), washesPerMonth: Number(washes) || 0 },
       { onSuccess: () => setEditing(false) },
     );
   };
@@ -35,49 +76,50 @@ function PlanCard({ plan }: { plan: AdminPlan }) {
     <GlassCard className={plan.active ? "" : "opacity-60"}>
       <div className="flex items-baseline justify-between">
         <p className="font-display text-xl font-semibold text-ink">{plan.name}</p>
-        {editing ? (
-          <div className="flex items-center gap-1 rounded-xl border border-line bg-surface px-2">
-            <span className="text-muted">₹</span>
-            <input
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="h-9 w-20 bg-transparent text-right text-ink outline-none"
-            />
-          </div>
-        ) : (
+        {!editing && (
           <p className="font-display text-lg font-semibold text-primary">
+            <span className="text-sm font-normal text-muted">from </span>
             {formatMoney(plan.price)}
             <span className="text-sm font-normal text-muted">/mo</span>
           </p>
         )}
       </div>
 
-      <div className="mt-5 flex items-end justify-between">
-        <div>
-          <p className="font-display text-3xl font-semibold text-ink">{plan.subscribers}</p>
-          <p className="text-sm text-muted">subscribers</p>
-        </div>
-        {editing ? (
-          <div className="flex items-center gap-1.5 text-sm text-muted">
+      {editing ? (
+        <div className="mt-4 space-y-3">
+          <VehiclePriceInputs draft={prices} onChange={(v, value) => setPrices((p) => ({ ...p, [v]: value }))} />
+          <label className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3">
+            <span className="text-sm text-muted">Washes / month (-1 = unlimited)</span>
             <input
               type="number"
               value={washes}
               onChange={(e) => setWashes(e.target.value)}
-              className="h-9 w-16 rounded-xl border border-line bg-surface px-2 text-right text-ink outline-none focus:border-primary/50"
+              className="h-9 w-16 bg-transparent text-right text-ink outline-none"
             />
-            washes/mo
+          </label>
+        </div>
+      ) : (
+        <>
+          <div className="mt-5 flex items-end justify-between">
+            <div>
+              <p className="font-display text-3xl font-semibold text-ink">{plan.subscribers}</p>
+              <p className="text-sm text-muted">subscribers</p>
+            </div>
+            <p className="text-sm font-medium text-muted">
+              {plan.washesPerMonth < 0 ? "Unlimited" : `${plan.washesPerMonth}/mo`} washes
+            </p>
           </div>
-        ) : (
-          <p className="text-sm font-medium text-muted">
-            {plan.washesPerMonth < 0 ? "Unlimited" : `${plan.washesPerMonth}/mo`} washes
-          </p>
-        )}
-      </div>
 
-      <p className="mt-4 text-sm text-muted">
-        Contributing <span className="font-medium text-ink">{formatMoney(plan.subscribers * plan.price)}</span> / month
-      </p>
+          <dl className="mt-4 space-y-1 border-t border-line/70 pt-4 text-sm">
+            {VEHICLE_TYPES.map((v) => (
+              <div key={v} className="flex justify-between">
+                <dt className="text-muted">{VEHICLE_LABEL[v]}</dt>
+                <dd className="font-medium text-ink">{formatMoney(plan.prices[v] ?? 0)}/mo</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
 
       <div className="mt-4 flex gap-2 border-t border-line/70 pt-4">
         {editing ? (
@@ -114,12 +156,14 @@ function PlanCard({ plan }: { plan: AdminPlan }) {
 
 function NewPlanForm({ onClose }: { onClose: () => void }) {
   const create = useCreatePlan();
-  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [name, setName] = useState("");
+  const [washes, setWashes] = useState("");
+  const [prices, setPrices] = useState<PriceDraft>(EMPTY_PRICES);
 
   const submit = () => {
-    if (!draft.name.trim()) return;
+    if (!name.trim()) return;
     create.mutate(
-      { name: draft.name.trim(), price: Number(draft.price) || 0, washesPerMonth: Number(draft.washesPerMonth) || 0 },
+      { name: name.trim(), prices: toPrices(prices), washesPerMonth: Number(washes) || 0 },
       { onSuccess: () => onClose() },
     );
   };
@@ -127,33 +171,21 @@ function NewPlanForm({ onClose }: { onClose: () => void }) {
   return (
     <GlassCard>
       <p className="font-display text-lg font-semibold text-ink">New plan</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <Input
-          name="name"
-          label="Name"
-          placeholder="Gold"
-          value={draft.name}
-          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-        />
-        <Input
-          name="price"
-          label="Price / month"
-          type="number"
-          placeholder="1499"
-          value={draft.price}
-          onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
-        />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Input name="name" label="Name" placeholder="Gold" value={name} onChange={(e) => setName(e.target.value)} />
         <Input
           name="washesPerMonth"
           label="Washes / month (-1 = unlimited)"
           type="number"
           placeholder="6"
-          value={draft.washesPerMonth}
-          onChange={(e) => setDraft((d) => ({ ...d, washesPerMonth: e.target.value }))}
+          value={washes}
+          onChange={(e) => setWashes(e.target.value)}
         />
       </div>
+      <p className="mt-5 mb-2 text-sm font-medium text-ink">Monthly price per vehicle type</p>
+      <VehiclePriceInputs draft={prices} onChange={(v, value) => setPrices((p) => ({ ...p, [v]: value }))} />
       <div className="mt-4 flex gap-2">
-        <Button onClick={submit} disabled={create.isPending || !draft.name.trim()}>
+        <Button onClick={submit} disabled={create.isPending || !name.trim()}>
           <Check className="size-4" /> Create plan
         </Button>
         <Button variant="ghost" onClick={onClose}>

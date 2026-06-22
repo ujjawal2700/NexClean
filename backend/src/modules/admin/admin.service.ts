@@ -7,7 +7,7 @@ import { notifyUser } from "../notification/notification.service";
 import { ApiError } from "../../shared/utils/ApiError";
 import * as planService from "../catalog/plan.service";
 import type { PlanDoc } from "../catalog/plan.model";
-import { VEHICLE_TYPES } from "../catalog/catalog.data";
+import { VEHICLE_TYPES, type PlanPrices } from "../catalog/catalog.data";
 
 type BookingDoc = BookingDocument;
 type DisplayStatus = "upcoming" | "in_progress" | "completed" | "cancelled";
@@ -167,7 +167,10 @@ export async function updateAgentArea(id: string, area: string) {
 async function mapPlanWithSubscribers(p: PlanDoc) {
   const id = String(p.id);
   const subscribers = await User.countDocuments({ activePlan: id });
-  return { id, name: p.name, price: p.price, washesPerMonth: p.washesPerMonth, active: p.active, subscribers };
+  const prices = (p.prices ?? {}) as Record<string, number>;
+  const values = Object.values(prices).filter((n): n is number => typeof n === "number");
+  const price = values.length ? Math.min(...values) : 0;
+  return { id, name: p.name, prices, price, washesPerMonth: p.washesPerMonth, active: p.active, subscribers };
 }
 
 export async function listPlans() {
@@ -175,14 +178,14 @@ export async function listPlans() {
   return Promise.all(plans.map((p) => mapPlanWithSubscribers(p)));
 }
 
-export async function createPlan(input: { name: string; price: number; washesPerMonth: number }) {
+export async function createPlan(input: { name: string; prices: PlanPrices; washesPerMonth: number }) {
   const plan = await planService.createPlan(input);
   return mapPlanWithSubscribers(plan);
 }
 
 export async function updatePlan(
   id: string,
-  patch: { name?: string; price?: number; washesPerMonth?: number; active?: boolean },
+  patch: { name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean },
 ) {
   const plan = await planService.updatePlan(id, patch);
   return mapPlanWithSubscribers(plan);

@@ -5,6 +5,10 @@ import { Button } from "@shared/ui/Button";
 import { SplitReveal } from "@shared/motion/SplitReveal";
 import { Reveal } from "@shared/motion/Reveal";
 import { PhoneMockup } from "@shared/components/visual/PhoneMockup";
+import { useSiteContent } from "@shared/hooks/useSiteContent";
+
+// Icons for the quick-action mockup grid and the feature pills (labels are editable).
+const FEATURE_ICONS = [CalendarCheck, Repeat, Bell, Wallet, History];
 
 const FEATURES = [
   { icon: CalendarCheck, label: "Booking" },
@@ -51,34 +55,34 @@ function HomeScreen() {
 }
 
 export function AppShowcase() {
+  const { appShowcase: c } = useSiteContent();
+  const features = c.features.map((label, i) => ({ label, Icon: FEATURE_ICONS[i] ?? CalendarCheck }));
   return (
     <Section id="app" className="relative overflow-hidden border-t border-line/60">
       <div className="grid items-center gap-16 lg:grid-cols-2">
         {/* Copy */}
         <div>
           <Reveal>
-            <Badge>The NexClean App</Badge>
+            <Badge>{c.badge}</Badge>
           </Reveal>
           <SplitReveal
             onScroll
             as="h2"
-            text="Your car care, in your pocket."
+            text={c.title}
             className="mt-5 max-w-[14ch] text-4xl text-ink sm:text-5xl"
           />
           <Reveal delay={0.1}>
-            <p className="mt-6 max-w-md text-lg text-muted">
-              Book, track, pay, and manage every wash from one beautifully simple app.
-            </p>
+            <p className="mt-6 max-w-md text-lg text-muted">{c.body}</p>
           </Reveal>
 
           <Reveal delay={0.15}>
             <div className="mt-8 flex flex-wrap gap-3">
-              {FEATURES.map((f) => (
+              {features.map((f) => (
                 <span
                   key={f.label}
                   className="inline-flex items-center gap-2 rounded-pill border border-line bg-surface/70 px-4 py-2 text-sm text-ink-soft"
                 >
-                  <f.icon className="size-4 text-primary" /> {f.label}
+                  <f.Icon className="size-4 text-primary" /> {f.label}
                 </span>
               ))}
             </div>

@@ -6,10 +6,12 @@ import { Button } from "@shared/ui/Button";
 import { SplitReveal } from "@shared/motion/SplitReveal";
 import { Reveal } from "@shared/motion/Reveal";
 import { useSectionLink } from "@shared/hooks/useSectionLink";
+import { useSiteContent } from "@shared/hooks/useSiteContent";
 
 export function FinalCTA() {
   const navigate = useNavigate();
   const goToSection = useSectionLink();
+  const { finalCta: c } = useSiteContent();
 
   return (
     <Section bleed className="px-6 py-24">
@@ -29,13 +31,11 @@ export function FinalCTA() {
           <SplitReveal
             onScroll
             as="h2"
-            text="Give your vehicle the care it deserves."
+            text={c.title}
             className="mx-auto max-w-[18ch] text-balance text-4xl text-white sm:text-5xl lg:text-6xl"
           />
           <Reveal delay={0.1}>
-            <p className="mx-auto mt-6 max-w-md text-lg text-white/80">
-              Book in 30 seconds. A certified specialist comes to you. It's that simple.
-            </p>
+            <p className="mx-auto mt-6 max-w-md text-lg text-white/80">{c.body}</p>
           </Reveal>
           <Reveal delay={0.2}>
             <div className="mt-10 flex flex-wrap justify-center gap-3">
@@ -44,10 +44,10 @@ export function FinalCTA() {
                 className="bg-none bg-white text-primary hover:bg-white"
                 onClick={() => navigate("/app/book")}
               >
-                Book your cleaning <ArrowRight className="size-5" />
+                {c.primaryCta} <ArrowRight className="size-5" />
               </MagneticButton>
               <Button size="lg" variant="glass" className="text-white" onClick={() => goToSection("#plans")}>
-                View plans
+                {c.secondaryCta}
               </Button>
             </div>
           </Reveal>

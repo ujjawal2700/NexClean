@@ -47,6 +47,19 @@ export type Booking = {
 
 export type PlanId = "basic" | "premium" | "elite";
 
+/** A subscription plan from the catalog API, priced per vehicle type. */
+export type CatalogPlan = {
+  id: string;
+  name: string;
+  /** Per-vehicle monthly price. */
+  prices: Record<CarType, number>;
+  /** Cheapest vehicle price — used for "from ₹X" display. */
+  price: number;
+  /** Washes included per month; -1 means unlimited. */
+  washesPerMonth: number;
+  active: boolean;
+};
+
 export type User = {
   id: string;
   name: string;

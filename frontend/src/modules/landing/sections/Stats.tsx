@@ -1,20 +1,8 @@
 import { Section } from "@shared/components/layout/Section";
 import { Container } from "@shared/components/layout/Container";
 import { useCountUp } from "@shared/hooks/useCountUp";
-
-type Stat = {
-  value: number;
-  decimals?: number;
-  suffix?: string;
-  label: string;
-};
-
-const STATS: Stat[] = [
-  { value: 50000, suffix: "+", label: "Vehicles cleaned" },
-  { value: 100, suffix: "+", label: "Professional agents" },
-  { value: 4.9, decimals: 1, suffix: "★", label: "Average rating" },
-  { value: 15, suffix: "+", label: "Cities served" },
-];
+import { useSiteContent } from "@shared/hooks/useSiteContent";
+import type { StatItem as Stat } from "@shared/types/content";
 
 function StatItem({ stat }: { stat: Stat }) {
   const factor = stat.decimals ? 10 ** stat.decimals : 1;
@@ -35,6 +23,7 @@ function StatItem({ stat }: { stat: Stat }) {
 }
 
 export function Stats() {
+  const { stats } = useSiteContent();
   return (
     <Section bleed className="py-0">
       <div className="relative overflow-hidden bg-ink">
@@ -43,7 +32,7 @@ export function Stats() {
           style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(79,124,255,0.35), transparent 60%)" }}
         />
         <Container className="relative grid grid-cols-2 gap-y-12 py-20 lg:grid-cols-4">
-          {STATS.map((s) => (
+          {stats.items.map((s) => (
             <StatItem key={s.label} stat={s} />
           ))}
         </Container>

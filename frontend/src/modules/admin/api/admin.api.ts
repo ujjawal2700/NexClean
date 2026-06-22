@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
+import type { SiteContent } from "@shared/types/content";
 import { useAdminSession } from "../store/sessionStore";
 import type {
   AdminStats,
   AdminBooking,
   AdminAgent,
   AdminPlan,
+  PlanPrices,
   Pricing,
   AlertSettings,
   TriggeredAlert,
@@ -41,6 +43,7 @@ const keys = {
   zones: ["admin", "zones"] as const,
   reports: ["admin", "reports"] as const,
   audienceSizes: ["admin", "campaigns", "audience-sizes"] as const,
+  content: ["admin", "content"] as const,
 };
 
 function useAuthedQuery<T>(key: readonly unknown[], path: string) {
@@ -80,6 +83,7 @@ export const usePaymentStats = () => useAuthedQuery<PaymentStats>(keys.paymentSt
 export const useCities = () => useAuthedQuery<ServiceCity[]>(keys.cities, "/admin/cities");
 export const useZones = () => useAuthedQuery<ServiceZone[]>(keys.zones, "/admin/zones");
 export const useReports = () => useAuthedQuery<AdminReports>(keys.reports, "/admin/reports");
+export const useContent = () => useAuthedQuery<SiteContent>(keys.content, "/admin/content");
 export const useAudienceSizes = () =>
   useAuthedQuery<AudienceSizes>(keys.audienceSizes, "/admin/campaigns/audience-sizes");
 
@@ -110,6 +114,15 @@ export function useUpdatePricing() {
   return useMutation({
     mutationFn: (patch: Partial<Pricing>) => apiFetch<Pricing>("/admin/pricing", { method: "PUT", body: patch }),
     onSuccess: (data) => qc.setQueryData(keys.pricing, data),
+  });
+}
+
+export function useUpdateContent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<SiteContent>) =>
+      apiFetch<SiteContent>("/admin/content", { method: "PUT", body: patch }),
+    onSuccess: (data) => qc.setQueryData(keys.content, data),
   });
 }
 
@@ -198,7 +211,7 @@ export function useUpdateAgentArea() {
 export function useCreatePlan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { name: string; price: number; washesPerMonth: number }) =>
+    mutationFn: (vars: { name: string; prices: PlanPrices; washesPerMonth: number }) =>
       apiFetch<AdminPlan>("/admin/plans", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.plans }),
   });
@@ -207,7 +220,7 @@ export function useCreatePlan() {
 export function useUpdatePlan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { id: string; name?: string; price?: number; washesPerMonth?: number; active?: boolean }) =>
+    mutationFn: (vars: { id: string; name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean }) =>
       apiFetch<AdminPlan>(`/admin/plans/${vars.id}`, { method: "PATCH", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.plans }),
   });

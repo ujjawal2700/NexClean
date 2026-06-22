@@ -3,43 +3,16 @@ import { Section } from "@shared/components/layout/Section";
 import { SectionHeading } from "@shared/ui/SectionHeading";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { RevealGroup, RevealItem } from "@shared/motion/Reveal";
-
-const REVIEWS = [
-  {
-    name: "Aarav Mehta",
-    role: "BMW 5 Series owner",
-    initials: "AM",
-    quote:
-      "It feels like valet service for my car. They arrived on time, and the finish was genuinely showroom quality.",
-  },
-  {
-    name: "Priya Sharma",
-    role: "Hyundai Creta owner",
-    initials: "PS",
-    quote:
-      "I got the NexClean Nearby alert while working from home and booked in seconds. Absolute game-changer.",
-  },
-  {
-    name: "Rohan Verma",
-    role: "Mahindra Thar owner",
-    initials: "RV",
-    quote:
-      "Tracking the specialist live, eco-friendly products, spotless results. I've moved my whole family to the Elite plan.",
-  },
-];
+import { useSiteContent } from "@shared/hooks/useSiteContent";
 
 export function Testimonials() {
+  const { testimonials: c } = useSiteContent();
   return (
     <Section id="reviews" className="border-t border-line/60 bg-surface-muted/40">
-      <SectionHeading
-        align="center"
-        eyebrow="Loved By Owners"
-        title="Trusted by people who love their cars."
-        subtitle="Join thousands who've made doorstep care their new normal."
-      />
+      <SectionHeading align="center" eyebrow={c.eyebrow} title={c.title} subtitle={c.subtitle} />
 
       <RevealGroup className="mt-14 grid gap-6 lg:grid-cols-3">
-        {REVIEWS.map((r) => (
+        {c.reviews.map((r) => (
           <RevealItem key={r.name}>
             <GlassCard className="flex h-full flex-col">
               <Quote className="size-8 text-primary/30" />

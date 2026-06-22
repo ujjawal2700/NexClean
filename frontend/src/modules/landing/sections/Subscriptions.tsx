@@ -5,6 +5,7 @@ import { SectionHeading } from "@shared/ui/SectionHeading";
 import { Button } from "@shared/ui/Button";
 import { RevealGroup, RevealItem } from "@shared/motion/Reveal";
 import { cn } from "@shared/lib/utils";
+import { useSiteContent } from "@shared/hooks/useSiteContent";
 
 type Plan = {
   name: string;
@@ -54,15 +55,11 @@ const PLANS: Plan[] = [
 
 export function Subscriptions() {
   const navigate = useNavigate();
+  const { subscriptions: c } = useSiteContent();
 
   return (
     <Section id="plans" className="border-t border-line/60">
-      <SectionHeading
-        align="center"
-        eyebrow="Subscription Plans"
-        title="Care that keeps your car its best."
-        subtitle="Switch from one-off washes to effortless, recurring care — and always save more."
-      />
+      <SectionHeading align="center" eyebrow={c.eyebrow} title={c.title} subtitle={c.subtitle} />
 
       <RevealGroup className="mt-14 grid items-stretch gap-6 lg:grid-cols-3">
         {PLANS.map((plan) => (
@@ -123,9 +120,7 @@ export function Subscriptions() {
         ))}
       </RevealGroup>
 
-      <p className="mt-8 text-center text-sm text-muted">
-        Prices are indicative and configurable by the admin. Cancel anytime.
-      </p>
+      <p className="mt-8 text-center text-sm text-muted">{c.footnote}</p>
     </Section>
   );
 }

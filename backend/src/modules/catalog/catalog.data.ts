@@ -50,10 +50,28 @@ export const PACKAGES: ServicePackage[] = [
   },
 ];
 
+/** Per-vehicle monthly price for a plan. -1 washesPerMonth = unlimited. */
+export type PlanPrices = Record<VehicleType, number>;
+
 export const PLANS = [
-  { id: "basic", name: "Basic", price: 999, washesPerMonth: 4 },
-  { id: "premium", name: "Premium", price: 1799, washesPerMonth: 8 },
-  { id: "elite", name: "Elite", price: 2999, washesPerMonth: -1 },
+  {
+    id: "basic",
+    name: "Basic",
+    washesPerMonth: 4,
+    prices: { hatchback: 999, sedan: 1199, suv: 1399, luxury: 1799, premium: 2199 },
+  },
+  {
+    id: "premium",
+    name: "Premium",
+    washesPerMonth: 8,
+    prices: { hatchback: 1799, sedan: 2099, suv: 2499, luxury: 2999, premium: 3499 },
+  },
+  {
+    id: "elite",
+    name: "Elite",
+    washesPerMonth: -1,
+    prices: { hatchback: 2999, sedan: 3499, suv: 3999, luxury: 4999, premium: 5999 },
+  },
 ] as const;
 
 export type PlanId = (typeof PLANS)[number]["id"];

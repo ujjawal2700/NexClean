@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { useSessionStore } from "../store/sessionStore";
-import type { User, Booking, AppNotification } from "../types";
+import type { User, Booking, AppNotification, CatalogPlan } from "../types";
 
 export const meKey = ["me"] as const;
 export const bookingsKey = ["bookings"] as const;
 export const notificationsKey = ["notifications"] as const;
+export const plansKey = ["catalog", "plans"] as const;
 
 /** Current authenticated customer (profile, vehicles, addresses, plan). */
 export function useMe() {
@@ -14,6 +15,14 @@ export function useMe() {
     queryKey: meKey,
     queryFn: () => apiFetch<User>("/auth/me"),
     enabled: !!token,
+  });
+}
+
+/** Active subscription plans (public catalog), priced per vehicle type. */
+export function usePlans() {
+  return useQuery({
+    queryKey: plansKey,
+    queryFn: () => apiFetch<CatalogPlan[]>("/catalog/plans"),
   });
 }
 

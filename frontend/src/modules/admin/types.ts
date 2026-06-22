@@ -87,9 +87,14 @@ export type Campaign = {
 
 export type AudienceSizes = Record<string, number>;
 
+export type PlanPrices = Record<CarType, number>;
+
 export type AdminPlan = {
   id: string;
   name: string;
+  /** Per-vehicle monthly price. */
+  prices: PlanPrices;
+  /** Cheapest vehicle price — used for "from ₹X" display and MRR estimates. */
   price: number;
   washesPerMonth: number;
   active: boolean;

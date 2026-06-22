@@ -4,6 +4,7 @@ import { Section } from "@shared/components/layout/Section";
 import { SectionHeading } from "@shared/ui/SectionHeading";
 import { CarSilhouette, type CarType } from "@shared/components/visual/CarSilhouette";
 import { RevealGroup, RevealItem } from "@shared/motion/Reveal";
+import { useSiteContent } from "@shared/hooks/useSiteContent";
 
 type Vehicle = {
   name: string;
@@ -73,13 +74,10 @@ function VehicleCard({ vehicle, uid }: { vehicle: Vehicle; uid: string }) {
 }
 
 export function VehicleCategories() {
+  const { vehicleCategories: c } = useSiteContent();
   return (
     <Section id="vehicles" className="border-t border-line/60">
-      <SectionHeading
-        eyebrow="Vehicle Categories"
-        title="Tailored care for every car."
-        subtitle="Transparent pricing by vehicle type — no surprises, ever."
-      />
+      <SectionHeading eyebrow={c.eyebrow} title={c.title} subtitle={c.subtitle} />
       <RevealGroup className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {VEHICLES.map((v, i) => (
           <RevealItem key={v.name}>

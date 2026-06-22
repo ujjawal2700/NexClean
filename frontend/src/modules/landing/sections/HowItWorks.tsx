@@ -4,17 +4,14 @@ import { Car, Package, CalendarClock, UserCheck, Home, Sparkles } from "lucide-r
 import { Section } from "@shared/components/layout/Section";
 import { SectionHeading } from "@shared/ui/SectionHeading";
 import { RevealGroup, RevealItem } from "@shared/motion/Reveal";
+import { useSiteContent } from "@shared/hooks/useSiteContent";
 
-const STEPS = [
-  { icon: Car, title: "Choose vehicle", body: "Pick your car type in a tap." },
-  { icon: Package, title: "Select package", body: "From quick wash to full detail." },
-  { icon: CalendarClock, title: "Pick date & time", body: "Whenever suits your day." },
-  { icon: UserCheck, title: "Cleaner assigned", body: "A verified specialist is matched." },
-  { icon: Home, title: "We come to you", body: "They arrive right at your doorstep." },
-  { icon: Sparkles, title: "Enjoy the shine", body: "Sit back. We handle the rest." },
-];
+const STEP_ICONS = [Car, Package, CalendarClock, UserCheck, Home, Sparkles];
 
 export function HowItWorks() {
+  const { howItWorks: c } = useSiteContent();
+  const steps = c.steps.map((step, i) => ({ ...step, Icon: STEP_ICONS[i] ?? Sparkles }));
+
   const ref = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: ref,
@@ -24,12 +21,7 @@ export function HowItWorks() {
 
   return (
     <Section id="how-it-works">
-      <SectionHeading
-        align="center"
-        eyebrow="How NexClean Works"
-        title="Sparkling clean in six simple steps."
-        subtitle="From booking to brilliance — the whole journey takes seconds to start."
-      />
+      <SectionHeading align="center" eyebrow={c.eyebrow} title={c.title} subtitle={c.subtitle} />
 
       <div ref={ref} className="relative mt-20">
         {/* connecting line (desktop) */}
@@ -41,10 +33,10 @@ export function HowItWorks() {
         </div>
 
         <RevealGroup className="grid grid-cols-2 gap-x-6 gap-y-12 md:grid-cols-3 lg:grid-cols-6">
-          {STEPS.map((step, i) => (
+          {steps.map((step, i) => (
             <RevealItem key={step.title} className="relative text-center">
               <div className="relative z-10 mx-auto grid size-14 place-items-center rounded-2xl border border-line bg-surface shadow-[var(--shadow-soft)]">
-                <step.icon className="size-6 text-primary" />
+                <step.Icon className="size-6 text-primary" />
                 <span className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-semibold text-white">
                   {i + 1}
                 </span>
