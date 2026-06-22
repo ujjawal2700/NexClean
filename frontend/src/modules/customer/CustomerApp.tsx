@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { RouteErrorBoundary } from "@shared/components/RouteErrorBoundary";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { CustomerLayout } from "./components/CustomerLayout";
 import { Login } from "./pages/Login";
@@ -16,28 +17,30 @@ import { BookingFlow } from "./pages/booking/BookingFlow";
  */
 export function CustomerApp() {
   return (
-    <Routes>
-      <Route path="login" element={<Login />} />
-      <Route path="signup" element={<Signup />} />
+    <RouteErrorBoundary homePath="/app" homeLabel="customer home">
+      <Routes>
+        <Route path="login" element={<Login />} />
+        <Route path="signup" element={<Signup />} />
 
-      <Route
-        element={
-          <ProtectedRoute>
-            <CustomerLayout>
-              <Outlet />
-            </CustomerLayout>
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Dashboard />} />
-        <Route path="book" element={<BookingFlow />} />
-        <Route path="bookings" element={<Bookings />} />
-        <Route path="plans" element={<Subscriptions />} />
-        <Route path="notifications" element={<Notifications />} />
-        <Route path="profile" element={<Profile />} />
-      </Route>
+        <Route
+          element={
+            <ProtectedRoute>
+              <CustomerLayout>
+                <Outlet />
+              </CustomerLayout>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="book" element={<BookingFlow />} />
+          <Route path="bookings" element={<Bookings />} />
+          <Route path="plans" element={<Subscriptions />} />
+          <Route path="notifications" element={<Notifications />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/app" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/app" replace />} />
+      </Routes>
+    </RouteErrorBoundary>
   );
 }

@@ -3,15 +3,16 @@ import { ArrowRight, ListChecks, CheckCircle2, Wallet, TrendingUp, MapPin, Clock
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
+import { Skeleton, SkeletonStatCards } from "@shared/ui/Skeleton";
 import { greeting, formatMoney } from "@shared/lib/format";
 import { useAgentMe, useJobs, useSummary } from "../api/agent.api";
 import { VEHICLE_LABEL, STATUS_LABEL } from "../types";
 import { AreaAlertCard } from "../components/AreaAlertCard";
 
 export function Dashboard() {
-  const { data: me } = useAgentMe();
-  const { data: jobs = [] } = useJobs();
-  const { data: summary } = useSummary();
+  const { data: me, isLoading: meLoading } = useAgentMe();
+  const { data: jobs = [], isLoading: jobsLoading } = useJobs();
+  const { data: summary, isLoading: summaryLoading } = useSummary();
 
   const active = jobs.find((j) => j.status !== "completed");
 
@@ -27,7 +28,11 @@ export function Dashboard() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-muted">{greeting()},</p>
-          <h1 className="text-3xl text-ink">{me?.name ?? "Specialist"} 👋</h1>
+          {meLoading ? (
+            <Skeleton className="mt-1 h-9 w-44" />
+          ) : (
+            <h1 className="text-3xl text-ink">{me?.name ?? "Specialist"} 👋</h1>
+          )}
         </div>
       </div>
 
@@ -38,24 +43,37 @@ export function Dashboard() {
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s) => (
-          <GlassCard key={s.label} className="flex items-center gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
-              <s.icon className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="font-display text-xl font-semibold text-ink">{s.value}</p>
-              <p className="truncate text-xs text-muted">{s.label}</p>
-            </div>
-          </GlassCard>
-        ))}
+        {summaryLoading ? (
+          <SkeletonStatCards count={4} />
+        ) : (
+          stats.map((s) => (
+            <GlassCard key={s.label} className="flex items-center gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+                <s.icon className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-display text-xl font-semibold text-ink">{s.value}</p>
+                <p className="truncate text-xs text-muted">{s.label}</p>
+              </div>
+            </GlassCard>
+          ))
+        )}
       </div>
 
       <section>
         <h2 className="mb-4 font-display text-xl font-semibold text-ink">
-          {active ? "Current job" : "You're all caught up"}
+          {jobsLoading ? "Current job" : active ? "Current job" : "You're all caught up"}
         </h2>
-        {active ? (
+        {jobsLoading ? (
+          <GlassCard className="flex flex-col gap-5 sm:flex-row sm:items-center">
+            <Skeleton className="h-24 w-28 shrink-0 rounded-2xl" />
+            <div className="flex-1 space-y-2.5">
+              <Skeleton className="h-5 w-1/3" />
+              <Skeleton className="h-3.5 w-1/2" />
+              <Skeleton className="h-3.5 w-2/3" />
+            </div>
+          </GlassCard>
+        ) : active ? (
           <GlassCard className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <div className="w-28 shrink-0">
               <CarSilhouette type={active.vehicleType} uid={`agdash-${active.id}`} />

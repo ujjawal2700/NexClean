@@ -4,6 +4,7 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
+import { SkeletonTableRows } from "@shared/ui/Skeleton";
 import { formatMoney, formatDate } from "@shared/lib/format";
 import {
   useBookings,
@@ -90,7 +91,7 @@ function StatusCell({ booking }: { booking: AdminBooking }) {
 }
 
 export function Bookings() {
-  const { data: bookings = [] } = useBookings();
+  const { data: bookings = [], isLoading } = useBookings();
   const cancelBooking = useCancelBooking();
   const [filter, setFilter] = useState<BookingStatus | "all">("all");
   const [query, setQuery] = useState("");
@@ -155,7 +156,8 @@ export function Bookings() {
             </tr>
           </thead>
           <tbody>
-            {list.map((b) => (
+            {isLoading && <SkeletonTableRows rows={6} cols={8} />}
+            {!isLoading && list.map((b) => (
               <tr key={b.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
                   <p className="font-medium text-ink">{b.vehicleName}</p>
@@ -182,7 +184,7 @@ export function Bookings() {
                 </td>
               </tr>
             ))}
-            {list.length === 0 && (
+            {!isLoading && list.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-2 py-12 text-center text-muted">
                   No bookings match your filters.

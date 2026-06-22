@@ -5,6 +5,7 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
+import { SkeletonListCards } from "@shared/ui/Skeleton";
 import { useBookings } from "../api/queries";
 import { useCancelBooking } from "../api/mutations";
 import type { BookingStatus } from "../types";
@@ -24,7 +25,7 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
 };
 
 export function Bookings() {
-  const { data: bookings = [] } = useBookings();
+  const { data: bookings = [], isLoading } = useBookings();
   const cancelBooking = useCancelBooking();
   const [filter, setFilter] = useState<BookingStatus | "all">("all");
 
@@ -56,7 +57,9 @@ export function Bookings() {
         ))}
       </div>
 
-      {list.length === 0 ? (
+      {isLoading ? (
+        <SkeletonListCards count={3} />
+      ) : list.length === 0 ? (
         <GlassCard className="py-16 text-center">
           <p className="text-muted">No bookings here yet.</p>
           <Button asChild className="mt-4">

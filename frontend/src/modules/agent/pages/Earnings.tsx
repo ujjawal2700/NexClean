@@ -1,13 +1,15 @@
 import { Wallet, TrendingUp, CheckCircle2, Briefcase } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
+import { Skeleton, SkeletonStatCards } from "@shared/ui/Skeleton";
 import { formatDate, formatMoney } from "@shared/lib/format";
 import { useJobs, useSummary } from "../api/agent.api";
 
 export function Earnings() {
-  const { data: jobs = [] } = useJobs();
-  const { data: summary } = useSummary();
+  const { data: jobs = [], isLoading: jobsLoading } = useJobs();
+  const { data: summary, isLoading: summaryLoading } = useSummary();
   const completed = jobs.filter((j) => j.status === "completed");
+  const isLoading = jobsLoading || summaryLoading;
 
   const total = completed.reduce((s, j) => s + j.payout, 0);
 
@@ -23,22 +25,39 @@ export function Earnings() {
       <h1 className="font-display text-3xl text-ink">Earnings</h1>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s) => (
-          <GlassCard key={s.label} className="flex items-center gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
-              <s.icon className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="font-display text-xl font-semibold text-ink">{s.value}</p>
-              <p className="truncate text-xs text-muted">{s.label}</p>
-            </div>
-          </GlassCard>
-        ))}
+        {isLoading ? (
+          <SkeletonStatCards count={4} />
+        ) : (
+          stats.map((s) => (
+            <GlassCard key={s.label} className="flex items-center gap-3">
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+                <s.icon className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-display text-xl font-semibold text-ink">{s.value}</p>
+                <p className="truncate text-xs text-muted">{s.label}</p>
+              </div>
+            </GlassCard>
+          ))
+        )}
       </div>
 
       <section>
         <h2 className="mb-4 font-display text-xl font-semibold text-ink">Payout history</h2>
-        {completed.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <GlassCard key={i} className="flex items-center gap-4">
+                <Skeleton className="h-16 w-20 shrink-0 rounded-2xl" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Skeleton className="h-4 w-1/3" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+                <Skeleton className="h-5 w-16 shrink-0" />
+              </GlassCard>
+            ))}
+          </div>
+        ) : completed.length === 0 ? (
           <GlassCard className="py-12 text-center text-muted">No completed jobs yet.</GlassCard>
         ) : (
           <div className="space-y-3">

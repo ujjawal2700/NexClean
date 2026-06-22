@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Input } from "@shared/ui/Input";
+import { SkeletonTableRows } from "@shared/ui/Skeleton";
 import { formatMoney, formatDate } from "@shared/lib/format";
 import { useCustomers } from "../api/admin.api";
 
 export function Customers() {
-  const { data: customers = [] } = useCustomers();
+  const { data: customers = [], isLoading } = useCustomers();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
 
@@ -51,7 +52,8 @@ export function Customers() {
             </tr>
           </thead>
           <tbody>
-            {list.map((c) => (
+            {isLoading && <SkeletonTableRows rows={6} cols={6} />}
+            {!isLoading && list.map((c) => (
               <tr
                 key={c.id}
                 onClick={() => navigate(`/admin/customers/${c.id}`)}
@@ -68,7 +70,7 @@ export function Customers() {
                 <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(c.totalSpend)}</td>
               </tr>
             ))}
-            {list.length === 0 && (
+            {!isLoading && list.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-2 py-12 text-center text-muted">
                   No customers match your search.

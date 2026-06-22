@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { RouteErrorBoundary } from "@shared/components/RouteErrorBoundary";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { KycGate } from "./components/KycGate";
 import { AgentLayout } from "./components/AgentLayout";
@@ -16,29 +17,31 @@ import { Profile } from "./pages/Profile";
  */
 export function AgentApp() {
   return (
-    <Routes>
-      <Route path="login" element={<Login />} />
-      <Route path="signup" element={<Signup />} />
+    <RouteErrorBoundary homePath="/agent" homeLabel="cleaner home">
+      <Routes>
+        <Route path="login" element={<Login />} />
+        <Route path="signup" element={<Signup />} />
 
-      <Route
-        element={
-          <ProtectedRoute>
-            <KycGate>
-              <AgentLayout>
-                <Outlet />
-              </AgentLayout>
-            </KycGate>
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Dashboard />} />
-        <Route path="jobs" element={<Jobs />} />
-        <Route path="jobs/:id" element={<JobDetail />} />
-        <Route path="earnings" element={<Earnings />} />
-        <Route path="profile" element={<Profile />} />
-      </Route>
+        <Route
+          element={
+            <ProtectedRoute>
+              <KycGate>
+                <AgentLayout>
+                  <Outlet />
+                </AgentLayout>
+              </KycGate>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="jobs" element={<Jobs />} />
+          <Route path="jobs/:id" element={<JobDetail />} />
+          <Route path="earnings" element={<Earnings />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/agent" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/agent" replace />} />
+      </Routes>
+    </RouteErrorBoundary>
   );
 }

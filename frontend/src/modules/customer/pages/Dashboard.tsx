@@ -3,13 +3,14 @@ import { ArrowRight, CalendarPlus, MapPin, Sparkles, Plus, CreditCard } from "lu
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
+import { Skeleton } from "@shared/ui/Skeleton";
 import { useMe, useBookings } from "../api/queries";
 import { VEHICLE_LABEL, PACKAGES } from "../data/catalog";
 import { formatDate, formatMoney, greeting } from "@shared/lib/format";
 
 export function Dashboard() {
-  const { data: me } = useMe();
-  const { data: bookings = [] } = useBookings();
+  const { data: me, isLoading: meLoading } = useMe();
+  const { data: bookings = [], isLoading: bookingsLoading } = useBookings();
 
   const name = me?.name ?? "Member";
   const vehicles = me?.vehicles ?? [];
@@ -21,7 +22,11 @@ export function Dashboard() {
       {/* greeting */}
       <div>
         <p className="text-sm text-muted">{greeting()},</p>
-        <h1 className="text-3xl text-ink">{name || "Member"} 👋</h1>
+        {meLoading ? (
+          <Skeleton className="mt-1 h-9 w-48" />
+        ) : (
+          <h1 className="text-3xl text-ink">{name || "Member"} 👋</h1>
+        )}
       </div>
 
       {/* hero CTA + next booking */}
@@ -55,7 +60,14 @@ export function Dashboard() {
             <p className="font-display text-lg font-semibold text-ink">Next booking</p>
             <Sparkles className="size-5 text-primary" />
           </div>
-          {next ? (
+          {bookingsLoading ? (
+            <div className="mt-4 flex-1 space-y-3">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-6 w-2/3" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : next ? (
             <div className="mt-4 flex flex-1 flex-col">
               <p className="text-sm text-muted">{next.packageName}</p>
               <p className="mt-1 font-display text-xl text-ink">{next.vehicleName}</p>
@@ -93,18 +105,28 @@ export function Dashboard() {
           </Button>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {vehicles.map((v) => (
-            <GlassCard key={v.id} interactive className="flex items-center gap-4">
-              <div className="w-24 shrink-0">
-                <CarSilhouette type={v.type} uid={`dash-${v.id}`} />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate font-display font-semibold text-ink">{v.name}</p>
-                <p className="text-sm text-muted">{VEHICLE_LABEL[v.type]}</p>
-                <p className="mt-0.5 text-xs text-muted">{v.plate}</p>
-              </div>
-            </GlassCard>
-          ))}
+          {meLoading
+            ? Array.from({ length: 3 }).map((_, i) => (
+                <GlassCard key={i} className="flex items-center gap-4">
+                  <Skeleton className="h-16 w-24 shrink-0 rounded-2xl" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </GlassCard>
+              ))
+            : vehicles.map((v) => (
+                <GlassCard key={v.id} interactive className="flex items-center gap-4">
+                  <div className="w-24 shrink-0">
+                    <CarSilhouette type={v.type} uid={`dash-${v.id}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-display font-semibold text-ink">{v.name}</p>
+                    <p className="text-sm text-muted">{VEHICLE_LABEL[v.type]}</p>
+                    <p className="mt-0.5 text-xs text-muted">{v.plate}</p>
+                  </div>
+                </GlassCard>
+              ))}
         </div>
       </section>
 

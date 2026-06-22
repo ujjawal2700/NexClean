@@ -4,6 +4,7 @@ import { MapPin, Clock, Navigation, ChevronRight } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
+import { SkeletonListCards } from "@shared/ui/Skeleton";
 import { formatDate, formatMoney } from "@shared/lib/format";
 import { useJobs } from "../api/agent.api";
 import { VEHICLE_LABEL, STATUS_LABEL, type JobStatus } from "../types";
@@ -23,7 +24,7 @@ const STATUS_STYLES: Record<JobStatus, string> = {
 };
 
 export function Jobs() {
-  const { data: jobs = [] } = useJobs();
+  const { data: jobs = [], isLoading } = useJobs();
   const [filter, setFilter] = useState<"active" | "completed" | "all">("active");
 
   const list = jobs.filter((j) =>
@@ -49,7 +50,9 @@ export function Jobs() {
         ))}
       </div>
 
-      {list.length === 0 ? (
+      {isLoading ? (
+        <SkeletonListCards count={4} />
+      ) : list.length === 0 ? (
         <GlassCard className="py-16 text-center text-muted">No jobs here.</GlassCard>
       ) : (
         <div className="space-y-4">

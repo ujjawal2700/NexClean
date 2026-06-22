@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Bell, CalendarCheck, Radar, Info } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
+import { Skeleton } from "@shared/ui/Skeleton";
 import { cn } from "@shared/lib/utils";
 import { useNotifications } from "../api/queries";
 import { useMarkNotificationsRead } from "../api/mutations";
@@ -37,7 +38,17 @@ export function Notifications() {
       <h1 className="mb-6 font-display text-3xl text-ink">Notifications</h1>
 
       {isLoading ? (
-        <GlassCard className="py-12 text-center text-muted">Loading…</GlassCard>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <GlassCard key={i} className="flex items-start gap-4">
+              <Skeleton className="size-11 shrink-0 rounded-2xl" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-1/3" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            </GlassCard>
+          ))}
+        </div>
       ) : items.length === 0 ? (
         <GlassCard className="py-16 text-center">
           <Bell className="mx-auto size-8 text-muted/50" />
