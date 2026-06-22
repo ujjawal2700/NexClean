@@ -18,7 +18,7 @@ const TRUST_ICONS = [ShieldCheck, Star, MapPin];
 export function Hero() {
   const navigate = useNavigate();
   const goToSection = useSectionLink();
-  const { hero } = useSiteContent();
+  const { hero } = useSiteContent().landing;
 
   return (
     <section className="relative flex min-h-dvh items-center overflow-hidden pt-28 pb-16">

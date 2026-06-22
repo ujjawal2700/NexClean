@@ -120,7 +120,7 @@ function PushCard() {
 }
 
 export function SmartAreaAlert() {
-  const { smartAreaAlert: c } = useSiteContent();
+  const { smartAreaAlert: c } = useSiteContent().landing;
   return (
     <Section id="nearby" className="relative overflow-hidden border-t border-line/60">
       <div

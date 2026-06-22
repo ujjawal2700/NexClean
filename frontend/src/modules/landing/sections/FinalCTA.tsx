@@ -11,7 +11,7 @@ import { useSiteContent } from "@shared/hooks/useSiteContent";
 export function FinalCTA() {
   const navigate = useNavigate();
   const goToSection = useSectionLink();
-  const { finalCta: c } = useSiteContent();
+  const { finalCta: c } = useSiteContent().landing;
 
   return (
     <Section bleed className="px-6 py-24">

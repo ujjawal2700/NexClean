@@ -55,7 +55,7 @@ const PLANS: Plan[] = [
 
 export function Subscriptions() {
   const navigate = useNavigate();
-  const { subscriptions: c } = useSiteContent();
+  const { subscriptions: c } = useSiteContent().landing;
 
   return (
     <Section id="plans" className="border-t border-line/60">

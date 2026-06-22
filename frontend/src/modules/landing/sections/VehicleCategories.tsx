@@ -74,7 +74,7 @@ function VehicleCard({ vehicle, uid }: { vehicle: Vehicle; uid: string }) {
 }
 
 export function VehicleCategories() {
-  const { vehicleCategories: c } = useSiteContent();
+  const { vehicleCategories: c } = useSiteContent().landing;
   return (
     <Section id="vehicles" className="border-t border-line/60">
       <SectionHeading eyebrow={c.eyebrow} title={c.title} subtitle={c.subtitle} />

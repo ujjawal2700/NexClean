@@ -17,7 +17,7 @@ import { useSiteContent } from "@shared/hooks/useSiteContent";
 const REASON_ICONS = [BadgeCheck, Clock, Leaf, Home, Lock, CalendarClock, Sparkles, ShieldCheck];
 
 export function WhyChoose() {
-  const { whyChoose: c } = useSiteContent();
+  const { whyChoose: c } = useSiteContent().landing;
   const reasons = c.reasons.map((r, i) => ({ ...r, Icon: REASON_ICONS[i] ?? BadgeCheck }));
 
   return (

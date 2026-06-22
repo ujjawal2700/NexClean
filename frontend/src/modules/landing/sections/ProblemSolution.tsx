@@ -9,7 +9,7 @@ const PROBLEM_ICONS = [Clock, Car, UserX, AlertTriangle];
 const SOLUTION_ICONS = [Zap, MapPin, ShieldCheck, Bell];
 
 export function ProblemSolution() {
-  const { problemSolution: c } = useSiteContent();
+  const { problemSolution: c } = useSiteContent().landing;
   const problems = c.problems.map((text, i) => ({ text, Icon: PROBLEM_ICONS[i] ?? Clock }));
   const solutions = c.solutions.map((text, i) => ({ text, Icon: SOLUTION_ICONS[i] ?? Check }));
 

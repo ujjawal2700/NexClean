@@ -55,7 +55,7 @@ function HomeScreen() {
 }
 
 export function AppShowcase() {
-  const { appShowcase: c } = useSiteContent();
+  const { appShowcase: c } = useSiteContent().landing;
   const features = c.features.map((label, i) => ({ label, Icon: FEATURE_ICONS[i] ?? CalendarCheck }));
   return (
     <Section id="app" className="relative overflow-hidden border-t border-line/60">

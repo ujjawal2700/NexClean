@@ -9,7 +9,7 @@ import { useSiteContent } from "@shared/hooks/useSiteContent";
 const STEP_ICONS = [Car, Package, CalendarClock, UserCheck, Home, Sparkles];
 
 export function HowItWorks() {
-  const { howItWorks: c } = useSiteContent();
+  const { howItWorks: c } = useSiteContent().landing;
   const steps = c.steps.map((step, i) => ({ ...step, Icon: STEP_ICONS[i] ?? Sparkles }));
 
   const ref = useRef<HTMLDivElement>(null);

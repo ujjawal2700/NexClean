@@ -7,7 +7,7 @@ import { useSiteContent } from "@shared/hooks/useSiteContent";
 import emotionalStoryArt from "@/assets/emotional-story.webp";
 
 export function EmotionalStory() {
-  const { emotionalStory: c } = useSiteContent();
+  const { emotionalStory: c } = useSiteContent().landing;
   return (
     <Section id="story" className="overflow-hidden">
       <div className="grid items-center gap-14 lg:grid-cols-2">

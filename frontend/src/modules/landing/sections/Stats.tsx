@@ -23,7 +23,7 @@ function StatItem({ stat }: { stat: Stat }) {
 }
 
 export function Stats() {
-  const { stats } = useSiteContent();
+  const { stats } = useSiteContent().landing;
   return (
     <Section bleed className="py-0">
       <div className="relative overflow-hidden bg-ink">

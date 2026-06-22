@@ -6,7 +6,7 @@ import { RevealGroup, RevealItem } from "@shared/motion/Reveal";
 import { useSiteContent } from "@shared/hooks/useSiteContent";
 
 export function Testimonials() {
-  const { testimonials: c } = useSiteContent();
+  const { testimonials: c } = useSiteContent().landing;
   return (
     <Section id="reviews" className="border-t border-line/60 bg-surface-muted/40">
       <SectionHeading align="center" eyebrow={c.eyebrow} title={c.title} subtitle={c.subtitle} />
