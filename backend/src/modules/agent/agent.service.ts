@@ -84,7 +84,16 @@ export async function summary(agentId: string) {
 }
 
 export async function setOnline(agentId: string, online: boolean) {
-  const agent = await User.findByIdAndUpdate(agentId, { online }, { new: true });
+  // Going online counts as an immediate heartbeat so the badge flips live right away.
+  const update = online ? { online, lastSeenAt: new Date() } : { online };
+  const agent = await User.findByIdAndUpdate(agentId, update, { new: true });
+  if (!agent) throw ApiError.notFound("Agent not found");
+  return agent;
+}
+
+/** Keeps the agent's "live" status fresh; the app calls this on an interval while open. */
+export async function heartbeat(agentId: string) {
+  const agent = await User.findByIdAndUpdate(agentId, { lastSeenAt: new Date() }, { new: true });
   if (!agent) throw ApiError.notFound("Agent not found");
   return agent;
 }

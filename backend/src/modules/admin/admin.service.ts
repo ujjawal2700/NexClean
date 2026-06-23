@@ -5,6 +5,7 @@ import { Campaign } from "./campaign.model";
 import { TriggeredAlert } from "../area-alert/areaAlert.model";
 import { notifyUser } from "../notification/notification.service";
 import { ApiError } from "../../shared/utils/ApiError";
+import { agentLiveSince, isAgentLive } from "../user/presence";
 import * as planService from "../catalog/plan.service";
 import type { PlanDoc } from "../catalog/plan.model";
 import { VEHICLE_TYPES, type PlanPrices } from "../catalog/catalog.data";
@@ -50,7 +51,7 @@ export async function stats() {
     activeBookings: active,
     activeServices,
     totalUsers,
-    agentsOnline: agents.filter((a) => a.online).length,
+    agentsOnline: agents.filter((a) => isAgentLive(a)).length,
     agentsTotal: agents.length,
     alertsTriggered,
   };
@@ -109,7 +110,12 @@ export async function autoAssignBooking(bookingId: string) {
   const booking = await Booking.findById(bookingId).populate("user", "name");
   if (!booking) throw ApiError.notFound("Booking not found");
 
-  const candidates = await User.find({ role: "agent", agentStatus: "verified", online: true });
+  const candidates = await User.find({
+    role: "agent",
+    agentStatus: "verified",
+    online: true,
+    lastSeenAt: { $gte: agentLiveSince() },
+  });
   if (candidates.length === 0) throw ApiError.badRequest("No available agents to auto-assign");
 
   const inSameArea = candidates.filter((a) => a.area && booking.society && a.area === booking.society);
@@ -139,7 +145,7 @@ function mapAgent(a: UserDoc) {
     area: a.area ?? "",
     rating: a.rating ?? 0,
     jobsDone: a.jobsDone ?? 0,
-    online: a.online ?? false,
+    online: isAgentLive(a),
     status: a.agentStatus ?? "pending",
     aadharNumber: a.aadharNumber ?? "",
     aadharFrontUrl: a.aadharFrontUrl ?? "",

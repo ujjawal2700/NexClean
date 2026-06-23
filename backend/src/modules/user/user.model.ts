@@ -46,6 +46,7 @@ const userSchema = new Schema(
     rating: { type: Number, default: 4.8 },
     jobsDone: { type: Number, default: 0 },
     online: { type: Boolean, default: true },
+    lastSeenAt: { type: Date, default: null },
     agentStatus: { type: String, enum: ["verified", "pending", "suspended"], default: "verified" },
 
     // Agent KYC (submitted at signup, reviewed by admin before activation)

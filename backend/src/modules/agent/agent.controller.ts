@@ -30,6 +30,10 @@ export async function online(req: Request, res: Response): Promise<Response> {
   return ok(res, await service.setOnline(req.userId!, parsed.data.online));
 }
 
+export async function heartbeat(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.heartbeat(req.userId!));
+}
+
 const notifySchema = z.object({ society: z.string().min(1) });
 export async function notifyArea(req: Request, res: Response): Promise<Response> {
   const parsed = notifySchema.safeParse(req.body);

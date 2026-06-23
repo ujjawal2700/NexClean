@@ -47,6 +47,13 @@ adminRouter.post("/zones", asyncHandler(c.createZone));
 adminRouter.patch("/zones/:id", asyncHandler(c.updateZone));
 adminRouter.delete("/zones/:id", asyncHandler(c.deleteZone));
 
+adminRouter.get("/vehicle-brands", asyncHandler(c.vehicleBrands));
+adminRouter.post("/vehicle-brands", asyncHandler(c.createVehicleBrand));
+adminRouter.patch("/vehicle-brands/:id", asyncHandler(c.updateVehicleBrand));
+adminRouter.delete("/vehicle-brands/:id", asyncHandler(c.deleteVehicleBrand));
+adminRouter.post("/vehicle-brands/:id/models", asyncHandler(c.addVehicleModel));
+adminRouter.delete("/vehicle-brands/:id/models/:model", asyncHandler(c.removeVehicleModel));
+
 adminRouter.get("/campaigns", asyncHandler(c.campaigns));
 adminRouter.get("/campaigns/audience-sizes", asyncHandler(c.campaignAudienceSizes));
 adminRouter.post("/campaigns", asyncHandler(c.sendCampaign));

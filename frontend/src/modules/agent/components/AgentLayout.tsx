@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { LayoutDashboard, ListChecks, Wallet, User, LogOut } from "lucide-react";
@@ -6,7 +6,28 @@ import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
 import { useAgentSession } from "../store/sessionStore";
-import { useAgentMe, useToggleOnline } from "../api/agent.api";
+import { useAgentMe, useToggleOnline, useHeartbeat } from "../api/agent.api";
+
+const HEARTBEAT_INTERVAL_MS = 25_000;
+
+/** Keeps the agent's "live" status fresh on the server for as long as this layout is mounted. */
+function useAgentHeartbeat() {
+  const heartbeat = useHeartbeat();
+
+  useEffect(() => {
+    heartbeat.mutate();
+    const interval = setInterval(() => heartbeat.mutate(), HEARTBEAT_INTERVAL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") heartbeat.mutate();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
 
 const NAV = [
   { to: "/agent", label: "Today", icon: LayoutDashboard, end: true },
@@ -42,6 +63,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const clear = useAgentSession((s) => s.clear);
+  useAgentHeartbeat();
 
   const onLogout = () => {
     clear();

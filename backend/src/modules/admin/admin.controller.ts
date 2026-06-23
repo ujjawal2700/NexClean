@@ -4,6 +4,7 @@ import { ok, created } from "../../shared/utils/apiResponse";
 import { ApiError } from "../../shared/utils/ApiError";
 import { getPricing, updatePricing } from "../pricing/pricing.service";
 import * as locationService from "../location/location.service";
+import * as brandService from "../brand/brand.service";
 import * as service from "./admin.service";
 import { getContent, updateContent } from "../content/content.service";
 
@@ -174,6 +175,44 @@ export async function updateZone(req: Request, res: Response): Promise<Response>
 export async function deleteZone(req: Request, res: Response): Promise<Response> {
   await locationService.deleteZone(String(req.params.id));
   return ok(res, null, "Zone deleted");
+}
+
+export async function vehicleBrands(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await brandService.listBrands());
+}
+
+const createBrandSchema = z.object({ name: z.string().trim().min(1) });
+export async function createVehicleBrand(req: Request, res: Response): Promise<Response> {
+  const parsed = createBrandSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Brand name is required");
+  return created(res, await brandService.createBrand(parsed.data), "Brand created");
+}
+
+const updateBrandSchema = z.object({ name: z.string().trim().min(1).optional(), active: z.boolean().optional() });
+export async function updateVehicleBrand(req: Request, res: Response): Promise<Response> {
+  const parsed = updateBrandSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid brand update");
+  return ok(res, await brandService.updateBrand(String(req.params.id), parsed.data), "Brand updated");
+}
+
+export async function deleteVehicleBrand(req: Request, res: Response): Promise<Response> {
+  await brandService.deleteBrand(String(req.params.id));
+  return ok(res, null, "Brand deleted");
+}
+
+const addModelSchema = z.object({ model: z.string().trim().min(1) });
+export async function addVehicleModel(req: Request, res: Response): Promise<Response> {
+  const parsed = addModelSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Model name is required");
+  return created(res, await brandService.addModel(String(req.params.id), parsed.data.model), "Model added");
+}
+
+export async function removeVehicleModel(req: Request, res: Response): Promise<Response> {
+  return ok(
+    res,
+    await brandService.removeModel(String(req.params.id), String(req.params.model)),
+    "Model removed",
+  );
 }
 
 export async function campaigns(_req: Request, res: Response): Promise<Response> {

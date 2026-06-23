@@ -16,6 +16,7 @@ import {
   X,
   MapPin,
   FileText,
+  Car,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@shared/lib/utils";
@@ -34,6 +35,7 @@ const NAV = [
   { to: "/admin/notifications", label: "Notifications", icon: Megaphone, end: false },
   { to: "/admin/plans", label: "Plans", icon: CreditCard, end: false },
   { to: "/admin/locations", label: "Locations", icon: MapPin, end: false },
+  { to: "/admin/vehicle-brands", label: "Vehicle Brands", icon: Car, end: false },
   { to: "/admin/content", label: "Content", icon: FileText, end: false },
   { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false },
 ];

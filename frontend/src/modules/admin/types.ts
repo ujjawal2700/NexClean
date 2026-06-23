@@ -107,6 +107,13 @@ export type ServiceCity = {
   active: boolean;
 };
 
+export type VehicleBrand = {
+  id: string;
+  name: string;
+  active: boolean;
+  models: string[];
+};
+
 export type ServiceZone = {
   id: string;
   name: string;

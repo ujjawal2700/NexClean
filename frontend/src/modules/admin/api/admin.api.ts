@@ -21,6 +21,7 @@ import type {
   BookingStatus,
   ServiceCity,
   ServiceZone,
+  VehicleBrand,
   AdminReports,
   AudienceSizes,
 } from "../types";
@@ -41,14 +42,20 @@ const keys = {
   paymentStats: ["admin", "payments", "stats"] as const,
   cities: ["admin", "cities"] as const,
   zones: ["admin", "zones"] as const,
+  vehicleBrands: ["admin", "vehicle-brands"] as const,
   reports: ["admin", "reports"] as const,
   audienceSizes: ["admin", "campaigns", "audience-sizes"] as const,
   content: ["admin", "content"] as const,
 };
 
-function useAuthedQuery<T>(key: readonly unknown[], path: string) {
+function useAuthedQuery<T>(key: readonly unknown[], path: string, opts?: { refetchInterval?: number }) {
   const token = useAdminSession((s) => s.token);
-  return useQuery({ queryKey: key, queryFn: () => apiFetch<T>(path), enabled: !!token });
+  return useQuery({
+    queryKey: key,
+    queryFn: () => apiFetch<T>(path),
+    enabled: !!token,
+    refetchInterval: opts?.refetchInterval,
+  });
 }
 
 /* -------------------------------- Auth ----------------------------------- */
@@ -65,9 +72,9 @@ export function useAdminLogin() {
 
 /* ------------------------------- Queries --------------------------------- */
 
-export const useStats = () => useAuthedQuery<AdminStats>(keys.stats, "/admin/stats");
+export const useStats = () => useAuthedQuery<AdminStats>(keys.stats, "/admin/stats", { refetchInterval: 20_000 });
 export const useBookings = () => useAuthedQuery<AdminBooking[]>(keys.bookings, "/admin/bookings");
-export const useAgents = () => useAuthedQuery<AdminAgent[]>(keys.agents, "/admin/agents");
+export const useAgents = () => useAuthedQuery<AdminAgent[]>(keys.agents, "/admin/agents", { refetchInterval: 20_000 });
 export const usePricing = () => useAuthedQuery<Pricing>(keys.pricing, "/admin/pricing");
 export const usePlans = () => useAuthedQuery<AdminPlan[]>(keys.plans, "/admin/plans");
 export const useCampaigns = () => useAuthedQuery<Campaign[]>(keys.campaigns, "/admin/campaigns");
@@ -82,6 +89,7 @@ export const usePayments = () => useAuthedQuery<AdminPayment[]>(keys.payments, "
 export const usePaymentStats = () => useAuthedQuery<PaymentStats>(keys.paymentStats, "/admin/payments/stats");
 export const useCities = () => useAuthedQuery<ServiceCity[]>(keys.cities, "/admin/cities");
 export const useZones = () => useAuthedQuery<ServiceZone[]>(keys.zones, "/admin/zones");
+export const useVehicleBrands = () => useAuthedQuery<VehicleBrand[]>(keys.vehicleBrands, "/admin/vehicle-brands");
 export const useReports = () => useAuthedQuery<AdminReports>(keys.reports, "/admin/reports");
 export const useContent = () => useAuthedQuery<SiteContent>(keys.content, "/admin/content");
 export const useAudienceSizes = () =>
@@ -282,5 +290,51 @@ export function useDeleteZone() {
   return useMutation({
     mutationFn: (id: string) => apiFetch<null>(`/admin/zones/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.zones }),
+  });
+}
+
+export function useCreateVehicleBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { name: string }) =>
+      apiFetch<VehicleBrand>("/admin/vehicle-brands", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
+  });
+}
+
+export function useUpdateVehicleBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; name?: string; active?: boolean }) =>
+      apiFetch<VehicleBrand>(`/admin/vehicle-brands/${vars.id}`, { method: "PATCH", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
+  });
+}
+
+export function useDeleteVehicleBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<null>(`/admin/vehicle-brands/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
+  });
+}
+
+export function useAddVehicleModel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; model: string }) =>
+      apiFetch<VehicleBrand>(`/admin/vehicle-brands/${vars.id}/models`, { method: "POST", body: { model: vars.model } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
+  });
+}
+
+export function useRemoveVehicleModel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; model: string }) =>
+      apiFetch<VehicleBrand>(`/admin/vehicle-brands/${vars.id}/models/${encodeURIComponent(vars.model)}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
   });
 }

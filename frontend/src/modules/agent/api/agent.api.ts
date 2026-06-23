@@ -88,6 +88,13 @@ export function useToggleOnline() {
   });
 }
 
+/** Pings the backend so the admin's "online" badge reflects real, live activity (see AgentLayout). */
+export function useHeartbeat() {
+  return useMutation({
+    mutationFn: () => apiFetch<AgentProfile>("/agent/heartbeat", { method: "PATCH" }),
+  });
+}
+
 export function useUpdateName() {
   const qc = useQueryClient();
   return useMutation({

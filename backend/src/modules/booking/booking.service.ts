@@ -1,6 +1,7 @@
 import { Booking } from "./booking.model";
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
+import { agentLiveSince } from "../user/presence";
 import { getPrice, getPackageRecord } from "../pricing/pricing.service";
 import { notifyUser } from "../notification/notification.service";
 import type { CreateBookingInput } from "./booking.validation";
@@ -21,10 +22,10 @@ export async function createBooking(userId: string, input: CreateBookingInput) {
   const society =
     customer?.addresses.find((a) => a.line === input.addressLine)?.society ?? input.addressLine;
 
-  // Auto-assign an available agent in that area (fallback: any verified, online agent).
+  // Auto-assign an available agent in that area (fallback: any verified, live agent).
+  const liveFilter = { role: "agent", agentStatus: "verified", online: true, lastSeenAt: { $gte: agentLiveSince() } };
   const agent =
-    (await User.findOne({ role: "agent", agentStatus: "verified", online: true, area: society })) ??
-    (await User.findOne({ role: "agent", agentStatus: "verified", online: true }));
+    (await User.findOne({ ...liveFilter, area: society })) ?? (await User.findOne(liveFilter));
 
   const booking = await Booking.create({
     user: userId,
