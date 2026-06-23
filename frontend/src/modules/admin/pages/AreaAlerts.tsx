@@ -50,18 +50,19 @@ export function AreaAlerts() {
                 </div>
               </div>
               <button
+                type="button"
                 role="switch"
                 aria-checked={alertSettings.enabled}
                 onClick={() => updateAlertSettings({ enabled: !alertSettings.enabled })}
                 className={cn(
-                  "relative h-7 w-12 shrink-0 rounded-full transition-colors",
+                  "relative h-7 w-12 shrink-0 overflow-hidden rounded-full border-0 p-0 transition-colors",
                   alertSettings.enabled ? "bg-primary" : "bg-line",
                 )}
               >
                 <span
                   className={cn(
-                    "absolute top-0.5 size-6 rounded-full bg-white shadow transition-transform",
-                    alertSettings.enabled ? "translate-x-[22px]" : "translate-x-0.5",
+                    "absolute top-0.5 left-0.5 size-6 rounded-full bg-white shadow transition-transform",
+                    alertSettings.enabled ? "translate-x-5" : "translate-x-0",
                   )}
                 />
               </button>
