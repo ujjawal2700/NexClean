@@ -66,12 +66,10 @@ export function AreaAlerts() {
                 />
               </button>
             </div>
-            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface/60 px-3 py-2">
-              <span
-                className={cn("size-2 rounded-full", alertSettings.enabled ? "bg-emerald-500" : "bg-muted")}
-              />
-              <p className="text-sm font-medium text-ink">{alertSettings.enabled ? "Active" : "Paused"}</p>
-            </div>
+            <p className={cn("text-sm font-medium", alertSettings.enabled ? "text-emerald-600" : "text-muted")}>
+              <span className={cn("inline-block size-2.5 rounded-full mr-2", alertSettings.enabled ? "bg-emerald-500" : "bg-muted")} />
+              {alertSettings.enabled ? "Active and monitoring" : "Paused"}
+            </p>
           </GlassCard>
 
           <GlassCard className="space-y-5">
