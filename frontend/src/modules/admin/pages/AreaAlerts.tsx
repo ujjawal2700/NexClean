@@ -38,32 +38,40 @@ export function AreaAlerts() {
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         {/* settings */}
         <div className="space-y-6">
-          <GlassCard className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <Radar className="size-5" />
-              </span>
-              <div>
-                <p className="font-display font-semibold text-ink">Area alerts</p>
-                <p className="text-sm text-muted">{alertSettings.enabled ? "Active" : "Paused"}</p>
+          <GlassCard className="space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="mt-1 grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+                  <Radar className="size-5" />
+                </span>
+                <div>
+                  <p className="font-display text-lg font-semibold text-ink">Area alerts</p>
+                  <p className="text-sm text-muted">Configure Smart Area Alert notifications.</p>
+                </div>
               </div>
-            </div>
-            <button
-              role="switch"
-              aria-checked={alertSettings.enabled}
-              onClick={() => updateAlertSettings({ enabled: !alertSettings.enabled })}
-              className={cn(
-                "relative h-7 w-12 rounded-full transition-colors",
-                alertSettings.enabled ? "bg-primary" : "bg-line",
-              )}
-            >
-              <span
+              <button
+                role="switch"
+                aria-checked={alertSettings.enabled}
+                onClick={() => updateAlertSettings({ enabled: !alertSettings.enabled })}
                 className={cn(
-                  "absolute top-0.5 size-6 rounded-full bg-white shadow transition-transform",
-                  alertSettings.enabled ? "translate-x-[22px]" : "translate-x-0.5",
+                  "relative h-7 w-12 shrink-0 rounded-full transition-colors",
+                  alertSettings.enabled ? "bg-primary" : "bg-line",
                 )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 size-6 rounded-full bg-white shadow transition-transform",
+                    alertSettings.enabled ? "translate-x-[22px]" : "translate-x-0.5",
+                  )}
+                />
+              </button>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface/60 px-3 py-2">
+              <span
+                className={cn("size-2 rounded-full", alertSettings.enabled ? "bg-emerald-500" : "bg-muted")}
               />
-            </button>
+              <p className="text-sm font-medium text-ink">{alertSettings.enabled ? "Active" : "Paused"}</p>
+            </div>
           </GlassCard>
 
           <GlassCard className="space-y-5">
