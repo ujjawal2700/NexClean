@@ -25,3 +25,26 @@ temp_interactive_push.bat
 
 # Added by code-review-graph
 .code-review-graph/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# AI tool / editor configs (local-only, not part of the app)
+.cursorrules
+.windsurfrules
+.mcp.json
+.opencode.json
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+QODER.md
+.claude/settings.json
+.claude/skills/debug-issue/
+.claude/skills/explore-codebase/
+.claude/skills/refactor-safely/
+.claude/skills/review-changes/
+.gemini/
+.kiro/
+.qoder/
+.vscode/mcp.json
+.github/code-review-graph.instruction.md

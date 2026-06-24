@@ -1,7 +1,7 @@
-import crypto from "node:crypto";
 import { Otp } from "./otp.model";
 import { User } from "../user/user.model";
 import { ReferralCampaign } from "../promotions/referralCampaign.model";
+import { generateUniqueReferralCode } from "../user/user.service";
 import { env } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
 import { signToken, type Role } from "../../shared/utils/jwt";
@@ -11,16 +11,6 @@ import type { CustomerSignupInput, AgentSignupInput } from "./auth.validation";
 /** Normalize a phone string to a consistent stored form. */
 function normalize(phone: string): string {
   return phone.replace(/\s+/g, "");
-}
-
-/** Generate a unique, shareable referral code for a new customer (e.g. "RAVI4F2A"). */
-async function generateUniqueReferralCode(name: string): Promise<string> {
-  const prefix = (name.replace(/[^a-zA-Z]/g, "").slice(0, 4) || "USER").toUpperCase().padEnd(4, "X");
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = `${prefix}${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
-    if (!(await User.findOne({ referralCode: code }))) return code;
-  }
-  throw new Error("Failed to generate a unique referral code");
 }
 
 /**
@@ -61,6 +51,12 @@ export async function verifyOtp(rawPhone: string, code: string) {
     { $setOnInsert: { phone, name: "NexClean Member", role: "customer" } },
     { upsert: true, new: true },
   );
+
+  // Cover accounts created via OTP-only login (no customerSignup) or from before referral codes existed.
+  if (user.role === "customer" && !user.referralCode) {
+    user.referralCode = await generateUniqueReferralCode(user.name);
+    await user.save();
+  }
 
   const token = signToken(user.id, user.role as Role);
   return { token, user };
