@@ -3,6 +3,7 @@ import { ok } from "../../shared/utils/apiResponse";
 import { PACKAGES, BASE_PRICE, VEHICLE_TYPES } from "./catalog.data";
 import { listActivePlans } from "./plan.service";
 import { getContent } from "../content/content.service";
+import { listActivePromoBanners } from "../promotions/promoBanner.service";
 
 export function getPackages(_req: Request, res: Response): Response {
   return ok(res, PACKAGES);
@@ -18,4 +19,8 @@ export function getPricing(_req: Request, res: Response): Response {
 
 export async function getPlans(_req: Request, res: Response): Promise<Response> {
   return ok(res, await listActivePlans());
+}
+
+export async function getPromoBannersCtl(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await listActivePromoBanners());
 }

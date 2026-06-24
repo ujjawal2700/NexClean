@@ -214,6 +214,41 @@ export type CustomerRetention = {
   newLastMonth: number;
 };
 
+export type DiscountType = "percent" | "flat";
+
+export type DiscountCode = {
+  id: string;
+  code: string;
+  type: DiscountType;
+  value: number;
+  minOrderValue: number;
+  maxDiscount: number | null;
+  usageLimit: number | null;
+  usageCount: number;
+  validTill: string | null;
+  active: boolean;
+};
+
+export type ReferralCampaign = {
+  id: string;
+  name: string;
+  referrerReward: number;
+  refereeReward: number;
+  description: string;
+  active: boolean;
+};
+
+export type PromoBanner = {
+  id: string;
+  title: string;
+  subtitle: string;
+  imageUrl: string;
+  ctaLabel: string;
+  ctaLink: string;
+  sortOrder: number;
+  active: boolean;
+};
+
 export type AdminReports = {
   revenueTrend: RevenueDay[];
   revenueByVehicle: VehicleRevenue[];

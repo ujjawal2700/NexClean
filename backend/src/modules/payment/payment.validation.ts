@@ -1,8 +1,15 @@
 import { z } from "zod";
 import { createBookingSchema } from "../booking/booking.validation";
+import { VEHICLE_TYPES } from "../catalog/catalog.data";
 
 export const createOrderSchema = z.object({
   booking: createBookingSchema,
+});
+
+export const previewAmountSchema = z.object({
+  vehicleType: z.enum(VEHICLE_TYPES),
+  packageId: z.string().min(1),
+  discountCode: z.string().trim().min(1).optional(),
 });
 
 export const verifyPaymentSchema = z.object({

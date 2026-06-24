@@ -4,13 +4,14 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { Skeleton } from "@shared/ui/Skeleton";
-import { useMe, useBookings } from "../api/queries";
+import { useMe, useBookings, usePromoBanners } from "../api/queries";
 import { VEHICLE_LABEL, PACKAGES } from "../data/catalog";
 import { formatDate, formatMoney, greeting } from "@shared/lib/format";
 
 export function Dashboard() {
   const { data: me, isLoading: meLoading } = useMe();
   const { data: bookings = [], isLoading: bookingsLoading } = useBookings();
+  const { data: banners = [] } = usePromoBanners();
 
   const name = me?.name ?? "Member";
   const vehicles = me?.vehicles ?? [];
@@ -93,6 +94,36 @@ export function Dashboard() {
           )}
         </GlassCard>
       </div>
+
+      {/* promotional banners */}
+      {banners.length > 0 && (
+        <div className="flex gap-4 overflow-x-auto pb-2">
+          {banners.map((b) => {
+            const content = (
+              <div className="relative h-36 w-80 shrink-0 overflow-hidden rounded-card">
+                <img src={b.imageUrl} alt={b.title} className="size-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <p className="font-display text-lg font-semibold text-white">{b.title}</p>
+                  {b.subtitle && <p className="mt-0.5 text-sm text-white/85">{b.subtitle}</p>}
+                  {b.ctaLabel && (
+                    <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-white">
+                      {b.ctaLabel} <ArrowRight className="size-3.5" />
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+            return b.ctaLink ? (
+              <a key={b.id} href={b.ctaLink} target="_blank" rel="noreferrer">
+                {content}
+              </a>
+            ) : (
+              <div key={b.id}>{content}</div>
+            );
+          })}
+        </div>
+      )}
 
       {/* garage */}
       <section>

@@ -54,6 +54,21 @@ adminRouter.delete("/vehicle-brands/:id", asyncHandler(c.deleteVehicleBrand));
 adminRouter.post("/vehicle-brands/:id/models", asyncHandler(c.addVehicleModel));
 adminRouter.delete("/vehicle-brands/:id/models/:model", asyncHandler(c.removeVehicleModel));
 
+adminRouter.get("/discount-codes", asyncHandler(c.discountCodes));
+adminRouter.post("/discount-codes", asyncHandler(c.createDiscountCode));
+adminRouter.patch("/discount-codes/:id", asyncHandler(c.updateDiscountCode));
+adminRouter.delete("/discount-codes/:id", asyncHandler(c.deleteDiscountCode));
+
+adminRouter.get("/referral-campaigns", asyncHandler(c.referralCampaigns));
+adminRouter.post("/referral-campaigns", asyncHandler(c.createReferralCampaign));
+adminRouter.patch("/referral-campaigns/:id", asyncHandler(c.updateReferralCampaign));
+adminRouter.delete("/referral-campaigns/:id", asyncHandler(c.deleteReferralCampaign));
+
+adminRouter.get("/promo-banners", asyncHandler(c.promoBanners));
+adminRouter.post("/promo-banners", asyncHandler(c.createPromoBanner));
+adminRouter.patch("/promo-banners/:id", asyncHandler(c.updatePromoBanner));
+adminRouter.delete("/promo-banners/:id", asyncHandler(c.deletePromoBanner));
+
 adminRouter.get("/campaigns", asyncHandler(c.campaigns));
 adminRouter.get("/campaigns/audience-sizes", asyncHandler(c.campaignAudienceSizes));
 adminRouter.post("/campaigns", asyncHandler(c.sendCampaign));

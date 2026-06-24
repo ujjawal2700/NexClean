@@ -1,14 +1,20 @@
 import crypto from "node:crypto";
 import { env, paymentsLive } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
-import { getPrice } from "../pricing/pricing.service";
-import { createBooking } from "../booking/booking.service";
+import { createBooking, computePrice } from "../booking/booking.service";
 import { Payment } from "./payment.model";
 import type { CreateOrderInput, VerifyPaymentInput } from "./payment.validation";
 
-/** Server-side authoritative amount for a booking (rupees). */
-function amountFor(input: CreateOrderInput["booking"]): Promise<number> {
-  return getPrice(input.vehicleType, input.packageId);
+/** Server-side authoritative amount for a booking (rupees), discount code applied if present. */
+async function amountFor(input: CreateOrderInput["booking"]): Promise<number> {
+  const { price } = await computePrice(input);
+  return price;
+}
+
+/** Preview the price + discount for a booking draft, without creating an order. */
+export async function previewAmount(input: { vehicleType: CreateOrderInput["booking"]["vehicleType"]; packageId: string; discountCode?: string }) {
+  const { basePrice, price, discountAmount, discountCodeLabel } = await computePrice(input);
+  return { basePrice, price, discountAmount, discountCode: discountCodeLabel };
 }
 
 // Lazily construct the Razorpay client only when live keys are configured.

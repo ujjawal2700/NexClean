@@ -1,5 +1,7 @@
+import crypto from "node:crypto";
 import { Otp } from "./otp.model";
 import { User } from "../user/user.model";
+import { ReferralCampaign } from "../promotions/referralCampaign.model";
 import { env } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
 import { signToken, type Role } from "../../shared/utils/jwt";
@@ -9,6 +11,16 @@ import type { CustomerSignupInput, AgentSignupInput } from "./auth.validation";
 /** Normalize a phone string to a consistent stored form. */
 function normalize(phone: string): string {
   return phone.replace(/\s+/g, "");
+}
+
+/** Generate a unique, shareable referral code for a new customer (e.g. "RAVI4F2A"). */
+async function generateUniqueReferralCode(name: string): Promise<string> {
+  const prefix = (name.replace(/[^a-zA-Z]/g, "").slice(0, 4) || "USER").toUpperCase().padEnd(4, "X");
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = `${prefix}${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+    if (!(await User.findOne({ referralCode: code }))) return code;
+  }
+  throw new Error("Failed to generate a unique referral code");
 }
 
 /**
@@ -60,12 +72,29 @@ export async function customerSignup(input: CustomerSignupInput) {
   const existing = await User.findOne({ phone });
   if (existing) throw ApiError.badRequest("An account with this number already exists. Please log in.");
 
-  await User.create({
+  const referralCode = input.referralCode?.trim().toUpperCase();
+  const referrer = referralCode ? await User.findOne({ referralCode }) : null;
+  if (referralCode && !referrer) throw ApiError.badRequest("Invalid referral code");
+
+  const ownReferralCode = await generateUniqueReferralCode(input.name);
+
+  const user = await User.create({
     phone,
     name: input.name,
     email: input.email ?? "",
     role: "customer",
+    referralCode: ownReferralCode,
+    referredBy: referrer?.id ?? null,
   });
+
+  // Credit both sides from the first active referral campaign (if one exists).
+  if (referrer) {
+    const campaign = await ReferralCampaign.findOne({ active: true }).sort({ createdAt: -1 });
+    if (campaign) {
+      await User.findByIdAndUpdate(referrer.id, { $inc: { referralEarnings: campaign.referrerReward } });
+      await User.findByIdAndUpdate(user.id, { $inc: { referralEarnings: campaign.refereeReward } });
+    }
+  }
 
   return sendOtp(phone);
 }

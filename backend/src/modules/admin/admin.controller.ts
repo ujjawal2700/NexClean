@@ -5,6 +5,9 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { getPricing, updatePricing } from "../pricing/pricing.service";
 import * as locationService from "../location/location.service";
 import * as brandService from "../brand/brand.service";
+import * as discountCodeService from "../promotions/discountCode.service";
+import * as referralCampaignService from "../promotions/referralCampaign.service";
+import * as promoBannerService from "../promotions/promoBanner.service";
 import * as service from "./admin.service";
 import { getContent, updateContent } from "../content/content.service";
 
@@ -213,6 +216,121 @@ export async function removeVehicleModel(req: Request, res: Response): Promise<R
     await brandService.removeModel(String(req.params.id), String(req.params.model)),
     "Model removed",
   );
+}
+
+export async function discountCodes(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await discountCodeService.listDiscountCodes());
+}
+
+const createDiscountCodeSchema = z.object({
+  code: z.string().trim().min(1),
+  type: z.enum(["percent", "flat"]),
+  value: z.number().positive(),
+  minOrderValue: z.number().min(0).optional(),
+  maxDiscount: z.number().min(0).nullable().optional(),
+  usageLimit: z.number().int().positive().nullable().optional(),
+  validTill: z.coerce.date().nullable().optional(),
+});
+export async function createDiscountCode(req: Request, res: Response): Promise<Response> {
+  const parsed = createDiscountCodeSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid discount code");
+  return created(res, await discountCodeService.createDiscountCode(parsed.data), "Discount code created");
+}
+
+const updateDiscountCodeSchema = z.object({
+  type: z.enum(["percent", "flat"]).optional(),
+  value: z.number().positive().optional(),
+  minOrderValue: z.number().min(0).optional(),
+  maxDiscount: z.number().min(0).nullable().optional(),
+  usageLimit: z.number().int().positive().nullable().optional(),
+  validTill: z.coerce.date().nullable().optional(),
+  active: z.boolean().optional(),
+});
+export async function updateDiscountCode(req: Request, res: Response): Promise<Response> {
+  const parsed = updateDiscountCodeSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid discount code update");
+  return ok(res, await discountCodeService.updateDiscountCode(String(req.params.id), parsed.data), "Discount code updated");
+}
+
+export async function deleteDiscountCode(req: Request, res: Response): Promise<Response> {
+  await discountCodeService.deleteDiscountCode(String(req.params.id));
+  return ok(res, null, "Discount code deleted");
+}
+
+export async function referralCampaigns(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await referralCampaignService.listReferralCampaigns());
+}
+
+const createReferralCampaignSchema = z.object({
+  name: z.string().trim().min(1),
+  referrerReward: z.number().min(0),
+  refereeReward: z.number().min(0),
+  description: z.string().trim().optional(),
+});
+export async function createReferralCampaign(req: Request, res: Response): Promise<Response> {
+  const parsed = createReferralCampaignSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid referral campaign");
+  return created(res, await referralCampaignService.createReferralCampaign(parsed.data), "Referral campaign created");
+}
+
+const updateReferralCampaignSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  referrerReward: z.number().min(0).optional(),
+  refereeReward: z.number().min(0).optional(),
+  description: z.string().trim().optional(),
+  active: z.boolean().optional(),
+});
+export async function updateReferralCampaign(req: Request, res: Response): Promise<Response> {
+  const parsed = updateReferralCampaignSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid referral campaign update");
+  return ok(
+    res,
+    await referralCampaignService.updateReferralCampaign(String(req.params.id), parsed.data),
+    "Referral campaign updated",
+  );
+}
+
+export async function deleteReferralCampaign(req: Request, res: Response): Promise<Response> {
+  await referralCampaignService.deleteReferralCampaign(String(req.params.id));
+  return ok(res, null, "Referral campaign deleted");
+}
+
+export async function promoBanners(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await promoBannerService.listPromoBanners());
+}
+
+const createPromoBannerSchema = z.object({
+  title: z.string().trim().min(1),
+  subtitle: z.string().trim().optional(),
+  imageUrl: z.string().trim().min(1),
+  ctaLabel: z.string().trim().optional(),
+  ctaLink: z.string().trim().optional(),
+  sortOrder: z.number().optional(),
+});
+export async function createPromoBanner(req: Request, res: Response): Promise<Response> {
+  const parsed = createPromoBannerSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid promotional banner");
+  return created(res, await promoBannerService.createPromoBanner(parsed.data), "Promotional banner created");
+}
+
+const updatePromoBannerSchema = z.object({
+  title: z.string().trim().min(1).optional(),
+  subtitle: z.string().trim().optional(),
+  imageUrl: z.string().trim().min(1).optional(),
+  ctaLabel: z.string().trim().optional(),
+  ctaLink: z.string().trim().optional(),
+  sortOrder: z.number().optional(),
+  active: z.boolean().optional(),
+});
+export async function updatePromoBanner(req: Request, res: Response): Promise<Response> {
+  const parsed = updatePromoBannerSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid promotional banner update");
+  return ok(res, await promoBannerService.updatePromoBanner(String(req.params.id), parsed.data), "Promotional banner updated");
+}
+
+export async function deletePromoBanner(req: Request, res: Response): Promise<Response> {
+  await promoBannerService.deletePromoBanner(String(req.params.id));
+  return ok(res, null, "Promotional banner deleted");
 }
 
 export async function campaigns(_req: Request, res: Response): Promise<Response> {

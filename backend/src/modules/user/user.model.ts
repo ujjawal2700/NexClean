@@ -1,4 +1,4 @@
-import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
+import { Schema, model, Types, type InferSchemaType, type HydratedDocument } from "mongoose";
 import { VEHICLE_TYPES } from "../catalog/catalog.data";
 
 /** Map _id → id and drop internal fields when serializing subdocuments. */
@@ -40,6 +40,11 @@ const userSchema = new Schema(
     addresses: { type: [addressSchema], default: [] },
     activePlan: { type: String, default: null },
     deviceTokens: { type: [String], default: [] },
+
+    // Referrals (customers only)
+    referralCode: { type: String, default: null, unique: true, sparse: true, index: true },
+    referredBy: { type: Types.ObjectId, ref: "User", default: null },
+    referralEarnings: { type: Number, default: 0 },
 
     // Agent profile (only meaningful when role === "agent")
     area: { type: String, default: "" },

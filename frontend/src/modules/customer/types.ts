@@ -41,8 +41,32 @@ export type Booking = {
   addressLabel: string;
   addressLine: string;
   price: number;
+  discountCode?: string | null;
+  discountAmount?: number;
   status: BookingStatus;
   createdAt: string;
+};
+
+export type PromoBanner = {
+  id: string;
+  title: string;
+  subtitle: string;
+  imageUrl: string;
+  ctaLabel: string;
+  ctaLink: string;
+  sortOrder: number;
+};
+
+export type ReferredUser = {
+  id: string;
+  name: string;
+  joinedAt: string;
+};
+
+export type ReferralSummary = {
+  referralCode: string | null;
+  referralEarnings: number;
+  referredUsers: ReferredUser[];
 };
 
 export type PlanId = "basic" | "premium" | "elite";
@@ -69,6 +93,8 @@ export type User = {
   vehicles: Vehicle[];
   addresses: Address[];
   activePlan: PlanId | null;
+  referralCode?: string | null;
+  referralEarnings?: number;
 };
 
 export type AppNotification = {

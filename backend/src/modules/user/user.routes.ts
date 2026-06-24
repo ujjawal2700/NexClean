@@ -17,3 +17,5 @@ userRouter.delete("/me/vehicles/:id", asyncHandler(userController.removeVehicle)
 
 userRouter.post("/me/addresses", validateBody(addAddressSchema), asyncHandler(userController.addAddress));
 userRouter.delete("/me/addresses/:id", asyncHandler(userController.removeAddress));
+
+userRouter.get("/me/referrals", asyncHandler(userController.getReferralSummary));

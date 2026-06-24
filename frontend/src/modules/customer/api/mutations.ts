@@ -44,7 +44,7 @@ export function useVerifyOtp() {
 
 export function useCustomerSignup() {
   return useMutation({
-    mutationFn: (vars: { name: string; phone: string; email?: string }) =>
+    mutationFn: (vars: { name: string; phone: string; email?: string; referralCode?: string }) =>
       apiFetch<{ sent: boolean }>("/auth/customer/signup", { method: "POST", body: vars }),
   });
 }
@@ -109,6 +109,7 @@ export type CreateBookingInput = {
   slot: string;
   addressLabel: string;
   addressLine: string;
+  discountCode?: string;
 };
 
 export function useCreateBooking() {
@@ -134,6 +135,21 @@ export function useCreateOrder() {
   return useMutation({
     mutationFn: (booking: CreateBookingInput) =>
       apiFetch<OrderResponse>("/payments/order", { method: "POST", body: { booking } }),
+  });
+}
+
+export type PreviewAmountResponse = {
+  basePrice: number;
+  price: number;
+  discountAmount: number;
+  discountCode: string | null;
+};
+
+/** Validate a discount code and preview the discounted total before paying. */
+export function usePreviewDiscount() {
+  return useMutation({
+    mutationFn: (vars: { vehicleType: CarType; packageId: string; discountCode?: string }) =>
+      apiFetch<PreviewAmountResponse>("/payments/preview", { method: "POST", body: vars }),
   });
 }
 

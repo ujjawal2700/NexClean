@@ -14,6 +14,8 @@ const bookingSchema = new Schema(
     addressLine: { type: String, required: true },
     society: { type: String, default: "" },
     price: { type: Number, required: true },
+    discountCode: { type: String, default: null },
+    discountAmount: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["upcoming", "completed", "cancelled"],

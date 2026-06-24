@@ -18,6 +18,7 @@ export const customerSignupSchema = z.object({
   name: z.string().trim().min(2, "Enter your full name"),
   phone: z.string().regex(/^\+?[\d\s]{10,15}$/, "Enter a valid phone number"),
   email: z.string().trim().email("Enter a valid email").optional().or(z.literal("")),
+  referralCode: z.string().trim().min(1).optional().or(z.literal("")),
 });
 
 const dataUri = z.string().regex(/^data:image\/[a-zA-Z+]+;base64,/, "Upload a valid image");

@@ -22,6 +22,9 @@ import type {
   ServiceCity,
   ServiceZone,
   VehicleBrand,
+  DiscountCode,
+  ReferralCampaign,
+  PromoBanner,
   AdminReports,
   AudienceSizes,
 } from "../types";
@@ -43,6 +46,9 @@ const keys = {
   cities: ["admin", "cities"] as const,
   zones: ["admin", "zones"] as const,
   vehicleBrands: ["admin", "vehicle-brands"] as const,
+  discountCodes: ["admin", "discount-codes"] as const,
+  referralCampaigns: ["admin", "referral-campaigns"] as const,
+  promoBanners: ["admin", "promo-banners"] as const,
   reports: ["admin", "reports"] as const,
   audienceSizes: ["admin", "campaigns", "audience-sizes"] as const,
   content: ["admin", "content"] as const,
@@ -90,6 +96,10 @@ export const usePaymentStats = () => useAuthedQuery<PaymentStats>(keys.paymentSt
 export const useCities = () => useAuthedQuery<ServiceCity[]>(keys.cities, "/admin/cities");
 export const useZones = () => useAuthedQuery<ServiceZone[]>(keys.zones, "/admin/zones");
 export const useVehicleBrands = () => useAuthedQuery<VehicleBrand[]>(keys.vehicleBrands, "/admin/vehicle-brands");
+export const useDiscountCodes = () => useAuthedQuery<DiscountCode[]>(keys.discountCodes, "/admin/discount-codes");
+export const useReferralCampaigns = () =>
+  useAuthedQuery<ReferralCampaign[]>(keys.referralCampaigns, "/admin/referral-campaigns");
+export const usePromoBanners = () => useAuthedQuery<PromoBanner[]>(keys.promoBanners, "/admin/promo-banners");
 export const useReports = () => useAuthedQuery<AdminReports>(keys.reports, "/admin/reports");
 export const useContent = () => useAuthedQuery<SiteContent>(keys.content, "/admin/content");
 export const useAudienceSizes = () =>
@@ -336,5 +346,90 @@ export function useRemoveVehicleModel() {
         method: "DELETE",
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
+  });
+}
+
+export function useCreateDiscountCode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      code: string;
+      type: "percent" | "flat";
+      value: number;
+      minOrderValue?: number;
+      maxDiscount?: number | null;
+      usageLimit?: number | null;
+      validTill?: string | null;
+    }) => apiFetch<DiscountCode>("/admin/discount-codes", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.discountCodes }),
+  });
+}
+
+export function useUpdateDiscountCode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string } & Partial<Omit<DiscountCode, "id" | "code" | "usageCount">>) =>
+      apiFetch<DiscountCode>(`/admin/discount-codes/${vars.id}`, { method: "PATCH", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.discountCodes }),
+  });
+}
+
+export function useDeleteDiscountCode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<null>(`/admin/discount-codes/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.discountCodes }),
+  });
+}
+
+export function useCreateReferralCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { name: string; referrerReward: number; refereeReward: number; description?: string }) =>
+      apiFetch<ReferralCampaign>("/admin/referral-campaigns", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.referralCampaigns }),
+  });
+}
+
+export function useUpdateReferralCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string } & Partial<Omit<ReferralCampaign, "id">>) =>
+      apiFetch<ReferralCampaign>(`/admin/referral-campaigns/${vars.id}`, { method: "PATCH", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.referralCampaigns }),
+  });
+}
+
+export function useDeleteReferralCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<null>(`/admin/referral-campaigns/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.referralCampaigns }),
+  });
+}
+
+export function useCreatePromoBanner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { title: string; subtitle?: string; imageUrl: string; ctaLabel?: string; ctaLink?: string }) =>
+      apiFetch<PromoBanner>("/admin/promo-banners", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.promoBanners }),
+  });
+}
+
+export function useUpdatePromoBanner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string } & Partial<Omit<PromoBanner, "id">>) =>
+      apiFetch<PromoBanner>(`/admin/promo-banners/${vars.id}`, { method: "PATCH", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.promoBanners }),
+  });
+}
+
+export function useDeletePromoBanner() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<null>(`/admin/promo-banners/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.promoBanners }),
   });
 }

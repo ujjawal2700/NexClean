@@ -9,6 +9,7 @@ export const createBookingSchema = z.object({
   slot: z.string().min(1),
   addressLabel: z.string().min(1),
   addressLine: z.string().min(1),
+  discountCode: z.string().trim().min(1).optional(),
 });
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;

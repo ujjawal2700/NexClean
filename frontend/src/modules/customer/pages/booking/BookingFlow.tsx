@@ -10,15 +10,19 @@ import {
   Plus,
   CheckCircle2,
   Loader2,
+  Tag,
+  X,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
+import { Input } from "@shared/ui/Input";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { ApiError } from "@shared/lib/api";
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import { useMe } from "../../api/queries";
-import { useCreateOrder, useVerifyPayment } from "../../api/mutations";
+import { useCreateOrder, useVerifyPayment, usePreviewDiscount } from "../../api/mutations";
+import type { PreviewAmountResponse } from "../../api/mutations";
 import {
   PACKAGES,
   VEHICLE_TYPES,
@@ -56,6 +60,7 @@ export function BookingFlow() {
   const addresses = me?.addresses ?? [];
   const createOrder = useCreateOrder();
   const verifyPayment = useVerifyPayment();
+  const previewDiscount = usePreviewDiscount();
 
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -63,11 +68,38 @@ export function BookingFlow() {
   const [processing, setProcessing] = useState(false);
   const [confirmed, setConfirmed] = useState<Booking | null>(null);
 
+  const [discountInput, setDiscountInput] = useState("");
+  const [appliedDiscount, setAppliedDiscount] = useState<PreviewAmountResponse | null>(null);
+  const [discountError, setDiscountError] = useState("");
+
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
 
   const pkg = useMemo(() => PACKAGES.find((p) => p.id === draft.packageId) ?? null, [draft.packageId]);
   const total = draft.vehicleType && pkg ? priceFor(draft.vehicleType, pkg) : 0;
+  const payable = appliedDiscount ? appliedDiscount.price : total;
   const address = addresses.find((a) => a.id === draft.addressId) ?? null;
+
+  const applyDiscount = async () => {
+    if (!draft.vehicleType || !pkg || !discountInput.trim()) return;
+    setDiscountError("");
+    try {
+      const result = await previewDiscount.mutateAsync({
+        vehicleType: draft.vehicleType,
+        packageId: pkg.id,
+        discountCode: discountInput.trim(),
+      });
+      setAppliedDiscount(result);
+    } catch (e) {
+      setAppliedDiscount(null);
+      setDiscountError(e instanceof ApiError ? e.message : "Invalid discount code");
+    }
+  };
+
+  const clearDiscount = () => {
+    setDiscountInput("");
+    setAppliedDiscount(null);
+    setDiscountError("");
+  };
 
   const canContinue = [
     !!draft.vehicleType,
@@ -90,6 +122,7 @@ export function BookingFlow() {
       slot: draft.slot,
       addressLabel: address.label,
       addressLine: address.line,
+      discountCode: appliedDiscount ? discountInput.trim() : undefined,
     };
 
     try {
@@ -162,7 +195,19 @@ export function BookingFlow() {
               {step === 1 && <PackageStep draft={draft} set={set} />}
               {step === 2 && <ScheduleStep draft={draft} set={set} />}
               {step === 3 && <AddressStep draft={draft} set={set} addresses={addresses} />}
-              {step === 4 && <PaymentSummary draft={draft} total={total} />}
+              {step === 4 && (
+                <PaymentSummary
+                  draft={draft}
+                  total={payable}
+                  discountInput={discountInput}
+                  setDiscountInput={setDiscountInput}
+                  appliedDiscount={appliedDiscount}
+                  discountError={discountError}
+                  applyDiscount={applyDiscount}
+                  clearDiscount={clearDiscount}
+                  applying={previewDiscount.isPending}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
 
@@ -186,7 +231,7 @@ export function BookingFlow() {
                     <Loader2 className="size-4 animate-spin" /> Processing…
                   </>
                 ) : (
-                  <>Pay {formatMoney(total)}</>
+                  <>Pay {formatMoney(payable)}</>
                 )}
               </Button>
             )}
@@ -195,7 +240,13 @@ export function BookingFlow() {
         </div>
 
         {/* live summary */}
-        <OrderSummary draft={draft} total={total} step={step} address={address?.label} />
+        <OrderSummary
+          draft={draft}
+          total={total}
+          discount={appliedDiscount}
+          step={step}
+          address={address?.label}
+        />
       </div>
     </div>
   );
@@ -438,7 +489,27 @@ function AddressStep({
   );
 }
 
-function PaymentSummary({ draft, total }: { draft: Draft; total: number }) {
+function PaymentSummary({
+  draft,
+  total,
+  discountInput,
+  setDiscountInput,
+  appliedDiscount,
+  discountError,
+  applyDiscount,
+  clearDiscount,
+  applying,
+}: {
+  draft: Draft;
+  total: number;
+  discountInput: string;
+  setDiscountInput: (v: string) => void;
+  appliedDiscount: PreviewAmountResponse | null;
+  discountError: string;
+  applyDiscount: () => void;
+  clearDiscount: () => void;
+  applying: boolean;
+}) {
   const [method, setMethod] = useState("upi");
   const methods = [
     { id: "upi", label: "UPI" },
@@ -465,6 +536,51 @@ function PaymentSummary({ draft, total }: { draft: Draft; total: number }) {
           </button>
         ))}
       </div>
+
+      <div className="mt-5">
+        <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-ink">
+          <Tag className="size-4 text-muted" /> Have a discount code?
+        </p>
+        {appliedDiscount ? (
+          <div className="flex items-center justify-between rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-ink">
+                {appliedDiscount.discountCode} applied
+              </p>
+              <p className="text-xs text-muted">
+                You saved {formatMoney(appliedDiscount.discountAmount)}
+              </p>
+            </div>
+            <button
+              onClick={clearDiscount}
+              className="grid size-8 place-items-center rounded-full text-muted hover:bg-red-50 hover:text-red-500"
+              aria-label="Remove discount code"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2.5">
+            <Input
+              name="discountCode"
+              placeholder="Enter discount code"
+              value={discountInput}
+              onChange={(e) => setDiscountInput(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === "Enter" && applyDiscount()}
+              className="flex-1"
+              error={discountError}
+            />
+            <Button
+              variant="outline"
+              onClick={applyDiscount}
+              disabled={!discountInput.trim() || applying}
+            >
+              {applying ? <Loader2 className="size-4 animate-spin" /> : "Apply"}
+            </Button>
+          </div>
+        )}
+      </div>
+
       <div className="mt-5 rounded-2xl border border-line bg-surface-muted/50 p-4 text-sm text-muted">
         Secured by <span className="font-medium text-ink">Razorpay</span>. {formatMoney(total)} will
         be collected on confirmation. Without test keys configured, payment is simulated and the
@@ -484,11 +600,13 @@ function PaymentSummary({ draft, total }: { draft: Draft; total: number }) {
 function OrderSummary({
   draft,
   total,
+  discount,
   step,
   address,
 }: {
   draft: Draft;
   total: number;
+  discount: PreviewAmountResponse | null;
   step: number;
   address?: string;
 }) {
@@ -517,6 +635,14 @@ function OrderSummary({
             <dd className="max-w-[60%] text-right font-medium text-ink">{r.value}</dd>
           </div>
         ))}
+        {discount && (
+          <div className="flex items-start justify-between gap-4 text-sm">
+            <dt className="text-muted">Discount ({discount.discountCode})</dt>
+            <dd className="max-w-[60%] text-right font-medium text-emerald-600">
+              −{formatMoney(discount.discountAmount)}
+            </dd>
+          </div>
+        )}
       </dl>
       <div className="mt-5 flex items-center justify-between border-t border-line pt-4">
         <span className="text-sm text-muted">Total</span>
@@ -555,6 +681,12 @@ function Confirmation({ booking }: { booking: Booking }) {
             value={`${new Date(booking.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })} · ${booking.slot}`}
           />
           <Row label="Address" value={`${booking.addressLabel} — ${booking.addressLine}`} />
+          {!!booking.discountAmount && (
+            <Row
+              label={`Discount${booking.discountCode ? ` (${booking.discountCode})` : ""}`}
+              value={`−${formatMoney(booking.discountAmount)}`}
+            />
+          )}
           <div className="flex items-center justify-between border-t border-line pt-3">
             <span className="text-muted">Paid</span>
             <span className="font-display text-xl font-semibold text-ink">

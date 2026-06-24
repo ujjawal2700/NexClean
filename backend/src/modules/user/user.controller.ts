@@ -26,3 +26,8 @@ export async function removeAddress(req: Request, res: Response): Promise<Respon
   const user = await userService.removeAddress(req.userId!, String(req.params.id));
   return ok(res, user, "Address removed");
 }
+
+export async function getReferralSummary(req: Request, res: Response): Promise<Response> {
+  const summary = await userService.getReferralSummary(req.userId!);
+  return ok(res, summary);
+}

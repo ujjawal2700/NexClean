@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { User, Mail, Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2 } from "lucide-react";
+import { User, Mail, Phone, Gift, ArrowRight, ArrowLeft, ShieldCheck, Loader2 } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
@@ -17,6 +17,7 @@ const DEMO_OTP = "123456";
 
 export function Signup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const qc = useQueryClient();
   const setToken = useSessionStore((s) => s.setToken);
   const signup = useCustomerSignup();
@@ -26,6 +27,7 @@ export function Signup() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [referralCode, setReferralCode] = useState(searchParams.get("ref") ?? "");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const phoneRef = useRef(phone);
@@ -36,7 +38,12 @@ export function Signup() {
     setError("");
     phoneRef.current = phone;
     try {
-      await signup.mutateAsync({ name: name.trim(), phone, email: email.trim() || undefined });
+      await signup.mutateAsync({
+        name: name.trim(),
+        phone,
+        email: email.trim() || undefined,
+        referralCode: referralCode.trim() || undefined,
+      });
       setStep("otp");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't create account. Is the API running?");
@@ -105,6 +112,15 @@ export function Signup() {
                   leading={<Phone className="size-4" />}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                  onKeyDown={(e) => e.key === "Enter" && submitDetails()}
+                />
+                <Input
+                  name="referralCode"
+                  label="Referral code (optional)"
+                  placeholder="e.g. AISH4F2A"
+                  leading={<Gift className="size-4" />}
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
                   onKeyDown={(e) => e.key === "Enter" && submitDetails()}
                 />
                 {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-500">{error}</p>}

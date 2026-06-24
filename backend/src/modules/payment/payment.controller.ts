@@ -11,3 +11,8 @@ export async function verify(req: Request, res: Response): Promise<Response> {
   const booking = await service.verifyAndBook(req.userId!, req.body);
   return created(res, booking, "Payment confirmed");
 }
+
+export async function preview(req: Request, res: Response): Promise<Response> {
+  const result = await service.previewAmount(req.body);
+  return ok(res, result);
+}

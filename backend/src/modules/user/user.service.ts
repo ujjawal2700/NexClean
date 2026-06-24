@@ -48,3 +48,17 @@ export async function removeAddress(userId: string, addressId: string) {
   await user.save();
   return user;
 }
+
+export async function getReferralSummary(userId: string) {
+  const user = await getUser(userId);
+  const referredUsers = await User.find({ referredBy: userId }).sort({ createdAt: -1 });
+  return {
+    referralCode: user.referralCode,
+    referralEarnings: user.referralEarnings,
+    referredUsers: referredUsers.map((u) => ({
+      id: u.id,
+      name: u.name,
+      joinedAt: u.get("createdAt"),
+    })),
+  };
+}
