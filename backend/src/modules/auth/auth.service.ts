@@ -9,8 +9,23 @@ import { generateOtp } from "../../shared/utils/otp";
 import type { CustomerSignupInput, AgentSignupInput } from "./auth.validation";
 
 /** Normalize a phone string to a consistent stored form. */
-function normalize(phone: string): string {
+export function normalize(phone: string): string {
   return phone.replace(/\s+/g, "");
+}
+
+/** Validate + consume an OTP for a phone, without touching the User collection. */
+export async function verifyOtpCode(rawPhone: string, code: string): Promise<void> {
+  const phone = normalize(rawPhone);
+  const isDemo = code === env.demoOtp;
+
+  if (!isDemo) {
+    const record = await Otp.findOne({ phone });
+    if (!record) throw ApiError.badRequest("Request a new code");
+    if (record.expiresAt.getTime() < Date.now()) throw ApiError.badRequest("Code expired");
+    if (record.code !== code) throw ApiError.badRequest("Incorrect code");
+  }
+
+  await Otp.deleteOne({ phone });
 }
 
 /**
@@ -35,16 +50,7 @@ export async function sendOtp(rawPhone: string): Promise<{ sent: boolean }> {
 /** Verify an OTP, upsert the user, and return a JWT + the user. */
 export async function verifyOtp(rawPhone: string, code: string) {
   const phone = normalize(rawPhone);
-  const isDemo = code === env.demoOtp;
-
-  if (!isDemo) {
-    const record = await Otp.findOne({ phone });
-    if (!record) throw ApiError.badRequest("Request a new code");
-    if (record.expiresAt.getTime() < Date.now()) throw ApiError.badRequest("Code expired");
-    if (record.code !== code) throw ApiError.badRequest("Incorrect code");
-  }
-
-  await Otp.deleteOne({ phone });
+  await verifyOtpCode(phone, code);
 
   const user = await User.findOneAndUpdate(
     { phone },

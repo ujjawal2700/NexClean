@@ -8,6 +8,9 @@ import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
 import { Subscriptions } from "./pages/Subscriptions";
 import { Profile } from "./pages/Profile";
+import { ReferEarn } from "./pages/ReferEarn";
+import { Vehicles } from "./pages/Vehicles";
+import { Addresses } from "./pages/Addresses";
 import { Notifications } from "./pages/Notifications";
 import { BookingFlow } from "./pages/booking/BookingFlow";
 
@@ -37,6 +40,9 @@ export function CustomerApp() {
           <Route path="plans" element={<Subscriptions />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="profile/refer" element={<ReferEarn />} />
+          <Route path="profile/vehicles" element={<Vehicles />} />
+          <Route path="profile/addresses" element={<Addresses />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/app" replace />} />

@@ -3,8 +3,18 @@ import { ok } from "../../shared/utils/apiResponse";
 import * as userService from "./user.service";
 
 export async function updateProfile(req: Request, res: Response): Promise<Response> {
-  const user = await userService.updateProfile(req.userId!, req.body.name);
+  const user = await userService.updateProfile(req.userId!, req.body);
   return ok(res, user, "Profile updated");
+}
+
+export async function requestPhoneChange(req: Request, res: Response): Promise<Response> {
+  const result = await userService.requestPhoneChange(req.userId!, req.body.phone);
+  return ok(res, result, "OTP sent");
+}
+
+export async function confirmPhoneChange(req: Request, res: Response): Promise<Response> {
+  const user = await userService.confirmPhoneChange(req.userId!, req.body.phone, req.body.code);
+  return ok(res, user, "Phone number updated");
 }
 
 export async function addVehicle(req: Request, res: Response): Promise<Response> {

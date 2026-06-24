@@ -2,7 +2,17 @@ import { z } from "zod";
 import { VEHICLE_TYPES } from "../catalog/catalog.data";
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(1).max(60),
+  name: z.string().min(1).max(60).optional(),
+  email: z.string().trim().email().max(120).optional().or(z.literal("")),
+});
+
+export const requestPhoneChangeSchema = z.object({
+  phone: z.string().min(7).max(20),
+});
+
+export const confirmPhoneChangeSchema = z.object({
+  phone: z.string().min(7).max(20),
+  code: z.string().min(4).max(8),
 });
 
 export const addVehicleSchema = z.object({

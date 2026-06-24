@@ -60,8 +60,23 @@ function useUserMutation<TVars>(fn: (vars: TVars) => Promise<User>) {
 }
 
 export function useUpdateProfile() {
-  return useUserMutation((name: string) =>
-    apiFetch<User>("/users/me", { method: "PATCH", body: { name } }),
+  return useUserMutation((updates: { name?: string; email?: string }) =>
+    apiFetch<User>("/users/me", { method: "PATCH", body: updates }),
+  );
+}
+
+/** Step 1 of a phone-number change: sends an OTP to the new number. */
+export function useRequestPhoneChange() {
+  return useMutation({
+    mutationFn: (phone: string) =>
+      apiFetch<{ sent: boolean }>("/users/me/phone/request-otp", { method: "POST", body: { phone } }),
+  });
+}
+
+/** Step 2: verifies the OTP and commits the new phone number as the login identifier. */
+export function useConfirmPhoneChange() {
+  return useUserMutation((vars: { phone: string; code: string }) =>
+    apiFetch<User>("/users/me/phone/confirm", { method: "POST", body: vars }),
   );
 }
 

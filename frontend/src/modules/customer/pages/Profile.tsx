@@ -1,20 +1,25 @@
 import { useState, useEffect } from "react";
-import { Car, MapPin, Trash2, Plus, User, Phone, Check, Gift, Copy, Users } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  Car,
+  MapPin,
+  User,
+  Mail,
+  Phone,
+  Check,
+  Gift,
+  Pencil,
+  X,
+  ShieldCheck,
+  Loader2,
+  ChevronRight,
+} from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
-import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
-import { formatMoney } from "@shared/lib/format";
+import { ApiError } from "@shared/lib/api";
 import { useMe, useReferralSummary } from "../api/queries";
-import {
-  useUpdateProfile,
-  useAddVehicle,
-  useRemoveVehicle,
-  useAddAddress,
-  useRemoveAddress,
-} from "../api/mutations";
-import { VEHICLE_LABEL, VEHICLE_TYPES } from "../data/catalog";
-import type { CarType } from "../types";
+import { useUpdateProfile, useRequestPhoneChange, useConfirmPhoneChange } from "../api/mutations";
 
 export function Profile() {
   const { data: me } = useMe();
@@ -23,277 +28,308 @@ export function Profile() {
   const addresses = me?.addresses ?? [];
 
   const updateProfile = useUpdateProfile();
-  const addVehicle = useAddVehicle();
-  const removeVehicle = useRemoveVehicle();
-  const addAddress = useAddAddress();
-  const removeAddress = useRemoveAddress();
+  const requestPhoneChange = useRequestPhoneChange();
+  const confirmPhoneChange = useConfirmPhoneChange();
 
-  const [displayName, setDisplayName] = useState("");
+  const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+
+  // phone-change sub-flow: idle (just show current phone) -> enter (new number) -> otp (verify)
+  const [phoneStep, setPhoneStep] = useState<"idle" | "enter" | "otp">("idle");
+  const [newPhone, setNewPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [phoneUpdated, setPhoneUpdated] = useState(false);
 
   useEffect(() => {
-    if (me?.name) setDisplayName(me.name);
-  }, [me?.name]);
+    if (me) {
+      setName(me.name ?? "");
+      setEmail(me.email ?? "");
+    }
+  }, [me]);
 
-  const [showVehicle, setShowVehicle] = useState(false);
-  const [vName, setVName] = useState("");
-  const [vType, setVType] = useState<CarType>("sedan");
-  const [vPlate, setVPlate] = useState("");
-
-  const [showAddr, setShowAddr] = useState(false);
-  const [aLabel, setALabel] = useState("");
-  const [aLine, setALine] = useState("");
-
-  const [copied, setCopied] = useState(false);
-  const copyReferralCode = () => {
-    if (!referrals?.referralCode) return;
-    navigator.clipboard.writeText(referrals.referralCode).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    });
+  const startEditing = () => {
+    setName(me?.name ?? "");
+    setEmail(me?.email ?? "");
+    setEditing(true);
   };
 
-  const saveName = () => {
-    updateProfile.mutate(displayName.trim() || "NexClean Member", {
-      onSuccess: () => {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 1800);
-      },
-    });
+  const cancelEditing = () => {
+    setEditing(false);
+    setPhoneStep("idle");
+    setNewPhone("");
+    setOtp("");
+    setPhoneError("");
   };
 
-  const saveVehicle = () => {
-    if (!vName.trim()) return;
-    addVehicle.mutate(
-      { name: vName.trim(), type: vType, plate: vPlate.trim() || "—" },
+  const saveDetails = () => {
+    updateProfile.mutate(
+      { name: name.trim() || "NexClean Member", email: email.trim() },
       {
         onSuccess: () => {
-          setVName("");
-          setVPlate("");
-          setVType("sedan");
-          setShowVehicle(false);
+          setSaved(true);
+          setEditing(false);
+          setTimeout(() => setSaved(false), 1800);
         },
       },
     );
   };
 
-  const saveAddress = () => {
-    if (!aLabel.trim() || !aLine.trim()) return;
-    addAddress.mutate(
-      { label: aLabel.trim(), line: aLine.trim(), society: aLine.trim() },
-      {
-        onSuccess: () => {
-          setALabel("");
-          setALine("");
-          setShowAddr(false);
-        },
-      },
-    );
+  const sendPhoneOtp = async () => {
+    if (!/^\d{10}$/.test(newPhone)) {
+      setPhoneError("Enter a valid 10-digit number");
+      return;
+    }
+    setPhoneError("");
+    try {
+      await requestPhoneChange.mutateAsync(newPhone);
+      setPhoneStep("otp");
+    } catch (e) {
+      setPhoneError(e instanceof ApiError ? e.message : "Couldn't send OTP");
+    }
   };
+
+  const confirmPhoneOtp = async () => {
+    if (otp.length < 4) {
+      setPhoneError("Enter the code you received");
+      return;
+    }
+    setPhoneError("");
+    try {
+      await confirmPhoneChange.mutateAsync({ phone: newPhone, code: otp });
+      setPhoneStep("idle");
+      setNewPhone("");
+      setOtp("");
+      setPhoneUpdated(true);
+      setTimeout(() => setPhoneUpdated(false), 2200);
+    } catch (e) {
+      setPhoneError(e instanceof ApiError ? e.message : "Verification failed");
+    }
+  };
+
+  const initial = (me?.name || "N").trim().charAt(0).toUpperCase();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <h1 className="font-display text-3xl text-ink">Profile</h1>
 
-      {/* account */}
       <GlassCard>
-        <p className="font-display text-lg font-semibold text-ink">Account</p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <Input
-            name="name"
-            label="Full name"
-            leading={<User className="size-4" />}
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Your name"
-          />
-          <Input
-            name="phone"
-            label="Mobile number"
-            leading={<Phone className="size-4" />}
-            value={me?.phone ?? ""}
-            disabled
-          />
-        </div>
-        <Button className="mt-4" size="sm" onClick={saveName} disabled={updateProfile.isPending}>
-          {saved ? (
-            <>
-              <Check className="size-4" /> Saved
-            </>
-          ) : (
-            "Save changes"
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span className="grid size-16 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-primary-soft font-display text-2xl font-semibold text-white">
+              {initial}
+            </span>
+            <div>
+              <p className="font-display text-xl font-semibold text-ink">{me?.name || "NexClean Member"}</p>
+              <p className="text-sm text-muted">{me?.phone}</p>
+            </div>
+          </div>
+          {!editing && (
+            <Button variant="outline" size="sm" onClick={startEditing}>
+              <Pencil className="size-4" /> Edit profile
+            </Button>
           )}
-        </Button>
+        </div>
+
+        {!editing ? (
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
+              <Mail className="size-4 text-muted" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Email</p>
+                <p className="truncate font-medium text-ink">{me?.email || "Not set"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
+              <Phone className="size-4 text-muted" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Mobile number</p>
+                <p className="truncate font-medium text-ink">{me?.phone}</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input
+                name="name"
+                label="Full name"
+                leading={<User className="size-4" />}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name"
+              />
+              <Input
+                name="email"
+                label="Email"
+                type="email"
+                leading={<Mail className="size-4" />}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button size="sm" onClick={saveDetails} disabled={updateProfile.isPending}>
+                {saved ? (
+                  <>
+                    <Check className="size-4" /> Saved
+                  </>
+                ) : (
+                  "Save changes"
+                )}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={cancelEditing}>
+                <X className="size-4" /> Cancel
+              </Button>
+            </div>
+
+            {/* mobile number — change requires OTP verification since it's the login identifier */}
+            <div className="rounded-2xl border border-line bg-surface-muted/40 p-4">
+              <p className="mb-1 text-sm font-medium text-ink">Mobile number</p>
+
+              {phoneStep === "idle" && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-ink">{me?.phone}</span>
+                  <Button variant="outline" size="sm" onClick={() => setPhoneStep("enter")}>
+                    Change number
+                  </Button>
+                </div>
+              )}
+
+              {phoneStep === "enter" && (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted">
+                    Enter your new number — we'll send a one-time code to verify it before updating your login.
+                  </p>
+                  <Input
+                    name="newPhone"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    leading={<Phone className="size-4" />}
+                    placeholder="98765 43210"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, ""))}
+                    error={phoneError}
+                  />
+                  <div className="flex gap-3">
+                    <Button size="sm" onClick={sendPhoneOtp} disabled={requestPhoneChange.isPending}>
+                      {requestPhoneChange.isPending ? <Loader2 className="size-4 animate-spin" /> : "Send OTP"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPhoneStep("idle");
+                        setNewPhone("");
+                        setPhoneError("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {phoneStep === "otp" && (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted">
+                    Enter the 6-digit code sent to <span className="font-medium text-ink">+91 {newPhone}</span>.
+                  </p>
+                  <Input
+                    name="phoneOtp"
+                    inputMode="numeric"
+                    maxLength={6}
+                    className="tracking-[0.5em]"
+                    placeholder="••••••"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                    error={phoneError}
+                  />
+                  <div className="flex gap-3">
+                    <Button size="sm" onClick={confirmPhoneOtp} disabled={confirmPhoneChange.isPending}>
+                      {confirmPhoneChange.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <>
+                          <ShieldCheck className="size-4" /> Verify & update
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPhoneStep("idle");
+                        setNewPhone("");
+                        setOtp("");
+                        setPhoneError("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {phoneUpdated && (
+                <p className="mt-3 flex items-center gap-1.5 text-sm font-medium text-green-600">
+                  <Check className="size-4" /> Mobile number updated — use it next time you log in.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </GlassCard>
 
-      {/* refer & earn */}
-      <GlassCard>
-        <div className="flex items-center gap-2">
-          <Gift className="size-5 text-primary" />
-          <p className="font-display text-lg font-semibold text-ink">Refer & earn</p>
-        </div>
-        <p className="mt-1 text-sm text-muted">
-          Share your code with friends — you both get rewarded when they join.
-        </p>
-
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3.5">
-            <span className="font-display text-xl font-semibold tracking-[0.08em] text-primary">
-              {referrals?.referralCode ?? "—"}
-            </span>
-            <Button variant="ghost" size="sm" onClick={copyReferralCode} disabled={!referrals?.referralCode}>
-              {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-              {copied ? "Copied" : "Copy"}
-            </Button>
-          </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
+      {/* quick links to dedicated pages, kept off this page to avoid clutter */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Link to="/app/profile/refer">
+          <GlassCard interactive className="flex items-center gap-3">
             <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
               <Gift className="size-5" />
             </span>
-            <div>
-              <p className="font-display text-xl font-semibold text-ink">
-                {formatMoney(referrals?.referralEarnings ?? 0)}
+            <div className="min-w-0 flex-1">
+              <p className="font-display font-semibold text-ink">Refer & earn</p>
+              <p className="truncate text-sm text-muted">{referrals?.referralCode ?? "Get your code"}</p>
+            </div>
+            <ChevronRight className="size-4 shrink-0 text-muted" />
+          </GlassCard>
+        </Link>
+
+        <Link to="/app/profile/vehicles">
+          <GlassCard interactive className="flex items-center gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+              <Car className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-display font-semibold text-ink">Your garage</p>
+              <p className="truncate text-sm text-muted">
+                {vehicles.length} vehicle{vehicles.length === 1 ? "" : "s"}
               </p>
-              <p className="text-sm text-muted">Total earnings</p>
             </div>
-          </div>
-        </div>
+            <ChevronRight className="size-4 shrink-0 text-muted" />
+          </GlassCard>
+        </Link>
 
-        <div className="mt-5">
-          <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-ink">
-            <Users className="size-4 text-muted" /> Friends you referred
-          </p>
-          {referrals?.referredUsers.length ? (
-            <div className="space-y-2">
-              {referrals.referredUsers.map((u) => (
-                <div
-                  key={u.id}
-                  className="flex items-center justify-between rounded-2xl border border-line bg-surface px-4 py-3"
-                >
-                  <span className="font-medium text-ink">{u.name}</span>
-                  <span className="text-sm text-muted">
-                    Joined {new Date(u.joinedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                  </span>
-                </div>
-              ))}
+        <Link to="/app/profile/addresses">
+          <GlassCard interactive className="flex items-center gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+              <MapPin className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="font-display font-semibold text-ink">Saved addresses</p>
+              <p className="truncate text-sm text-muted">
+                {addresses.length} address{addresses.length === 1 ? "" : "es"}
+              </p>
             </div>
-          ) : (
-            <p className="text-sm text-muted">No referrals yet — share your code to get started.</p>
-          )}
-        </div>
-      </GlassCard>
-
-      {/* garage */}
-      <GlassCard>
-        <div className="flex items-center justify-between">
-          <p className="font-display text-lg font-semibold text-ink">Your garage</p>
-          <Button variant="ghost" size="sm" onClick={() => setShowVehicle((v) => !v)}>
-            <Plus className="size-4" /> Add vehicle
-          </Button>
-        </div>
-
-        {showVehicle && (
-          <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-3">
-            <Input name="vname" label="Name" placeholder="e.g. Honda City" value={vName} onChange={(e) => setVName(e.target.value)} />
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-ink">Type</label>
-              <select
-                value={vType}
-                onChange={(e) => setVType(e.target.value as CarType)}
-                className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-ink outline-none focus:border-primary/50"
-              >
-                {VEHICLE_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {VEHICLE_LABEL[t]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Input name="vplate" label="Plate" placeholder="GJ 01 AB 1234" value={vPlate} onChange={(e) => setVPlate(e.target.value)} />
-            <div className="sm:col-span-3">
-              <Button size="sm" onClick={saveVehicle} disabled={addVehicle.isPending}>
-                Save vehicle
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {vehicles.map((v) => (
-            <div key={v.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
-              <div className="w-20 shrink-0">
-                <CarSilhouette type={v.type} uid={`prof-${v.id}`} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-display font-semibold text-ink">{v.name}</p>
-                <p className="text-sm text-muted">
-                  {VEHICLE_LABEL[v.type]} · {v.plate}
-                </p>
-              </div>
-              <button
-                onClick={() => removeVehicle.mutate(v.id)}
-                className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:bg-red-50 hover:text-red-500"
-                aria-label={`Remove ${v.name}`}
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-          ))}
-          {vehicles.length === 0 && (
-            <p className="flex items-center gap-2 text-sm text-muted">
-              <Car className="size-4" /> No vehicles yet.
-            </p>
-          )}
-        </div>
-      </GlassCard>
-
-      {/* addresses */}
-      <GlassCard>
-        <div className="flex items-center justify-between">
-          <p className="font-display text-lg font-semibold text-ink">Saved addresses</p>
-          <Button variant="ghost" size="sm" onClick={() => setShowAddr((v) => !v)}>
-            <Plus className="size-4" /> Add address
-          </Button>
-        </div>
-
-        {showAddr && (
-          <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
-            <Input name="alabel" label="Label" placeholder="Home / Office" value={aLabel} onChange={(e) => setALabel(e.target.value)} />
-            <Input name="aline" label="Address" placeholder="Flat, society, area" value={aLine} onChange={(e) => setALine(e.target.value)} />
-            <div className="sm:col-span-2">
-              <Button size="sm" onClick={saveAddress} disabled={addAddress.isPending}>
-                Save address
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <div className="mt-4 space-y-3">
-          {addresses.map((a) => (
-            <div key={a.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
-              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <MapPin className="size-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-display font-semibold text-ink">{a.label}</p>
-                <p className="truncate text-sm text-muted">{a.line}</p>
-              </div>
-              <button
-                onClick={() => removeAddress.mutate(a.id)}
-                className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:bg-red-50 hover:text-red-500"
-                aria-label={`Remove ${a.label}`}
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-          ))}
-          {addresses.length === 0 && (
-            <p className="flex items-center gap-2 text-sm text-muted">
-              <MapPin className="size-4" /> No addresses yet.
-            </p>
-          )}
-        </div>
-      </GlassCard>
+            <ChevronRight className="size-4 shrink-0 text-muted" />
+          </GlassCard>
+        </Link>
+      </div>
     </div>
   );
 }

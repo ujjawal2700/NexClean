@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { User } from "./user.model";
 import { ApiError } from "../../shared/utils/ApiError";
+import { normalize, sendOtp, verifyOtpCode } from "../auth/auth.service";
 import type { VehicleType } from "../catalog/catalog.data";
 
 async function getUser(userId: string) {
@@ -27,9 +28,37 @@ async function ensureReferralCode(user: Awaited<ReturnType<typeof getUser>>) {
   return user.referralCode;
 }
 
-export async function updateProfile(userId: string, name: string) {
+export async function updateProfile(userId: string, updates: { name?: string; email?: string }) {
   const user = await getUser(userId);
-  user.name = name;
+  if (updates.name !== undefined) user.name = updates.name;
+  if (updates.email !== undefined) user.email = updates.email;
+  await user.save();
+  return user;
+}
+
+/** Send an OTP to a new phone number, after confirming it's free to claim. */
+export async function requestPhoneChange(userId: string, rawPhone: string) {
+  const phone = normalize(rawPhone);
+  const user = await getUser(userId);
+  if (phone === user.phone) throw ApiError.badRequest("This is already your phone number");
+
+  const existing = await User.findOne({ phone });
+  if (existing) throw ApiError.badRequest("This phone number is already in use");
+
+  return sendOtp(phone);
+}
+
+/** Verify the OTP for a new phone number and commit it as the user's login phone. */
+export async function confirmPhoneChange(userId: string, rawPhone: string, code: string) {
+  const phone = normalize(rawPhone);
+  const user = await getUser(userId);
+
+  const existing = await User.findOne({ phone });
+  if (existing && existing.id !== user.id) throw ApiError.badRequest("This phone number is already in use");
+
+  await verifyOtpCode(phone, code);
+
+  user.phone = phone;
   await user.save();
   return user;
 }
