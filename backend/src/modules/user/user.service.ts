@@ -65,10 +65,16 @@ export async function confirmPhoneChange(userId: string, rawPhone: string, code:
 
 export async function addVehicle(
   userId: string,
-  vehicle: { type: VehicleType; name: string; plate?: string },
+  vehicle: { type: VehicleType; name: string; brand?: string; model?: string; plate?: string },
 ) {
   const user = await getUser(userId);
-  user.vehicles.push({ type: vehicle.type, name: vehicle.name, plate: vehicle.plate || "—" });
+  user.vehicles.push({
+    type: vehicle.type,
+    name: vehicle.name,
+    brand: vehicle.brand || "",
+    model: vehicle.model || "",
+    plate: vehicle.plate || "—",
+  });
   await user.save();
   return user;
 }

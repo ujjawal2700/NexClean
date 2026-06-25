@@ -18,6 +18,7 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
+import { BrandModelSelect } from "../../components/BrandModelSelect";
 import { ApiError } from "@shared/lib/api";
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import { useMe } from "../../api/queries";
@@ -272,6 +273,28 @@ function VehicleStep({
   set: (p: Partial<Draft>) => void;
   vehicles: Vehicle[];
 }) {
+  const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
+
+  const usingSavedVehicle = vehicles.some((v) => v.name === draft.vehicleName && v.type === draft.vehicleType);
+  const showPicker = !!draft.vehicleType && !usingSavedVehicle;
+
+  const pickType = (t: CarType) => {
+    setBrand("");
+    setModel("");
+    set({ vehicleType: t, vehicleName: `My ${VEHICLE_LABEL[t]}` });
+  };
+
+  const onBrandChange = (b: string) => {
+    setBrand(b);
+    setModel("");
+  };
+
+  const onModelChange = (m: string) => {
+    setModel(m);
+    if (brand && m) set({ vehicleName: `${brand} ${m}` });
+  };
+
   return (
     <div>
       <StepHeading title="Which vehicle?" subtitle="Choose from your garage or pick a type." />
@@ -308,11 +331,11 @@ function VehicleStep({
       <p className="mb-3 mt-6 text-sm font-medium text-muted">Or pick a vehicle type</p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {VEHICLE_TYPES.map((t) => {
-          const selected = draft.vehicleType === t && !vehicles.some((v) => v.name === draft.vehicleName);
+          const selected = draft.vehicleType === t && !usingSavedVehicle;
           return (
             <button
               key={t}
-              onClick={() => set({ vehicleType: t, vehicleName: `My ${VEHICLE_LABEL[t]}` })}
+              onClick={() => pickType(t)}
               className={cn(
                 "rounded-2xl border p-3 transition-all",
                 selected
@@ -326,6 +349,12 @@ function VehicleStep({
           );
         })}
       </div>
+
+      {showPicker && draft.vehicleType && (
+        <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
+          <BrandModelSelect type={draft.vehicleType} brand={brand} model={model} onBrandChange={onBrandChange} onModelChange={onModelChange} />
+        </div>
+      )}
     </div>
   );
 }

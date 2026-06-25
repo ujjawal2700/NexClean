@@ -110,6 +110,7 @@ export type ServiceCity = {
 export type VehicleBrand = {
   id: string;
   name: string;
+  vehicleType: CarType;
   active: boolean;
   models: string[];
 };

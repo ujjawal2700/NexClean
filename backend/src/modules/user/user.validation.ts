@@ -18,6 +18,8 @@ export const confirmPhoneChangeSchema = z.object({
 export const addVehicleSchema = z.object({
   type: z.enum(VEHICLE_TYPES),
   name: z.string().min(1).max(60),
+  brand: z.string().max(40).optional(),
+  model: z.string().max(40).optional(),
   plate: z.string().max(20).optional(),
 });
 

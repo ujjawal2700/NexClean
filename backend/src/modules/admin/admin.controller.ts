@@ -5,6 +5,7 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { getPricing, updatePricing } from "../pricing/pricing.service";
 import * as locationService from "../location/location.service";
 import * as brandService from "../brand/brand.service";
+import { VEHICLE_TYPES, isVehicleType } from "../catalog/catalog.data";
 import * as discountCodeService from "../promotions/discountCode.service";
 import * as referralCampaignService from "../promotions/referralCampaign.service";
 import * as promoBannerService from "../promotions/promoBanner.service";
@@ -180,18 +181,24 @@ export async function deleteZone(req: Request, res: Response): Promise<Response>
   return ok(res, null, "Zone deleted");
 }
 
-export async function vehicleBrands(_req: Request, res: Response): Promise<Response> {
-  return ok(res, await brandService.listBrands());
+export async function vehicleBrands(req: Request, res: Response): Promise<Response> {
+  const type = req.query.type;
+  const vehicleType = typeof type === "string" && isVehicleType(type) ? type : undefined;
+  return ok(res, await brandService.listBrands(vehicleType));
 }
 
-const createBrandSchema = z.object({ name: z.string().trim().min(1) });
+const createBrandSchema = z.object({ name: z.string().trim().min(1), vehicleType: z.enum(VEHICLE_TYPES) });
 export async function createVehicleBrand(req: Request, res: Response): Promise<Response> {
   const parsed = createBrandSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest("Brand name is required");
+  if (!parsed.success) throw ApiError.badRequest("Brand name and vehicle type are required");
   return created(res, await brandService.createBrand(parsed.data), "Brand created");
 }
 
-const updateBrandSchema = z.object({ name: z.string().trim().min(1).optional(), active: z.boolean().optional() });
+const updateBrandSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  vehicleType: z.enum(VEHICLE_TYPES).optional(),
+  active: z.boolean().optional(),
+});
 export async function updateVehicleBrand(req: Request, res: Response): Promise<Response> {
   const parsed = updateBrandSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Invalid brand update");

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { useSessionStore } from "../store/sessionStore";
-import type { User, Booking, AppNotification, CatalogPlan, PromoBanner, ReferralSummary } from "../types";
+import type { User, Booking, AppNotification, CatalogPlan, PromoBanner, ReferralSummary, VehicleBrand, CarType } from "../types";
 
 export const meKey = ["me"] as const;
 export const bookingsKey = ["bookings"] as const;
@@ -9,6 +9,7 @@ export const notificationsKey = ["notifications"] as const;
 export const plansKey = ["catalog", "plans"] as const;
 export const promoBannersKey = ["catalog", "promo-banners"] as const;
 export const referralsKey = ["referrals"] as const;
+export const vehicleBrandsKey = (type: CarType) => ["catalog", "vehicle-brands", type] as const;
 
 /** Current authenticated customer (profile, vehicles, addresses, plan). */
 export function useMe() {
@@ -64,5 +65,14 @@ export function useReferralSummary() {
     queryKey: referralsKey,
     queryFn: () => apiFetch<ReferralSummary>("/users/me/referrals"),
     enabled: !!token,
+  });
+}
+
+/** Active brands + models for a vehicle type, for the Add Vehicle / booking pickers. */
+export function useVehicleBrands(type: CarType | null) {
+  return useQuery({
+    queryKey: vehicleBrandsKey(type ?? "hatchback"),
+    queryFn: () => apiFetch<VehicleBrand[]>(`/catalog/vehicle-brands?type=${type}`),
+    enabled: !!type,
   });
 }

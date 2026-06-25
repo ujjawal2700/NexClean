@@ -22,6 +22,7 @@ import type {
   ServiceCity,
   ServiceZone,
   VehicleBrand,
+  CarType,
   DiscountCode,
   ReferralCampaign,
   PromoBanner,
@@ -306,7 +307,7 @@ export function useDeleteZone() {
 export function useCreateVehicleBrand() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { name: string }) =>
+    mutationFn: (vars: { name: string; vehicleType: CarType }) =>
       apiFetch<VehicleBrand>("/admin/vehicle-brands", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
   });
@@ -315,7 +316,7 @@ export function useCreateVehicleBrand() {
 export function useUpdateVehicleBrand() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { id: string; name?: string; active?: boolean }) =>
+    mutationFn: (vars: { id: string; name?: string; vehicleType?: CarType; active?: boolean }) =>
       apiFetch<VehicleBrand>(`/admin/vehicle-brands/${vars.id}`, { method: "PATCH", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
   });

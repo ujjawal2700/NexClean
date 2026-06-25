@@ -11,7 +11,7 @@ import {
   useAddVehicleModel,
   useRemoveVehicleModel,
 } from "../api/admin.api";
-import type { VehicleBrand } from "../types";
+import { VEHICLE_TYPES, VEHICLE_LABEL, type VehicleBrand, type CarType } from "../types";
 
 function ModelChips({ brand }: { brand: VehicleBrand }) {
   const addModel = useAddVehicleModel();
@@ -67,17 +67,20 @@ export function VehicleBrands() {
   const update = useUpdateVehicleBrand();
   const remove = useDeleteVehicleBrand();
   const [name, setName] = useState("");
+  const [vehicleType, setVehicleType] = useState<CarType>("hatchback");
 
   const submit = () => {
     if (!name.trim()) return;
-    create.mutate({ name: name.trim() }, { onSuccess: () => setName("") });
+    create.mutate({ name: name.trim(), vehicleType }, { onSuccess: () => setName("") });
   };
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="font-display text-3xl text-ink">Vehicle Brands</h1>
-        <p className="mt-1 text-muted">Manage car brands and the specific models customers can select.</p>
+        <p className="mt-1 text-muted">
+          Manage car brands and models per vehicle type. Pricing is still based on vehicle type only.
+        </p>
       </div>
 
       <GlassCard>
@@ -85,48 +88,70 @@ export function VehicleBrands() {
           <Car className="size-5 text-primary" />
           <p className="font-display text-lg font-semibold text-ink">Add a brand</p>
         </div>
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink">Vehicle type</label>
+            <select
+              value={vehicleType}
+              onChange={(e) => setVehicleType(e.target.value as CarType)}
+              className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-ink outline-none focus:border-primary/50"
+            >
+              {VEHICLE_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {VEHICLE_LABEL[t]}
+                </option>
+              ))}
+            </select>
+          </div>
           <Input
             name="brandName"
+            label="Brand name"
             placeholder="e.g. Hyundai"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && submit()}
           />
-          <Button onClick={submit} disabled={create.isPending || !name.trim()}>
+          <Button className="self-end" onClick={submit} disabled={create.isPending || !name.trim()}>
             <Plus className="size-4" /> Add brand
           </Button>
         </div>
       </GlassCard>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {brands.map((b) => (
-          <GlassCard key={b.id}>
-            <div className="flex items-center justify-between gap-2">
-              <p className={`font-display text-lg font-semibold ${b.active ? "text-ink" : "text-muted line-through"}`}>
-                {b.name}
-              </p>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={update.isPending}
-                  onClick={() => update.mutate({ id: b.id, active: !b.active })}
-                >
-                  {b.active ? "Active" : "Inactive"}
-                </Button>
-                <Button variant="ghost" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(b.id)}>
-                  <Trash2 className="size-4" />
-                </Button>
-              </div>
+      {VEHICLE_TYPES.map((type) => {
+        const typeBrands = brands.filter((b) => b.vehicleType === type);
+        if (typeBrands.length === 0) return null;
+        return (
+          <div key={type}>
+            <p className="mb-3 font-display text-lg font-semibold text-ink">{VEHICLE_LABEL[type]}</p>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {typeBrands.map((b) => (
+                <GlassCard key={b.id}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={`font-display text-lg font-semibold ${b.active ? "text-ink" : "text-muted line-through"}`}>
+                      {b.name}
+                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={update.isPending}
+                        onClick={() => update.mutate({ id: b.id, active: !b.active })}
+                      >
+                        {b.active ? "Active" : "Inactive"}
+                      </Button>
+                      <Button variant="ghost" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(b.id)}>
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <ModelChips brand={b} />
+                </GlassCard>
+              ))}
             </div>
-            <ModelChips brand={b} />
-          </GlassCard>
-        ))}
-        {brands.length === 0 && (
-          <GlassCard className="py-12 text-center text-muted lg:col-span-2">No brands yet. Add one above.</GlassCard>
-        )}
-      </div>
+          </div>
+        );
+      })}
+      {brands.length === 0 && <GlassCard className="py-12 text-center text-muted">No brands yet. Add one above.</GlassCard>}
     </div>
   );
 }

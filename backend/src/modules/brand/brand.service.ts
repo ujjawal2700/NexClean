@@ -1,22 +1,32 @@
 import { VehicleBrand, type VehicleBrandDoc } from "./brand.model";
 import { ApiError } from "../../shared/utils/ApiError";
+import type { VehicleType } from "../catalog/catalog.data";
 
 function mapBrand(b: VehicleBrandDoc) {
-  return { id: b.id, name: b.name, active: b.active, models: b.models };
+  return { id: b.id, name: b.name, vehicleType: b.vehicleType, active: b.active, models: b.models };
 }
 
-export async function listBrands() {
-  const brands = await VehicleBrand.find().sort({ name: 1 });
+export async function listBrands(vehicleType?: VehicleType) {
+  const brands = await VehicleBrand.find(vehicleType ? { vehicleType } : {}).sort({ vehicleType: 1, name: 1 });
   return brands.map(mapBrand);
 }
 
-export async function createBrand(input: { name: string }) {
-  const existing = await VehicleBrand.findOne({ name: input.name });
-  if (existing) throw ApiError.badRequest("A brand with that name already exists");
-  return mapBrand(await VehicleBrand.create({ name: input.name }));
+/** Active brands for a vehicle type, for customer-facing pickers. */
+export async function listActiveBrands(vehicleType: VehicleType) {
+  const brands = await VehicleBrand.find({ vehicleType, active: true }).sort({ name: 1 });
+  return brands.map(mapBrand);
 }
 
-export async function updateBrand(id: string, patch: { name?: string; active?: boolean }) {
+export async function createBrand(input: { name: string; vehicleType: VehicleType }) {
+  const existing = await VehicleBrand.findOne({ name: input.name, vehicleType: input.vehicleType });
+  if (existing) throw ApiError.badRequest("A brand with that name already exists for this vehicle type");
+  return mapBrand(await VehicleBrand.create(input));
+}
+
+export async function updateBrand(
+  id: string,
+  patch: { name?: string; vehicleType?: VehicleType; active?: boolean },
+) {
   const brand = await VehicleBrand.findByIdAndUpdate(id, patch, { new: true });
   if (!brand) throw ApiError.notFound("Brand not found");
   return mapBrand(brand);

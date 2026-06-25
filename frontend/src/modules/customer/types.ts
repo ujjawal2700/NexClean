@@ -7,8 +7,18 @@ export type Vehicle = {
   type: CarType;
   /** display name, e.g. "Hyundai Creta" */
   name: string;
+  brand?: string;
+  model?: string;
   /** plate number */
   plate: string;
+};
+
+/** A brand (e.g. "Hyundai") with the models available under one vehicle type. */
+export type VehicleBrand = {
+  id: string;
+  name: string;
+  vehicleType: CarType;
+  models: string[];
 };
 
 export type ServicePackage = {

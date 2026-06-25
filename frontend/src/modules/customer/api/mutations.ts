@@ -81,7 +81,7 @@ export function useConfirmPhoneChange() {
 }
 
 export function useAddVehicle() {
-  return useUserMutation((v: { type: CarType; name: string; plate?: string }) =>
+  return useUserMutation((v: { type: CarType; name: string; brand?: string; model?: string; plate?: string }) =>
     apiFetch<User>("/users/me/vehicles", { method: "POST", body: v }),
   );
 }
