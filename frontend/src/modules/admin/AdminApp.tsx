@@ -14,6 +14,7 @@ import { AreaAlerts } from "./pages/AreaAlerts";
 import { Notifications } from "./pages/Notifications";
 import { Plans } from "./pages/Plans";
 import { Locations } from "./pages/Locations";
+import { VehicleCategories } from "./pages/VehicleCategories";
 import { VehicleBrands } from "./pages/VehicleBrands";
 import { Promotions } from "./pages/Promotions";
 import { Reports } from "./pages/Reports";
@@ -49,6 +50,7 @@ export function AdminApp() {
           <Route path="notifications" element={<Notifications />} />
           <Route path="plans" element={<Plans />} />
           <Route path="locations" element={<Locations />} />
+          <Route path="vehicle-categories" element={<VehicleCategories />} />
           <Route path="vehicle-brands" element={<VehicleBrands />} />
           <Route path="promotions" element={<Promotions />} />
           <Route path="reports" element={<Reports />} />

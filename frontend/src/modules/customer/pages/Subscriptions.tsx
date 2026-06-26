@@ -4,9 +4,8 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { formatMoney } from "@shared/lib/format";
-import { useMe, usePlans } from "../api/queries";
+import { useMe, usePlans, useCategoryLabel } from "../api/queries";
 import { useSubscribe, useUnsubscribe } from "../api/mutations";
-import { VEHICLE_LABEL } from "../data/catalog";
 import type { CarType, CatalogPlan } from "../types";
 
 /** Presentation copy that the catalog API doesn't carry (tagline, perks, highlight). */
@@ -35,6 +34,7 @@ function washesLabel(washesPerMonth: number): string {
 export function Subscriptions() {
   const { data: me } = useMe();
   const { data: plans = [], isLoading } = usePlans();
+  const categoryLabel = useCategoryLabel();
   const subscribe = useSubscribe();
   const unsubscribe = useUnsubscribe();
   const busy = subscribe.isPending || unsubscribe.isPending;
@@ -72,7 +72,7 @@ export function Subscriptions() {
                     : "border-line bg-surface/70 text-ink-soft hover:border-primary/40",
                 )}
               >
-                {VEHICLE_LABEL[t]}
+                {categoryLabel(t)}
               </button>
             ))}
           </div>
@@ -118,7 +118,7 @@ export function Subscriptions() {
               </div>
               {vehicleType && (
                 <p className={cn("mt-1 text-xs", meta.featured ? "text-white/70" : "text-muted")}>
-                  for your {VEHICLE_LABEL[vehicleType]}
+                  for your {categoryLabel(vehicleType)}
                 </p>
               )}
 

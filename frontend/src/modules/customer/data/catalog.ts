@@ -1,23 +1,4 @@
-import type { CarType, ServicePackage, Address, Vehicle } from "../types";
-
-/** Base price (₹) per vehicle type — mirrors the public pricing. */
-export const BASE_PRICE: Record<CarType, number> = {
-  hatchback: 299,
-  sedan: 399,
-  suv: 499,
-  luxury: 699,
-  premium: 899,
-};
-
-export const VEHICLE_LABEL: Record<CarType, string> = {
-  hatchback: "Hatchback",
-  sedan: "Sedan",
-  suv: "SUV",
-  luxury: "Luxury",
-  premium: "Premium",
-};
-
-export const VEHICLE_TYPES: CarType[] = ["hatchback", "sedan", "suv", "luxury", "premium"];
+import type { ServicePackage, Address, Vehicle } from "../types";
 
 export const PACKAGES: ServicePackage[] = [
   {
@@ -46,9 +27,9 @@ export const PACKAGES: ServicePackage[] = [
   },
 ];
 
-/** Final price for a package + vehicle, rounded to the nearest ₹10. */
-export function priceFor(vehicle: CarType, pkg: ServicePackage): number {
-  return Math.round((BASE_PRICE[vehicle] * pkg.factor) / 10) * 10;
+/** Final price for a package given the vehicle category's base price, rounded to the nearest ₹10. */
+export function priceFor(basePrice: number, pkg: ServicePackage): number {
+  return Math.round((basePrice * pkg.factor) / 10) * 10;
 }
 
 export const TIME_SLOTS = [

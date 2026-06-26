@@ -8,7 +8,8 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { agentLiveSince, isAgentLive } from "../user/presence";
 import * as planService from "../catalog/plan.service";
 import type { PlanDoc } from "../catalog/plan.model";
-import { VEHICLE_TYPES, type PlanPrices } from "../catalog/catalog.data";
+import type { PlanPrices } from "../catalog/catalog.data";
+import { listCategories } from "../catalog/category.service";
 
 type BookingDoc = BookingDocument;
 type DisplayStatus = "upcoming" | "in_progress" | "completed" | "cancelled";
@@ -428,15 +429,18 @@ async function revenueTrend(days: number) {
 }
 
 async function revenueByVehicle() {
-  const rows = await Booking.aggregate<{ _id: string; revenue: number; count: number }>([
-    { $match: { status: "completed" } },
-    { $group: { _id: "$vehicleType", revenue: { $sum: "$price" }, count: { $sum: 1 } } },
+  const [rows, categories] = await Promise.all([
+    Booking.aggregate<{ _id: string; revenue: number; count: number }>([
+      { $match: { status: "completed" } },
+      { $group: { _id: "$vehicleType", revenue: { $sum: "$price" }, count: { $sum: 1 } } },
+    ]),
+    listCategories(),
   ]);
   const byType = new Map(rows.map((r) => [r._id, r]));
-  return VEHICLE_TYPES.map((t) => ({
-    vehicleType: t,
-    revenue: byType.get(t)?.revenue ?? 0,
-    count: byType.get(t)?.count ?? 0,
+  return categories.map((c) => ({
+    vehicleType: c.key,
+    revenue: byType.get(c.key)?.revenue ?? 0,
+    count: byType.get(c.key)?.count ?? 0,
   }));
 }
 

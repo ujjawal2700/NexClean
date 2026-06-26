@@ -1,7 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { useSessionStore } from "../store/sessionStore";
-import type { User, Booking, AppNotification, CatalogPlan, PromoBanner, ReferralSummary, VehicleBrand, CarType } from "../types";
+import type {
+  User,
+  Booking,
+  AppNotification,
+  CatalogPlan,
+  PromoBanner,
+  ReferralSummary,
+  VehicleCategory,
+  VehicleBrand,
+  VehicleModel,
+} from "../types";
 
 export const meKey = ["me"] as const;
 export const bookingsKey = ["bookings"] as const;
@@ -9,7 +19,9 @@ export const notificationsKey = ["notifications"] as const;
 export const plansKey = ["catalog", "plans"] as const;
 export const promoBannersKey = ["catalog", "promo-banners"] as const;
 export const referralsKey = ["referrals"] as const;
-export const vehicleBrandsKey = (type: CarType) => ["catalog", "vehicle-brands", type] as const;
+export const vehicleCategoriesKey = ["catalog", "vehicle-categories"] as const;
+export const vehicleBrandsKey = ["catalog", "vehicle-brands"] as const;
+export const vehicleModelsKey = (brandId: string) => ["catalog", "vehicle-brands", brandId, "models"] as const;
 
 /** Current authenticated customer (profile, vehicles, addresses, plan). */
 export function useMe() {
@@ -21,7 +33,7 @@ export function useMe() {
   });
 }
 
-/** Active subscription plans (public catalog), priced per vehicle type. */
+/** Active subscription plans (public catalog), priced per vehicle category. */
 export function usePlans() {
   return useQuery({
     queryKey: plansKey,
@@ -68,11 +80,34 @@ export function useReferralSummary() {
   });
 }
 
-/** Active brands + models for a vehicle type, for the Add Vehicle / booking pickers. */
-export function useVehicleBrands(type: CarType | null) {
+/** Admin-managed vehicle categories (with their current base price) — what pricing is based on. */
+export function useVehicleCategories() {
   return useQuery({
-    queryKey: vehicleBrandsKey(type ?? "hatchback"),
-    queryFn: () => apiFetch<VehicleBrand[]>(`/catalog/vehicle-brands?type=${type}`),
-    enabled: !!type,
+    queryKey: vehicleCategoriesKey,
+    queryFn: () => apiFetch<VehicleCategory[]>("/catalog/vehicle-categories"),
+  });
+}
+
+/** Looks up a category's display name by key; falls back to the raw key. */
+export function useCategoryLabel() {
+  const { data: categories = [] } = useVehicleCategories();
+  const byKey = new Map(categories.map((c) => [c.key, c.name]));
+  return (key: string) => byKey.get(key) ?? key;
+}
+
+/** All active brands — for the Add Vehicle / booking pickers (a brand spans many categories). */
+export function useVehicleBrands() {
+  return useQuery({
+    queryKey: vehicleBrandsKey,
+    queryFn: () => apiFetch<VehicleBrand[]>("/catalog/vehicle-brands"),
+  });
+}
+
+/** Active models under a brand — each carries its own category. */
+export function useVehicleModels(brandId: string | null) {
+  return useQuery({
+    queryKey: vehicleModelsKey(brandId ?? ""),
+    queryFn: () => apiFetch<VehicleModel[]>(`/catalog/vehicle-brands/${brandId}/models`),
+    enabled: !!brandId,
   });
 }

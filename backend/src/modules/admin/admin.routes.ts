@@ -47,12 +47,20 @@ adminRouter.post("/zones", asyncHandler(c.createZone));
 adminRouter.patch("/zones/:id", asyncHandler(c.updateZone));
 adminRouter.delete("/zones/:id", asyncHandler(c.deleteZone));
 
+adminRouter.get("/vehicle-categories", asyncHandler(c.vehicleCategories));
+adminRouter.post("/vehicle-categories", asyncHandler(c.createVehicleCategory));
+adminRouter.patch("/vehicle-categories/:id", asyncHandler(c.updateVehicleCategory));
+adminRouter.delete("/vehicle-categories/:id", asyncHandler(c.deleteVehicleCategory));
+
 adminRouter.get("/vehicle-brands", asyncHandler(c.vehicleBrands));
 adminRouter.post("/vehicle-brands", asyncHandler(c.createVehicleBrand));
 adminRouter.patch("/vehicle-brands/:id", asyncHandler(c.updateVehicleBrand));
 adminRouter.delete("/vehicle-brands/:id", asyncHandler(c.deleteVehicleBrand));
-adminRouter.post("/vehicle-brands/:id/models", asyncHandler(c.addVehicleModel));
-adminRouter.delete("/vehicle-brands/:id/models/:model", asyncHandler(c.removeVehicleModel));
+
+adminRouter.get("/vehicle-brands/:id/models", asyncHandler(c.vehicleModels));
+adminRouter.post("/vehicle-brands/:id/models", asyncHandler(c.createVehicleModel));
+adminRouter.patch("/vehicle-brands/:id/models/:modelId", asyncHandler(c.updateVehicleModel));
+adminRouter.delete("/vehicle-brands/:id/models/:modelId", asyncHandler(c.deleteVehicleModel));
 
 adminRouter.get("/discount-codes", asyncHandler(c.discountCodes));
 adminRouter.post("/discount-codes", asyncHandler(c.createDiscountCode));

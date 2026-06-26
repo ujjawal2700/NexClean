@@ -2,15 +2,15 @@ import type { CarType } from "@shared/components/visual/CarSilhouette";
 
 export type { CarType };
 
-export const VEHICLE_LABEL: Record<CarType, string> = {
-  hatchback: "Hatchback",
-  sedan: "Sedan",
-  suv: "SUV",
-  luxury: "Luxury",
-  premium: "Premium",
+/** An admin-managed vehicle category (replaces the old fixed hatchback/sedan/... list). */
+export type VehicleCategory = {
+  id: string;
+  name: string;
+  key: string;
+  basePrice: number;
+  sortOrder: number;
+  active: boolean;
 };
-
-export const VEHICLE_TYPES: CarType[] = ["hatchback", "sedan", "suv", "luxury", "premium"];
 
 export type BookingStatus = "upcoming" | "in_progress" | "completed" | "cancelled";
 
@@ -110,9 +110,15 @@ export type ServiceCity = {
 export type VehicleBrand = {
   id: string;
   name: string;
-  vehicleType: CarType;
   active: boolean;
-  models: string[];
+};
+
+export type VehicleModel = {
+  id: string;
+  brand: string;
+  name: string;
+  categoryKey: string;
+  active: boolean;
 };
 
 export type ServiceZone = {

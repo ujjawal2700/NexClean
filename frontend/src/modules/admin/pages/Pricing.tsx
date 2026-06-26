@@ -4,8 +4,8 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { formatMoney } from "@shared/lib/format";
-import { usePricing, useUpdatePricing } from "../api/admin.api";
-import { VEHICLE_LABEL, VEHICLE_TYPES, type Pricing as PricingType, type PricingPackage } from "../types";
+import { usePricing, useUpdatePricing, useVehicleCategories } from "../api/admin.api";
+import type { Pricing as PricingType, PricingPackage } from "../types";
 
 function slugify(name: string) {
   return name
@@ -17,6 +17,7 @@ function slugify(name: string) {
 
 export function Pricing() {
   const { data: serverPricing } = usePricing();
+  const { data: categories = [] } = useVehicleCategories();
   const update = useUpdatePricing();
   const [draft, setDraft] = useState<PricingType | null>(null);
   const [saved, setSaved] = useState(false);
@@ -67,19 +68,26 @@ export function Pricing() {
 
       <GlassCard>
         <p className="font-display text-lg font-semibold text-ink">Base price by vehicle</p>
+        <p className="mt-1 text-sm text-muted">
+          Need a new category? Add it from{" "}
+          <a href="/admin/vehicle-categories" className="text-primary hover:underline">
+            Vehicle Categories
+          </a>
+          .
+        </p>
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {VEHICLE_TYPES.map((t) => (
-            <div key={t} className="rounded-2xl border border-line bg-surface/60 p-4">
+          {categories.map((c) => (
+            <div key={c.key} className="rounded-2xl border border-line bg-surface/60 p-4">
               <div className="mb-2 h-14">
-                <CarSilhouette type={t} uid={`price-${t}`} className="mx-auto h-full w-auto" />
+                <CarSilhouette type={c.key} uid={`price-${c.key}`} className="mx-auto h-full w-auto" />
               </div>
-              <p className="text-center text-sm font-medium text-ink">{VEHICLE_LABEL[t]}</p>
+              <p className="text-center text-sm font-medium text-ink">{c.name}</p>
               <div className="mt-3 flex items-center gap-1 rounded-xl border border-line bg-surface px-3 focus-within:border-primary/50">
                 <span className="text-muted">₹</span>
                 <input
                   type="number"
-                  value={draft.base[t] ?? 0}
-                  onChange={(e) => setBase(t, Number(e.target.value) || 0)}
+                  value={draft.base[c.key] ?? 0}
+                  onChange={(e) => setBase(c.key, Number(e.target.value) || 0)}
                   className="h-10 w-full bg-transparent text-ink outline-none"
                 />
               </div>
@@ -111,9 +119,12 @@ export function Pricing() {
                   onChange={(e) => patchPackage(p.id, { name: e.target.value })}
                   className="h-9 w-full rounded-lg border border-line bg-surface px-2 font-display font-semibold text-ink outline-none focus:border-primary/50"
                 />
-                <p className="text-xs text-muted">
-                  e.g. Sedan → {formatMoney(Math.round(((draft.base.sedan ?? 0) * p.factor) / 10) * 10)}
-                </p>
+                {categories[0] && (
+                  <p className="text-xs text-muted">
+                    e.g. {categories[0].name} →{" "}
+                    {formatMoney(Math.round(((draft.base[categories[0].key] ?? 0) * p.factor) / 10) * 10)}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted">×</span>

@@ -17,13 +17,15 @@ export async function connectDb(): Promise<void> {
 /**
  * Drop indexes left over from earlier schema versions. Mongoose only adds
  * new indexes on startup — it never removes ones that no longer match the
- * current schema — so a stale unique index can silently break inserts after
- * a field's uniqueness scope changes (e.g. VehicleBrand.name used to be
- * globally unique; it's now unique per vehicleType).
+ * current schema — so a stale index can silently break inserts after a
+ * field's uniqueness scope changes. VehicleBrand briefly scoped `name`
+ * uniqueness to (name, vehicleType) before settling back on a single
+ * brand catalog (with category living on VehicleModel instead) — that
+ * transitional compound index needs to go.
  */
 async function dropStaleIndexes(): Promise<void> {
   try {
-    await mongoose.connection.db?.collection("vehiclebrands").dropIndex("name_1");
+    await mongoose.connection.db?.collection("vehiclebrands").dropIndex("name_1_vehicleType_1");
   } catch {
     // already dropped, or never existed — nothing to do
   }

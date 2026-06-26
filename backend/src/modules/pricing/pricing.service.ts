@@ -1,6 +1,7 @@
 import { Pricing } from "./pricing.model";
 import { ApiError } from "../../shared/utils/ApiError";
-import { BASE_PRICE, PACKAGES, isVehicleType, type VehicleType } from "../catalog/catalog.data";
+import { BASE_PRICE, PACKAGES } from "../catalog/catalog.data";
+import { isValidCategoryKey } from "../catalog/category.service";
 
 export type PricingPackage = {
   id: string;
@@ -41,9 +42,9 @@ export async function updatePricing(patch: Partial<PricingDoc>) {
 
 /** Authoritative price for a vehicle + package, from the live pricing doc. */
 export async function getPrice(vehicleType: string, packageId: string): Promise<number> {
-  if (!isVehicleType(vehicleType)) throw ApiError.badRequest("Unknown vehicle type");
+  if (!(await isValidCategoryKey(vehicleType))) throw ApiError.badRequest("Unknown vehicle type");
   const doc = await getPricing();
-  const base = (doc.base as Record<string, number>)[vehicleType as VehicleType];
+  const base = (doc.base as Record<string, number>)[vehicleType];
   const pkg = (doc.packages as PricingPackage[]).find((p) => p.id === packageId);
   if (base == null || !pkg) throw ApiError.badRequest("Unknown package or vehicle");
   return Math.round((base * pkg.factor) / 10) * 10;

@@ -13,8 +13,9 @@ import {
   useAssignBooking,
   useAutoAssignBooking,
   useSetBookingStatus,
+  useCategoryLabel,
 } from "../api/admin.api";
-import { VEHICLE_LABEL, type BookingStatus, type AdminBooking } from "../types";
+import { type BookingStatus, type AdminBooking } from "../types";
 import { BOOKING_STATUS_STYLE } from "../lib/status";
 
 const FILTERS: { id: BookingStatus | "all"; label: string }[] = [
@@ -93,6 +94,7 @@ function StatusCell({ booking }: { booking: AdminBooking }) {
 export function Bookings() {
   const { data: bookings = [], isLoading } = useBookings();
   const cancelBooking = useCancelBooking();
+  const categoryLabel = useCategoryLabel();
   const [filter, setFilter] = useState<BookingStatus | "all">("all");
   const [query, setQuery] = useState("");
 
@@ -161,7 +163,7 @@ export function Bookings() {
               <tr key={b.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
                   <p className="font-medium text-ink">{b.vehicleName}</p>
-                  <p className="text-xs text-muted">{VEHICLE_LABEL[b.vehicleType]} · #{b.id}</p>
+                  <p className="text-xs text-muted">{categoryLabel(b.vehicleType)} · #{b.id}</p>
                 </td>
                 <td className="px-2 py-3 text-ink-soft">{b.customerName}</td>
                 <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)} · {b.slot}</td>

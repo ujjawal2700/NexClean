@@ -5,41 +5,40 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { formatMoney } from "@shared/lib/format";
 import { StatCard } from "../components/StatCard";
-import { usePlans, useCreatePlan, useUpdatePlan, useDeletePlan } from "../api/admin.api";
-import { VEHICLE_TYPES, VEHICLE_LABEL, type AdminPlan, type CarType, type PlanPrices } from "../types";
+import { usePlans, useCreatePlan, useUpdatePlan, useDeletePlan, useVehicleCategories } from "../api/admin.api";
+import type { AdminPlan, VehicleCategory, PlanPrices } from "../types";
 
-type PriceDraft = Record<CarType, string>;
-const EMPTY_PRICES: PriceDraft = VEHICLE_TYPES.reduce(
-  (acc, v) => ({ ...acc, [v]: "" }),
-  {} as PriceDraft,
-);
+type PriceDraft = Record<string, string>;
 
-/** Turn a string price draft into a numeric PlanPrices (blank/invalid → 0). */
-function toPrices(draft: PriceDraft): PlanPrices {
-  return VEHICLE_TYPES.reduce(
-    (acc, v) => ({ ...acc, [v]: Number(draft[v]) || 0 }),
-    {} as PlanPrices,
-  );
+function emptyDraft(categories: VehicleCategory[]): PriceDraft {
+  return Object.fromEntries(categories.map((c) => [c.key, ""]));
+}
+
+/** Turn a string price draft into numeric PlanPrices (blank/invalid → 0). */
+function toPrices(draft: PriceDraft, categories: VehicleCategory[]): PlanPrices {
+  return Object.fromEntries(categories.map((c) => [c.key, Number(draft[c.key]) || 0]));
 }
 
 function VehiclePriceInputs({
+  categories,
   draft,
   onChange,
 }: {
+  categories: VehicleCategory[];
   draft: PriceDraft;
-  onChange: (v: CarType, value: string) => void;
+  onChange: (key: string, value: string) => void;
 }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
-      {VEHICLE_TYPES.map((v) => (
-        <label key={v} className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3">
-          <span className="text-sm text-muted">{VEHICLE_LABEL[v]}</span>
+      {categories.map((c) => (
+        <label key={c.key} className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3">
+          <span className="text-sm text-muted">{c.name}</span>
           <span className="flex items-center gap-1">
             <span className="text-muted">₹</span>
             <input
               type="number"
-              value={draft[v]}
-              onChange={(e) => onChange(v, e.target.value)}
+              value={draft[c.key] ?? ""}
+              onChange={(e) => onChange(c.key, e.target.value)}
               placeholder="0"
               className="h-9 w-24 bg-transparent text-right text-ink outline-none"
             />
@@ -50,18 +49,18 @@ function VehiclePriceInputs({
   );
 }
 
-function PlanCard({ plan }: { plan: AdminPlan }) {
+function PlanCard({ plan, categories }: { plan: AdminPlan; categories: VehicleCategory[] }) {
   const update = useUpdatePlan();
   const remove = useDeletePlan();
   const [editing, setEditing] = useState(false);
   const [prices, setPrices] = useState<PriceDraft>(
-    () => VEHICLE_TYPES.reduce((acc, v) => ({ ...acc, [v]: String(plan.prices[v] ?? "") }), {} as PriceDraft),
+    () => Object.fromEntries(categories.map((c) => [c.key, String(plan.prices[c.key] ?? "")])),
   );
   const [washes, setWashes] = useState(String(plan.washesPerMonth));
 
   const save = () => {
     update.mutate(
-      { id: plan.id, prices: toPrices(prices), washesPerMonth: Number(washes) || 0 },
+      { id: plan.id, prices: toPrices(prices, categories), washesPerMonth: Number(washes) || 0 },
       { onSuccess: () => setEditing(false) },
     );
   };
@@ -87,7 +86,11 @@ function PlanCard({ plan }: { plan: AdminPlan }) {
 
       {editing ? (
         <div className="mt-4 space-y-3">
-          <VehiclePriceInputs draft={prices} onChange={(v, value) => setPrices((p) => ({ ...p, [v]: value }))} />
+          <VehiclePriceInputs
+            categories={categories}
+            draft={prices}
+            onChange={(key, value) => setPrices((p) => ({ ...p, [key]: value }))}
+          />
           <label className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3">
             <span className="text-sm text-muted">Washes / month (-1 = unlimited)</span>
             <input
@@ -111,10 +114,10 @@ function PlanCard({ plan }: { plan: AdminPlan }) {
           </div>
 
           <dl className="mt-4 space-y-1 border-t border-line/70 pt-4 text-sm">
-            {VEHICLE_TYPES.map((v) => (
-              <div key={v} className="flex justify-between">
-                <dt className="text-muted">{VEHICLE_LABEL[v]}</dt>
-                <dd className="font-medium text-ink">{formatMoney(plan.prices[v] ?? 0)}/mo</dd>
+            {categories.map((c) => (
+              <div key={c.key} className="flex justify-between">
+                <dt className="text-muted">{c.name}</dt>
+                <dd className="font-medium text-ink">{formatMoney(plan.prices[c.key] ?? 0)}/mo</dd>
               </div>
             ))}
           </dl>
@@ -154,16 +157,16 @@ function PlanCard({ plan }: { plan: AdminPlan }) {
   );
 }
 
-function NewPlanForm({ onClose }: { onClose: () => void }) {
+function NewPlanForm({ categories, onClose }: { categories: VehicleCategory[]; onClose: () => void }) {
   const create = useCreatePlan();
   const [name, setName] = useState("");
   const [washes, setWashes] = useState("");
-  const [prices, setPrices] = useState<PriceDraft>(EMPTY_PRICES);
+  const [prices, setPrices] = useState<PriceDraft>(() => emptyDraft(categories));
 
   const submit = () => {
     if (!name.trim()) return;
     create.mutate(
-      { name: name.trim(), prices: toPrices(prices), washesPerMonth: Number(washes) || 0 },
+      { name: name.trim(), prices: toPrices(prices, categories), washesPerMonth: Number(washes) || 0 },
       { onSuccess: () => onClose() },
     );
   };
@@ -182,8 +185,8 @@ function NewPlanForm({ onClose }: { onClose: () => void }) {
           onChange={(e) => setWashes(e.target.value)}
         />
       </div>
-      <p className="mt-5 mb-2 text-sm font-medium text-ink">Monthly price per vehicle type</p>
-      <VehiclePriceInputs draft={prices} onChange={(v, value) => setPrices((p) => ({ ...p, [v]: value }))} />
+      <p className="mt-5 mb-2 text-sm font-medium text-ink">Monthly price per vehicle category</p>
+      <VehiclePriceInputs categories={categories} draft={prices} onChange={(key, value) => setPrices((p) => ({ ...p, [key]: value }))} />
       <div className="mt-4 flex gap-2">
         <Button onClick={submit} disabled={create.isPending || !name.trim()}>
           <Check className="size-4" /> Create plan
@@ -198,6 +201,7 @@ function NewPlanForm({ onClose }: { onClose: () => void }) {
 
 export function Plans() {
   const { data: plans = [] } = usePlans();
+  const { data: categories = [] } = useVehicleCategories();
   const [adding, setAdding] = useState(false);
 
   const activePlans = plans.filter((p) => p.active);
@@ -218,7 +222,7 @@ export function Plans() {
         )}
       </div>
 
-      {adding && <NewPlanForm onClose={() => setAdding(false)} />}
+      {adding && <NewPlanForm categories={categories} onClose={() => setAdding(false)} />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard icon={Users} label="Total subscribers" value={totalSubs.toLocaleString("en-IN")} />
@@ -228,7 +232,7 @@ export function Plans() {
 
       <div className="grid gap-5 lg:grid-cols-3">
         {plans.map((p) => (
-          <PlanCard key={p.id} plan={p} />
+          <PlanCard key={p.id} plan={p} categories={categories} />
         ))}
         {plans.length === 0 && <p className="text-muted">No plans yet — create one above.</p>}
       </div>

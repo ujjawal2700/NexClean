@@ -4,19 +4,22 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { Skeleton } from "@shared/ui/Skeleton";
-import { useMe, useBookings, usePromoBanners } from "../api/queries";
-import { VEHICLE_LABEL, PACKAGES } from "../data/catalog";
+import { useMe, useBookings, usePromoBanners, useVehicleCategories, useCategoryLabel } from "../api/queries";
+import { PACKAGES } from "../data/catalog";
 import { formatDate, formatMoney, greeting } from "@shared/lib/format";
 
 export function Dashboard() {
   const { data: me, isLoading: meLoading } = useMe();
   const { data: bookings = [], isLoading: bookingsLoading } = useBookings();
   const { data: banners = [] } = usePromoBanners();
+  const { data: categories = [] } = useVehicleCategories();
+  const categoryLabel = useCategoryLabel();
 
   const name = me?.name ?? "Member";
   const vehicles = me?.vehicles ?? [];
   const activePlan = me?.activePlan ?? null;
   const next = bookings.filter((b) => b.status === "upcoming")[0];
+  const cheapestBase = categories.length ? Math.min(...categories.map((c) => c.basePrice)) : 0;
 
   return (
     <div className="space-y-8">
@@ -153,7 +156,7 @@ export function Dashboard() {
                   </div>
                   <div className="min-w-0">
                     <p className="truncate font-display font-semibold text-ink">{v.name}</p>
-                    <p className="text-sm text-muted">{VEHICLE_LABEL[v.type]}</p>
+                    <p className="text-sm text-muted">{categoryLabel(v.type)}</p>
                     <p className="mt-0.5 text-xs text-muted">{v.plate}</p>
                   </div>
                 </GlassCard>
@@ -184,7 +187,7 @@ export function Dashboard() {
       </GlassCard>
 
       <p className="text-center text-xs text-muted">
-        Starting prices from {formatMoney(PACKAGES[0].factor * 299)} · Cancel anytime
+        Starting prices from {formatMoney(PACKAGES[0].factor * cheapestBase)} · Cancel anytime
       </p>
     </div>
   );

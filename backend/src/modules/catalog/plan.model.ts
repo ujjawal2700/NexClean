@@ -1,18 +1,14 @@
 import { Schema, model, type InferSchemaType, type HydratedDocument } from "mongoose";
-import { VEHICLE_TYPES } from "./catalog.data";
-
-/** A plan's price for each vehicle type (the customer is charged based on their vehicle). */
-const pricesSchema = new Schema(
-  Object.fromEntries(VEHICLE_TYPES.map((v) => [v, { type: Number, required: true }])),
-  { _id: false },
-);
 
 /** Plan id is a human slug (e.g. "basic"), not an ObjectId — matches User.activePlan values. */
 const planSchema = new Schema(
   {
     _id: { type: String },
     name: { type: String, required: true, trim: true },
-    prices: { type: pricesSchema, required: true },
+    // Price per vehicle category key (e.g. { hatchback: 999, ... }). A plain
+    // object rather than a fixed sub-schema since categories are now
+    // admin-managed and dynamic — new categories get a key added at runtime.
+    prices: { type: Object, required: true },
     washesPerMonth: { type: Number, required: true },
     active: { type: Boolean, default: true },
   },

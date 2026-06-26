@@ -3,8 +3,7 @@ import { ArrowLeft, Phone, Mail, MapPin, Car } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { formatMoney, formatDate } from "@shared/lib/format";
-import { useCustomer, useCustomerActivity } from "../api/admin.api";
-import { VEHICLE_LABEL } from "../types";
+import { useCustomer, useCustomerActivity, useCategoryLabel } from "../api/admin.api";
 import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL, PAYMENT_STATUS_STYLE, PAYMENT_STATUS_LABEL } from "../lib/status";
 
 export function CustomerDetail() {
@@ -12,6 +11,7 @@ export function CustomerDetail() {
   const navigate = useNavigate();
   const { data: customer } = useCustomer(id ?? "");
   const { data: activity } = useCustomerActivity(id ?? "");
+  const categoryLabel = useCategoryLabel();
 
   if (!customer) return null;
 
@@ -76,7 +76,7 @@ export function CustomerDetail() {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-ink">{v.name}</p>
-                  <p className="text-xs text-muted">{VEHICLE_LABEL[v.type]} · {v.plate}</p>
+                  <p className="text-xs text-muted">{categoryLabel(v.type)} · {v.plate}</p>
                 </div>
               </div>
             ))}

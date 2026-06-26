@@ -3,8 +3,7 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Skeleton, SkeletonStatCards } from "@shared/ui/Skeleton";
 import { formatMoney } from "@shared/lib/format";
-import { useBookings, useAgents, useReports } from "../api/admin.api";
-import { VEHICLE_LABEL } from "../types";
+import { useBookings, useAgents, useReports, useCategoryLabel } from "../api/admin.api";
 import { StatCard } from "../components/StatCard";
 import { BarChart } from "../components/BarChart";
 
@@ -17,6 +16,7 @@ export function Reports() {
   const { data: bookings = [] } = useBookings();
   const { data: agents = [] } = useAgents();
   const { data: reports, isLoading, isError, refetch, isRefetching } = useReports();
+  const categoryLabel = useCategoryLabel();
 
   const completed = bookings.filter((b) => b.status === "completed").length;
   const cancelled = bookings.filter((b) => b.status === "cancelled").length;
@@ -70,7 +70,7 @@ export function Reports() {
     value: d.revenue,
   }));
   const revenueByVehicle = reports.revenueByVehicle.map((v) => ({
-    label: VEHICLE_LABEL[v.vehicleType].slice(0, 4),
+    label: categoryLabel(v.vehicleType).slice(0, 4),
     value: v.revenue,
   }));
   const maxSociety = Math.max(...reports.topSocieties.map((s) => s.count), 1);

@@ -50,8 +50,8 @@ export const PACKAGES: ServicePackage[] = [
   },
 ];
 
-/** Per-vehicle monthly price for a plan. -1 washesPerMonth = unlimited. */
-export type PlanPrices = Record<VehicleType, number>;
+/** Per-vehicle-category monthly price for a plan. -1 washesPerMonth = unlimited. */
+export type PlanPrices = Record<string, number>;
 
 export const PLANS = [
   {

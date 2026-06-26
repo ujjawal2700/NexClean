@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { VEHICLE_TYPES } from "../catalog/catalog.data";
 
 export const updateProfileSchema = z.object({
   name: z.string().min(1).max(60).optional(),
@@ -16,7 +15,7 @@ export const confirmPhoneChangeSchema = z.object({
 });
 
 export const addVehicleSchema = z.object({
-  type: z.enum(VEHICLE_TYPES),
+  type: z.string().min(1),
   name: z.string().min(1).max(60),
   brand: z.string().max(40).optional(),
   model: z.string().max(40).optional(),

@@ -18,21 +18,14 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
-import { BrandModelSelect } from "../../components/BrandModelSelect";
+import { BrandModelSelect, type VehicleSelection } from "../../components/BrandModelSelect";
 import { ApiError } from "@shared/lib/api";
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
-import { useMe } from "../../api/queries";
+import { useMe, useVehicleCategories, useCategoryLabel } from "../../api/queries";
 import { useCreateOrder, useVerifyPayment, usePreviewDiscount } from "../../api/mutations";
 import type { PreviewAmountResponse } from "../../api/mutations";
-import {
-  PACKAGES,
-  VEHICLE_TYPES,
-  VEHICLE_LABEL,
-  TIME_SLOTS,
-  upcomingDates,
-  priceFor,
-} from "../../data/catalog";
-import type { CarType, Booking, Vehicle, Address } from "../../types";
+import { PACKAGES, TIME_SLOTS, upcomingDates, priceFor } from "../../data/catalog";
+import type { CarType, Booking, Vehicle, Address, VehicleCategory } from "../../types";
 import { formatMoney } from "@shared/lib/format";
 import { Stepper, STEP_LABELS } from "./Stepper";
 
@@ -57,6 +50,8 @@ const EMPTY: Draft = {
 export function BookingFlow() {
   const navigate = useNavigate();
   const { data: me } = useMe();
+  const { data: categories = [] } = useVehicleCategories();
+  const categoryLabel = useCategoryLabel();
   const vehicles = me?.vehicles ?? [];
   const addresses = me?.addresses ?? [];
   const createOrder = useCreateOrder();
@@ -75,8 +70,9 @@ export function BookingFlow() {
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
 
+  const basePriceFor = (key: string) => categories.find((c) => c.key === key)?.basePrice ?? 0;
   const pkg = useMemo(() => PACKAGES.find((p) => p.id === draft.packageId) ?? null, [draft.packageId]);
-  const total = draft.vehicleType && pkg ? priceFor(draft.vehicleType, pkg) : 0;
+  const total = draft.vehicleType && pkg ? priceFor(basePriceFor(draft.vehicleType), pkg) : 0;
   const payable = appliedDiscount ? appliedDiscount.price : total;
   const address = addresses.find((a) => a.id === draft.addressId) ?? null;
 
@@ -117,7 +113,7 @@ export function BookingFlow() {
 
     const bookingInput = {
       vehicleType: draft.vehicleType,
-      vehicleName: draft.vehicleName || VEHICLE_LABEL[draft.vehicleType],
+      vehicleName: draft.vehicleName || categoryLabel(draft.vehicleType),
       packageId: pkg.id,
       date: draft.date,
       slot: draft.slot,
@@ -192,13 +188,14 @@ export function BookingFlow() {
               exit={{ opacity: 0, x: -24 }}
               transition={{ duration: 0.3 }}
             >
-              {step === 0 && <VehicleStep draft={draft} set={set} vehicles={vehicles} />}
-              {step === 1 && <PackageStep draft={draft} set={set} />}
+              {step === 0 && <VehicleStep draft={draft} set={set} vehicles={vehicles} categoryLabel={categoryLabel} />}
+              {step === 1 && <PackageStep draft={draft} set={set} categories={categories} />}
               {step === 2 && <ScheduleStep draft={draft} set={set} />}
               {step === 3 && <AddressStep draft={draft} set={set} addresses={addresses} />}
               {step === 4 && (
                 <PaymentSummary
                   draft={draft}
+                  categoryLabel={categoryLabel}
                   total={payable}
                   discountInput={discountInput}
                   setDiscountInput={setDiscountInput}
@@ -268,36 +265,22 @@ function VehicleStep({
   draft,
   set,
   vehicles,
+  categoryLabel,
 }: {
   draft: Draft;
   set: (p: Partial<Draft>) => void;
   vehicles: Vehicle[];
+  categoryLabel: (key: string) => string;
 }) {
-  const [brand, setBrand] = useState("");
-  const [model, setModel] = useState("");
-
   const usingSavedVehicle = vehicles.some((v) => v.name === draft.vehicleName && v.type === draft.vehicleType);
-  const showPicker = !!draft.vehicleType && !usingSavedVehicle;
 
-  const pickType = (t: CarType) => {
-    setBrand("");
-    setModel("");
-    set({ vehicleType: t, vehicleName: `My ${VEHICLE_LABEL[t]}` });
-  };
-
-  const onBrandChange = (b: string) => {
-    setBrand(b);
-    setModel("");
-  };
-
-  const onModelChange = (m: string) => {
-    setModel(m);
-    if (brand && m) set({ vehicleName: `${brand} ${m}` });
+  const onResolved = (selection: VehicleSelection | null) => {
+    if (selection) set({ vehicleType: selection.categoryKey, vehicleName: `${selection.brand} ${selection.model}` });
   };
 
   return (
     <div>
-      <StepHeading title="Which vehicle?" subtitle="Choose from your garage or pick a type." />
+      <StepHeading title="Which vehicle?" subtitle="Choose from your garage or search your brand & model." />
 
       {vehicles.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -319,7 +302,7 @@ function VehicleStep({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate font-display font-semibold text-ink">{v.name}</p>
-                  <p className="text-sm text-muted">{VEHICLE_LABEL[v.type]}</p>
+                  <p className="text-sm text-muted">{categoryLabel(v.type)}</p>
                 </div>
                 {selected && <Check className="ml-auto size-5 text-primary" />}
               </button>
@@ -328,45 +311,37 @@ function VehicleStep({
         </div>
       )}
 
-      <p className="mb-3 mt-6 text-sm font-medium text-muted">Or pick a vehicle type</p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {VEHICLE_TYPES.map((t) => {
-          const selected = draft.vehicleType === t && !usingSavedVehicle;
-          return (
-            <button
-              key={t}
-              onClick={() => pickType(t)}
-              className={cn(
-                "rounded-2xl border p-3 transition-all",
-                selected
-                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                  : "border-line bg-surface hover:border-primary/40",
-              )}
-            >
-              <CarSilhouette type={t} uid={`type-${t}`} />
-              <p className="mt-1 text-center text-xs font-medium text-ink">{VEHICLE_LABEL[t]}</p>
-            </button>
-          );
-        })}
+      <p className="mb-3 mt-6 text-sm font-medium text-muted">Or search your brand &amp; model</p>
+      <div className="grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
+        <BrandModelSelect onResolved={onResolved} />
       </div>
 
-      {showPicker && draft.vehicleType && (
-        <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
-          <BrandModelSelect type={draft.vehicleType} brand={brand} model={model} onBrandChange={onBrandChange} onModelChange={onModelChange} />
-        </div>
+      {!usingSavedVehicle && draft.vehicleType && (
+        <p className="mt-3 flex items-center gap-1.5 text-sm text-muted">
+          <Check className="size-4 text-primary" /> {draft.vehicleName} · {categoryLabel(draft.vehicleType)}
+        </p>
       )}
     </div>
   );
 }
 
-function PackageStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) => void }) {
+function PackageStep({
+  draft,
+  set,
+  categories,
+}: {
+  draft: Draft;
+  set: (p: Partial<Draft>) => void;
+  categories: VehicleCategory[];
+}) {
+  const basePriceFor = (key: string) => categories.find((c) => c.key === key)?.basePrice ?? 0;
   return (
     <div>
       <StepHeading title="Choose a package" subtitle="Pricing shown for your selected vehicle." />
       <div className="space-y-3">
         {PACKAGES.map((p) => {
           const selected = draft.packageId === p.id;
-          const price = draft.vehicleType ? priceFor(draft.vehicleType, p) : null;
+          const price = draft.vehicleType ? priceFor(basePriceFor(draft.vehicleType), p) : null;
           return (
             <button
               key={p.id}
@@ -520,6 +495,7 @@ function AddressStep({
 
 function PaymentSummary({
   draft,
+  categoryLabel,
   total,
   discountInput,
   setDiscountInput,
@@ -530,6 +506,7 @@ function PaymentSummary({
   applying,
 }: {
   draft: Draft;
+  categoryLabel: (key: string) => string;
   total: number;
   discountInput: string;
   setDiscountInput: (v: string) => void;
@@ -617,7 +594,7 @@ function PaymentSummary({
       </div>
       {draft.vehicleType && (
         <p className="mt-4 text-xs text-muted">
-          Securing your slot for {VEHICLE_LABEL[draft.vehicleType]} · {draft.slot}
+          Securing your slot for {categoryLabel(draft.vehicleType)} · {draft.slot}
         </p>
       )}
     </div>

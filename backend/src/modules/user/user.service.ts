@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { User } from "./user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { normalize, sendOtp, verifyOtpCode } from "../auth/auth.service";
-import type { VehicleType } from "../catalog/catalog.data";
+import { isValidCategoryKey } from "../catalog/category.service";
 
 async function getUser(userId: string) {
   const user = await User.findById(userId);
@@ -65,8 +65,9 @@ export async function confirmPhoneChange(userId: string, rawPhone: string, code:
 
 export async function addVehicle(
   userId: string,
-  vehicle: { type: VehicleType; name: string; brand?: string; model?: string; plate?: string },
+  vehicle: { type: string; name: string; brand?: string; model?: string; plate?: string },
 ) {
+  if (!(await isValidCategoryKey(vehicle.type))) throw ApiError.badRequest("Unknown vehicle category");
   const user = await getUser(userId);
   user.vehicles.push({
     type: vehicle.type,

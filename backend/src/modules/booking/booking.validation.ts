@@ -1,8 +1,7 @@
 import { z } from "zod";
-import { VEHICLE_TYPES } from "../catalog/catalog.data";
 
 export const createBookingSchema = z.object({
-  vehicleType: z.enum(VEHICLE_TYPES),
+  vehicleType: z.string().min(1),
   vehicleName: z.string().min(1).max(60),
   packageId: z.string().min(1),
   date: z.string().datetime({ message: "date must be an ISO datetime" }),

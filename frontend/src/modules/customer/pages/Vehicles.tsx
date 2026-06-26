@@ -5,35 +5,36 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
-import { BrandModelSelect } from "../components/BrandModelSelect";
-import { useMe } from "../api/queries";
+import { BrandModelSelect, type VehicleSelection } from "../components/BrandModelSelect";
+import { useMe, useCategoryLabel } from "../api/queries";
 import { useAddVehicle, useRemoveVehicle } from "../api/mutations";
-import { VEHICLE_LABEL, VEHICLE_TYPES } from "../data/catalog";
-import type { CarType } from "../types";
 
 export function Vehicles() {
   const { data: me } = useMe();
   const vehicles = me?.vehicles ?? [];
+  const categoryLabel = useCategoryLabel();
 
   const addVehicle = useAddVehicle();
   const removeVehicle = useRemoveVehicle();
 
   const [showVehicle, setShowVehicle] = useState(false);
-  const [vType, setVType] = useState<CarType>("sedan");
-  const [vBrand, setVBrand] = useState("");
-  const [vModel, setVModel] = useState("");
+  const [selection, setSelection] = useState<VehicleSelection | null>(null);
   const [vPlate, setVPlate] = useState("");
 
   const saveVehicle = () => {
-    if (!vBrand || !vModel) return;
+    if (!selection) return;
     addVehicle.mutate(
-      { name: `${vBrand} ${vModel}`, type: vType, brand: vBrand, model: vModel, plate: vPlate.trim() || "—" },
+      {
+        name: `${selection.brand} ${selection.model}`,
+        type: selection.categoryKey,
+        brand: selection.brand,
+        model: selection.model,
+        plate: vPlate.trim() || "—",
+      },
       {
         onSuccess: () => {
-          setVBrand("");
-          setVModel("");
+          setSelection(null);
           setVPlate("");
-          setVType("sedan");
           setShowVehicle(false);
         },
       },
@@ -58,29 +59,11 @@ export function Vehicles() {
         </div>
 
         {showVehicle && (
-          <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-ink">Type</label>
-              <select
-                value={vType}
-                onChange={(e) => {
-                  setVType(e.target.value as CarType);
-                  setVBrand("");
-                  setVModel("");
-                }}
-                className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-ink outline-none focus:border-primary/50"
-              >
-                {VEHICLE_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {VEHICLE_LABEL[t]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <BrandModelSelect type={vType} brand={vBrand} model={vModel} onBrandChange={setVBrand} onModelChange={setVModel} />
+          <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
+            <BrandModelSelect onResolved={setSelection} />
             <Input name="vplate" label="Plate" placeholder="GJ 01 AB 1234" value={vPlate} onChange={(e) => setVPlate(e.target.value)} />
-            <div className="sm:col-span-2 lg:col-span-4">
-              <Button size="sm" onClick={saveVehicle} disabled={addVehicle.isPending || !vBrand || !vModel}>
+            <div className="sm:col-span-2">
+              <Button size="sm" onClick={saveVehicle} disabled={addVehicle.isPending || !selection}>
                 Save vehicle
               </Button>
             </div>
@@ -96,7 +79,7 @@ export function Vehicles() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-display font-semibold text-ink">{v.name}</p>
                 <p className="text-sm text-muted">
-                  {VEHICLE_LABEL[v.type]} · {v.plate}
+                  {categoryLabel(v.type)} · {v.plate}
                 </p>
               </div>
               <button

@@ -1,6 +1,7 @@
 import { cn } from "@shared/lib/utils";
 
-export type CarType = "hatchback" | "sedan" | "suv" | "luxury" | "premium";
+/** A vehicle category key — admin-managed, not a fixed set. */
+export type CarType = string;
 
 type CarSilhouetteProps = {
   type?: CarType;
@@ -17,11 +18,13 @@ type CarShape = {
 };
 
 /**
- * Premium side-profile car silhouettes, one distinct shape per vehicle type.
- * Drawn in SVG (flat-illustration style) so we never depend on photography.
- * viewBox: 0 0 220 104 · front faces right · wheels overlaid at the base.
+ * Premium side-profile car silhouettes, one distinct shape per known vehicle
+ * category. Drawn in SVG (flat-illustration style) so we never depend on
+ * photography. viewBox: 0 0 220 104 · front faces right · wheels at the base.
+ * Categories created later by an admin fall back to DEFAULT_SHAPE below —
+ * bespoke art isn't feasible for an open-ended, admin-defined list.
  */
-const SHAPES: Record<CarType, CarShape> = {
+const SHAPES: Record<string, CarShape> = {
   hatchback: {
     body:
       "M16 84 L16 62 C16 56 20 53 26 52 L42 51 L52 36 C55 33 59 31 65 31 L126 31 " +
@@ -67,8 +70,10 @@ const SHAPES: Record<CarType, CarShape> = {
   },
 };
 
+const DEFAULT_SHAPE = SHAPES.sedan;
+
 export function CarSilhouette({ type = "sedan", className, uid = "car" }: CarSilhouetteProps) {
-  const shape = SHAPES[type];
+  const shape = SHAPES[type] ?? DEFAULT_SHAPE;
   const gid = `${uid}-${type}-grad`;
   const sid = `${uid}-${type}-shine`;
 

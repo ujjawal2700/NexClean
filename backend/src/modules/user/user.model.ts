@@ -1,5 +1,4 @@
 import { Schema, model, Types, type InferSchemaType, type HydratedDocument } from "mongoose";
-import { VEHICLE_TYPES } from "../catalog/catalog.data";
 
 /** Map _id → id and drop internal fields when serializing subdocuments. */
 const subdocJson = {
@@ -14,7 +13,8 @@ const subdocJson = {
 
 const vehicleSchema = new Schema(
   {
-    type: { type: String, enum: VEHICLE_TYPES, required: true },
+    // Vehicle category key — admin-managed, not a fixed enum.
+    type: { type: String, required: true },
     name: { type: String, required: true, trim: true },
     brand: { type: String, default: "", trim: true },
     model: { type: String, default: "", trim: true },

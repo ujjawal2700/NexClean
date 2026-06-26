@@ -21,8 +21,9 @@ import type {
   BookingStatus,
   ServiceCity,
   ServiceZone,
+  VehicleCategory,
   VehicleBrand,
-  CarType,
+  VehicleModel,
   DiscountCode,
   ReferralCampaign,
   PromoBanner,
@@ -46,7 +47,9 @@ const keys = {
   paymentStats: ["admin", "payments", "stats"] as const,
   cities: ["admin", "cities"] as const,
   zones: ["admin", "zones"] as const,
+  vehicleCategories: ["admin", "vehicle-categories"] as const,
   vehicleBrands: ["admin", "vehicle-brands"] as const,
+  vehicleModels: (brandId: string) => ["admin", "vehicle-brands", brandId, "models"] as const,
   discountCodes: ["admin", "discount-codes"] as const,
   referralCampaigns: ["admin", "referral-campaigns"] as const,
   promoBanners: ["admin", "promo-banners"] as const,
@@ -304,10 +307,50 @@ export function useDeleteZone() {
   });
 }
 
+/* ----------------------------- Vehicle categories -------------------------- */
+
+export const useVehicleCategories = () =>
+  useAuthedQuery<VehicleCategory[]>(keys.vehicleCategories, "/admin/vehicle-categories");
+
+/** Looks up a category's display name by key; falls back to the raw key for historical/deleted categories. */
+export function useCategoryLabel() {
+  const { data: categories = [] } = useVehicleCategories();
+  const byKey = new Map(categories.map((c) => [c.key, c.name]));
+  return (key: string) => byKey.get(key) ?? key;
+}
+
+export function useCreateVehicleCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { name: string; basePrice: number }) =>
+      apiFetch<VehicleCategory>("/admin/vehicle-categories", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleCategories }),
+  });
+}
+
+export function useUpdateVehicleCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; name?: string; basePrice?: number; active?: boolean; sortOrder?: number }) =>
+      apiFetch<VehicleCategory>(`/admin/vehicle-categories/${vars.id}`, { method: "PATCH", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleCategories }),
+  });
+}
+
+export function useDeleteVehicleCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<null>(`/admin/vehicle-categories/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleCategories }),
+  });
+}
+
+/* ------------------------------- Vehicle brands ---------------------------- */
+
 export function useCreateVehicleBrand() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { name: string; vehicleType: CarType }) =>
+    mutationFn: (vars: { name: string }) =>
       apiFetch<VehicleBrand>("/admin/vehicle-brands", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
   });
@@ -316,7 +359,7 @@ export function useCreateVehicleBrand() {
 export function useUpdateVehicleBrand() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { id: string; name?: string; vehicleType?: CarType; active?: boolean }) =>
+    mutationFn: (vars: { id: string; name?: string; active?: boolean }) =>
       apiFetch<VehicleBrand>(`/admin/vehicle-brands/${vars.id}`, { method: "PATCH", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
   });
@@ -330,23 +373,41 @@ export function useDeleteVehicleBrand() {
   });
 }
 
-export function useAddVehicleModel() {
+/* ------------------------------- Vehicle models ---------------------------- */
+
+export const useVehicleModels = (brandId: string) =>
+  useAuthedQuery<VehicleModel[]>(keys.vehicleModels(brandId), `/admin/vehicle-brands/${brandId}/models`);
+
+export function useCreateVehicleModel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { id: string; model: string }) =>
-      apiFetch<VehicleBrand>(`/admin/vehicle-brands/${vars.id}/models`, { method: "POST", body: { model: vars.model } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
+    mutationFn: (vars: { brandId: string; name: string; categoryKey: string }) =>
+      apiFetch<VehicleModel>(`/admin/vehicle-brands/${vars.brandId}/models`, {
+        method: "POST",
+        body: { name: vars.name, categoryKey: vars.categoryKey },
+      }),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: keys.vehicleModels(vars.brandId) }),
   });
 }
 
-export function useRemoveVehicleModel() {
+export function useUpdateVehicleModel() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { id: string; model: string }) =>
-      apiFetch<VehicleBrand>(`/admin/vehicle-brands/${vars.id}/models/${encodeURIComponent(vars.model)}`, {
-        method: "DELETE",
+    mutationFn: (vars: { brandId: string; modelId: string; name?: string; categoryKey?: string; active?: boolean }) =>
+      apiFetch<VehicleModel>(`/admin/vehicle-brands/${vars.brandId}/models/${vars.modelId}`, {
+        method: "PATCH",
+        body: vars,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleBrands }),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: keys.vehicleModels(vars.brandId) }),
+  });
+}
+
+export function useDeleteVehicleModel() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { brandId: string; modelId: string }) =>
+      apiFetch<null>(`/admin/vehicle-brands/${vars.brandId}/models/${vars.modelId}`, { method: "DELETE" }),
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: keys.vehicleModels(vars.brandId) }),
   });
 }
 

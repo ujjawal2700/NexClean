@@ -13,12 +13,28 @@ export type Vehicle = {
   plate: string;
 };
 
-/** A brand (e.g. "Hyundai") with the models available under one vehicle type. */
+/** An admin-managed vehicle category — pricing is always based on this. */
+export type VehicleCategory = {
+  id: string;
+  name: string;
+  key: string;
+  basePrice: number;
+  sortOrder: number;
+  active: boolean;
+};
+
+/** A car brand (e.g. "Hyundai") — spans many categories via its models. */
 export type VehicleBrand = {
   id: string;
   name: string;
-  vehicleType: CarType;
-  models: string[];
+};
+
+/** A specific model under a brand, carrying its own category. */
+export type VehicleModel = {
+  id: string;
+  brand: string;
+  name: string;
+  categoryKey: string;
 };
 
 export type ServicePackage = {

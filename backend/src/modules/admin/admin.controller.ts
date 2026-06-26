@@ -5,21 +5,16 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { getPricing, updatePricing } from "../pricing/pricing.service";
 import * as locationService from "../location/location.service";
 import * as brandService from "../brand/brand.service";
-import { VEHICLE_TYPES, isVehicleType } from "../catalog/catalog.data";
+import * as vehicleModelService from "../brand/vehicleModel.service";
+import * as categoryService from "../catalog/category.service";
 import * as discountCodeService from "../promotions/discountCode.service";
 import * as referralCampaignService from "../promotions/referralCampaign.service";
 import * as promoBannerService from "../promotions/promoBanner.service";
 import * as service from "./admin.service";
 import { getContent, updateContent } from "../content/content.service";
 
-/** A positive price for every vehicle type. */
-const pricesSchema = z.object({
-  hatchback: z.number().positive(),
-  sedan: z.number().positive(),
-  suv: z.number().positive(),
-  luxury: z.number().positive(),
-  premium: z.number().positive(),
-});
+/** A positive price per vehicle category key — keys are admin-managed, not a fixed set. */
+const pricesSchema = z.record(z.string(), z.number().positive());
 
 export async function stats(_req: Request, res: Response): Promise<Response> {
   return ok(res, await service.stats());
@@ -181,24 +176,50 @@ export async function deleteZone(req: Request, res: Response): Promise<Response>
   return ok(res, null, "Zone deleted");
 }
 
-export async function vehicleBrands(req: Request, res: Response): Promise<Response> {
-  const type = req.query.type;
-  const vehicleType = typeof type === "string" && isVehicleType(type) ? type : undefined;
-  return ok(res, await brandService.listBrands(vehicleType));
+/* --------------------------- Vehicle categories -------------------------- */
+
+export async function vehicleCategories(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await categoryService.listCategories());
 }
 
-const createBrandSchema = z.object({ name: z.string().trim().min(1), vehicleType: z.enum(VEHICLE_TYPES) });
+const createCategorySchema = z.object({ name: z.string().trim().min(1), basePrice: z.number().positive() });
+export async function createVehicleCategory(req: Request, res: Response): Promise<Response> {
+  const parsed = createCategorySchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Category name and base price are required");
+  return created(res, await categoryService.createCategory(parsed.data), "Category created");
+}
+
+const updateCategorySchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  basePrice: z.number().positive().optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+});
+export async function updateVehicleCategory(req: Request, res: Response): Promise<Response> {
+  const parsed = updateCategorySchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid category update");
+  return ok(res, await categoryService.updateCategory(String(req.params.id), parsed.data), "Category updated");
+}
+
+export async function deleteVehicleCategory(req: Request, res: Response): Promise<Response> {
+  await categoryService.deleteCategory(String(req.params.id));
+  return ok(res, null, "Category deleted");
+}
+
+/* ------------------------------ Vehicle brands ---------------------------- */
+
+export async function vehicleBrands(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await brandService.listBrands());
+}
+
+const createBrandSchema = z.object({ name: z.string().trim().min(1) });
 export async function createVehicleBrand(req: Request, res: Response): Promise<Response> {
   const parsed = createBrandSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest("Brand name and vehicle type are required");
+  if (!parsed.success) throw ApiError.badRequest("Brand name is required");
   return created(res, await brandService.createBrand(parsed.data), "Brand created");
 }
 
-const updateBrandSchema = z.object({
-  name: z.string().trim().min(1).optional(),
-  vehicleType: z.enum(VEHICLE_TYPES).optional(),
-  active: z.boolean().optional(),
-});
+const updateBrandSchema = z.object({ name: z.string().trim().min(1).optional(), active: z.boolean().optional() });
 export async function updateVehicleBrand(req: Request, res: Response): Promise<Response> {
   const parsed = updateBrandSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Invalid brand update");
@@ -210,19 +231,37 @@ export async function deleteVehicleBrand(req: Request, res: Response): Promise<R
   return ok(res, null, "Brand deleted");
 }
 
-const addModelSchema = z.object({ model: z.string().trim().min(1) });
-export async function addVehicleModel(req: Request, res: Response): Promise<Response> {
-  const parsed = addModelSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest("Model name is required");
-  return created(res, await brandService.addModel(String(req.params.id), parsed.data.model), "Model added");
+/* ------------------------------ Vehicle models ---------------------------- */
+
+export async function vehicleModels(req: Request, res: Response): Promise<Response> {
+  return ok(res, await vehicleModelService.listModelsForBrand(String(req.params.id)));
 }
 
-export async function removeVehicleModel(req: Request, res: Response): Promise<Response> {
-  return ok(
+const createModelSchema = z.object({ name: z.string().trim().min(1), categoryKey: z.string().min(1) });
+export async function createVehicleModel(req: Request, res: Response): Promise<Response> {
+  const parsed = createModelSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Model name and category are required");
+  return created(
     res,
-    await brandService.removeModel(String(req.params.id), String(req.params.model)),
-    "Model removed",
+    await vehicleModelService.createModel(String(req.params.id), parsed.data),
+    "Model added",
   );
+}
+
+const updateModelSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  categoryKey: z.string().min(1).optional(),
+  active: z.boolean().optional(),
+});
+export async function updateVehicleModel(req: Request, res: Response): Promise<Response> {
+  const parsed = updateModelSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid model update");
+  return ok(res, await vehicleModelService.updateModel(String(req.params.modelId), parsed.data), "Model updated");
+}
+
+export async function deleteVehicleModel(req: Request, res: Response): Promise<Response> {
+  await vehicleModelService.deleteModel(String(req.params.modelId));
+  return ok(res, null, "Model removed");
 }
 
 export async function discountCodes(_req: Request, res: Response): Promise<Response> {

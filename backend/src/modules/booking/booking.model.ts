@@ -1,10 +1,10 @@
 import { Schema, model, Types, type HydratedDocument, type InferSchemaType } from "mongoose";
-import { VEHICLE_TYPES } from "../catalog/catalog.data";
 
 const bookingSchema = new Schema(
   {
     user: { type: Types.ObjectId, ref: "User", required: true, index: true },
-    vehicleType: { type: String, enum: VEHICLE_TYPES, required: true },
+    // Vehicle category key — admin-managed, not a fixed enum.
+    vehicleType: { type: String, required: true },
     vehicleName: { type: String, required: true },
     packageId: { type: String, required: true },
     packageName: { type: String, required: true },

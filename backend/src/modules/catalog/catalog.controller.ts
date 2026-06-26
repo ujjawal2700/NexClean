@@ -1,11 +1,13 @@
 import type { Request, Response } from "express";
 import { ok } from "../../shared/utils/apiResponse";
 import { ApiError } from "../../shared/utils/ApiError";
-import { PACKAGES, BASE_PRICE, VEHICLE_TYPES, isVehicleType } from "./catalog.data";
+import { PACKAGES } from "./catalog.data";
 import { listActivePlans } from "./plan.service";
+import { listActiveCategories } from "./category.service";
 import { getContent } from "../content/content.service";
 import { listActivePromoBanners } from "../promotions/promoBanner.service";
 import { listActiveBrands } from "../brand/brand.service";
+import { listActiveModelsForBrand } from "../brand/vehicleModel.service";
 
 export function getPackages(_req: Request, res: Response): Response {
   return ok(res, PACKAGES);
@@ -15,8 +17,9 @@ export async function getContentCtl(_req: Request, res: Response): Promise<Respo
   return ok(res, await getContent());
 }
 
-export function getPricing(_req: Request, res: Response): Response {
-  return ok(res, { vehicleTypes: VEHICLE_TYPES, basePrice: BASE_PRICE });
+/** Active vehicle categories with their current base price — admin-managed, not a fixed list. */
+export async function getVehicleCategoriesCtl(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await listActiveCategories());
 }
 
 export async function getPlans(_req: Request, res: Response): Promise<Response> {
@@ -27,9 +30,14 @@ export async function getPromoBannersCtl(_req: Request, res: Response): Promise<
   return ok(res, await listActivePromoBanners());
 }
 
-/** Active brands (with their models) for a vehicle type — used by the Add Vehicle / booking pickers. */
-export async function getVehicleBrandsCtl(req: Request, res: Response): Promise<Response> {
-  const type = req.query.type;
-  if (typeof type !== "string" || !isVehicleType(type)) throw ApiError.badRequest("A valid vehicle type is required");
-  return ok(res, await listActiveBrands(type));
+/** Active brands — used by the Add Vehicle / booking pickers (brand spans many categories). */
+export async function getVehicleBrandsCtl(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await listActiveBrands());
+}
+
+/** Active models under a brand, each carrying its own category. */
+export async function getVehicleModelsCtl(req: Request, res: Response): Promise<Response> {
+  const brandId = String(req.params.id);
+  if (!brandId) throw ApiError.badRequest("Brand id is required");
+  return ok(res, await listActiveModelsForBrand(brandId));
 }
