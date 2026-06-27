@@ -6,6 +6,8 @@ import type {
   AdminStats,
   AdminBooking,
   AdminAgent,
+  AdminAgentDetail,
+  AgentActivity,
   AdminPlan,
   PlanPrices,
   Pricing,
@@ -16,6 +18,7 @@ import type {
   AdminCustomer,
   AdminCustomerDetail,
   CustomerActivity,
+  CustomerStatus,
   AdminPayment,
   PaymentStats,
   BookingStatus,
@@ -35,6 +38,8 @@ const keys = {
   stats: ["admin", "stats"] as const,
   bookings: ["admin", "bookings"] as const,
   agents: ["admin", "agents"] as const,
+  agent: (id: string) => ["admin", "agents", id] as const,
+  agentActivity: (id: string) => ["admin", "agents", id, "activity"] as const,
   pricing: ["admin", "pricing"] as const,
   plans: ["admin", "plans"] as const,
   campaigns: ["admin", "campaigns"] as const,
@@ -85,6 +90,9 @@ export function useAdminLogin() {
 export const useStats = () => useAuthedQuery<AdminStats>(keys.stats, "/admin/stats", { refetchInterval: 20_000 });
 export const useBookings = () => useAuthedQuery<AdminBooking[]>(keys.bookings, "/admin/bookings");
 export const useAgents = () => useAuthedQuery<AdminAgent[]>(keys.agents, "/admin/agents", { refetchInterval: 20_000 });
+export const useAgent = (id: string) => useAuthedQuery<AdminAgentDetail>(keys.agent(id), `/admin/agents/${id}`);
+export const useAgentActivity = (id: string) =>
+  useAuthedQuery<AgentActivity>(keys.agentActivity(id), `/admin/agents/${id}/activity`);
 export const usePricing = () => useAuthedQuery<Pricing>(keys.pricing, "/admin/pricing");
 export const usePlans = () => useAuthedQuery<AdminPlan[]>(keys.plans, "/admin/plans");
 export const useCampaigns = () => useAuthedQuery<Campaign[]>(keys.campaigns, "/admin/campaigns");
@@ -127,7 +135,22 @@ export function useSetAgentStatus() {
   return useMutation({
     mutationFn: (vars: { id: string; status: AgentStatus }) =>
       apiFetch<AdminAgent>(`/admin/agents/${vars.id}/status`, { method: "PATCH", body: { status: vars.status } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.agents }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: keys.agents });
+      qc.invalidateQueries({ queryKey: keys.agent(vars.id) });
+    },
+  });
+}
+
+export function useSetCustomerStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; status: CustomerStatus }) =>
+      apiFetch<AdminCustomer>(`/admin/customers/${vars.id}/status`, { method: "PATCH", body: { status: vars.status } }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: keys.customers });
+      qc.invalidateQueries({ queryKey: keys.customer(vars.id) });
+    },
   });
 }
 

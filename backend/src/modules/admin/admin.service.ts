@@ -171,6 +171,36 @@ export async function updateAgentArea(id: string, area: string) {
   return mapAgent(agent);
 }
 
+export async function getAgent(id: string) {
+  const agent = await User.findOne({ _id: id, role: "agent" });
+  if (!agent) throw ApiError.notFound("Agent not found");
+  const bookings = await Booking.find({ assignedAgent: agent._id }).select("price status");
+  const completedJobs = bookings.filter((b) => b.status === "completed").length;
+  const cancelledJobs = bookings.filter((b) => b.status === "cancelled").length;
+  const totalEarnings = bookings.filter((b) => b.status === "completed").reduce((s, b) => s + b.price, 0);
+
+  return {
+    ...mapAgent(agent),
+    joinedAt: agent.get("createdAt") as Date,
+    totalBookings: bookings.length,
+    completedJobs,
+    cancelledJobs,
+    totalEarnings,
+  };
+}
+
+export async function getAgentActivity(id: string) {
+  const agent = await User.findOne({ _id: id, role: "agent" });
+  if (!agent) throw ApiError.notFound("Agent not found");
+
+  const bookings = await Booking.find({ assignedAgent: agent._id })
+    .populate("user", "name")
+    .sort({ createdAt: -1 })
+    .limit(100);
+
+  return { bookings: bookings.map(mapBooking) };
+}
+
 async function mapPlanWithSubscribers(p: PlanDoc) {
   const id = String(p.id);
   const subscribers = await User.countDocuments({ activePlan: id });
@@ -264,6 +294,7 @@ function mapCustomerSummary(u: UserDoc, agg?: { totalBookings: number; totalSpen
     name: u.name,
     phone: u.phone,
     email: u.email ?? "",
+    status: u.status ?? "active",
     activePlan: u.activePlan ?? null,
     vehicleCount: u.vehicles?.length ?? 0,
     addressCount: u.addresses?.length ?? 0,
@@ -301,6 +332,12 @@ export async function getCustomer(id: string) {
     vehicles: customer.vehicles,
     addresses: customer.addresses,
   };
+}
+
+export async function setCustomerStatus(id: string, status: "active" | "suspended") {
+  const customer = await User.findOneAndUpdate({ _id: id, role: "customer" }, { status }, { new: true });
+  if (!customer) throw ApiError.notFound("Customer not found");
+  return mapCustomerSummary(customer);
 }
 
 export async function getCustomerActivity(id: string) {

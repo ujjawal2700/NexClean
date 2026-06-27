@@ -6,6 +6,7 @@ import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
 import { Agents } from "./pages/Agents";
+import { AgentDetail } from "./pages/AgentDetail";
 import { Customers } from "./pages/Customers";
 import { CustomerDetail } from "./pages/CustomerDetail";
 import { Payments } from "./pages/Payments";
@@ -42,6 +43,7 @@ export function AdminApp() {
           <Route index element={<Dashboard />} />
           <Route path="bookings" element={<Bookings />} />
           <Route path="agents" element={<Agents />} />
+          <Route path="agents/:id" element={<AgentDetail />} />
           <Route path="customers" element={<Customers />} />
           <Route path="customers/:id" element={<CustomerDetail />} />
           <Route path="payments" element={<Payments />} />

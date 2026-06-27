@@ -24,6 +24,16 @@ export default defineConfig({
           if (id.includes("react-router") || id.includes("/react-router-dom/")) return "router";
           if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/"))
             return "react";
+          // jsPDF (and its runtime deps, pulled in transitively for its
+          // unused SVG/canvas support) is only reached via a dynamic
+          // import() in the receipt generator — keep them out of the eager
+          // vendor bundle so visitors who never download a receipt don't
+          // pay for it upfront.
+          const JSPDF_DEPS = [
+            "jspdf", "canvg", "core-js", "css-line-break", "dompurify", "fast-png", "fflate",
+            "rgbcolor", "svg-pathdata", "html2canvas", "stackblur-canvas", "pako", "iobuffer",
+          ];
+          if (JSPDF_DEPS.some((dep) => id.includes(`/node_modules/${dep}/`))) return;
           return "vendor";
         },
       },

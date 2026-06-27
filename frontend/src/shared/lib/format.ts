@@ -8,6 +8,13 @@ export function formatDate(iso: string): string {
   });
 }
 
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-IN", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export function formatMoney(value: number): string {
   return `₹${value.toLocaleString("en-IN")}`;
 }

@@ -45,6 +45,18 @@ export type AdminAgent = {
   aadharBackUrl: string;
 };
 
+export type AdminAgentDetail = AdminAgent & {
+  joinedAt: string;
+  totalBookings: number;
+  completedJobs: number;
+  cancelledJobs: number;
+  totalEarnings: number;
+};
+
+export type AgentActivity = {
+  bookings: AdminBooking[];
+};
+
 export type PricingPackage = {
   id: string;
   name: string;
@@ -139,11 +151,14 @@ export type AdminStats = {
   alertsTriggered: number;
 };
 
+export type CustomerStatus = "active" | "suspended";
+
 export type AdminCustomer = {
   id: string;
   name: string;
   phone: string;
   email: string;
+  status: CustomerStatus;
   activePlan: string | null;
   vehicleCount: number;
   addressCount: number;

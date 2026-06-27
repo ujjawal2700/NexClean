@@ -58,6 +58,10 @@ export async function verifyOtp(rawPhone: string, code: string) {
     { upsert: true, new: true },
   );
 
+  if (user.role === "customer" && user.status === "suspended") {
+    throw ApiError.forbidden("This account has been suspended. Contact support for help.");
+  }
+
   // Cover accounts created via OTP-only login (no customerSignup) or from before referral codes existed.
   if (user.role === "customer" && !user.referralCode) {
     user.referralCode = await generateUniqueReferralCode(user.name);

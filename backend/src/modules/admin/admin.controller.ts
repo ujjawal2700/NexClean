@@ -63,6 +63,14 @@ export async function setAgentStatus(req: Request, res: Response): Promise<Respo
   return ok(res, await service.setAgentStatus(String(req.params.id), parsed.data.status), "Agent updated");
 }
 
+export async function agentDetail(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.getAgent(String(req.params.id)));
+}
+
+export async function agentActivity(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.getAgentActivity(String(req.params.id)));
+}
+
 export async function pricing(_req: Request, res: Response): Promise<Response> {
   return ok(res, await getPricing());
 }
@@ -405,6 +413,13 @@ export async function customers(_req: Request, res: Response): Promise<Response>
 
 export async function customerDetail(req: Request, res: Response): Promise<Response> {
   return ok(res, await service.getCustomer(String(req.params.id)));
+}
+
+const customerStatusSchema = z.object({ status: z.enum(["active", "suspended"]) });
+export async function setCustomerStatus(req: Request, res: Response): Promise<Response> {
+  const parsed = customerStatusSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid status");
+  return ok(res, await service.setCustomerStatus(String(req.params.id), parsed.data.status), "Customer updated");
 }
 
 export async function customerActivity(req: Request, res: Response): Promise<Response> {

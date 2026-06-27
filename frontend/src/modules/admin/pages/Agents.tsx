@@ -1,11 +1,20 @@
 import { useState } from "react";
-import { Star, MapPin, BadgeCheck, Ban, RotateCcw, CreditCard, Pencil, Check, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Search, Star, MapPin, BadgeCheck, Ban, RotateCcw, CreditCard, Pencil, Check, X } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
+import { Input } from "@shared/ui/Input";
 import { useAgents, useSetAgentStatus, useUpdateAgentArea } from "../api/admin.api";
 import { AGENT_STATUS_STYLE } from "../lib/status";
-import type { AdminAgent } from "../types";
+import type { AdminAgent, AgentStatus } from "../types";
+
+const FILTERS: { id: AgentStatus | "all"; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "verified", label: "Verified" },
+  { id: "pending", label: "Pending" },
+  { id: "suspended", label: "Suspended" },
+];
 
 function AreaEditor({ agent }: { agent: AdminAgent }) {
   const updateArea = useUpdateAgentArea();
@@ -56,9 +65,23 @@ function AreaEditor({ agent }: { agent: AdminAgent }) {
 export function Agents() {
   const { data: agents = [] } = useAgents();
   const setAgentStatus = useSetAgentStatus();
+  const [filter, setFilter] = useState<AgentStatus | "all">("all");
+  const [query, setQuery] = useState("");
 
   const online = agents.filter((a) => a.online).length;
   const pending = agents.filter((a) => a.status === "pending").length;
+
+  const q = query.toLowerCase();
+  const list = agents.filter((a) => {
+    const matchesStatus = filter === "all" || a.status === filter;
+    const matchesQuery =
+      !q ||
+      a.name.toLowerCase().includes(q) ||
+      a.phone.toLowerCase().includes(q) ||
+      a.area.toLowerCase().includes(q) ||
+      a.id.toLowerCase().includes(q);
+    return matchesStatus && matchesQuery;
+  });
 
   return (
     <div className="space-y-6">
@@ -69,16 +92,42 @@ export function Agents() {
         </p>
       </div>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="inline-flex flex-wrap gap-1 rounded-pill border border-line bg-surface/70 p-1">
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={cn(
+                "rounded-pill px-3.5 py-1.5 text-sm font-medium transition-colors",
+                filter === f.id ? "bg-primary text-white" : "text-muted hover:text-ink",
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="sm:w-64">
+          <Input
+            name="search"
+            placeholder="Search agents…"
+            leading={<Search className="size-4" />}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {agents.map((a) => (
+        {list.map((a) => (
           <GlassCard key={a.id} className="flex flex-col">
-            <div className="flex items-start gap-3">
+            <Link to={`/admin/agents/${a.id}`} className="flex items-start gap-3">
               <span className="grid size-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display font-semibold text-white">
                 {a.name.split(" ").map((n) => n[0]).join("")}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <p className="truncate font-display font-semibold text-ink">{a.name}</p>
+                  <p className="truncate font-display font-semibold text-ink hover:text-primary">{a.name}</p>
                   {a.status === "verified" && <BadgeCheck className="size-4 shrink-0 text-primary" />}
                 </div>
                 <p className="text-xs text-muted">{a.id} · {a.phone}</p>
@@ -86,7 +135,7 @@ export function Agents() {
               <span className={cn("rounded-pill px-2.5 py-0.5 text-xs font-medium capitalize", AGENT_STATUS_STYLE[a.status])}>
                 {a.status}
               </span>
-            </div>
+            </Link>
 
             <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-line bg-surface/60 p-3 text-center">
               <div>
@@ -157,6 +206,9 @@ export function Agents() {
             </div>
           </GlassCard>
         ))}
+        {list.length === 0 && (
+          <p className="col-span-full py-12 text-center text-muted">No agents match your search.</p>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import type { BookingStatus, AgentStatus, PaymentStatus, SettlementStatus } from "../types";
+import type { BookingStatus, AgentStatus, CustomerStatus, PaymentStatus, SettlementStatus } from "../types";
 
 export const BOOKING_STATUS_STYLE: Record<BookingStatus, string> = {
   upcoming: "bg-primary/10 text-primary",
@@ -17,6 +17,11 @@ export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
 export const AGENT_STATUS_STYLE: Record<AgentStatus, string> = {
   verified: "bg-emerald-500/10 text-emerald-600",
   pending: "bg-amber-500/10 text-amber-600",
+  suspended: "bg-red-500/10 text-red-600",
+};
+
+export const CUSTOMER_STATUS_STYLE: Record<CustomerStatus, string> = {
+  active: "bg-emerald-500/10 text-emerald-600",
   suspended: "bg-red-500/10 text-red-600",
 };
 

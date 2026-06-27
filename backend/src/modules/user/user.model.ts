@@ -38,6 +38,7 @@ const userSchema = new Schema(
     name: { type: String, default: "NexClean Member", trim: true },
     email: { type: String, default: "", trim: true, lowercase: true },
     role: { type: String, enum: ["customer", "agent", "admin"], default: "customer" },
+    status: { type: String, enum: ["active", "suspended"], default: "active" },
     vehicles: { type: [vehicleSchema], default: [] },
     addresses: { type: [addressSchema], default: [] },
     activePlan: { type: String, default: null },

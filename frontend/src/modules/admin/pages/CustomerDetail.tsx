@@ -1,10 +1,22 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Phone, Mail, MapPin, Car } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MapPin, Car, Ban, RotateCcw, Download, Loader2 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
-import { formatMoney, formatDate } from "@shared/lib/format";
-import { useCustomer, useCustomerActivity, useCategoryLabel } from "../api/admin.api";
-import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL, PAYMENT_STATUS_STYLE, PAYMENT_STATUS_LABEL } from "../lib/status";
+import { Button } from "@shared/ui/Button";
+import { Pagination } from "@shared/ui/Pagination";
+import { formatMoney, formatDate, formatTime } from "@shared/lib/format";
+import { usePagination } from "@shared/lib/usePagination";
+import { downloadBookingReceipt, downloadPaymentReceipt } from "@shared/lib/receipt";
+import { useCustomer, useCustomerActivity, useCategoryLabel, useSetCustomerStatus } from "../api/admin.api";
+import type { AdminBooking, AdminPayment } from "../types";
+import {
+  BOOKING_STATUS_STYLE,
+  BOOKING_STATUS_LABEL,
+  PAYMENT_STATUS_STYLE,
+  PAYMENT_STATUS_LABEL,
+  CUSTOMER_STATUS_STYLE,
+} from "../lib/status";
 
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +24,30 @@ export function CustomerDetail() {
   const { data: customer } = useCustomer(id ?? "");
   const { data: activity } = useCustomerActivity(id ?? "");
   const categoryLabel = useCategoryLabel();
+  const setCustomerStatus = useSetCustomerStatus();
+  const bookings = usePagination(activity?.bookings ?? [], 5);
+  const payments = usePagination(activity?.payments ?? [], 5);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const downloadReceipt = async (b: AdminBooking) => {
+    setDownloadingId(b.id);
+    try {
+      const payment = activity?.payments.find((p) => p.bookingId === b.id) ?? null;
+      await downloadBookingReceipt(b, payment, categoryLabel(b.vehicleType));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const downloadPaymentReceiptFor = async (p: AdminPayment) => {
+    setDownloadingId(p.id);
+    try {
+      const booking = activity?.bookings.find((b) => b.id === p.bookingId) ?? null;
+      await downloadPaymentReceipt(p, booking, booking ? categoryLabel(booking.vehicleType) : "");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   if (!customer) return null;
 
@@ -28,8 +64,13 @@ export function CustomerDetail() {
         <span className="grid size-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display text-lg font-semibold text-white">
           {customer.name.split(" ").map((n) => n[0]).join("")}
         </span>
-        <div>
-          <h1 className="font-display text-2xl text-ink">{customer.name}</h1>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="font-display text-2xl text-ink">{customer.name}</h1>
+            <span className={cn("rounded-pill px-2.5 py-0.5 text-xs font-medium capitalize", CUSTOMER_STATUS_STYLE[customer.status])}>
+              {customer.status}
+            </span>
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-4 text-sm text-muted">
             <span className="flex items-center gap-1.5">
               <Phone className="size-3.5" /> {customer.phone}
@@ -42,6 +83,26 @@ export function CustomerDetail() {
             <span>Joined {formatDate(customer.joinedAt)}</span>
           </div>
         </div>
+
+        {customer.status === "active" ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={setCustomerStatus.isPending}
+            onClick={() => setCustomerStatus.mutate({ id: customer.id, status: "suspended" })}
+          >
+            <Ban className="size-4" /> Suspend
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={setCustomerStatus.isPending}
+            onClick={() => setCustomerStatus.mutate({ id: customer.id, status: "active" })}
+          >
+            <RotateCcw className="size-4" /> Reactivate
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -105,24 +166,27 @@ export function CustomerDetail() {
 
       <GlassCard className="overflow-x-auto">
         <p className="font-display text-lg font-semibold text-ink">Booking history</p>
-        <table className="mt-4 w-full min-w-[640px] text-sm">
+        <table className="mt-4 w-full min-w-[760px] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-muted">
               <th className="px-2 py-2 font-medium">Booking</th>
-              <th className="px-2 py-2 font-medium">When</th>
+              <th className="px-2 py-2 font-medium">Date</th>
+              <th className="px-2 py-2 font-medium">Time</th>
               <th className="px-2 py-2 font-medium">Agent</th>
               <th className="px-2 py-2 font-medium">Status</th>
               <th className="px-2 py-2 text-right font-medium">Amount</th>
+              <th className="px-2 py-2 text-right font-medium">Receipt</th>
             </tr>
           </thead>
           <tbody>
-            {(activity?.bookings ?? []).map((b) => (
+            {bookings.pageItems.map((b) => (
               <tr key={b.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
                   <p className="font-medium text-ink">{b.vehicleName}</p>
                   <p className="text-xs text-muted">#{b.id}</p>
                 </td>
-                <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)} · {b.slot}</td>
+                <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)}</td>
+                <td className="px-2 py-3 text-ink-soft">{b.slot}</td>
                 <td className="px-2 py-3 text-ink-soft">{b.agentName ?? "—"}</td>
                 <td className="px-2 py-3">
                   <span className={cn("rounded-pill px-2.5 py-0.5 text-xs font-medium", BOOKING_STATUS_STYLE[b.status])}>
@@ -130,52 +194,85 @@ export function CustomerDetail() {
                   </span>
                 </td>
                 <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(b.price)}</td>
+                <td className="px-2 py-3 text-right">
+                  <button
+                    onClick={() => downloadReceipt(b)}
+                    disabled={downloadingId === b.id}
+                    aria-label={`Download receipt for booking ${b.id}`}
+                    className="ml-auto grid size-8 place-items-center rounded-full text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                  >
+                    {downloadingId === b.id ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Download className="size-4" />
+                    )}
+                  </button>
+                </td>
               </tr>
             ))}
-            {(activity?.bookings ?? []).length === 0 && (
+            {bookings.pageItems.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-2 py-8 text-center text-muted">
+                <td colSpan={7} className="px-2 py-8 text-center text-muted">
                   No bookings yet.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+        <Pagination page={bookings.page} totalPages={bookings.totalPages} onPageChange={bookings.setPage} />
       </GlassCard>
 
       <GlassCard className="overflow-x-auto">
         <p className="font-display text-lg font-semibold text-ink">Payment history</p>
-        <table className="mt-4 w-full min-w-[560px] text-sm">
+        <table className="mt-4 w-full min-w-[740px] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-muted">
               <th className="px-2 py-2 font-medium">Order</th>
               <th className="px-2 py-2 font-medium">Date</th>
+              <th className="px-2 py-2 font-medium">Time</th>
               <th className="px-2 py-2 font-medium">Status</th>
               <th className="px-2 py-2 text-right font-medium">Amount</th>
+              <th className="px-2 py-2 text-right font-medium">Receipt</th>
             </tr>
           </thead>
           <tbody>
-            {(activity?.payments ?? []).map((p) => (
+            {payments.pageItems.map((p) => (
               <tr key={p.id} className="border-t border-line/70">
                 <td className="px-2 py-3 text-ink-soft">{p.orderId}</td>
                 <td className="px-2 py-3 text-ink-soft">{formatDate(p.createdAt)}</td>
+                <td className="px-2 py-3 text-ink-soft">{formatTime(p.createdAt)}</td>
                 <td className="px-2 py-3">
                   <span className={cn("rounded-pill px-2.5 py-0.5 text-xs font-medium", PAYMENT_STATUS_STYLE[p.status])}>
                     {PAYMENT_STATUS_LABEL[p.status]}
                   </span>
                 </td>
                 <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(p.amount)}</td>
+                <td className="px-2 py-3 text-right">
+                  <button
+                    onClick={() => downloadPaymentReceiptFor(p)}
+                    disabled={downloadingId === p.id}
+                    aria-label={`Download receipt for order ${p.orderId}`}
+                    className="ml-auto grid size-8 place-items-center rounded-full text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50"
+                  >
+                    {downloadingId === p.id ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Download className="size-4" />
+                    )}
+                  </button>
+                </td>
               </tr>
             ))}
-            {(activity?.payments ?? []).length === 0 && (
+            {payments.pageItems.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-2 py-8 text-center text-muted">
+                <td colSpan={6} className="px-2 py-8 text-center text-muted">
                   No payments yet.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+        <Pagination page={payments.page} totalPages={payments.totalPages} onPageChange={payments.setPage} />
       </GlassCard>
     </div>
   );

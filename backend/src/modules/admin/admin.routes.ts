@@ -17,12 +17,15 @@ adminRouter.patch("/bookings/:id/assign", asyncHandler(c.assignBooking));
 adminRouter.post("/bookings/:id/auto-assign", asyncHandler(c.autoAssignBooking));
 
 adminRouter.get("/agents", asyncHandler(c.agents));
+adminRouter.get("/agents/:id", asyncHandler(c.agentDetail));
+adminRouter.get("/agents/:id/activity", asyncHandler(c.agentActivity));
 adminRouter.patch("/agents/:id/status", asyncHandler(c.setAgentStatus));
 adminRouter.patch("/agents/:id/area", asyncHandler(c.updateAgentArea));
 
 adminRouter.get("/customers", asyncHandler(c.customers));
 adminRouter.get("/customers/:id", asyncHandler(c.customerDetail));
 adminRouter.get("/customers/:id/activity", asyncHandler(c.customerActivity));
+adminRouter.patch("/customers/:id/status", asyncHandler(c.setCustomerStatus));
 
 adminRouter.get("/payments", asyncHandler(c.payments));
 adminRouter.get("/payments/stats", asyncHandler(c.paymentStats));
