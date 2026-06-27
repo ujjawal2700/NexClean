@@ -87,13 +87,16 @@ export type ReferredUser = {
   id: string;
   name: string;
   joinedAt: string;
+  status: string;
 };
 
 export type ReferralSummary = {
   referralCode: string | null;
   referralEarnings: number;
+  rewardAmount: number;
   referredUsers: ReferredUser[];
 };
+
 
 export type PlanId = "basic" | "premium" | "elite";
 

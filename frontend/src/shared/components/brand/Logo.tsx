@@ -21,6 +21,6 @@ export function Logo({ variant = "full", className }: LogoProps) {
   }
 
   return (
-    <img src={LOGO_SRC} alt="NexClean" className={cn("h-[3.6em] w-auto object-contain", className)} />
+    <img src={LOGO_SRC} alt="NexClean" className={cn("h-[5em] w-auto object-contain", className)} />
   );
 }

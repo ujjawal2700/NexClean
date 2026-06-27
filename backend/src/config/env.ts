@@ -28,9 +28,18 @@ export const env = {
   // Demo admin credentials (seeded on startup). Change for production.
   adminEmail: process.env.ADMIN_EMAIL ?? "superadmin@gmail.com",
   adminPassword: process.env.ADMIN_PASSWORD ?? "password123",
+  // Cloudinary credentials for media upload
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? "",
+  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY ?? "",
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET ?? "",
 };
 
 export const pushEnabled = env.firebaseServiceAccount.length > 0;
 export const paymentsLive = env.razorpayKeyId.length > 0 && env.razorpayKeySecret.length > 0;
+export const cloudinaryEnabled =
+  env.cloudinaryCloudName.length > 0 &&
+  env.cloudinaryApiKey.length > 0 &&
+  env.cloudinaryApiSecret.length > 0;
 
 export const isProd = env.nodeEnv === "production";
+

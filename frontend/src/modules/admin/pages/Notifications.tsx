@@ -31,7 +31,7 @@ export function Notifications() {
     <div className="space-y-8">
       <div>
         <h1 className="font-display text-3xl text-ink">Push Notifications</h1>
-        <p className="mt-1 text-muted">Send manual campaigns to your customers (via FCM, later).</p>
+        <p className="mt-1 text-muted">Send manual campaigns to your customers via Firebase Cloud Messaging (FCM).</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Mail, Lock, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
+import { Mail, Lock, ArrowRight, ShieldCheck, Loader2, Eye, EyeOff } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
@@ -17,6 +17,7 @@ export function Login() {
 
   const [email, setEmail] = useState("superadmin@gmail.com");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
   const submit = async () => {
@@ -38,7 +39,7 @@ export function Login() {
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-8 flex justify-center">
           <Link to="/">
-            <Logo variant="full" />
+            <Logo variant="full" className="h-20 md:h-24" />
           </Link>
         </div>
 
@@ -51,7 +52,7 @@ export function Login() {
             <Input name="email" type="email" label="Email" leading={<Mail className="size-4" />} value={email} onChange={(e) => setEmail(e.target.value)} />
             <Input
               name="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               label="Password"
               leading={<Lock className="size-4" />}
               placeholder="••••••••"
@@ -60,6 +61,16 @@ export function Login() {
               onKeyDown={(e) => e.key === "Enter" && submit()}
               hint="Demo: superadmin@gmail.com / password123"
               error={error}
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-muted hover:text-ink transition-colors focus:outline-none cursor-pointer"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              }
             />
             <Button className="w-full" onClick={submit} disabled={login.isPending}>
               {login.isPending ? <Loader2 className="size-4 animate-spin" /> : <>Sign in <ArrowRight className="size-4" /></>}

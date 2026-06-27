@@ -13,13 +13,17 @@ import {
   ShieldCheck,
   Loader2,
   ChevronRight,
+  Copy,
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { ApiError } from "@shared/lib/api";
+import { cn } from "@shared/lib/utils";
+import { formatMoney } from "@shared/lib/format";
 import { useMe, useReferralSummary } from "../api/queries";
 import { useUpdateProfile, useRequestPhoneChange, useConfirmPhoneChange } from "../api/mutations";
+
 
 export function Profile() {
   const { data: me } = useMe();
@@ -35,6 +39,16 @@ export function Profile() {
   const [saved, setSaved] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+
+  const [copied, setCopied] = useState(false);
+  const copyReferralCode = () => {
+    if (!referrals?.referralCode) return;
+    navigator.clipboard.writeText(referrals.referralCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  };
+
 
   // phone-change sub-flow: idle (just show current phone) -> enter (new number) -> otp (verify)
   const [phoneStep, setPhoneStep] = useState<"idle" | "enter" | "otp">("idle");
@@ -285,21 +299,86 @@ export function Profile() {
         )}
       </GlassCard>
 
-      {/* quick links to dedicated pages, kept off this page to avoid clutter */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Link to="/app/profile/refer">
-          <GlassCard interactive className="flex items-center gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
-              <Gift className="size-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="font-display font-semibold text-ink">Refer & earn</p>
-              <p className="truncate text-sm text-muted">{referrals?.referralCode ?? "Get your code"}</p>
-            </div>
-            <ChevronRight className="size-4 shrink-0 text-muted" />
-          </GlassCard>
-        </Link>
+      {/* Referral Program Dashboard */}
+      <GlassCard className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Gift className="size-5 text-primary" />
+          <h2 className="font-display text-lg font-semibold text-ink">Refer & Earn Program</h2>
+        </div>
+        <p className="text-sm text-muted">
+          Invite your friends to NexClean. You earn <span className="font-semibold text-primary">₹{referrals?.rewardAmount ?? 100}</span> for each friend who signs up and completes their first clean!
+        </p>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Share Code */}
+          <div className="rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-4 flex flex-col justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium text-muted uppercase tracking-wider">Your Referral Code</p>
+              <p className="mt-1 font-display text-xl font-bold tracking-wider text-primary">
+                {referrals?.referralCode ?? "—"}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyReferralCode}
+              disabled={!referrals?.referralCode}
+              className="w-full flex items-center justify-center gap-2 bg-surface"
+            >
+              {copied ? <Check className="size-4 text-green-500" /> : <Copy className="size-4" />}
+              {copied ? "Copied!" : "Copy Code"}
+            </Button>
+          </div>
+
+          {/* Referral Earnings */}
+          <div className="rounded-2xl border border-line bg-surface p-4 flex items-center gap-4">
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-green-500/10 text-green-600">
+              <Gift className="size-6" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted uppercase tracking-wider">Total Earnings</p>
+              <p className="mt-0.5 font-display text-2xl font-bold text-ink">
+                {formatMoney(referrals?.referralEarnings ?? 0)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Referred Friends list */}
+        <div className="mt-4 pt-4 border-t border-line">
+          <h3 className="text-sm font-semibold text-ink mb-3">Referred Friends & Status</h3>
+          {referrals?.referredUsers.length ? (
+            <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+              {referrals.referredUsers.map((u) => (
+                <div
+                  key={u.id}
+                  className="flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-3 text-sm"
+                >
+                  <div>
+                    <p className="font-medium text-ink">{u.name}</p>
+                    <p className="text-xs text-muted">
+                      Joined {new Date(u.joinedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                  </div>
+                  <span className={cn(
+                    "rounded-full px-2.5 py-1 text-xs font-medium border",
+                    u.status === "Subscribed" && "bg-blue-500/10 text-blue-600 border-blue-500/20",
+                    u.status === "First Clean Done" && "bg-green-500/10 text-green-600 border-green-500/20",
+                    u.status === "Joined" && "bg-gray-500/10 text-ink-soft border-line"
+                  )}>
+                    {u.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted">No referrals yet. Share your code to get started!</p>
+          )}
+        </div>
+      </GlassCard>
+
+      {/* quick links to dedicated pages, kept off this page to avoid clutter */}
+      <div className="grid gap-3 sm:grid-cols-2">
         <Link to="/app/profile/vehicles">
           <GlassCard interactive className="flex items-center gap-3">
             <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
@@ -333,3 +412,4 @@ export function Profile() {
     </div>
   );
 }
+

@@ -173,7 +173,22 @@ export type CustomerAddress = { id: string; label: string; line: string; society
 export type AdminCustomerDetail = AdminCustomer & {
   vehicles: CustomerVehicle[];
   addresses: CustomerAddress[];
+  referralCode: string | null;
+  referralEarnings: number;
+  referredBy: {
+    name: string;
+    phone: string;
+    code: string;
+  } | null;
+  referredUsers: {
+    id: string;
+    name: string;
+    phone: string;
+    joinedAt: string;
+    status: string;
+  }[];
 };
+
 
 export type CustomerActivity = {
   bookings: AdminBooking[];
@@ -278,3 +293,27 @@ export type AdminReports = {
   agentPerformance: AgentPerformance[];
   customerRetention: CustomerRetention;
 };
+
+/** A potential customer from a city where NexClean doesn't yet operate. */
+export type Lead = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  city: string;
+  location: string;
+  notified: boolean;
+  createdAt: string;
+};
+
+export type AdminReferralLog = {
+  id: string;
+  referrerName: string;
+  referrerPhone: string;
+  referrerCode: string;
+  refereeName: string;
+  refereePhone: string;
+  status: string;
+  joinedAt: string;
+};
+

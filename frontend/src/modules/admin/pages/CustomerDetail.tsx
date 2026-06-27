@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Phone, Mail, MapPin, Car, Ban, RotateCcw, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MapPin, Car, Ban, RotateCcw, Download, Loader2, Gift, Users } from "lucide-react";
 import { cn } from "@shared/lib/utils";
+
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Pagination } from "@shared/ui/Pagination";
@@ -163,6 +164,70 @@ export function CustomerDetail() {
           </div>
         </GlassCard>
       </div>
+
+
+      {/* Referral History & Statuses */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <GlassCard className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Gift className="size-5 text-primary" />
+            <p className="font-display text-lg font-semibold text-ink">Referral Summary</p>
+          </div>
+          <div className="mt-4 space-y-4">
+            <div className="flex justify-between items-center py-2.5 border-b border-line">
+              <span className="text-sm text-muted">Referral Code</span>
+              <span className="font-mono text-sm font-semibold rounded bg-primary/5 border border-primary/10 px-2.5 py-1 text-primary">
+                {customer.referralCode ?? "—"}
+              </span>
+            </div>
+            <div className="flex justify-between items-center py-2.5 border-b border-line">
+              <span className="text-sm text-muted">Referral Earnings</span>
+              <span className="text-sm font-bold text-ink">{formatMoney(customer.referralEarnings)}</span>
+            </div>
+            <div className="py-2.5">
+              <span className="block text-sm text-muted mb-2">Referred By</span>
+              {customer.referredBy ? (
+                <div className="rounded-2xl border border-line bg-surface/60 p-3 flex flex-col gap-1 text-xs">
+                  <p className="font-semibold text-ink">{customer.referredBy.name}</p>
+                  <p className="text-muted">Phone: {customer.referredBy.phone}</p>
+                  <p className="text-muted">Code: <span className="font-mono text-primary font-medium">{customer.referredBy.code}</span></p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted italic">None (Direct signup)</p>
+              )}
+            </div>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Users className="size-5 text-primary" />
+            <p className="font-display text-lg font-semibold text-ink">Referred Friends ({customer.referredUsers.length})</p>
+          </div>
+          <div className="mt-4 space-y-3 max-h-60 overflow-y-auto pr-1">
+            {customer.referredUsers.map((u) => (
+              <div key={u.id} className="flex items-center justify-between rounded-2xl border border-line bg-surface/60 p-3 text-sm">
+                <div>
+                  <p className="font-medium text-ink">{u.name}</p>
+                  <p className="text-xs text-muted">Phone: {u.phone} · Joined {formatDate(u.joinedAt)}</p>
+                </div>
+                <span className={cn(
+                  "rounded-full px-2.5 py-1 text-xs font-medium border",
+                  u.status === "Subscribed" && "bg-blue-500/10 text-blue-600 border-blue-500/20",
+                  u.status === "First Clean Done" && "bg-green-500/10 text-green-600 border-green-500/20",
+                  u.status === "Joined" && "bg-gray-500/10 text-ink-soft border-line"
+                )}>
+                  {u.status === "Joined" ? "Signed Up" : u.status}
+                </span>
+              </div>
+            ))}
+            {customer.referredUsers.length === 0 && (
+              <p className="text-sm text-muted">This customer hasn't referred anyone yet.</p>
+            )}
+          </div>
+        </GlassCard>
+      </div>
+
 
       <GlassCard className="overflow-x-auto">
         <p className="font-display text-lg font-semibold text-ink">Booking history</p>

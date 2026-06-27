@@ -7,12 +7,11 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { useAgents, useSetAgentStatus, useUpdateAgentArea } from "../api/admin.api";
 import { AGENT_STATUS_STYLE } from "../lib/status";
-import type { AdminAgent, AgentStatus } from "../types";
+import type { AdminAgent } from "../types";
 
-const FILTERS: { id: AgentStatus | "all"; label: string }[] = [
+const FILTERS: { id: "verified" | "suspended" | "all"; label: string }[] = [
   { id: "all", label: "All" },
   { id: "verified", label: "Verified" },
-  { id: "pending", label: "Pending" },
   { id: "suspended", label: "Suspended" },
 ];
 
@@ -65,14 +64,14 @@ function AreaEditor({ agent }: { agent: AdminAgent }) {
 export function Agents() {
   const { data: agents = [] } = useAgents();
   const setAgentStatus = useSetAgentStatus();
-  const [filter, setFilter] = useState<AgentStatus | "all">("all");
+  const [filter, setFilter] = useState<"verified" | "suspended" | "all">("all");
   const [query, setQuery] = useState("");
 
-  const online = agents.filter((a) => a.online).length;
-  const pending = agents.filter((a) => a.status === "pending").length;
+  const verifiedAgents = agents.filter((a) => a.status !== "pending");
+  const online = verifiedAgents.filter((a) => a.online).length;
 
   const q = query.toLowerCase();
-  const list = agents.filter((a) => {
+  const list = verifiedAgents.filter((a) => {
     const matchesStatus = filter === "all" || a.status === filter;
     const matchesQuery =
       !q ||
@@ -88,7 +87,7 @@ export function Agents() {
       <div>
         <h1 className="font-display text-3xl text-ink">Agents</h1>
         <p className="mt-1 text-muted">
-          {agents.length} specialists · {online} online · {pending} pending verification.
+          {verifiedAgents.length} specialists · {online} online.
         </p>
       </div>
 
@@ -188,11 +187,6 @@ export function Agents() {
             )}
 
             <div className="mt-4 flex gap-2 border-t border-line/70 pt-4">
-              {a.status === "pending" && (
-                <Button size="sm" className="flex-1" onClick={() => setAgentStatus.mutate({ id: a.id, status: "verified" })}>
-                  <BadgeCheck className="size-4" /> Verify
-                </Button>
-              )}
               {a.status === "verified" && (
                 <Button size="sm" variant="outline" className="flex-1" onClick={() => setAgentStatus.mutate({ id: a.id, status: "suspended" })}>
                   <Ban className="size-4" /> Suspend

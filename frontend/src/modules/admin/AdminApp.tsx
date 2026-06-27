@@ -6,6 +6,7 @@ import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
 import { Agents } from "./pages/Agents";
+import { AgentVerification } from "./pages/AgentVerification";
 import { AgentDetail } from "./pages/AgentDetail";
 import { Customers } from "./pages/Customers";
 import { CustomerDetail } from "./pages/CustomerDetail";
@@ -20,6 +21,9 @@ import { VehicleBrands } from "./pages/VehicleBrands";
 import { Promotions } from "./pages/Promotions";
 import { Reports } from "./pages/Reports";
 import { ContentManagement } from "./pages/ContentManagement";
+import { Leads } from "./pages/Leads";
+import { Referrals } from "./pages/Referrals";
+
 
 /**
  * Admin module router (base path /admin). Login is public; everything else
@@ -38,11 +42,11 @@ export function AdminApp() {
                 <Outlet />
               </AdminLayout>
             </ProtectedRoute>
-          }
-        >
+          }>
           <Route index element={<Dashboard />} />
           <Route path="bookings" element={<Bookings />} />
           <Route path="agents" element={<Agents />} />
+          <Route path="agent-verification" element={<AgentVerification />} />
           <Route path="agents/:id" element={<AgentDetail />} />
           <Route path="customers" element={<Customers />} />
           <Route path="customers/:id" element={<CustomerDetail />} />
@@ -57,7 +61,10 @@ export function AdminApp() {
           <Route path="promotions" element={<Promotions />} />
           <Route path="reports" element={<Reports />} />
           <Route path="content" element={<ContentManagement />} />
+          <Route path="leads" element={<Leads />} />
+          <Route path="referrals" element={<Referrals />} />
         </Route>
+
 
         <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>

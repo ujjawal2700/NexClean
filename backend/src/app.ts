@@ -17,8 +17,14 @@ export function createApp(): Application {
       origin(origin, callback) {
         // Allow non-browser requests (no Origin), a "*" wildcard, or any
         // configured origin (compared with trailing slashes normalized away).
-        const normalized = origin?.replace(/\/+$/, "");
-        if (!origin || env.clientOrigins.includes("*") || env.clientOrigins.includes(normalized!)) {
+        // In local development, also allow any localhost/127.0.0.1 port to prevent CORS blockages when ports shift.
+        const normalized = origin ? origin.replace(/\/+$/, "") : "";
+        if (
+          !origin ||
+          env.clientOrigins.includes("*") ||
+          env.clientOrigins.includes(normalized) ||
+          (!isProd && (normalized.startsWith("http://localhost:") || normalized.startsWith("http://127.0.0.1:")))
+        ) {
           callback(null, true);
         } else {
           callback(null, false);

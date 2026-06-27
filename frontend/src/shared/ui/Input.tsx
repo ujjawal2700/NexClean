@@ -7,6 +7,8 @@ type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   error?: string;
   /** icon or element rendered at the left inside the field */
   leading?: ReactNode;
+  /** icon or element rendered at the right inside the field */
+  trailing?: ReactNode;
 };
 
 /**
@@ -14,7 +16,7 @@ type InputProps = InputHTMLAttributes<HTMLInputElement> & {
  * Reused across all forms (auth, address, profile) in every module.
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, hint, error, leading, id, ...props }, ref) => {
+  ({ className, label, hint, error, leading, trailing, id, ...props }, ref) => {
     const inputId = id ?? props.name;
     return (
       <div className="w-full">
@@ -30,7 +32,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             error ? "border-red-400" : "border-line",
           )}
         >
-          {leading && <span className="text-muted">{leading}</span>}
+          {leading && <span className="text-muted flex-shrink-0">{leading}</span>}
           <input
             ref={ref}
             id={inputId}
@@ -40,6 +42,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             )}
             {...props}
           />
+          {trailing && <span className="text-muted flex-shrink-0 flex items-center">{trailing}</span>}
         </div>
         {error ? (
           <p className="mt-1.5 text-xs text-red-500">{error}</p>

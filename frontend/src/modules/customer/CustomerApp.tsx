@@ -4,6 +4,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { CustomerLayout } from "./components/CustomerLayout";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
+import { ComingSoon } from "./pages/ComingSoon";
 import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
 import { Subscriptions } from "./pages/Subscriptions";
@@ -24,6 +25,7 @@ export function CustomerApp() {
       <Routes>
         <Route path="login" element={<Login />} />
         <Route path="signup" element={<Signup />} />
+        <Route path="coming-soon" element={<ComingSoon />} />
 
         <Route
           element={

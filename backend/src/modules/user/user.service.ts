@@ -3,6 +3,9 @@ import { User } from "./user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { normalize, sendOtp, verifyOtpCode } from "../auth/auth.service";
 import { isValidCategoryKey } from "../catalog/category.service";
+import { Booking } from "../booking/booking.model";
+import { ReferralCampaign } from "../promotions/referralCampaign.model";
+
 
 async function getUser(userId: string) {
   const user = await User.findById(userId);
@@ -108,13 +111,33 @@ export async function getReferralSummary(userId: string) {
   const user = await getUser(userId);
   const referralCode = await ensureReferralCode(user);
   const referredUsers = await User.find({ referredBy: userId }).sort({ createdAt: -1 });
+
+  const campaign = await ReferralCampaign.findOne({ active: true }).sort({ createdAt: -1 });
+  const rewardAmount = campaign ? campaign.referrerReward : 0;
+
+  const enrichedUsers = await Promise.all(
+    referredUsers.map(async (u) => {
+      const bookingCount = await Booking.countDocuments({ user: u._id, status: "completed" });
+      let status = "Joined";
+      if (u.activePlan) {
+        status = "Subscribed";
+      } else if (bookingCount > 0) {
+        status = "First Clean Done";
+      }
+      return {
+        id: u.id,
+        name: u.name,
+        joinedAt: u.get("createdAt"),
+        status,
+      };
+    })
+  );
+
   return {
     referralCode,
     referralEarnings: user.referralEarnings,
-    referredUsers: referredUsers.map((u) => ({
-      id: u.id,
-      name: u.name,
-      joinedAt: u.get("createdAt"),
-    })),
+    rewardAmount,
+    referredUsers: enrichedUsers,
   };
 }
+

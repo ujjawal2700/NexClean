@@ -32,7 +32,10 @@ import type {
   PromoBanner,
   AdminReports,
   AudienceSizes,
+  Lead,
+  AdminReferralLog,
 } from "../types";
+
 
 const keys = {
   stats: ["admin", "stats"] as const,
@@ -61,7 +64,10 @@ const keys = {
   reports: ["admin", "reports"] as const,
   audienceSizes: ["admin", "campaigns", "audience-sizes"] as const,
   content: ["admin", "content"] as const,
+  leads: ["admin", "leads"] as const,
+  referralLogs: ["admin", "referral-logs"] as const,
 };
+
 
 function useAuthedQuery<T>(key: readonly unknown[], path: string, opts?: { refetchInterval?: number }) {
   const token = useAdminSession((s) => s.token);
@@ -518,3 +524,31 @@ export function useDeletePromoBanner() {
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.promoBanners }),
   });
 }
+
+/* ─────────────────────────── Leads ──────────────────────────────────────── */
+
+export const useLeads = () => useAuthedQuery<Lead[]>(keys.leads, "/admin/leads");
+
+export function useDeleteLead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<null>(`/admin/leads/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.leads }),
+  });
+}
+
+/* ─────────────────────────── Referrals Logs ─────────────────────────────── */
+
+export const useReferralLogs = () => useAuthedQuery<AdminReferralLog[]>(keys.referralLogs, "/admin/referral-logs");
+
+export function useUploadMedia() {
+  return useMutation({
+    mutationFn: (base64Image: string) =>
+      apiFetch<{ imageUrl: string }>("/admin/upload", {
+        method: "POST",
+        body: { image: base64Image },
+      }),
+  });
+}
+
+

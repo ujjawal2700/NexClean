@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Plus, Trash2, MapPin, Building2 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
+import { usePlacesAutocomplete } from "@shared/hooks/usePlacesAutocomplete";
 import {
   useCities,
   useZones,
@@ -20,6 +21,16 @@ function CitiesPanel() {
   const update = useUpdateCity();
   const remove = useDeleteCity();
   const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  usePlacesAutocomplete({
+    inputRef,
+    types: ["(cities)"],
+    onSelect: (placeName) => {
+      const cityOnly = placeName.split(",")[0].trim();
+      setName(cityOnly);
+    },
+  });
 
   const submit = () => {
     if (!name.trim()) return;
@@ -36,8 +47,9 @@ function CitiesPanel() {
 
       <div className="mt-4 flex gap-2">
         <Input
+          ref={inputRef}
           name="cityName"
-          placeholder="Bengaluru"
+          placeholder="Search and select city (e.g. Bengaluru)"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -82,6 +94,19 @@ function ZonesPanel() {
   const remove = useDeleteZone();
   const [name, setName] = useState("");
   const [cityId, setCityId] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selectedCity = cities.find((c) => c.id === cityId);
+
+  usePlacesAutocomplete({
+    inputRef,
+    types: ["geocode", "establishment"],
+    cityName: selectedCity?.name,
+    onSelect: (placeName) => {
+      const zoneOnly = placeName.split(",")[0].trim();
+      setName(zoneOnly);
+    },
+  });
 
   const submit = () => {
     if (!name.trim() || !cityId) return;
@@ -96,27 +121,39 @@ function ZonesPanel() {
       </div>
       <p className="mt-1 text-sm text-muted">Areas/societies grouped by city. Used to assign agents to a service area.</p>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Input
-          name="zoneName"
-          placeholder="Indiranagar"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="min-w-40 flex-1"
-        />
-        <select
-          value={cityId}
-          onChange={(e) => setCityId(e.target.value)}
-          className="h-11 rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-primary/50"
+      <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-end">
+        <div className="flex-1">
+          <p className="mb-1 text-xs font-medium text-muted">Service Zone / Society</p>
+          <Input
+            ref={inputRef}
+            name="zoneName"
+            placeholder="Search location (e.g. Indiranagar)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={!cityId}
+            hint={!cityId ? "Please select a city first" : undefined}
+          />
+        </div>
+        <div className="flex flex-col">
+          <p className="mb-1.5 text-xs font-medium text-muted">City</p>
+          <select
+            value={cityId}
+            onChange={(e) => setCityId(e.target.value)}
+            className="h-12 rounded-2xl border border-line bg-surface px-4 text-sm text-ink outline-none focus:border-primary/50"
+          >
+            <option value="">Select city</option>
+            {cities.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Button
+          onClick={submit}
+          disabled={create.isPending || !name.trim() || !cityId}
+          className="h-12 rounded-2xl"
         >
-          <option value="">Select city</option>
-          {cities.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <Button onClick={submit} disabled={create.isPending || !name.trim() || !cityId}>
           <Plus className="size-4" /> Add
         </Button>
       </div>
@@ -151,6 +188,7 @@ function ZonesPanel() {
     </GlassCard>
   );
 }
+
 
 export function Locations() {
   return (

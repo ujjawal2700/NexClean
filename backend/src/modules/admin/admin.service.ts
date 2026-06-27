@@ -327,12 +327,45 @@ export async function getCustomer(id: string) {
   const bookings = await Booking.find({ user: customer._id }).select("price status");
   const totalSpend = bookings.filter((b) => b.status === "completed").reduce((s, b) => s + b.price, 0);
 
+  const referredBy = customer.referredBy
+    ? await User.findById(customer.referredBy).select("name phone referralCode")
+    : null;
+
+  const referredUsers = await User.find({ referredBy: customer._id }).sort({ createdAt: -1 });
+  const enrichedReferredUsers = await Promise.all(
+    referredUsers.map(async (u) => {
+      const bookingCount = await Booking.countDocuments({ user: u._id, status: "completed" });
+      let status = "Joined";
+      if (u.activePlan) {
+        status = "Subscribed";
+      } else if (bookingCount > 0) {
+        status = "First Clean Done";
+      }
+      return {
+        id: u.id,
+        name: u.name,
+        phone: u.phone,
+        joinedAt: u.get("createdAt"),
+        status,
+      };
+    })
+  );
+
   return {
     ...mapCustomerSummary(customer, { totalBookings: bookings.length, totalSpend }),
     vehicles: customer.vehicles,
     addresses: customer.addresses,
+    referralCode: customer.referralCode,
+    referralEarnings: customer.referralEarnings ?? 0,
+    referredBy: referredBy ? {
+      name: referredBy.name,
+      phone: referredBy.phone,
+      code: referredBy.referralCode,
+    } : null,
+    referredUsers: enrichedReferredUsers,
   };
 }
+
 
 export async function setCustomerStatus(id: string, status: "active" | "suspended") {
   const customer = await User.findOneAndUpdate({ _id: id, role: "customer" }, { status }, { new: true });
@@ -570,3 +603,35 @@ export async function reports() {
     customerRetention: retention,
   };
 }
+
+export async function listReferralLogs() {
+  const users = await User.find({ referredBy: { $ne: null } })
+    .populate("referredBy", "name phone referralCode")
+    .sort({ createdAt: -1 });
+
+  return Promise.all(
+    users.map(async (u) => {
+      const referrer = u.referredBy as unknown as { name?: string; phone?: string; referralCode?: string } | null;
+      const bookingCount = await Booking.countDocuments({ user: u._id, status: "completed" });
+      
+      let status = "Joined";
+      if (u.activePlan) {
+        status = "Subscribed";
+      } else if (bookingCount > 0) {
+        status = "First Clean Done";
+      }
+
+      return {
+        id: u.id,
+        referrerName: referrer?.name ?? "Unknown",
+        referrerPhone: referrer?.phone ?? "—",
+        referrerCode: referrer?.referralCode ?? "—",
+        refereeName: u.name,
+        refereePhone: u.phone,
+        status,
+        joinedAt: u.get("createdAt"),
+      };
+    })
+  );
+}
+

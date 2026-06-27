@@ -566,3 +566,19 @@ export async function updateContentCtl(req: Request, res: Response): Promise<Res
   if (!parsed.success) throw ApiError.badRequest("Invalid content");
   return ok(res, await updateContent(parsed.data), "Content updated");
 }
+
+export async function listReferralLogs(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.listReferralLogs());
+}
+
+import { uploadImage } from "../../shared/utils/cloudinary";
+
+export async function uploadMedia(req: Request, res: Response): Promise<Response> {
+  const { image } = req.body;
+  if (!image) throw ApiError.badRequest("Image base64 data is required");
+  const imageUrl = await uploadImage(String(image));
+  return ok(res, { imageUrl }, "Image uploaded successfully");
+}
+
+
+

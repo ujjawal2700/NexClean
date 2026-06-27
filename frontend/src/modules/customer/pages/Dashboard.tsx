@@ -100,33 +100,40 @@ export function Dashboard() {
 
       {/* promotional banners */}
       {banners.length > 0 && (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {banners.map((b) => {
-            const content = (
-              <div className="relative h-36 w-80 shrink-0 overflow-hidden rounded-card">
-                <img src={b.imageUrl} alt={b.title} className="size-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-4">
-                  <p className="font-display text-lg font-semibold text-white">{b.title}</p>
-                  {b.subtitle && <p className="mt-0.5 text-sm text-white/85">{b.subtitle}</p>}
-                  {b.ctaLabel && (
-                    <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-white">
-                      {b.ctaLabel} <ArrowRight className="size-3.5" />
-                    </span>
-                  )}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="size-5 text-primary" />
+            <h2 className="font-display text-xl font-semibold text-ink">Special Offers</h2>
+          </div>
+          <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none">
+            {banners.map((b) => {
+              const content = (
+                <div className="relative h-36 w-80 shrink-0 overflow-hidden rounded-card border border-line shadow-sm transition-transform hover:scale-[1.01]">
+                  <img src={b.imageUrl} alt={b.title} className="size-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 p-4">
+                    <p className="font-display text-base font-semibold text-white">{b.title}</p>
+                    {b.subtitle && <p className="mt-0.5 text-xs text-white/80">{b.subtitle}</p>}
+                    {b.ctaLabel && (
+                      <span className="mt-2.5 inline-flex items-center gap-1 rounded-full bg-white/20 backdrop-blur-md px-2.5 py-1 text-[10px] font-medium text-white hover:bg-white/30 transition-colors">
+                        {b.ctaLabel} <ArrowRight className="size-3" />
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-            return b.ctaLink ? (
-              <a key={b.id} href={b.ctaLink} target="_blank" rel="noreferrer">
-                {content}
-              </a>
-            ) : (
-              <div key={b.id}>{content}</div>
-            );
-          })}
-        </div>
+              );
+              return b.ctaLink ? (
+                <a key={b.id} href={b.ctaLink} target="_blank" rel="noreferrer">
+                  {content}
+                </a>
+              ) : (
+                <div key={b.id}>{content}</div>
+              );
+            })}
+          </div>
+        </section>
       )}
+
 
       {/* garage */}
       <section>

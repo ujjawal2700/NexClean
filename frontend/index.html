@@ -22,6 +22,12 @@
     <meta property="og:image" content="/og-image.png" />
 
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <!-- Google Maps Places API — used for city & zone autocomplete in the admin panel -->
+    <script
+      src="https://maps.googleapis.com/maps/api/js?key=%VITE_GOOGLE_MAPS_KEY%&libraries=places&loading=async"
+      async
+      defer
+    ></script>
   </head>
   <body>
     <div id="root"></div>

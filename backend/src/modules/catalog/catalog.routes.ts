@@ -8,6 +8,8 @@ import {
   getVehicleCategoriesCtl,
   getVehicleBrandsCtl,
   getVehicleModelsCtl,
+  getCitiesCtl,
+  getZonesByCityCtl,
 } from "./catalog.controller";
 
 export const catalogRouter = Router();
@@ -20,3 +22,7 @@ catalogRouter.get("/promo-banners", asyncHandler(getPromoBannersCtl));
 catalogRouter.get("/vehicle-categories", asyncHandler(getVehicleCategoriesCtl));
 catalogRouter.get("/vehicle-brands", asyncHandler(getVehicleBrandsCtl));
 catalogRouter.get("/vehicle-brands/:id/models", asyncHandler(getVehicleModelsCtl));
+// Public location endpoints — used in customer signup city/society picker
+catalogRouter.get("/cities", asyncHandler(getCitiesCtl));
+catalogRouter.get("/zones", asyncHandler(getZonesByCityCtl));
+

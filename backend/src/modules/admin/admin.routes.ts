@@ -2,6 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { requireRole } from "../../shared/middleware/auth";
 import * as c from "./admin.controller";
+import { listLeads, deleteLead } from "../lead/lead.controller";
 
 export const adminRouter = Router();
 
@@ -86,3 +87,15 @@ adminRouter.post("/campaigns", asyncHandler(c.sendCampaign));
 
 adminRouter.get("/content", asyncHandler(c.content));
 adminRouter.put("/content", asyncHandler(c.updateContentCtl));
+
+// Leads — customers from unserviced cities
+adminRouter.get("/leads", asyncHandler(listLeads));
+adminRouter.delete("/leads/:id", asyncHandler(deleteLead));
+
+// Referrals logs
+adminRouter.get("/referral-logs", asyncHandler(c.listReferralLogs));
+
+// Upload media to Cloudinary
+adminRouter.post("/upload", asyncHandler(c.uploadMedia));
+
+

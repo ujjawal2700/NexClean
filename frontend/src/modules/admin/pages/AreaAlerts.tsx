@@ -1,11 +1,13 @@
-import { useState } from "react";
-import { Radar, Bell, Check, MapPin } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Radar, Bell, Check, MapPin, Loader2 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { formatDate } from "@shared/lib/format";
 import { useAlertSettings, useUpdateAlertSettings, useTriggered } from "../api/admin.api";
+import type { AlertSettings } from "../types";
+import { ApiError } from "@shared/lib/api";
 
 const SAMPLE_SOCIETY = "Green Valley Society";
 
@@ -17,16 +19,25 @@ export function AreaAlerts() {
   const { data: alertSettings } = useAlertSettings();
   const updateSettings = useUpdateAlertSettings();
   const { data: triggered = [] } = useTriggered();
+  const [draft, setDraft] = useState<AlertSettings | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const updateAlertSettings = (patch: Parameters<typeof updateSettings.mutate>[0]) => updateSettings.mutate(patch);
+  useEffect(() => {
+    if (alertSettings) {
+      setDraft(alertSettings);
+    }
+  }, [alertSettings]);
+
+  if (!alertSettings || !draft) return <p className="text-muted">Loading…</p>;
 
   const save = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1600);
+    updateSettings.mutate(draft, {
+      onSuccess: () => {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 1600);
+      },
+    });
   };
-
-  if (!alertSettings) return <p className="text-muted">Loading…</p>;
 
   return (
     <div className="space-y-8">
@@ -52,24 +63,24 @@ export function AreaAlerts() {
               <button
                 type="button"
                 role="switch"
-                aria-checked={alertSettings.enabled}
-                onClick={() => updateAlertSettings({ enabled: !alertSettings.enabled })}
+                aria-checked={draft.enabled}
+                onClick={() => setDraft((d) => (d ? { ...d, enabled: !d.enabled } : null))}
                 className={cn(
                   "relative h-7 w-12 shrink-0 overflow-hidden rounded-full border-0 p-0 transition-colors",
-                  alertSettings.enabled ? "bg-primary" : "bg-line",
+                  draft.enabled ? "bg-primary" : "bg-line",
                 )}
               >
                 <span
                   className={cn(
                     "absolute top-0.5 left-0.5 size-6 rounded-full bg-white shadow transition-transform",
-                    alertSettings.enabled ? "translate-x-5" : "translate-x-0",
+                    draft.enabled ? "translate-x-5" : "translate-x-0",
                   )}
                 />
               </button>
             </div>
-            <p className={cn("text-sm font-medium", alertSettings.enabled ? "text-emerald-600" : "text-muted")}>
-              <span className={cn("inline-block size-2.5 rounded-full mr-2", alertSettings.enabled ? "bg-emerald-500" : "bg-muted")} />
-              {alertSettings.enabled ? "Active and monitoring" : "Paused"}
+            <p className={cn("text-sm font-medium", draft.enabled ? "text-emerald-600" : "text-muted")}>
+              <span className={cn("inline-block size-2.5 rounded-full mr-2", draft.enabled ? "bg-emerald-500" : "bg-muted")} />
+              {draft.enabled ? "Active and monitoring" : "Paused"}
             </p>
           </GlassCard>
 
@@ -83,20 +94,20 @@ export function AreaAlerts() {
                   min={0.5}
                   max={5}
                   step={0.5}
-                  value={alertSettings.radiusKm}
-                  onChange={(e) => updateAlertSettings({ radiusKm: Number(e.target.value) })}
+                  value={draft.radiusKm}
+                  onChange={(e) => setDraft((d) => (d ? { ...d, radiusKm: Number(e.target.value) } : null))}
                   className="w-full accent-[var(--color-primary)]"
                 />
                 <p className="mt-1 text-sm text-muted">
-                  Notify customers within <span className="font-medium text-ink">{alertSettings.radiusKm} km</span>
+                  Notify customers within <span className="font-medium text-ink">{draft.radiusKm} km</span>
                 </p>
               </div>
               <Input
                 name="window"
                 type="number"
                 label="Booking window (minutes)"
-                value={alertSettings.windowMinutes}
-                onChange={(e) => updateAlertSettings({ windowMinutes: Number(e.target.value) || 0 })}
+                value={draft.windowMinutes}
+                onChange={(e) => setDraft((d) => (d ? { ...d, windowMinutes: Number(e.target.value) || 0 } : null))}
               />
             </div>
           </GlassCard>
@@ -106,15 +117,15 @@ export function AreaAlerts() {
             <Input
               name="title"
               label="Title"
-              value={alertSettings.title}
-              onChange={(e) => updateAlertSettings({ title: e.target.value })}
+              value={draft.title}
+              onChange={(e) => setDraft((d) => (d ? { ...d, title: e.target.value } : null))}
             />
             <div>
               <label className="mb-1.5 block text-sm font-medium text-ink">Body</label>
               <textarea
                 rows={3}
-                value={alertSettings.body}
-                onChange={(e) => updateAlertSettings({ body: e.target.value })}
+                value={draft.body}
+                onChange={(e) => setDraft((d) => (d ? { ...d, body: e.target.value } : null))}
                 className="w-full rounded-2xl border border-line bg-surface px-4 py-3 text-ink outline-none focus:border-primary/50"
               />
               <p className="mt-1.5 text-xs text-muted">
@@ -122,15 +133,26 @@ export function AreaAlerts() {
                 <code className="rounded bg-surface-muted px-1">{"{{minutes}}"}</code>
               </p>
             </div>
-            <Button onClick={save} size="sm">
-              {saved ? (
-                <>
-                  <Check className="size-4" /> Saved
-                </>
-              ) : (
-                "Save settings"
+            <div className="flex flex-col items-start gap-2">
+              <Button onClick={save} disabled={updateSettings.isPending} size="sm">
+                {updateSettings.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : saved ? (
+                  <>
+                    <Check className="size-4" /> Saved
+                  </>
+                ) : (
+                  "Save settings"
+                )}
+              </Button>
+              {updateSettings.isError && (
+                <p className="text-sm text-red-500 mt-2">
+                  {updateSettings.error instanceof ApiError && Array.isArray(updateSettings.error.details)
+                    ? (updateSettings.error.details as any[]).map((issue: any) => issue.message).join(", ")
+                    : updateSettings.error.message || "Failed to save settings"}
+                </p>
               )}
-            </Button>
+            </div>
           </GlassCard>
         </div>
 
@@ -143,10 +165,10 @@ export function AreaAlerts() {
                 <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent text-white">
                   <Bell className="size-4" />
                 </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink">{alertSettings.title || "NexClean Nearby"}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-ink">{draft.title || "NexClean Nearby"}</p>
                   <p className="mt-1 text-xs leading-relaxed text-muted">
-                    {renderTemplate(alertSettings.body, alertSettings.windowMinutes)}
+                    {renderTemplate(draft.body, draft.windowMinutes)}
                   </p>
                 </div>
               </div>
@@ -154,7 +176,7 @@ export function AreaAlerts() {
           </GlassCard>
 
           <GlassCard>
-            <p className="font-display text-lg font-semibold text-ink">Triggered history</p>
+            <p className="font-display text-lg font-semibold text-ink">Trigger triggered history</p>
             <div className="mt-4 space-y-3">
               {triggered.map((t) => (
                 <div key={t.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface/60 p-3">

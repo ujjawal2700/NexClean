@@ -4,17 +4,20 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { cn } from "@shared/lib/utils";
 import { formatMoney, formatDate } from "@shared/lib/format";
 import { Skeleton, SkeletonStatCards, SkeletonTableRows } from "@shared/ui/Skeleton";
-import { useStats, useBookings, useTriggered, useReports } from "../api/admin.api";
+import { useStats, useBookings, useTriggered, useReports, useAgents } from "../api/admin.api";
 import { StatCard } from "../components/StatCard";
 import { BarChart } from "../components/BarChart";
 import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
+import { Button } from "@shared/ui/Button";
 
 export function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useStats();
   const { data: bookings = [], isLoading: bookingsLoading } = useBookings();
   const { data: triggered = [], isLoading: triggeredLoading } = useTriggered();
   const { data: reports, isLoading: reportsLoading } = useReports();
+  const { data: agents = [] } = useAgents();
 
+  const pendingCount = agents.filter((a) => a.status === "pending").length;
   const recent = bookings.slice(0, 5);
   const weeklyRevenue = (reports?.revenueTrend ?? []).slice(-7).map((d) => ({
     label: new Date(d.date).toLocaleDateString("en-IN", { weekday: "short" }),
@@ -27,6 +30,29 @@ export function Dashboard() {
         <h1 className="font-display text-3xl text-ink">Dashboard</h1>
         <p className="mt-1 text-muted">Operations overview at a glance.</p>
       </div>
+
+      {pendingCount > 0 && (
+        <div className="relative overflow-hidden rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4 backdrop-blur-md">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 place-items-center rounded-xl bg-orange-500 text-white shadow-md">
+                <Users className="size-5" />
+              </span>
+              <div>
+                <p className="font-display font-semibold text-ink">Pending Agent Verifications</p>
+                <p className="text-sm text-muted">
+                  There {pendingCount === 1 ? "is 1 agent application" : `are ${pendingCount} agent applications`} waiting for verification.
+                </p>
+              </div>
+            </div>
+            <Link to="/admin/agent-verification" className="shrink-0">
+              <Button size="sm" className="bg-orange-600 hover:bg-orange-500 text-white shadow-sm font-medium">
+                Verify Now <ArrowRight className="size-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
         {statsLoading ? (

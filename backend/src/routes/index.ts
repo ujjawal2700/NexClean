@@ -9,6 +9,7 @@ import { areaAlertRouter } from "../modules/area-alert/areaAlert.routes";
 import { paymentRouter } from "../modules/payment/payment.routes";
 import { agentRouter } from "../modules/agent/agent.routes";
 import { adminRouter } from "../modules/admin/admin.routes";
+import { leadRouter } from "../modules/lead/lead.routes";
 
 /** Mounts every module router under /api. */
 export const apiRouter = Router();
@@ -23,3 +24,4 @@ apiRouter.use("/area-alerts", areaAlertRouter);
 apiRouter.use("/payments", paymentRouter);
 apiRouter.use("/agent", agentRouter);
 apiRouter.use("/admin", adminRouter);
+apiRouter.use("/leads", leadRouter);

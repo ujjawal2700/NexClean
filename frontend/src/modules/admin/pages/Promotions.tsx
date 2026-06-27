@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Trash2, Percent, Share2, Image as ImageIcon } from "lucide-react";
+import { useState, useRef } from "react";
+import { Plus, Trash2, Percent, Share2, Image as ImageIcon, Loader2 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -17,7 +17,9 @@ import {
   useCreatePromoBanner,
   useUpdatePromoBanner,
   useDeletePromoBanner,
+  useUploadMedia,
 } from "../api/admin.api";
+
 import type { DiscountType } from "../types";
 
 function DiscountCodesSection() {
@@ -217,11 +219,40 @@ function PromotionalBannersSection() {
   const create = useCreatePromoBanner();
   const update = useUpdatePromoBanner();
   const remove = useDeletePromoBanner();
+  const uploadMedia = useUploadMedia();
 
   const [title, setTitle] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaLink, setCtaLink] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError("Image must be smaller than 5MB");
+      return;
+    }
+
+    setUploadError("");
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      uploadMedia.mutate(base64, {
+        onSuccess: (data) => {
+          setImageUrl(data.imageUrl);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        },
+        onError: (err) => {
+          setUploadError(err instanceof Error ? err.message : "Upload failed");
+        },
+      });
+    };
+    reader.readAsDataURL(file);
+  };
 
   const submit = () => {
     if (!title.trim() || !imageUrl.trim()) return;
@@ -244,14 +275,56 @@ function PromotionalBannersSection() {
         <ImageIcon className="size-5 text-primary" />
         <p className="font-display text-lg font-semibold text-ink">Promotional Banners</p>
       </div>
-      <p className="text-sm text-muted">Manage the marketing banners shown on the customer app home screen.</p>
+      <p className="text-sm text-muted">
+        Manage marketing banners. An Image URL or file upload is <strong className="text-red-500 font-semibold">compulsory</strong>. Banners are uploaded directly to Cloudinary.
+      </p>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Input name="bannerTitle" placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <Input name="bannerImage" placeholder="Image URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+        <Input
+          name="bannerImage"
+          placeholder="Image URL (populated automatically on file upload)"
+          value={imageUrl}
+          onChange={(e) => setImageUrl(e.target.value)}
+        />
         <Input name="bannerCtaLabel" placeholder="Button label (optional)" value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} />
         <Input name="bannerCtaLink" placeholder="Button link (optional)" value={ctaLink} onChange={(e) => setCtaLink(e.target.value)} />
       </div>
+
+      {/* Media Upload Area */}
+      <div className="rounded-2xl border border-dashed border-line bg-surface/40 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="space-y-0.5 text-center sm:text-left">
+          <p className="text-sm font-medium text-ink">Upload image file</p>
+          <p className="text-xs text-muted">Supports PNG, JPG up to 5MB. Saves directly to Cloudinary.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadMedia.isPending}
+          >
+            {uploadMedia.isPending ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Uploading to Cloudinary…
+              </>
+            ) : (
+              "Choose Image File"
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {uploadError && <p className="text-xs text-red-500">{uploadError}</p>}
+
       <Button size="sm" onClick={submit} disabled={create.isPending || !title.trim() || !imageUrl.trim()}>
         <Plus className="size-4" /> Add banner
       </Button>
@@ -288,6 +361,7 @@ function PromotionalBannersSection() {
     </GlassCard>
   );
 }
+
 
 export function Promotions() {
   return (

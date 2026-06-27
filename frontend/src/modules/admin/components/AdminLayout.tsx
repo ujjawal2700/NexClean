@@ -19,18 +19,25 @@ import {
   Car,
   Layers,
   Ticket,
+  BadgeCheck,
+  Rocket,
+  Gift,
 } from "lucide-react";
+
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
 import { useAdminSession } from "../store/sessionStore";
+import { useAgents, useLeads } from "../api/admin.api";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/admin/bookings", label: "Bookings", icon: CalendarRange, end: false },
   { to: "/admin/customers", label: "Customers", icon: Contact2, end: false },
   { to: "/admin/agents", label: "Agents", icon: Users, end: false },
+  { to: "/admin/agent-verification", label: "Agent Verification", icon: BadgeCheck, end: false },
+  { to: "/admin/leads", label: "Leads", icon: Rocket, end: false },
   { to: "/admin/payments", label: "Payments", icon: Wallet, end: false },
   { to: "/admin/pricing", label: "Pricing", icon: Tag, end: false },
   { to: "/admin/area-alerts", label: "Area Alerts", icon: Radar, end: false },
@@ -40,30 +47,53 @@ const NAV = [
   { to: "/admin/vehicle-categories", label: "Vehicle Categories", icon: Layers, end: false },
   { to: "/admin/vehicle-brands", label: "Vehicle Brands", icon: Car, end: false },
   { to: "/admin/promotions", label: "Coupon & Promotions", icon: Ticket, end: false },
+  { to: "/admin/referrals", label: "Referrals", icon: Gift, end: false },
   { to: "/admin/content", label: "Content", icon: FileText, end: false },
   { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false },
 ];
 
+
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+  const { data: agents = [] } = useAgents();
+  const { data: leads = [] } = useLeads();
+  const pendingCount = agents.filter((a) => a.status === "pending").length;
+  const leadCount = leads.length;
+
   return (
     <nav className="flex flex-col gap-1">
-      {NAV.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.end}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
-              "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors",
-              isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:bg-surface-muted hover:text-ink",
-            )
-          }
-        >
-          <item.icon className="size-[18px]" />
-          {item.label}
-        </NavLink>
-      ))}
+      {NAV.map((item) => {
+        const isVerification = item.to === "/admin/agent-verification";
+        const isLeads = item.to === "/admin/leads";
+        return (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors",
+                isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:bg-surface-muted hover:text-ink",
+              )
+            }
+          >
+            <span className="flex items-center gap-3">
+              <item.icon className="size-[18px]" />
+              <span>{item.label}</span>
+            </span>
+            {isVerification && pendingCount > 0 && (
+              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-orange-500 font-display text-[10px] font-semibold text-white">
+                {pendingCount}
+              </span>
+            )}
+            {isLeads && leadCount > 0 && (
+              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-amber-500 font-display text-[10px] font-semibold text-white">
+                {leadCount > 99 ? "99+" : leadCount}
+              </span>
+            )}
+          </NavLink>
+        );
+      })}
     </nav>
   );
 }
