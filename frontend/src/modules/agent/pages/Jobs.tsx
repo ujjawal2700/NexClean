@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { MapPin, Clock, Navigation, ChevronRight } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { MapPin, Clock, Navigation, ChevronRight, ArrowLeft } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
@@ -24,6 +24,7 @@ const STATUS_STYLES: Record<JobStatus, string> = {
 };
 
 export function Jobs() {
+  const navigate = useNavigate();
   const { data: jobs = [], isLoading } = useJobs();
   const [filter, setFilter] = useState<"active" | "completed" | "all">("active");
 
@@ -33,7 +34,16 @@ export function Jobs() {
 
   return (
     <div>
-      <h1 className="mb-6 font-display text-3xl text-ink">Jobs</h1>
+      <div className="mb-6 flex items-center gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer shrink-0"
+          aria-label="Back"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
+        <h1 className="font-display text-3xl text-ink">Jobs</h1>
+      </div>
 
       <div className="mb-6 inline-flex gap-1 rounded-pill border border-line bg-surface/70 p-1">
         {FILTERS.map((f) => (

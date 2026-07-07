@@ -1,78 +1,126 @@
-import { useState, useEffect } from "react";
-import { User, Phone, Star, BadgeCheck, CheckCircle2, Check, Power } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAgentSession } from "../store/sessionStore";
+import {
+  User,
+  Phone,
+  Star,
+  BadgeCheck,
+  CheckCircle2,
+  ChevronRight,
+  HelpCircle,
+  LogOut,
+  Pencil,
+  Power,
+} from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
-import { Input } from "@shared/ui/Input";
-import { useAgentMe, useToggleOnline, useUpdateName } from "../api/agent.api";
+import { useAgentMe, useToggleOnline } from "../api/agent.api";
 
 export function Profile() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const clear = useAgentSession((s) => s.clear);
   const { data: me } = useAgentMe();
   const toggleOnline = useToggleOnline();
-  const updateName = useUpdateName();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const [displayName, setDisplayName] = useState("");
-  const [saved, setSaved] = useState(false);
+  const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
 
-  useEffect(() => {
-    if (me?.name) setDisplayName(me.name);
-  }, [me?.name]);
-
-  const save = () => {
-    updateName.mutate(displayName.trim() || "Specialist", {
-      onSuccess: () => {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 1800);
-      },
-    });
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    clear();
+    qc.clear();
+    navigate("/agent/login");
   };
 
   const verified = me?.agentStatus === "verified";
-  const initials = (me?.name ?? "NX").split(" ").map((n) => n[0]).join("");
 
-  const stats = [
-    { label: "Rating", value: `${me?.rating ?? 0}★` },
-    { label: "Jobs done", value: String(me?.jobsDone ?? 0) },
-    { label: "Status", value: verified ? "Verified" : me?.agentStatus ?? "—" },
-  ];
+  // Get user initials for avatar
+  const getInitials = () => {
+    if (!me?.name) return "NX";
+    return me.name
+      .split(" ")
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  };
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-2xl space-y-6">
+      {/* Title */}
       <h1 className="font-display text-3xl text-ink">Profile</h1>
 
-      <GlassCard className="flex flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
-        <span className="grid size-20 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display text-2xl font-semibold text-white shadow-[var(--shadow-glow)]">
-          {initials}
-        </span>
-        <div className="flex-1">
+      {/* User Header Info Card */}
+      <GlassCard className="flex flex-col sm:flex-row items-center gap-5 p-6 bg-gradient-to-br from-surface to-surface-muted/30">
+        <div className="size-20 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-display text-2xl font-bold text-primary shadow-sm shrink-0">
+          {getInitials()}
+        </div>
+        <div className="text-center sm:text-left space-y-1 min-w-0 flex-1">
           <div className="flex items-center justify-center gap-2 sm:justify-start">
-            <p className="font-display text-xl font-semibold text-ink">{me?.name ?? "Specialist"}</p>
-            {verified && <BadgeCheck className="size-5 text-primary" />}
+            <h2 className="font-display text-2xl font-bold text-ink truncate">{me?.name || "Specialist"}</h2>
+            {verified && <BadgeCheck className="size-5 text-primary shrink-0" />}
           </div>
-          <p className="text-sm text-muted">{me?.phone ?? ""}</p>
-          <div className="mt-1 flex items-center justify-center gap-1 text-sm text-muted sm:justify-start">
-            <Star className="size-4 fill-primary text-primary" /> {me?.rating ?? 0} rating
+          <p className="text-sm text-ink-soft truncate">{me?.phone}</p>
+          <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-muted pt-1">
+            <Star className="size-4 fill-primary text-primary" />
+            <span className="font-bold text-ink">{me?.rating ?? 0}</span>
+            <span>· {me?.jobsDone ?? 0} jobs done</span>
           </div>
         </div>
       </GlassCard>
 
-      <div className="grid grid-cols-3 gap-4">
-        {stats.map((s) => (
-          <GlassCard key={s.label} className="text-center">
-            <p className="font-display text-2xl font-semibold capitalize text-ink">{s.value}</p>
-            <p className="text-xs text-muted">{s.label}</p>
-          </GlassCard>
-        ))}
+      {/* Account Summary Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <GlassCard className="p-4 text-center">
+          <p className="font-display text-xl font-bold text-primary">{me?.rating ?? 0}★</p>
+          <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">Rating</p>
+        </GlassCard>
+        <GlassCard className="p-4 text-center">
+          <p className="font-display text-xl font-bold text-ink">{me?.jobsDone ?? 0}</p>
+          <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">Jobs done</p>
+        </GlassCard>
+        <GlassCard className="p-4 text-center">
+          <p className="font-display text-xl font-bold text-emerald-600 capitalize">
+            {verified ? "Verified" : me?.agentStatus ?? "—"}
+          </p>
+          <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">Status</p>
+        </GlassCard>
       </div>
 
-      <GlassCard className="flex items-center justify-between">
+      {/* Account Details Card */}
+      <GlassCard className="space-y-4">
+        <div className="flex items-center justify-between border-b border-line/50 pb-2">
+          <h3 className="font-display text-lg font-semibold text-ink">Account Summary</h3>
+        </div>
+        <div className="grid gap-3 text-sm">
+          <div className="flex items-center gap-3 py-1.5 border-b border-line/30 last:border-0">
+            <User className="size-4 text-muted shrink-0" />
+            <span className="text-muted w-24">Full name</span>
+            <span className="font-medium text-ink truncate">{me?.name || "—"}</span>
+          </div>
+          <div className="flex items-center gap-3 py-1.5 last:border-0">
+            <Phone className="size-4 text-muted shrink-0" />
+            <span className="text-muted w-24">Mobile</span>
+            <span className="font-medium text-ink truncate">+91 {me?.phone || "—"}</span>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* Availability Toggle Option */}
+      <GlassCard className="flex items-center justify-between p-5 border border-line bg-surface">
         <div className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
-            <Power className="size-5" />
+          <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
+            <Power className="size-4.5" />
           </span>
           <div>
-            <p className="font-display font-semibold text-ink">Availability</p>
-            <p className="text-sm text-muted">
-              You're currently {me?.online ? "online and receiving jobs" : "offline"}.
+            <p className="font-display font-semibold text-ink text-sm sm:text-base">Availability</p>
+            <p className="text-xs text-muted">
+              You are {me?.online ? "online & receiving jobs" : "offline"}
             </p>
           </div>
         </div>
@@ -81,26 +129,95 @@ export function Profile() {
           size="sm"
           disabled={toggleOnline.isPending}
           onClick={() => toggleOnline.mutate(!me?.online)}
+          className="rounded-xl px-4 py-2 text-xs font-semibold"
         >
           {me?.online ? "Go offline" : "Go online"}
         </Button>
       </GlassCard>
 
-      <GlassCard>
-        <p className="font-display text-lg font-semibold text-ink">Account details</p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <Input name="name" label="Full name" leading={<User className="size-4" />} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-          <Input name="phone" label="Mobile number" leading={<Phone className="size-4" />} value={me?.phone ?? ""} disabled />
+      {/* Navigation Options Menu */}
+      <div className="space-y-3">
+        <h3 className="font-display text-lg font-semibold text-ink px-1">Settings &amp; Preferences</h3>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {/* Edit Profile Link */}
+          <Link to="/agent/profile/edit">
+            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                <Pencil className="size-4.5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-semibold text-ink text-sm sm:text-base">Edit profile</p>
+                <p className="text-xs text-muted truncate">Update full name</p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </GlassCard>
+          </Link>
+
+          {/* Help & Support Link */}
+          <Link to="/agent/help">
+            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                <HelpCircle className="size-4.5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-semibold text-ink text-sm sm:text-base">Help &amp; Support</p>
+                <p className="text-xs text-muted truncate">FAQs &amp; Support team chat</p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </GlassCard>
+          </Link>
         </div>
-        <Button className="mt-4" size="sm" onClick={save} disabled={updateName.isPending}>
-          {saved ? (<><Check className="size-4" /> Saved</>) : "Save changes"}
-        </Button>
+      </div>
+
+      {/* Status Notice */}
+      <GlassCard className="flex items-center gap-3 text-xs text-muted bg-surface/50">
+        <CheckCircle2 className="size-5 shrink-0 text-emerald-500" />
+        Background-checked &amp; insured. Specialist credentials verified by the NexClean operations team.
       </GlassCard>
 
-      <GlassCard className="flex items-center gap-3 text-sm text-muted">
-        <CheckCircle2 className="size-5 shrink-0 text-emerald-500" />
-        Background-checked &amp; insured. Documents verified by the NexClean team.
-      </GlassCard>
+      {/* Log out Button */}
+      <Button
+        variant="outline"
+        onClick={handleLogout}
+        className="w-full mt-6 text-red-500 border-red-200 hover:bg-red-50/15 flex items-center justify-center gap-2 bg-surface"
+      >
+        <LogOut className="size-[18px]" />
+        <span>Log out</span>
+      </Button>
+
+      {/* Custom Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/30 backdrop-blur-sm animate-fade-in">
+          <GlassCard className="w-full max-w-sm space-y-6 bg-surface p-6 shadow-xl border border-line">
+            <div className="space-y-2 text-center">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+                <LogOut className="size-6" />
+              </div>
+              <h3 className="font-display text-lg font-bold text-ink">Log Out</h3>
+              <p className="text-sm text-muted leading-relaxed">
+                Are you sure you want to log out of your agent account? You will need to log back in to accept cleaning jobs and check payouts.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 rounded-xl cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmLogout}
+                className="flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+              >
+                Log out
+              </Button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 }

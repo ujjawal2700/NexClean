@@ -1,4 +1,5 @@
-import { Wallet, TrendingUp, CheckCircle2, Briefcase } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Wallet, TrendingUp, CheckCircle2, Briefcase, ArrowLeft } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { Skeleton, SkeletonStatCards } from "@shared/ui/Skeleton";
@@ -6,6 +7,7 @@ import { formatDate, formatMoney } from "@shared/lib/format";
 import { useJobs, useSummary } from "../api/agent.api";
 
 export function Earnings() {
+  const navigate = useNavigate();
   const { data: jobs = [], isLoading: jobsLoading } = useJobs();
   const { data: summary, isLoading: summaryLoading } = useSummary();
   const completed = jobs.filter((j) => j.status === "completed");
@@ -22,7 +24,16 @@ export function Earnings() {
 
   return (
     <div className="space-y-8">
-      <h1 className="font-display text-3xl text-ink">Earnings</h1>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer shrink-0"
+          aria-label="Back"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
+        <h1 className="font-display text-3xl text-ink">Earnings</h1>
+      </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {isLoading ? (

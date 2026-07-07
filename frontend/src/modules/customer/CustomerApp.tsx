@@ -9,11 +9,13 @@ import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
 import { Subscriptions } from "./pages/Subscriptions";
 import { Profile } from "./pages/Profile";
+import { EditProfile } from "./pages/EditProfile";
 import { ReferEarn } from "./pages/ReferEarn";
 import { Vehicles } from "./pages/Vehicles";
 import { Addresses } from "./pages/Addresses";
 import { Notifications } from "./pages/Notifications";
 import { BookingFlow } from "./pages/booking/BookingFlow";
+import { HelpSupport } from "./pages/HelpSupport";
 
 /**
  * Customer module router (base path /app). Login is public; everything else
@@ -42,9 +44,11 @@ export function CustomerApp() {
           <Route path="plans" element={<Subscriptions />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="profile/edit" element={<EditProfile />} />
           <Route path="profile/refer" element={<ReferEarn />} />
           <Route path="profile/vehicles" element={<Vehicles />} />
           <Route path="profile/addresses" element={<Addresses />} />
+          <Route path="help" element={<HelpSupport />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/app" replace />} />

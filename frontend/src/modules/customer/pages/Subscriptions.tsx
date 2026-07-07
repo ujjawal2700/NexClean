@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Check,
   Calendar,
@@ -10,6 +11,7 @@ import {
   Car,
   MapPin,
   AlertCircle,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -49,6 +51,7 @@ function washesLabel(washesPerMonth: number): string {
 }
 
 export function Subscriptions() {
+  const navigate = useNavigate();
   const { data: me } = useMe();
   const { data: plans = [], isLoading: plansLoading } = usePlans();
   const categoryLabel = useCategoryLabel();
@@ -196,12 +199,21 @@ export function Subscriptions() {
 
     return (
       <div className="space-y-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="font-display text-3xl text-ink">Active Subscription</h1>
-            <p className="mt-1 text-muted">Book and manage your washes for this billing cycle.</p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate(-1)}
+                className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer shrink-0"
+                aria-label="Back"
+              >
+                <ArrowLeft className="size-4" />
+              </button>
+              <h1 className="font-display text-3xl text-ink">Active Subscription</h1>
+            </div>
+            <p className="mt-2 text-sm text-muted pl-12">Book and manage your washes for this billing cycle.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowCatalog(true)}>
+          <Button variant="outline" size="sm" onClick={() => setShowCatalog(true)} className="sm:mt-1">
             Upgrade / Cancel Plan
           </Button>
         </div>
@@ -611,13 +623,22 @@ export function Subscriptions() {
   // --- RENDER 2: Subscriptions Catalog Catalog ---
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
         <div>
-          <h1 className="font-display text-3xl text-ink">Subscription plans</h1>
-          <p className="mt-2 text-muted">Subscribe once, save on every wash. Cancel anytime.</p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer shrink-0"
+              aria-label="Back"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
+            <h1 className="font-display text-3xl text-ink">Subscription plans</h1>
+          </div>
+          <p className="mt-2 text-sm text-muted pl-12">Subscribe once, save on every wash. Cancel anytime.</p>
         </div>
         {activePlan && (
-          <Button variant="outline" size="sm" onClick={() => setShowCatalog(false)}>
+          <Button variant="outline" size="sm" onClick={() => setShowCatalog(false)} className="sm:mt-1">
             Back to Dashboard
           </Button>
         )}

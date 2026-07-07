@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { CalendarDays, MapPin, Clock, Plus } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { CalendarDays, MapPin, Clock, Plus, ArrowLeft } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -25,6 +25,7 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
 };
 
 export function Bookings() {
+  const navigate = useNavigate();
   const { data: bookings = [], isLoading } = useBookings();
   const cancelBooking = useCancelBooking();
   const [filter, setFilter] = useState<BookingStatus | "all">("all");
@@ -34,7 +35,16 @@ export function Bookings() {
   return (
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="font-display text-3xl text-ink">My bookings</h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer"
+            aria-label="Back"
+          >
+            <ArrowLeft className="size-4" />
+          </button>
+          <h1 className="font-display text-3xl text-ink">My bookings</h1>
+        </div>
         <Button asChild size="sm">
           <Link to="/app/book">
             <Plus className="size-4" /> New booking

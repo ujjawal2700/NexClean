@@ -24,6 +24,7 @@ import {
   Gift,
   Sparkles,
   ShieldCheck,
+  MessageSquare,
 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -54,6 +55,7 @@ const NAV = [
   { to: "/admin/content", label: "Content", icon: FileText, end: false, permission: "content" },
   { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false, permission: "reports" },
   { to: "/admin/roles", label: "Role Management", icon: ShieldCheck, end: false, permission: "roles" },
+  { to: "/admin/support", label: "Support Chat", icon: MessageSquare, end: false, permission: "chat" },
 ];
 
 
@@ -130,7 +132,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             Admin Console
           </span>
         </div>
-        <div className="mt-8 flex-1 overflow-y-auto">
+        <div className="mt-8 flex-1 overflow-y-auto" data-lenis-prevent="true">
           <NavItems />
         </div>
         <button
@@ -152,7 +154,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 <X className="size-5 text-muted" />
               </button>
             </div>
-            <div className="mt-8 flex-1">
+            <div className="mt-8 flex-1 overflow-y-auto" data-lenis-prevent="true">
               <NavItems onNavigate={() => setOpen(false)} />
             </div>
             <button

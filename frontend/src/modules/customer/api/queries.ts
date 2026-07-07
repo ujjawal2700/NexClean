@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { useSessionStore } from "../store/sessionStore";
+import { useAdminSession } from "../../admin/store/sessionStore";
+import { useAgentSession } from "../../agent/store/sessionStore";
 import type {
   User,
   Booking,
@@ -12,6 +14,9 @@ import type {
   VehicleBrand,
   VehicleModel,
   SubscriptionScheduleResponse,
+  SupportConfig,
+  SupportTicket,
+  ChatMessage,
 } from "../types";
 
 export const meKey = ["me"] as const;
@@ -24,6 +29,9 @@ export const vehicleCategoriesKey = ["catalog", "vehicle-categories"] as const;
 export const vehicleBrandsKey = ["catalog", "vehicle-brands"] as const;
 export const vehicleModelsKey = (brandId: string) => ["catalog", "vehicle-brands", brandId, "models"] as const;
 export const subscriptionScheduleKey = ["subscription", "schedule"] as const;
+export const supportConfigKey = ["chat", "config"] as const;
+export const supportTicketsKey = ["chat", "tickets"] as const;
+export const ticketMessagesKey = (ticketId: string) => ["chat", "tickets", ticketId, "messages"] as const;
 
 /** Current authenticated customer (profile, vehicles, addresses, plan). */
 export function useMe() {
@@ -120,5 +128,50 @@ export function useSubscriptionSchedule() {
     queryKey: subscriptionScheduleKey,
     queryFn: () => apiFetch<SubscriptionScheduleResponse>("/subscriptions/schedule"),
     enabled: !!token,
+  });
+}
+
+export function useActiveToken() {
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const customerToken = useSessionStore((s) => s.token);
+  const adminToken = useAdminSession((s) => s.token);
+  const agentToken = useAgentSession((s) => s.token);
+  
+  if (path.startsWith("/admin")) return adminToken;
+  if (path.startsWith("/agent")) return agentToken;
+  return customerToken;
+}
+
+export function useSupportConfig() {
+  const token = useActiveToken();
+  return useQuery({
+    queryKey: supportConfigKey,
+    queryFn: () => apiFetch<SupportConfig>("/chat/config"),
+    enabled: !!token,
+  });
+}
+
+export function useSupportTickets() {
+  const token = useActiveToken();
+  return useQuery({
+    queryKey: supportTicketsKey,
+    queryFn: () => apiFetch<SupportTicket[]>("/chat/tickets"),
+    enabled: !!token,
+  });
+}
+
+export function useTicketMessages(ticketId: string | null) {
+  const token = useActiveToken();
+  return useQuery({
+    queryKey: ticketMessagesKey(ticketId ?? ""),
+    queryFn: () => apiFetch<ChatMessage[]>(`/chat/tickets/${ticketId}/messages`),
+    enabled: !!token && !!ticketId,
+  });
+}
+
+export function useSiteContent() {
+  return useQuery({
+    queryKey: ["catalog", "content"],
+    queryFn: () => apiFetch<any>("/catalog/content"),
   });
 }

@@ -2,6 +2,7 @@ import { createApp } from "./app";
 import { connectDb } from "./config/db";
 import { seedDemoData } from "./config/seed";
 import { env } from "./config/env";
+import { initSocket } from "./shared/services/socket";
 
 const app = createApp();
 
@@ -9,6 +10,9 @@ const server = app.listen(env.port, () => {
   console.log(`🚀 NexClean API listening on http://localhost:${env.port}`);
   console.log(`   Health: http://localhost:${env.port}/api/health`);
 });
+
+// Initialize Sockets
+initSocket(server);
 
 // Connect to MongoDB after the server is already listening so the health
 // endpoint stays available even if the database is temporarily unreachable.

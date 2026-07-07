@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Car, Plus, Trash2 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -10,6 +10,7 @@ import { useMe, useCategoryLabel } from "../api/queries";
 import { useAddVehicle, useRemoveVehicle } from "../api/mutations";
 
 export function Vehicles() {
+  const navigate = useNavigate();
   const { data: me } = useMe();
   const vehicles = me?.vehicles ?? [];
   const categoryLabel = useCategoryLabel();
@@ -43,10 +44,14 @@ export function Vehicles() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link to="/app/profile" className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary">
-          <ArrowLeft className="size-4" /> Profile
-        </Link>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer shrink-0"
+          aria-label="Back"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
         <h1 className="font-display text-3xl text-ink">Your garage</h1>
       </div>
 

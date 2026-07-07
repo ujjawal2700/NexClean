@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { meKey, bookingsKey, notificationsKey } from "./queries";
-import type { User, Booking, CarType } from "../types";
+import type { User, Booking, CarType, SupportTicket, ChatMessage, SupportConfig } from "../types";
 
 /* ---------------------------- Notifications ------------------------------ */
 
@@ -218,6 +218,69 @@ export function useRescheduleSubscriptionWash() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: bookingsKey });
       qc.invalidateQueries({ queryKey: ["subscription", "schedule"] });
+    },
+  });
+}
+
+export function useCreateTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { subject?: string }) =>
+      apiFetch<SupportTicket>("/chat/tickets", { method: "POST", body: vars }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat", "tickets"] });
+    },
+  });
+}
+
+export function useCloseTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ticketId: string) =>
+      apiFetch<SupportTicket>(`/chat/tickets/${ticketId}/close`, { method: "PATCH" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat", "tickets"] });
+    },
+  });
+}
+
+export function useReopenTicket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ticketId: string) =>
+      apiFetch<SupportTicket>(`/chat/tickets/${ticketId}/reopen`, { method: "PATCH" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat", "tickets"] });
+    },
+  });
+}
+
+export function useSendMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { ticketId: string; text: string }) =>
+      apiFetch<ChatMessage>(`/chat/tickets/${vars.ticketId}/messages`, {
+        method: "POST",
+        body: { text: vars.text },
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["chat", "tickets", vars.ticketId, "messages"] });
+      // Invalidate tickets list to update the last message snippet
+      qc.invalidateQueries({ queryKey: ["chat", "tickets"] });
+    },
+  });
+}
+
+export function useUpdateSupportConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (manualSupportStatus: "auto" | "online" | "offline") =>
+      apiFetch<SupportConfig>("/chat/config", {
+        method: "PATCH",
+        body: { manualSupportStatus },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["chat", "config"] });
     },
   });
 }

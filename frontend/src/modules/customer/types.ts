@@ -127,6 +127,7 @@ export type User = {
   subscriptionEndDate?: string | null;
   referralCode?: string | null;
   referralEarnings?: number;
+  createdAt?: string;
 };
 
 export type AppNotification = {
@@ -143,4 +144,28 @@ export type SubscriptionScheduleResponse = {
   subscriptionStartDate: string | null;
   subscriptionEndDate: string | null;
   bookings: Booking[];
+};
+
+export type SupportTicket = {
+  id: string;
+  user: string | User;
+  status: "open" | "closed";
+  assignedAgent?: string | User | null;
+  subject: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ChatMessage = {
+  id: string;
+  ticket: string;
+  sender: string;
+  senderType: "customer" | "staff";
+  text: string;
+  createdAt: string;
+};
+
+export type SupportConfig = {
+  manualSupportStatus: "auto" | "online" | "offline";
+  isOnline: boolean;
 };

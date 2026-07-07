@@ -26,6 +26,7 @@ import { ContentManagement } from "./pages/ContentManagement";
 import { Leads } from "./pages/Leads";
 import { Referrals } from "./pages/Referrals";
 import { RoleManagement } from "./pages/RoleManagement"; // Role Management Dashboard Page
+import { ChatPanel } from "./pages/ChatPanel";
 
 /**
  * Admin module router (base path /admin). Login is public; everything else
@@ -67,6 +68,7 @@ export function AdminApp() {
           <Route path="leads" element={<PermissionGuard permission="leads"><Leads /></PermissionGuard>} />
           <Route path="reports" element={<PermissionGuard permission="reports"><Reports /></PermissionGuard>} />
           <Route path="roles" element={<PermissionGuard permission="roles"><RoleManagement /></PermissionGuard>} />
+          <Route path="support" element={<PermissionGuard permission="chat"><ChatPanel /></PermissionGuard>} />
         </Route>
 
         <Route path="*" element={<Navigate to="/admin" replace />} />

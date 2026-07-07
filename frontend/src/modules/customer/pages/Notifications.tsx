@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { Bell, CalendarCheck, Radar, Info } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Bell, CalendarCheck, Radar, Info, ArrowLeft } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Skeleton } from "@shared/ui/Skeleton";
 import { cn } from "@shared/lib/utils";
@@ -24,6 +25,7 @@ function timeAgo(iso: string): string {
 }
 
 export function Notifications() {
+  const navigate = useNavigate();
   const { data: items = [], isLoading } = useNotifications();
   const markRead = useMarkNotificationsRead();
 
@@ -35,7 +37,16 @@ export function Notifications() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="mb-6 font-display text-3xl text-ink">Notifications</h1>
+      <div className="mb-6 flex items-center gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer shrink-0"
+          aria-label="Back"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
+        <h1 className="font-display text-3xl text-ink">Notifications</h1>
+      </div>
 
       {isLoading ? (
         <div className="space-y-3">

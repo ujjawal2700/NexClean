@@ -1,12 +1,9 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { NavLink, Link, useNavigate } from "react-router-dom";
-import { LayoutDashboard, CalendarPlus, ClipboardList, CreditCard, User, LogOut, Bell } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
+import { LayoutDashboard, CalendarPlus, ClipboardList, CreditCard, User, Bell } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
-import { Button } from "@shared/ui/Button";
 import { getOrCreateDeviceToken } from "@shared/lib/push";
-import { useSessionStore } from "../store/sessionStore";
 import { useMe, useNotifications } from "../api/queries";
 import { useRegisterToken } from "../api/mutations";
 
@@ -19,9 +16,8 @@ const NAV = [
 ];
 
 export function CustomerLayout({ children }: { children: ReactNode }) {
+  const location = useLocation();
   const navigate = useNavigate();
-  const qc = useQueryClient();
-  const clear = useSessionStore((s) => s.clear);
   const { data: me } = useMe();
   const { data: notifications = [] } = useNotifications();
   const registerToken = useRegisterToken();
@@ -38,63 +34,60 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onLogout = () => {
-    clear();
-    qc.clear();
-    navigate("/app/login");
-  };
+  const isHomepage = location.pathname === "/app" || location.pathname === "/app/";
 
   return (
     <div className="min-h-dvh bg-bg">
       {/* top bar */}
-      <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-          <button onClick={() => navigate("/app")} className="text-[1.1rem]" aria-label="Dashboard">
-            <Logo variant="full" />
-          </button>
+      {isHomepage && (
+        <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl">
+          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
+            <button onClick={() => navigate("/app")} className="text-[1.1rem]" aria-label="Dashboard">
+              <Logo variant="full" />
+            </button>
 
-          <nav className="hidden items-center gap-1 md:flex">
-            {NAV.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:text-primary",
-                  )
-                }
+            <nav className="hidden items-center gap-1 md:flex">
+              {NAV.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-colors",
+                      isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:text-primary",
+                    )
+                  }
+                >
+                  <item.icon className="size-4" />
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+
+            <div className="flex items-center gap-2">
+              <Link
+                to="/app/notifications"
+                className="relative grid size-9 place-items-center rounded-full text-ink-soft transition-colors hover:bg-surface-muted hover:text-primary"
+                aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
               >
-                <item.icon className="size-4" />
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <Link
-              to="/app/notifications"
-              className="relative grid size-9 place-items-center rounded-full text-ink-soft transition-colors hover:bg-surface-muted hover:text-primary"
-              aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
-            >
-              <Bell className="size-5" />
-              {unread > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
-                  {unread > 9 ? "9+" : unread}
-                </span>
-              )}
-            </Link>
-            <span className="hidden text-sm text-muted sm:inline">{me?.name || "Member"}</span>
-            <Button variant="ghost" size="sm" onClick={onLogout} aria-label="Log out">
-              <LogOut className="size-4" />
-            </Button>
+                <Bell className="size-5" />
+                {unread > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </Link>
+              <span className="hidden text-sm text-muted sm:inline">{me?.name || "Member"}</span>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* content */}
-      <main className="mx-auto max-w-6xl px-5 pb-28 pt-8 md:pb-16">{children}</main>
+      <main className="mx-auto max-w-6xl px-5 pb-28 pt-8 md:pb-16">
+        {children}
+      </main>
 
       {/* mobile tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/90 backdrop-blur-xl md:hidden">

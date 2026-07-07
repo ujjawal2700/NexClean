@@ -169,9 +169,13 @@ export function BookingFlow() {
   return (
     <div className="mx-auto max-w-4xl">
       <div className="mb-8 flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/app")}>
-          <ArrowLeft className="size-4" /> Cancel
-        </Button>
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer"
+          aria-label="Back"
+        >
+          <ArrowLeft className="size-4" />
+        </button>
         <h1 className="font-display text-2xl font-semibold text-ink">Book a cleaning</h1>
       </div>
 

@@ -35,6 +35,7 @@ const PERMISSION_SECTIONS = [
   { key: "content", label: "Landing & Static Content" },
   { key: "reports", label: "Analytics Reports" },
   { key: "roles", label: "Roles & Staff Management" },
+  { key: "chat", label: "Support Chat" },
 ];
 
 export function RoleManagement() {
