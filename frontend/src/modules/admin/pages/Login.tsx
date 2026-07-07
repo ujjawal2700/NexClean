@@ -26,7 +26,7 @@ export function Login() {
     setError("");
     try {
       const { token, user } = await login.mutateAsync({ email, password });
-      setSession(token, user.name);
+      setSession(token, user.name, (user as any).permissions || []);
       navigate("/admin", { replace: true });
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Login failed. Is the API running?");

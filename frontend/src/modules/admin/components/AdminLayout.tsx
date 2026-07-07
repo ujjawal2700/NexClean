@@ -22,6 +22,8 @@ import {
   BadgeCheck,
   Rocket,
   Gift,
+  Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,36 +34,44 @@ import { useAdminSession } from "../store/sessionStore";
 import { useAgents, useLeads } from "../api/admin.api";
 
 const NAV = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/admin/bookings", label: "Bookings", icon: CalendarRange, end: false },
-  { to: "/admin/customers", label: "Customers", icon: Contact2, end: false },
-  { to: "/admin/agents", label: "Agents", icon: Users, end: false },
-  { to: "/admin/agent-verification", label: "Agent Verification", icon: BadgeCheck, end: false },
-  { to: "/admin/leads", label: "Leads", icon: Rocket, end: false },
-  { to: "/admin/payments", label: "Payments", icon: Wallet, end: false },
-  { to: "/admin/pricing", label: "Pricing", icon: Tag, end: false },
-  { to: "/admin/area-alerts", label: "Area Alerts", icon: Radar, end: false },
-  { to: "/admin/notifications", label: "Notifications", icon: Megaphone, end: false },
-  { to: "/admin/plans", label: "Plans", icon: CreditCard, end: false },
-  { to: "/admin/locations", label: "Locations", icon: MapPin, end: false },
-  { to: "/admin/vehicle-categories", label: "Vehicle Categories", icon: Layers, end: false },
-  { to: "/admin/vehicle-brands", label: "Vehicle Brands", icon: Car, end: false },
-  { to: "/admin/promotions", label: "Coupon & Promotions", icon: Ticket, end: false },
-  { to: "/admin/referrals", label: "Referrals", icon: Gift, end: false },
-  { to: "/admin/content", label: "Content", icon: FileText, end: false },
-  { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false },
+  { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true, permission: "dashboard" },
+  { to: "/admin/bookings", label: "Bookings", icon: CalendarRange, end: false, permission: "bookings" },
+  { to: "/admin/customers", label: "Customers", icon: Contact2, end: false, permission: "customers" },
+  { to: "/admin/agents", label: "Agents", icon: Users, end: false, permission: "agents" },
+  { to: "/admin/agent-verification", label: "Agent Verification", icon: BadgeCheck, end: false, permission: "agents" },
+  { to: "/admin/leads", label: "Leads", icon: Rocket, end: false, permission: "leads" },
+  { to: "/admin/payments", label: "Payments", icon: Wallet, end: false, permission: "payments" },
+  { to: "/admin/pricing", label: "Pricing", icon: Tag, end: false, permission: "pricing" },
+  { to: "/admin/area-alerts", label: "Area Alerts", icon: Radar, end: false, permission: "area-alerts" },
+  { to: "/admin/notifications", label: "Notifications", icon: Megaphone, end: false, permission: "notifications" },
+  { to: "/admin/plans", label: "Plans", icon: CreditCard, end: false, permission: "plans" },
+  { to: "/admin/locations", label: "Locations", icon: MapPin, end: false, permission: "locations" },
+  { to: "/admin/vehicle-categories", label: "Vehicle Categories", icon: Layers, end: false, permission: "vehicle-categories" },
+  { to: "/admin/vehicle-brands", label: "Vehicle Brands", icon: Car, end: false, permission: "vehicle-brands" },
+  { to: "/admin/promotions", label: "Coupon & Promotions", icon: Ticket, end: false, permission: "promotions" },
+  { to: "/admin/special-coupons", label: "Special Coupons", icon: Sparkles, end: false, permission: "special-coupons" },
+  { to: "/admin/referrals", label: "Referrals", icon: Gift, end: false, permission: "referrals" },
+  { to: "/admin/content", label: "Content", icon: FileText, end: false, permission: "content" },
+  { to: "/admin/reports", label: "Reports", icon: BarChart3, end: false, permission: "reports" },
+  { to: "/admin/roles", label: "Role Management", icon: ShieldCheck, end: false, permission: "roles" },
 ];
 
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const { data: agents = [] } = useAgents();
   const { data: leads = [] } = useLeads();
+  const permissions = useAdminSession((s) => s.permissions) || [];
   const pendingCount = agents.filter((a) => a.status === "pending").length;
   const leadCount = leads.length;
 
+  const filteredNav = NAV.filter((item) => {
+    if (permissions.includes("*")) return true;
+    return permissions.includes(item.permission);
+  });
+
   return (
     <nav className="flex flex-col gap-1">
-      {NAV.map((item) => {
+      {filteredNav.map((item) => {
         const isVerification = item.to === "/admin/agent-verification";
         const isLeads = item.to === "/admin/leads";
         return (
@@ -101,7 +111,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
 export function AdminLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { name, clear } = useAdminSession();
+  const { name, clear, permissions } = useAdminSession();
   const [open, setOpen] = useState(false);
 
   const onLogout = () => {
@@ -165,7 +175,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-sm font-medium text-ink">{name}</p>
-              <p className="text-xs text-muted">Administrator</p>
+              <p className="text-xs text-muted">
+                {permissions.includes("*") ? "Super Admin" : "Staff Member"}
+              </p>
             </div>
             <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-semibold text-white">
               {name.slice(0, 1).toUpperCase()}

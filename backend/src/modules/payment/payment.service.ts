@@ -6,14 +6,17 @@ import { Payment } from "./payment.model";
 import type { CreateOrderInput, VerifyPaymentInput } from "./payment.validation";
 
 /** Server-side authoritative amount for a booking (rupees), discount code applied if present. */
-async function amountFor(input: CreateOrderInput["booking"]): Promise<number> {
-  const { price } = await computePrice(input);
+async function amountFor(userId: string, input: CreateOrderInput["booking"]): Promise<number> {
+  const { price } = await computePrice(userId, input);
   return price;
 }
 
 /** Preview the price + discount for a booking draft, without creating an order. */
-export async function previewAmount(input: { vehicleType: CreateOrderInput["booking"]["vehicleType"]; packageId: string; discountCode?: string }) {
-  const { basePrice, price, discountAmount, discountCodeLabel } = await computePrice(input);
+export async function previewAmount(
+  userId: string,
+  input: { vehicleType: CreateOrderInput["booking"]["vehicleType"]; packageId: string; discountCode?: string },
+) {
+  const { basePrice, price, discountAmount, discountCodeLabel } = await computePrice(userId, input);
   return { basePrice, price, discountAmount, discountCode: discountCodeLabel };
 }
 
@@ -25,7 +28,7 @@ async function getRazorpay() {
 
 /** Create a payment order. In mock mode returns a synthetic order id. */
 export async function createOrder(userId: string, input: CreateOrderInput) {
-  const amount = await amountFor(input.booking);
+  const amount = await amountFor(userId, input.booking);
 
   if (!paymentsLive) {
     const orderId = `order_mock_${crypto.randomBytes(8).toString("hex")}`;

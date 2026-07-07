@@ -70,6 +70,7 @@ export type Booking = {
   discountCode?: string | null;
   discountAmount?: number;
   status: BookingStatus;
+  isSubscriptionWash?: boolean;
   createdAt: string;
 };
 
@@ -122,6 +123,8 @@ export type User = {
   vehicles: Vehicle[];
   addresses: Address[];
   activePlan: PlanId | null;
+  subscriptionStartDate?: string | null;
+  subscriptionEndDate?: string | null;
   referralCode?: string | null;
   referralEarnings?: number;
 };
@@ -133,4 +136,11 @@ export type AppNotification = {
   body: string;
   read: boolean;
   createdAt: string;
+};
+
+export type SubscriptionScheduleResponse = {
+  activePlan: CatalogPlan | null;
+  subscriptionStartDate: string | null;
+  subscriptionEndDate: string | null;
+  bookings: Booking[];
 };

@@ -188,6 +188,36 @@ export function useCancelBooking() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiFetch<Booking>(`/bookings/${id}/cancel`, { method: "PATCH" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: bookingsKey }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: bookingsKey });
+      qc.invalidateQueries({ queryKey: ["subscription", "schedule"] });
+    },
+  });
+}
+
+export function useScheduleSubscriptionWash() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { vehicleId: string; addressId: string; date: string; slot: string }) =>
+      apiFetch<Booking>("/subscriptions/schedule", { method: "POST", body: vars }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: bookingsKey });
+      qc.invalidateQueries({ queryKey: ["subscription", "schedule"] });
+    },
+  });
+}
+
+export function useRescheduleSubscriptionWash() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { bookingId: string; date: string; slot: string }) =>
+      apiFetch<Booking>(`/subscriptions/schedule/${vars.bookingId}`, {
+        method: "PATCH",
+        body: { date: vars.date, slot: vars.slot },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: bookingsKey });
+      qc.invalidateQueries({ queryKey: ["subscription", "schedule"] });
+    },
   });
 }

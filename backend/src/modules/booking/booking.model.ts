@@ -22,6 +22,7 @@ const bookingSchema = new Schema(
       default: "upcoming",
       index: true,
     },
+    isSubscriptionWash: { type: Boolean, default: false },
 
     // Agent fulfilment
     assignedAgent: { type: Types.ObjectId, ref: "User", default: null, index: true },

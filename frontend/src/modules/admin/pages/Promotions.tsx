@@ -4,6 +4,7 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { formatMoney } from "@shared/lib/format";
+import { ApiError } from "@shared/lib/api";
 import {
   useDiscountCodes,
   useCreateDiscountCode,
@@ -33,9 +34,11 @@ function DiscountCodesSection() {
   const [value, setValue] = useState("");
   const [minOrderValue, setMinOrderValue] = useState("");
   const [validTill, setValidTill] = useState("");
+  const [error, setError] = useState("");
 
   const submit = () => {
     if (!code.trim() || !value) return;
+    setError("");
     create.mutate(
       {
         code: code.trim(),
@@ -51,6 +54,7 @@ function DiscountCodesSection() {
           setMinOrderValue("");
           setValidTill("");
         },
+        onError: (e) => setError(e instanceof ApiError ? e.message : "Couldn't create that discount code"),
       },
     );
   };
@@ -69,6 +73,7 @@ function DiscountCodesSection() {
           placeholder="e.g. WELCOME20"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
+          error={error}
         />
         <select
           value={type}

@@ -266,6 +266,31 @@ export type DiscountCode = {
   active: boolean;
 };
 
+export type SpecialCouponStatus = "active" | "used" | "inactive";
+
+export type SpecialCouponUsageRecord = {
+  booking: string;
+  usedBy: string;
+  usedAt: string;
+  discountAmount: number;
+};
+
+export type SpecialCoupon = {
+  id: string;
+  code: string;
+  type: DiscountType;
+  value: number;
+  minOrderValue: number;
+  maxDiscount: number | null;
+  validFrom: string | null;
+  validTill: string | null;
+  status: SpecialCouponStatus;
+  assignedCustomer: { id: string; name: string; phone: string; email?: string } | null;
+  batchId: string;
+  usageHistory: SpecialCouponUsageRecord[];
+  createdAt: string;
+};
+
 export type ReferralCampaign = {
   id: string;
   name: string;
@@ -316,4 +341,21 @@ export type AdminReferralLog = {
   status: string;
   joinedAt: string;
 };
+
+export type AdminRole = {
+  id: string;
+  name: string;
+  permissions: string[];
+  createdAt?: string;
+};
+
+export type AdminStaff = {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+  adminRoleId: string | AdminRole | null;
+  createdAt?: string;
+};
+
 

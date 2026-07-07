@@ -2,7 +2,7 @@ import { Notification } from "./notification.model";
 import { User } from "../user/user.model";
 import { sendPush, type PushPayload } from "../../shared/services/fcm";
 
-type NotifyInput = PushPayload & { type?: "booking" | "area_alert" | "system" };
+type NotifyInput = PushPayload & { type?: "booking" | "area_alert" | "system" | "coupon" };
 
 /** Persist a notification for a user and push it to their devices. */
 export async function notifyUser(userId: string, input: NotifyInput): Promise<void> {

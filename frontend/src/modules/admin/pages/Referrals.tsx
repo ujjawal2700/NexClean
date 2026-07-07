@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
-  Gift, Users, BadgePercent, Search, Calendar, Phone, ArrowRight,
-  TrendingUp, CheckCircle2, Award, Loader2, Sparkles,
+  Gift, Users, Search, Calendar, Phone, ArrowRight,
+  CheckCircle2, Award, Loader2, Sparkles,
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Input } from "@shared/ui/Input";

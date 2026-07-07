@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   User, Mail, Phone, Gift, ArrowRight, ArrowLeft, ShieldCheck,
-  Loader2, MapPin, Building2, Rocket, CheckCircle2,
+  Loader2, MapPin, Building2, Rocket,
 } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Logo } from "@shared/components/brand/Logo";
@@ -47,7 +47,6 @@ export function Signup() {
   const [customCity, setCustomCity] = useState("");
   const [customLocation, setCustomLocation] = useState("");
   const [isUnservicedCity, setIsUnservicedCity] = useState(false);
-  const [leadSubmitted, setLeadSubmitted] = useState(false);
 
   // Step 3 — OTP
   const [otp, setOtp] = useState("");
@@ -143,7 +142,6 @@ export function Signup() {
         } catch {
           // Non-fatal — account was already created
         }
-        setLeadSubmitted(true);
         navigate("/app/coming-soon", { replace: true });
       } else {
         navigate("/app", { replace: true });

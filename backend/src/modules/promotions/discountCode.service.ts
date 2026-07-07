@@ -1,4 +1,5 @@
 import { DiscountCode, type DiscountCodeDoc } from "./discountCode.model";
+import { SPECIAL_COUPON_PREFIX } from "./specialCoupon.model";
 import { ApiError } from "../../shared/utils/ApiError";
 
 function mapCode(c: DiscountCodeDoc) {
@@ -30,7 +31,11 @@ export async function createDiscountCode(input: {
   usageLimit?: number | null;
   validTill?: Date | null;
 }) {
-  const existing = await DiscountCode.findOne({ code: input.code.toUpperCase() });
+  const code = input.code.toUpperCase();
+  if (code.startsWith(SPECIAL_COUPON_PREFIX)) {
+    throw ApiError.badRequest(`Discount codes cannot start with the reserved "${SPECIAL_COUPON_PREFIX}" prefix`);
+  }
+  const existing = await DiscountCode.findOne({ code });
   if (existing) throw ApiError.badRequest("A discount code with that code already exists");
   return mapCode(await DiscountCode.create(input));
 }

@@ -28,12 +28,15 @@ import type {
   VehicleBrand,
   VehicleModel,
   DiscountCode,
+  SpecialCoupon,
   ReferralCampaign,
   PromoBanner,
   AdminReports,
   AudienceSizes,
   Lead,
   AdminReferralLog,
+  AdminRole,
+  AdminStaff,
 } from "../types";
 
 
@@ -59,6 +62,7 @@ const keys = {
   vehicleBrands: ["admin", "vehicle-brands"] as const,
   vehicleModels: (brandId: string) => ["admin", "vehicle-brands", brandId, "models"] as const,
   discountCodes: ["admin", "discount-codes"] as const,
+  specialCoupons: ["admin", "special-coupons"] as const,
   referralCampaigns: ["admin", "referral-campaigns"] as const,
   promoBanners: ["admin", "promo-banners"] as const,
   reports: ["admin", "reports"] as const,
@@ -66,6 +70,8 @@ const keys = {
   content: ["admin", "content"] as const,
   leads: ["admin", "leads"] as const,
   referralLogs: ["admin", "referral-logs"] as const,
+  roles: ["admin", "roles"] as const,
+  staff: ["admin", "staff"] as const,
 };
 
 
@@ -115,6 +121,7 @@ export const useCities = () => useAuthedQuery<ServiceCity[]>(keys.cities, "/admi
 export const useZones = () => useAuthedQuery<ServiceZone[]>(keys.zones, "/admin/zones");
 export const useVehicleBrands = () => useAuthedQuery<VehicleBrand[]>(keys.vehicleBrands, "/admin/vehicle-brands");
 export const useDiscountCodes = () => useAuthedQuery<DiscountCode[]>(keys.discountCodes, "/admin/discount-codes");
+export const useSpecialCoupons = () => useAuthedQuery<SpecialCoupon[]>(keys.specialCoupons, "/admin/special-coupons");
 export const useReferralCampaigns = () =>
   useAuthedQuery<ReferralCampaign[]>(keys.referralCampaigns, "/admin/referral-campaigns");
 export const usePromoBanners = () => useAuthedQuery<PromoBanner[]>(keys.promoBanners, "/admin/promo-banners");
@@ -473,6 +480,54 @@ export function useDeleteDiscountCode() {
   });
 }
 
+export function useGenerateSpecialCoupons() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      count: number;
+      type: "percent" | "flat";
+      value: number;
+      minOrderValue?: number;
+      maxDiscount?: number | null;
+      validFrom?: string | null;
+      validTill?: string | null;
+    }) => apiFetch<SpecialCoupon[]>("/admin/special-coupons/generate", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.specialCoupons }),
+  });
+}
+
+export function useAssignSpecialCoupon() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; customerId: string }) =>
+      apiFetch<SpecialCoupon>(`/admin/special-coupons/${vars.id}/assign`, {
+        method: "PATCH",
+        body: { customerId: vars.customerId },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.specialCoupons }),
+  });
+}
+
+export function useToggleSpecialCouponActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; active: boolean }) =>
+      apiFetch<SpecialCoupon>(`/admin/special-coupons/${vars.id}/toggle-active`, {
+        method: "PATCH",
+        body: { active: vars.active },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.specialCoupons }),
+  });
+}
+
+export function useReactivateSpecialCoupon() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<SpecialCoupon>(`/admin/special-coupons/${id}/reactivate`, { method: "PATCH" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.specialCoupons }),
+  });
+}
+
 export function useCreateReferralCampaign() {
   const qc = useQueryClient();
   return useMutation({
@@ -548,6 +603,66 @@ export function useUploadMedia() {
         method: "POST",
         body: { image: base64Image },
       }),
+  });
+}
+
+/* ─────────────────────────── Roles & Staff ───────────────────────────────── */
+
+export const useRoles = () => useAuthedQuery<AdminRole[]>(keys.roles, "/admin/roles");
+export const useStaff = () => useAuthedQuery<AdminStaff[]>(keys.staff, "/admin/staff");
+
+export function useCreateRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { name: string; permissions: string[] }) =>
+      apiFetch<AdminRole>("/admin/roles", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.roles }),
+  });
+}
+
+export function useUpdateRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; name: string; permissions: string[] }) =>
+      apiFetch<AdminRole>(`/admin/roles/${vars.id}`, { method: "PATCH", body: { name: vars.name, permissions: vars.permissions } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.roles }),
+  });
+}
+
+export function useDeleteRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<{ success: boolean }>(`/admin/roles/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.roles });
+      qc.invalidateQueries({ queryKey: keys.staff });
+    },
+  });
+}
+
+export function useCreateStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { name: string; email: string; password?: string; adminRoleId: string }) =>
+      apiFetch<AdminStaff>("/admin/staff", { method: "POST", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.staff }),
+  });
+}
+
+export function useUpdateStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; name: string; email: string; password?: string; adminRoleId: string }) =>
+      apiFetch<AdminStaff>(`/admin/staff/${vars.id}`, { method: "PATCH", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.staff }),
+  });
+}
+
+export function useDeleteStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<{ success: boolean }>(`/admin/staff/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.staff }),
   });
 }
 

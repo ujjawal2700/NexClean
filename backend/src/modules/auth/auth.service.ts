@@ -7,6 +7,7 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { signToken, type Role } from "../../shared/utils/jwt";
 import { generateOtp } from "../../shared/utils/otp";
 import type { CustomerSignupInput, AgentSignupInput } from "./auth.validation";
+import { verifyPassword } from "../../shared/utils/crypto";
 
 /** Normalize a phone string to a consistent stored form. */
 export function normalize(phone: string): string {
@@ -128,20 +129,69 @@ export async function agentSignup(input: AgentSignupInput) {
 
 /** Email + password login for the admin console (seeded demo credentials). */
 export async function adminLogin(email: string, password: string) {
-  if (email.trim().toLowerCase() !== env.adminEmail.toLowerCase() || password !== env.adminPassword) {
+  const emailLower = email.trim().toLowerCase();
+
+  // 1. Super Admin seeded check
+  if (emailLower === env.adminEmail.toLowerCase()) {
+    if (password !== env.adminPassword) {
+      throw ApiError.unauthorized("Invalid email or password");
+    }
+    const user = await User.findOneAndUpdate(
+      { phone: `admin:${env.adminEmail}` },
+      { $setOnInsert: { phone: `admin:${env.adminEmail}`, name: "Admin", role: "admin", email: emailLower } },
+      { upsert: true, new: true }
+    );
+    const token = signToken(user.id, "admin");
+    return { token, user: { ...user.toJSON(), permissions: ["*"] } };
+  }
+
+  // 2. Database sub-admin (staff) check
+  const user = await User.findOne({ email: emailLower, role: "admin" }).populate("adminRoleId");
+  if (!user || !user.password) {
     throw ApiError.unauthorized("Invalid email or password");
   }
-  const user = await User.findOneAndUpdate(
-    { phone: `admin:${env.adminEmail}` },
-    { $setOnInsert: { phone: `admin:${env.adminEmail}`, name: "Admin", role: "admin" } },
-    { upsert: true, new: true },
-  );
+
+  const isMatch = verifyPassword(password, user.password);
+  if (!isMatch) {
+    throw ApiError.unauthorized("Invalid email or password");
+  }
+
+  if (user.status === "suspended") {
+    throw ApiError.forbidden("This account has been suspended. Contact support for help.");
+  }
+
   const token = signToken(user.id, "admin");
-  return { token, user };
+  const role = user.adminRoleId as any;
+  const permissions = role ? role.permissions : [];
+
+  return {
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      permissions,
+    },
+  };
 }
 
 export async function getMe(userId: string) {
-  const user = await User.findById(userId);
+  const user = await User.findById(userId).populate("adminRoleId");
   if (!user) throw ApiError.notFound("User not found");
-  return user;
+
+  let permissions: string[] = [];
+  if (user.role === "admin") {
+    if (user.phone === `admin:${env.adminEmail}` || !user.adminRoleId) {
+      permissions = ["*"];
+    } else {
+      const role = user.adminRoleId as any;
+      permissions = role ? role.permissions : [];
+    }
+  }
+
+  return {
+    ...user.toJSON(),
+    permissions,
+  };
 }

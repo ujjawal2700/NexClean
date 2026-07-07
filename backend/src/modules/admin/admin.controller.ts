@@ -8,10 +8,15 @@ import * as brandService from "../brand/brand.service";
 import * as vehicleModelService from "../brand/vehicleModel.service";
 import * as categoryService from "../catalog/category.service";
 import * as discountCodeService from "../promotions/discountCode.service";
+import * as specialCouponService from "../promotions/specialCoupon.service";
 import * as referralCampaignService from "../promotions/referralCampaign.service";
 import * as promoBannerService from "../promotions/promoBanner.service";
 import * as service from "./admin.service";
 import { getContent, updateContent } from "../content/content.service";
+import { AdminRole } from "./adminRole.model";
+import { User } from "../user/user.model";
+import { env } from "../../config/env";
+import { hashPassword } from "../../shared/utils/crypto";
 
 /** A positive price per vehicle category key — keys are admin-managed, not a fixed set. */
 const pricesSchema = z.record(z.string(), z.number().positive());
@@ -311,6 +316,51 @@ export async function deleteDiscountCode(req: Request, res: Response): Promise<R
   return ok(res, null, "Discount code deleted");
 }
 
+export async function specialCoupons(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await specialCouponService.listSpecialCoupons());
+}
+
+const generateSpecialCouponsSchema = z.object({
+  count: z.number().int().min(1).max(500),
+  type: z.enum(["percent", "flat"]),
+  value: z.number().positive(),
+  minOrderValue: z.number().min(0).optional(),
+  maxDiscount: z.number().min(0).nullable().optional(),
+  validFrom: z.coerce.date().nullable().optional(),
+  validTill: z.coerce.date().nullable().optional(),
+});
+export async function generateSpecialCoupons(req: Request, res: Response): Promise<Response> {
+  const parsed = generateSpecialCouponsSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid coupon batch request");
+  return created(res, await specialCouponService.generateSpecialCoupons(parsed.data), "Special coupons generated");
+}
+
+const assignSpecialCouponSchema = z.object({ customerId: z.string().min(1) });
+export async function assignSpecialCoupon(req: Request, res: Response): Promise<Response> {
+  const parsed = assignSpecialCouponSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("A customer is required");
+  return ok(
+    res,
+    await specialCouponService.assignSpecialCoupon(String(req.params.id), parsed.data.customerId),
+    "Coupon assigned",
+  );
+}
+
+const toggleSpecialCouponSchema = z.object({ active: z.boolean() });
+export async function toggleSpecialCouponActive(req: Request, res: Response): Promise<Response> {
+  const parsed = toggleSpecialCouponSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid status");
+  return ok(
+    res,
+    await specialCouponService.toggleSpecialCouponActive(String(req.params.id), parsed.data.active),
+    "Coupon updated",
+  );
+}
+
+export async function reactivateSpecialCoupon(req: Request, res: Response): Promise<Response> {
+  return ok(res, await specialCouponService.reactivateSpecialCoupon(String(req.params.id)), "Coupon reactivated");
+}
+
 export async function referralCampaigns(_req: Request, res: Response): Promise<Response> {
   return ok(res, await referralCampaignService.listReferralCampaigns());
 }
@@ -578,6 +628,147 @@ export async function uploadMedia(req: Request, res: Response): Promise<Response
   if (!image) throw ApiError.badRequest("Image base64 data is required");
   const imageUrl = await uploadImage(String(image));
   return ok(res, { imageUrl }, "Image uploaded successfully");
+}
+
+// Roles CRUD
+export async function listRoles(_req: Request, res: Response): Promise<Response> {
+  const roles = await AdminRole.find().sort({ createdAt: -1 });
+  return ok(res, roles);
+}
+
+export async function createRole(req: Request, res: Response): Promise<Response> {
+  const { name, permissions } = req.body;
+  if (!name || typeof name !== "string") throw ApiError.badRequest("Role name is required");
+  const existing = await AdminRole.findOne({ name: name.trim() });
+  if (existing) throw ApiError.badRequest("Role with this name already exists");
+  
+  const role = await AdminRole.create({
+    name: name.trim(),
+    permissions: Array.isArray(permissions) ? permissions : [],
+  });
+  return created(res, role, "Role created successfully");
+}
+
+export async function updateRole(req: Request, res: Response): Promise<Response> {
+  const { id } = req.params;
+  const { name, permissions } = req.body;
+  if (!name || typeof name !== "string") throw ApiError.badRequest("Role name is required");
+  
+  const role = await AdminRole.findById(id);
+  if (!role) throw ApiError.notFound("Role not found");
+  
+  const existing = await AdminRole.findOne({ name: name.trim(), _id: { $ne: id } });
+  if (existing) throw ApiError.badRequest("Another role with this name already exists");
+
+  role.name = name.trim();
+  role.permissions = Array.isArray(permissions) ? permissions : [];
+  await role.save();
+  return ok(res, role, "Role updated successfully");
+}
+
+export async function deleteRole(req: Request, res: Response): Promise<Response> {
+  const { id } = req.params;
+  const role = await AdminRole.findById(id);
+  if (!role) throw ApiError.notFound("Role not found");
+  
+  // Verify if assigned to any staff
+  const staffCount = await User.countDocuments({ adminRoleId: id });
+  if (staffCount > 0) {
+    throw ApiError.badRequest("Cannot delete role as it is assigned to existing staff members");
+  }
+
+  await role.deleteOne();
+  return ok(res, { success: true }, "Role deleted successfully");
+}
+
+// Staff CRUD
+export async function listStaff(_req: Request, res: Response): Promise<Response> {
+  const staff = await User.find({ role: "admin", phone: { $ne: `admin:${env.adminEmail}` } })
+    .populate("adminRoleId")
+    .sort({ createdAt: -1 });
+  return ok(res, staff);
+}
+
+export async function createStaff(req: Request, res: Response): Promise<Response> {
+  const { name, email, password, adminRoleId } = req.body;
+  if (!name || !email || !password || !adminRoleId) {
+    throw ApiError.badRequest("Name, email, password, and role are required");
+  }
+  const emailLower = email.trim().toLowerCase();
+  if (emailLower === env.adminEmail.toLowerCase()) {
+    throw ApiError.badRequest("Cannot create staff user with superadmin email");
+  }
+
+  const existing = await User.findOne({ email: emailLower });
+  if (existing) {
+    throw ApiError.badRequest("A user with this email already exists");
+  }
+
+  const role = await AdminRole.findById(adminRoleId);
+  if (!role) throw ApiError.notFound("Assigned role not found");
+
+  const phone = `admin-staff:${emailLower}`;
+  const hashedPassword = hashPassword(password);
+
+  const staff = await User.create({
+    name: name.trim(),
+    email: emailLower,
+    phone,
+    password: hashedPassword,
+    role: "admin",
+    adminRoleId,
+  });
+
+  return created(res, staff, "Staff account created successfully");
+}
+
+export async function updateStaff(req: Request, res: Response): Promise<Response> {
+  const { id } = req.params;
+  const { name, email, password, adminRoleId } = req.body;
+  if (!name || !email || !adminRoleId) {
+    throw ApiError.badRequest("Name, email, and role are required");
+  }
+  const emailLower = email.trim().toLowerCase();
+  if (emailLower === env.adminEmail.toLowerCase()) {
+    throw ApiError.badRequest("Cannot update staff user to superadmin email");
+  }
+
+  const staff = await User.findById(id);
+  if (!staff || staff.role !== "admin") {
+    throw ApiError.notFound("Staff member not found");
+  }
+
+  if (emailLower !== staff.email) {
+    const existing = await User.findOne({ email: emailLower });
+    if (existing) {
+      throw ApiError.badRequest("A user with this email already exists");
+    }
+    staff.phone = `admin-staff:${emailLower}`;
+  }
+
+  const role = await AdminRole.findById(adminRoleId);
+  if (!role) throw ApiError.notFound("Assigned role not found");
+
+  staff.name = name.trim();
+  staff.email = emailLower;
+  staff.adminRoleId = adminRoleId;
+
+  if (password && password.trim() !== "") {
+    staff.password = hashPassword(password);
+  }
+
+  await staff.save();
+  return ok(res, staff, "Staff account updated successfully");
+}
+
+export async function deleteStaff(req: Request, res: Response): Promise<Response> {
+  const { id } = req.params;
+  const staff = await User.findById(id);
+  if (!staff || staff.role !== "admin") {
+    throw ApiError.notFound("Staff member not found");
+  }
+  await staff.deleteOne();
+  return ok(res, { success: true }, "Staff account deleted successfully");
 }
 
 

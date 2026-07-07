@@ -11,6 +11,7 @@ import type {
   VehicleCategory,
   VehicleBrand,
   VehicleModel,
+  SubscriptionScheduleResponse,
 } from "../types";
 
 export const meKey = ["me"] as const;
@@ -22,6 +23,7 @@ export const referralsKey = ["referrals"] as const;
 export const vehicleCategoriesKey = ["catalog", "vehicle-categories"] as const;
 export const vehicleBrandsKey = ["catalog", "vehicle-brands"] as const;
 export const vehicleModelsKey = (brandId: string) => ["catalog", "vehicle-brands", brandId, "models"] as const;
+export const subscriptionScheduleKey = ["subscription", "schedule"] as const;
 
 /** Current authenticated customer (profile, vehicles, addresses, plan). */
 export function useMe() {
@@ -109,5 +111,14 @@ export function useVehicleModels(brandId: string | null) {
     queryKey: vehicleModelsKey(brandId ?? ""),
     queryFn: () => apiFetch<VehicleModel[]>(`/catalog/vehicle-brands/${brandId}/models`),
     enabled: !!brandId,
+  });
+}
+
+export function useSubscriptionSchedule() {
+  const token = useSessionStore((s) => s.token);
+  return useQuery({
+    queryKey: subscriptionScheduleKey,
+    queryFn: () => apiFetch<SubscriptionScheduleResponse>("/subscriptions/schedule"),
+    enabled: !!token,
   });
 }

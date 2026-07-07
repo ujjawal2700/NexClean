@@ -3,7 +3,7 @@ import { Schema, model, Types } from "mongoose";
 const notificationSchema = new Schema(
   {
     user: { type: Types.ObjectId, ref: "User", required: true, index: true },
-    type: { type: String, enum: ["booking", "area_alert", "system"], default: "system" },
+    type: { type: String, enum: ["booking", "area_alert", "system", "coupon"], default: "system" },
     title: { type: String, required: true },
     body: { type: String, required: true },
     data: { type: Object, default: {} },

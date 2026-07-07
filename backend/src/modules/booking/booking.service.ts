@@ -4,6 +4,8 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { agentLiveSince } from "../user/presence";
 import { getPrice, getPackageRecord } from "../pricing/pricing.service";
 import { applyDiscountCode, incrementDiscountUsage } from "../promotions/discountCode.service";
+import { applySpecialCoupon, markSpecialCouponUsed } from "../promotions/specialCoupon.service";
+import { SPECIAL_COUPON_PREFIX } from "../promotions/specialCoupon.model";
 import { notifyUser } from "../notification/notification.service";
 import type { CreateBookingInput } from "./booking.validation";
 
@@ -15,25 +17,53 @@ export async function listBookings(userId: string) {
  * Server-side authoritative price for a booking, with an optional discount code applied.
  * Shared by booking creation and payment order creation so the amount charged always matches.
  */
-export async function computePrice(input: {
-  vehicleType: CreateBookingInput["vehicleType"];
-  packageId: string;
-  discountCode?: string;
-}) {
+export async function computePrice(
+  userId: string,
+  input: {
+    vehicleType: CreateBookingInput["vehicleType"];
+    packageId: string;
+    discountCode?: string;
+  },
+) {
   const pkg = await getPackageRecord(input.packageId);
   if (!pkg || pkg.active === false) throw ApiError.badRequest("Unknown package");
 
   const basePrice = await getPrice(input.vehicleType, pkg.id);
   if (!input.discountCode) {
-    return { pkg, basePrice, price: basePrice, discountAmount: 0, discountCodeId: null, discountCodeLabel: null };
+    return {
+      pkg,
+      basePrice,
+      price: basePrice,
+      discountAmount: 0,
+      discountCodeId: null,
+      discountCodeLabel: null,
+      isSpecialCoupon: false,
+    };
   }
 
-  const { discountAmount, codeId, code } = await applyDiscountCode(input.discountCode, basePrice);
-  return { pkg, basePrice, price: basePrice - discountAmount, discountAmount, discountCodeId: codeId, discountCodeLabel: code };
+  const raw = input.discountCode.trim().toUpperCase();
+  const isSpecialCoupon = raw.startsWith(SPECIAL_COUPON_PREFIX);
+  const { discountAmount, codeId, code } = isSpecialCoupon
+    ? await (async () => {
+        const r = await applySpecialCoupon(raw, basePrice, userId);
+        return { discountAmount: r.discountAmount, codeId: r.couponId, code: r.code };
+      })()
+    : await applyDiscountCode(raw, basePrice);
+
+  return {
+    pkg,
+    basePrice,
+    price: basePrice - discountAmount,
+    discountAmount,
+    discountCodeId: codeId,
+    discountCodeLabel: code,
+    isSpecialCoupon,
+  };
 }
 
 export async function createBooking(userId: string, input: CreateBookingInput) {
-  const { pkg, price, discountAmount, discountCodeId, discountCodeLabel } = await computePrice(input);
+  const { pkg, price, discountAmount, discountCodeId, discountCodeLabel, isSpecialCoupon } =
+    await computePrice(userId, input);
 
   // Derive the society from the customer's matching address (for area routing).
   const customer = await User.findById(userId);
@@ -66,7 +96,14 @@ export async function createBooking(userId: string, input: CreateBookingInput) {
   });
 
   // Only mark the code as used once a booking is actually created from it.
-  if (discountCodeId) void incrementDiscountUsage(discountCodeId);
+  if (discountCodeId) {
+    if (isSpecialCoupon) {
+      void markSpecialCouponUsed(discountCodeId, { bookingId: booking.id, userId, discountAmount })
+        .catch((err) => console.error("special coupon mark-used failed:", (err as Error).message));
+    } else {
+      void incrementDiscountUsage(discountCodeId);
+    }
+  }
 
   // Fire-and-forget confirmation push; never block booking creation on it.
   const when = new Date(input.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
@@ -85,6 +122,12 @@ export async function cancelBooking(userId: string, bookingId: string) {
   if (!booking) throw ApiError.notFound("Booking not found");
   if (booking.status !== "upcoming") {
     throw ApiError.badRequest("Only upcoming bookings can be cancelled");
+  }
+  if (booking.isSubscriptionWash) {
+    const diffMs = new Date(booking.date).getTime() - Date.now();
+    if (diffMs < 12 * 60 * 60 * 1000) {
+      throw ApiError.badRequest("Subscription washes can only be cancelled at least 12 hours in advance");
+    }
   }
   booking.status = "cancelled";
   await booking.save();
