@@ -1,12 +1,13 @@
 import { Booking } from "./booking.model";
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
-import { agentLiveSince } from "../user/presence";
 import { getPrice, getPackageRecord } from "../pricing/pricing.service";
 import { applyDiscountCode, incrementDiscountUsage } from "../promotions/discountCode.service";
 import { applySpecialCoupon, markSpecialCouponUsed } from "../promotions/specialCoupon.service";
 import { SPECIAL_COUPON_PREFIX } from "../promotions/specialCoupon.model";
 import { notifyUser } from "../notification/notification.service";
+import { startDispatch } from "../dispatch/dispatch.service";
+import { toPoint } from "../../shared/geo";
 import type { CreateBookingInput } from "./booking.validation";
 
 export async function listBookings(userId: string) {
@@ -65,16 +66,20 @@ export async function createBooking(userId: string, input: CreateBookingInput) {
   const { pkg, price, discountAmount, discountCodeId, discountCodeLabel, isSpecialCoupon } =
     await computePrice(userId, input);
 
-  // Derive the society from the customer's matching address (for area routing).
+  // Derive the society + service coordinates from the customer's matching address.
   const customer = await User.findById(userId);
-  const society =
-    customer?.addresses.find((a) => a.line === input.addressLine)?.society ?? input.addressLine;
+  const matchedAddress = customer?.addresses.find((a) => a.line === input.addressLine);
+  const society = matchedAddress?.society ?? input.addressLine;
 
-  // Auto-assign an available agent in that area (fallback: any verified, live agent).
-  const liveFilter = { role: "agent", agentStatus: "verified", online: true, lastSeenAt: { $gte: agentLiveSince() } };
-  const agent =
-    (await User.findOne({ ...liveFilter, area: society })) ?? (await User.findOne(liveFilter));
+  // Prefer coordinates the client sent; fall back to the saved address's geo.
+  const addrCoords = matchedAddress?.coordinates;
+  const location =
+    toPoint(input.lat, input.lng) ??
+    (addrCoords && addrCoords.length === 2
+      ? { type: "Point" as const, coordinates: [addrCoords[0], addrCoords[1]] as [number, number] }
+      : undefined);
 
+  // No instant assignment — the booking enters the real-time dispatch pipeline.
   const booking = await Booking.create({
     user: userId,
     vehicleType: input.vehicleType,
@@ -86,14 +91,21 @@ export async function createBooking(userId: string, input: CreateBookingInput) {
     addressLabel: input.addressLabel,
     addressLine: input.addressLine,
     society,
+    location,
     price,
     discountCode: discountCodeLabel,
     discountAmount,
     status: "upcoming",
-    assignedAgent: agent?.id ?? null,
-    agentName: agent?.name ?? null,
+    assignedAgent: null,
+    agentName: null,
     jobStatus: "assigned",
+    dispatchStatus: "searching",
   });
+
+  // Fire-and-forget: broadcast the job to nearby cleaners (nearest-first offers).
+  void startDispatch(booking.id).catch((err) =>
+    console.error("dispatch start failed:", (err as Error).message),
+  );
 
   // Only mark the code as used once a booking is actually created from it.
   if (discountCodeId) {

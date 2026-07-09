@@ -48,12 +48,31 @@ export type Job = {
   addressLabel: string;
   addressLine: string;
   society: string;
-  distanceKm: number;
+  distanceKm: number | null;
   price: number;
   payout: number;
   status: JobStatus;
   hasBefore: boolean;
   hasAfter: boolean;
+};
+
+/** A live dispatch offer pushed to the agent (Uber-style incoming request). */
+export type JobOffer = {
+  bookingId: string;
+  customerName: string;
+  vehicleType: CarType;
+  vehicleName: string;
+  packageName: string;
+  addressLabel: string;
+  addressLine: string;
+  society: string;
+  date: string; // ISO
+  slot: string;
+  price: number;
+  payout: number;
+  distanceKm: number | null;
+  isSubscriptionWash: boolean;
+  expiresAt: string; // ISO
 };
 
 export type AreaAlert = {

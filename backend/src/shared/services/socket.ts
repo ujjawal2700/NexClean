@@ -3,6 +3,8 @@ import { verifyToken } from "../utils/jwt";
 import { SupportTicket } from "../../modules/chat/ticket.model";
 import { notifyUser } from "../../modules/notification/notification.service";
 import { SupportConfig } from "../../modules/chat/supportConfig.model";
+import { updateAgentLocation } from "../../modules/agent/agent.service";
+import { env, isProd } from "../../config/env";
 
 let io: Server | null = null;
 const adminConnections = new Map<string, Set<string>>(); // userId -> Set of socketIds
@@ -17,8 +19,21 @@ interface AuthenticatedSocket extends Socket {
 export function initSocket(server: any) {
   io = new Server(server, {
     cors: {
-      origin: "*",
+      origin(origin, callback) {
+        const normalized = origin ? origin.replace(/\/+$/, "") : "";
+        if (
+          !origin ||
+          env.clientOrigins.includes("*") ||
+          env.clientOrigins.includes(normalized) ||
+          (!isProd && (normalized.startsWith("http://localhost:") || normalized.startsWith("http://127.0.0.1:")))
+        ) {
+          callback(null, true);
+        } else {
+          callback(null, false);
+        }
+      },
       methods: ["GET", "POST"],
+      credentials: true,
     },
   });
 
@@ -75,6 +90,19 @@ export function initSocket(server: any) {
       if (!ticketId || typeof ticketId !== "string") return;
       socket.leave(`ticket:${ticketId}`);
       console.log(`🎟️ Socket ${socket.id} left ticket:${ticketId}`);
+    });
+
+    // Agent streams its live GPS position while online (for nearest-agent dispatch).
+    socket.on("agent_location", async (data: { lat?: number; lng?: number }) => {
+      if (role !== "agent") return;
+      const lat = Number(data?.lat);
+      const lng = Number(data?.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      try {
+        await updateAgentLocation(userId, lat, lng);
+      } catch (err) {
+        console.error("agent_location update failed:", (err as Error).message);
+      }
     });
 
     socket.on("disconnect", async () => {
@@ -165,4 +193,14 @@ export function broadcastTicketStatus(ticketId: string, status: "open" | "closed
 
   // Refresh admin queue
   io.to("support:admins").emit("ticket_update", { ticketId, status });
+}
+
+/** Emit an event to a single user's personal room (all their connected devices). */
+export function emitToUser(userId: string, event: string, payload: unknown) {
+  io?.to(`user:${userId}`).emit(event, payload);
+}
+
+/** Emit an event to every connected admin (dispatch queue live updates). */
+export function emitToAdmins(event: string, payload: unknown) {
+  io?.to("support:admins").emit(event, payload);
 }

@@ -14,3 +14,8 @@ agentRouter.post("/jobs/:id/photo", asyncHandler(controller.photo));
 agentRouter.patch("/online", asyncHandler(controller.online));
 agentRouter.patch("/heartbeat", asyncHandler(controller.heartbeat));
 agentRouter.post("/notify-area", asyncHandler(controller.notifyArea));
+
+// Real-time dispatch offers
+agentRouter.get("/offers/current", asyncHandler(controller.currentOffer));
+agentRouter.post("/offers/:id/accept", asyncHandler(controller.acceptOffer));
+agentRouter.post("/offers/:id/decline", asyncHandler(controller.declineOffer));

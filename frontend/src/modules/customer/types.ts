@@ -53,9 +53,20 @@ export type Address = {
   label: string;
   line: string;
   society: string;
+  /** GeoJSON [lng, lat], present when captured from Google Places. */
+  coordinates?: [number, number];
+  placeId?: string;
 };
 
 export type BookingStatus = "upcoming" | "completed" | "cancelled";
+
+export type DispatchStatus =
+  | "scheduled"
+  | "searching"
+  | "offered"
+  | "assigned"
+  | "pending_admin"
+  | "cancelled";
 
 export type Booking = {
   id: string;
@@ -70,6 +81,8 @@ export type Booking = {
   discountCode?: string | null;
   discountAmount?: number;
   status: BookingStatus;
+  dispatchStatus?: DispatchStatus;
+  agentName?: string | null;
   isSubscriptionWash?: boolean;
   createdAt: string;
 };

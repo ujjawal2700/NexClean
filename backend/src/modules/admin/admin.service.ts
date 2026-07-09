@@ -5,7 +5,8 @@ import { Campaign } from "./campaign.model";
 import { TriggeredAlert } from "../area-alert/areaAlert.model";
 import { notifyUser } from "../notification/notification.service";
 import { ApiError } from "../../shared/utils/ApiError";
-import { agentLiveSince, isAgentLive } from "../user/presence";
+import { isAgentLive } from "../user/presence";
+import * as dispatch from "../dispatch/dispatch.service";
 import * as planService from "../catalog/plan.service";
 import type { PlanDoc } from "../catalog/plan.model";
 import type { PlanPrices } from "../catalog/catalog.data";
@@ -34,6 +35,7 @@ function mapBooking(b: BookingDoc) {
     society: b.society,
     price: b.price,
     status: displayStatus(b),
+    dispatchStatus: b.dispatchStatus,
     agentName: b.agentName,
     assignedAgentId: b.assignedAgent ? String(b.assignedAgent) : null,
   };
@@ -92,50 +94,25 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
   return mapBooking(booking);
 }
 
+/** Admin manually assigns (or reassigns) a specific cleaner to a booking. */
 export async function assignAgent(bookingId: string, agentId: string) {
-  const booking = await Booking.findById(bookingId).populate("user", "name");
-  if (!booking) throw ApiError.notFound("Booking not found");
-
-  const agent = await User.findOne({ _id: agentId, role: "agent" });
-  if (!agent) throw ApiError.notFound("Agent not found");
-  if (agent.agentStatus !== "verified") throw ApiError.badRequest("Agent is not verified");
-
-  booking.assignedAgent = agent.id;
-  booking.agentName = agent.name;
-  if (booking.jobStatus === "completed") booking.jobStatus = "assigned";
-  await booking.save();
-  return mapBooking(booking);
+  const booking = await dispatch.assignAgentToBooking(bookingId, agentId);
+  return mapBooking(booking as BookingDoc);
 }
 
+/** Admin one-tap: assign the nearest available cleaner via the dispatch engine. */
 export async function autoAssignBooking(bookingId: string) {
-  const booking = await Booking.findById(bookingId).populate("user", "name");
-  if (!booking) throw ApiError.notFound("Booking not found");
+  const booking = await dispatch.autoAssignNearest(bookingId);
+  return mapBooking(booking as BookingDoc);
+}
 
-  const candidates = await User.find({
-    role: "agent",
-    agentStatus: "verified",
-    online: true,
-    lastSeenAt: { $gte: agentLiveSince() },
-  });
-  if (candidates.length === 0) throw ApiError.badRequest("No available agents to auto-assign");
+/** Live dispatch queue + assignable-cleaner picker for the admin console. */
+export async function dispatchQueue() {
+  return dispatch.listAdminQueue();
+}
 
-  const inSameArea = candidates.filter((a) => a.area && booking.society && a.area === booking.society);
-  const pool = inSameArea.length > 0 ? inSameArea : candidates;
-
-  const loads = await Promise.all(
-    pool.map(async (a) => ({
-      agent: a,
-      load: await Booking.countDocuments({ assignedAgent: a._id, status: "upcoming" }),
-    })),
-  );
-  loads.sort((x, y) => x.load - y.load);
-  const chosen = loads[0]!.agent;
-
-  booking.assignedAgent = chosen.id;
-  booking.agentName = chosen.name;
-  if (booking.jobStatus === "completed") booking.jobStatus = "assigned";
-  await booking.save();
-  return mapBooking(booking);
+export async function assignableAgents(bookingId: string) {
+  return dispatch.listAssignableAgents(bookingId);
 }
 
 function mapAgent(a: UserDoc) {

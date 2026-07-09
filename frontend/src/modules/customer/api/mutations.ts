@@ -93,8 +93,9 @@ export function useRemoveVehicle() {
 }
 
 export function useAddAddress() {
-  return useUserMutation((a: { label: string; line: string; society?: string }) =>
-    apiFetch<User>("/users/me/addresses", { method: "POST", body: a }),
+  return useUserMutation(
+    (a: { label: string; line: string; society?: string; lat?: number; lng?: number; placeId?: string }) =>
+      apiFetch<User>("/users/me/addresses", { method: "POST", body: a }),
   );
 }
 
@@ -125,6 +126,9 @@ export type CreateBookingInput = {
   addressLabel: string;
   addressLine: string;
   discountCode?: string;
+  /** Service-location geo from the selected address (enables nearest-agent dispatch). */
+  lat?: number;
+  lng?: number;
 };
 
 export function useCreateBooking() {

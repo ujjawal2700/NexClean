@@ -3,6 +3,7 @@ import { connectDb } from "./config/db";
 import { seedDemoData } from "./config/seed";
 import { env } from "./config/env";
 import { initSocket } from "./shared/services/socket";
+import { startDispatchWorker, resumeDispatch, stopDispatchWorker } from "./modules/dispatch/dispatch.service";
 
 const app = createApp();
 
@@ -18,6 +19,13 @@ initSocket(server);
 // endpoint stays available even if the database is temporarily unreachable.
 connectDb()
   .then(() => seedDemoData())
+  .then(async () => {
+    // Recover any in-flight dispatch state, then start the offer/scheduler loop.
+    await resumeDispatch().catch((err) =>
+      console.error("dispatch resume failed:", (err as Error).message),
+    );
+    startDispatchWorker();
+  })
   .catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`✗ MongoDB connection/seed failed: ${message}`);
@@ -26,6 +34,7 @@ connectDb()
 
 const shutdown = (signal: string) => {
   console.log(`\n${signal} received — shutting down.`);
+  stopDispatchWorker();
   server.close(() => process.exit(0));
 };
 process.on("SIGINT", () => shutdown("SIGINT"));

@@ -159,7 +159,7 @@ export function JobDetail() {
               <Clock className="size-4 text-primary" /> {job.slot}
             </span>
             <span className="flex items-center gap-1.5">
-              <Navigation className="size-4 text-primary" /> {job.distanceKm} km away
+              <Navigation className="size-4 text-primary" /> {job.distanceKm != null ? `${job.distanceKm} km away` : "Nearby"}
             </span>
           </div>
         </div>

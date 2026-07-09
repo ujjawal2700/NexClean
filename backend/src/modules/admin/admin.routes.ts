@@ -16,6 +16,8 @@ adminRouter.patch("/bookings/:id/cancel", requirePermission("bookings"), asyncHa
 adminRouter.patch("/bookings/:id/status", requirePermission("bookings"), asyncHandler(c.setBookingStatus));
 adminRouter.patch("/bookings/:id/assign", requirePermission("bookings"), asyncHandler(c.assignBooking));
 adminRouter.post("/bookings/:id/auto-assign", requirePermission("bookings"), asyncHandler(c.autoAssignBooking));
+adminRouter.get("/bookings/:id/assignable-agents", requirePermission("bookings"), asyncHandler(c.assignableAgents));
+adminRouter.get("/dispatch/queue", requirePermission("bookings"), asyncHandler(c.dispatchQueue));
 
 adminRouter.get("/agents", requirePermission("agents"), asyncHandler(c.agents));
 adminRouter.get("/agents/:id", requirePermission("agents"), asyncHandler(c.agentDetail));

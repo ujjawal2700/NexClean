@@ -37,6 +37,8 @@ import type {
   AdminReferralLog,
   AdminRole,
   AdminStaff,
+  DispatchQueueItem,
+  AssignableAgent,
 } from "../types";
 
 
@@ -72,6 +74,8 @@ const keys = {
   referralLogs: ["admin", "referral-logs"] as const,
   roles: ["admin", "roles"] as const,
   staff: ["admin", "staff"] as const,
+  dispatch: ["admin", "dispatch"] as const,
+  assignable: (id: string) => ["admin", "bookings", id, "assignable"] as const,
 };
 
 
@@ -219,7 +223,10 @@ export function useAssignBooking() {
   return useMutation({
     mutationFn: (vars: { id: string; agentId: string }) =>
       apiFetch<AdminBooking>(`/admin/bookings/${vars.id}/assign`, { method: "PATCH", body: { agentId: vars.agentId } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.bookings }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.bookings });
+      qc.invalidateQueries({ queryKey: keys.dispatch });
+    },
   });
 }
 
@@ -227,7 +234,26 @@ export function useAutoAssignBooking() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiFetch<AdminBooking>(`/admin/bookings/${id}/auto-assign`, { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.bookings }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.bookings });
+      qc.invalidateQueries({ queryKey: keys.dispatch });
+    },
+  });
+}
+
+/* ------------------------------ Dispatch --------------------------------- */
+
+/** Live dispatch queue (searching / offered / pending / scheduled). */
+export const useDispatchQueue = () =>
+  useAuthedQuery<DispatchQueueItem[]>(keys.dispatch, "/admin/dispatch/queue", { refetchInterval: 15_000 });
+
+/** Cleaners assignable to a booking, ranked by distance. Fetched lazily when a picker opens. */
+export function useAssignableAgents(bookingId: string | null) {
+  const token = useAdminSession((s) => s.token);
+  return useQuery({
+    queryKey: bookingId ? keys.assignable(bookingId) : ["admin", "assignable", "none"],
+    queryFn: () => apiFetch<AssignableAgent[]>(`/admin/bookings/${bookingId}/assignable-agents`),
+    enabled: !!token && !!bookingId,
   });
 }
 

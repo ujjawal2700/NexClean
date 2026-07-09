@@ -90,7 +90,7 @@ export function Jobs() {
                       <MapPin className="size-4 text-primary" /> {j.addressLabel}
                     </span>
                     <span className="hidden items-center gap-1.5 sm:flex">
-                      <Navigation className="size-4 text-primary" /> {j.distanceKm} km
+                      <Navigation className="size-4 text-primary" /> {j.distanceKm != null ? `${j.distanceKm} km` : "Nearby"}
                     </span>
                   </div>
                 </div>

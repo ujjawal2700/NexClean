@@ -25,6 +25,7 @@ import {
   Sparkles,
   ShieldCheck,
   MessageSquare,
+  Radio,
 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,6 +38,7 @@ import { useAgents, useLeads } from "../api/admin.api";
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true, permission: "dashboard" },
   { to: "/admin/bookings", label: "Bookings", icon: CalendarRange, end: false, permission: "bookings" },
+  { to: "/admin/dispatch", label: "Dispatch", icon: Radio, end: false, permission: "bookings" },
   { to: "/admin/customers", label: "Customers", icon: Contact2, end: false, permission: "customers" },
   { to: "/admin/agents", label: "Agents", icon: Users, end: false, permission: "agents" },
   { to: "/admin/agent-verification", label: "Agent Verification", icon: BadgeCheck, end: false, permission: "agents" },

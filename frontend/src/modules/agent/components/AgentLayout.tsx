@@ -1,11 +1,26 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, ListChecks, Wallet, User } from "lucide-react";
+import { LayoutDashboard, ListChecks, Wallet, User, MapPinOff } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
-import { useAgentMe, useToggleOnline, useHeartbeat } from "../api/agent.api";
+import { getPushToken } from "@shared/lib/push";
+import { useAgentMe, useToggleOnline, useHeartbeat, useRegisterToken } from "../api/agent.api";
+import { useAgentDispatch } from "../hooks/useAgentDispatch";
+import { OfferOverlay } from "./OfferOverlay";
 
 const HEARTBEAT_INTERVAL_MS = 25_000;
+
+/** Registers this device for push once per session so offers ping when backgrounded. */
+function useRegisterPushToken() {
+  const registerToken = useRegisterToken();
+  const registered = useRef(false);
+  useEffect(() => {
+    if (registered.current) return;
+    registered.current = true;
+    getPushToken().then((t) => registerToken.mutate(t)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
 
 /** Keeps the agent's "live" status fresh on the server for as long as this layout is mounted. */
 function useAgentHeartbeat() {
@@ -59,12 +74,19 @@ export function OnlineToggle() {
 export function AgentLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { data: me } = useAgentMe();
   useAgentHeartbeat();
+  useRegisterPushToken();
+  const dispatch = useAgentDispatch();
 
   const isHomepage = location.pathname === "/agent" || location.pathname === "/agent/";
+  const showLocationNudge = (me?.online ?? false) && !dispatch.locating;
 
   return (
     <div className="min-h-dvh bg-bg">
+      {/* Incoming-offer popup — rendered above everything, on every page. */}
+      <OfferOverlay dispatch={dispatch} />
+
       {isHomepage && (
         <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl">
           <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
@@ -101,7 +123,15 @@ export function AgentLayout({ children }: { children: ReactNode }) {
         </header>
       )}
 
-      <main className="mx-auto max-w-5xl px-5 pb-28 pt-8 md:pb-16">{children}</main>
+      <main className="mx-auto max-w-5xl px-5 pb-28 pt-8 md:pb-16">
+        {showLocationNudge && (
+          <div className="mb-5 flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
+            <MapPinOff className="size-4 shrink-0" />
+            <span>Turn on location access to receive nearby job requests while you're online.</span>
+          </div>
+        )}
+        {children}
+      </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/90 backdrop-blur-xl md:hidden">
         <div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">

@@ -25,8 +25,45 @@ export type AdminBooking = {
   society: string;
   price: number;
   status: BookingStatus;
+  dispatchStatus?: DispatchStatus;
   agentName: string | null;
   assignedAgentId: string | null;
+};
+
+export type DispatchStatus =
+  | "scheduled"
+  | "searching"
+  | "offered"
+  | "assigned"
+  | "pending_admin"
+  | "cancelled";
+
+/** A booking currently moving through (or stuck in) the real-time dispatch pipeline. */
+export type DispatchQueueItem = {
+  id: string;
+  customerName: string;
+  vehicleName: string;
+  packageName: string;
+  date: string;
+  slot: string;
+  society: string;
+  addressLine: string;
+  price: number;
+  dispatchStatus: DispatchStatus;
+  isSubscriptionWash: boolean;
+  hasLocation: boolean;
+  dispatchAttempts: number;
+  offerExpiresAt: string | null;
+  currentOfferAgentName: string | null;
+};
+
+/** A cleaner the admin can assign to a booking, ranked by distance when known. */
+export type AssignableAgent = {
+  id: string;
+  name: string;
+  area: string;
+  distanceKm: number | null;
+  online: boolean;
 };
 
 export type AgentStatus = "verified" | "pending" | "suspended";

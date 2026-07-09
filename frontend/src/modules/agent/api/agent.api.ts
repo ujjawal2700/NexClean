@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
-import type { Job, AgentProfile, AgentSummary, AreaAlert } from "../types";
+import type { Job, JobOffer, AgentProfile, AgentSummary, AreaAlert } from "../types";
 
 export const meKey = ["agent", "me"] as const;
 export const jobsKey = ["agent", "jobs"] as const;
@@ -108,4 +108,29 @@ export function useNotifyArea() {
     mutationFn: (society: string) =>
       apiFetch<AreaAlert>("/agent/notify-area", { method: "POST", body: { society } }),
   });
+}
+
+/** Register this device's push token so the agent gets offer pings when backgrounded. */
+export function useRegisterToken() {
+  return useMutation({
+    mutationFn: (token: string) =>
+      apiFetch<{ registered: boolean }>("/notifications/register-token", { method: "POST", body: { token } }),
+  });
+}
+
+/* -------------------------- Dispatch offers ------------------------------ */
+
+/** The agent's current live offer (used to restore the popup after a reconnect). */
+export function fetchCurrentOffer() {
+  return apiFetch<JobOffer | null>("/agent/offers/current");
+}
+
+/** Accept an offer — first cleaner wins; a "no longer available" error means it was taken. */
+export function acceptOffer(bookingId: string) {
+  return apiFetch<Job>(`/agent/offers/${bookingId}/accept`, { method: "POST" });
+}
+
+/** Decline an offer — dispatch moves on to the next-nearest cleaner. */
+export function declineOffer(bookingId: string) {
+  return apiFetch<{ ok: boolean }>(`/agent/offers/${bookingId}/decline`, { method: "POST" });
 }

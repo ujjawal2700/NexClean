@@ -1,5 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 
+export type PlaceCoords = { lat: number; lng: number };
+
 type AutocompleteOptions = {
   /** Input element ref to attach Autocomplete to */
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -7,8 +9,8 @@ type AutocompleteOptions = {
   types?: string[];
   /** Restrict results to a specific country code, e.g. 'in' for India */
   componentRestrictions?: { country: string };
-  /** Called with the place name when the user picks a suggestion */
-  onSelect: (placeName: string, placeId: string) => void;
+  /** Called with the place name, id, and (when available) geo coordinates */
+  onSelect: (placeName: string, placeId: string, coords?: PlaceCoords) => void;
   /** Optional city name to restrict suggestions to this specific city's boundaries */
   cityName?: string;
 };
@@ -43,7 +45,9 @@ export function usePlacesAutocomplete({
       const place = ac.getPlace();
       const name = place.name ?? input.value;
       const placeId = place.place_id ?? "";
-      onSelectRef.current(name, placeId);
+      const loc = place.geometry?.location;
+      const coords = loc ? { lat: loc.lat(), lng: loc.lng() } : undefined;
+      onSelectRef.current(name, placeId, coords);
     });
 
     autocompleteRef.current = ac;

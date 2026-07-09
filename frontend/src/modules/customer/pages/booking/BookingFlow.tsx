@@ -120,6 +120,9 @@ export function BookingFlow() {
       addressLabel: address.label,
       addressLine: address.line,
       discountCode: appliedDiscount ? discountInput.trim() : undefined,
+      // GeoJSON stores [lng, lat]; the API expects lat/lng.
+      lat: address.coordinates?.[1],
+      lng: address.coordinates?.[0],
     };
 
     try {
@@ -679,7 +682,8 @@ function Confirmation({ booking }: { booking: Booking }) {
       </motion.div>
       <h1 className="mt-6 font-display text-3xl font-semibold text-ink">Booking confirmed!</h1>
       <p className="mt-2 text-muted">
-        Your specialist is booked. Booking ID <span className="font-medium text-ink">{booking.id}</span>.
+        We're finding you the nearest available cleaner — you'll be notified the moment one accepts.
+        Booking ID <span className="font-medium text-ink">{booking.id}</span>.
       </p>
 
       <GlassCard className="mt-8 text-left">

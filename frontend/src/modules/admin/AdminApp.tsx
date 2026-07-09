@@ -6,6 +6,7 @@ import { PermissionGuard } from "./components/PermissionGuard";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
+import { Dispatch } from "./pages/Dispatch";
 import { Agents } from "./pages/Agents";
 import { AgentVerification } from "./pages/AgentVerification";
 import { AgentDetail } from "./pages/AgentDetail";
@@ -48,6 +49,7 @@ export function AdminApp() {
           }>
           <Route index element={<PermissionGuard permission="dashboard"><Dashboard /></PermissionGuard>} />
           <Route path="bookings" element={<PermissionGuard permission="bookings"><Bookings /></PermissionGuard>} />
+          <Route path="dispatch" element={<PermissionGuard permission="bookings"><Dispatch /></PermissionGuard>} />
           <Route path="agents" element={<PermissionGuard permission="agents"><Agents /></PermissionGuard>} />
           <Route path="agent-verification" element={<PermissionGuard permission="agents"><AgentVerification /></PermissionGuard>} />
           <Route path="agents/:id" element={<PermissionGuard permission="agents"><AgentDetail /></PermissionGuard>} />

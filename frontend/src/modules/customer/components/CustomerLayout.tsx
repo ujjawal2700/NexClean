@@ -1,11 +1,15 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
 import { LayoutDashboard, CalendarPlus, ClipboardList, CreditCard, User, Bell } from "lucide-react";
+import { io, type Socket } from "socket.io-client";
+import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@shared/lib/utils";
+import { API_URL } from "@shared/lib/api";
 import { Logo } from "@shared/components/brand/Logo";
-import { getOrCreateDeviceToken } from "@shared/lib/push";
-import { useMe, useNotifications } from "../api/queries";
+import { getPushToken } from "@shared/lib/push";
+import { useMe, useNotifications, bookingsKey, notificationsKey } from "../api/queries";
 import { useRegisterToken } from "../api/mutations";
+import { useSessionStore } from "../store/sessionStore";
 
 const NAV = [
   { to: "/app", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -22,6 +26,8 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   const { data: notifications = [] } = useNotifications();
   const registerToken = useRegisterToken();
   const registered = useRef(false);
+  const qc = useQueryClient();
+  const token = useSessionStore((s) => s.token);
 
   const unread = notifications.filter((n) => !n.read).length;
 
@@ -30,9 +36,22 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (registered.current) return;
     registered.current = true;
-    registerToken.mutate(getOrCreateDeviceToken());
+    getPushToken().then((t) => registerToken.mutate(t)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Live: refresh bookings/notifications the moment a cleaner is assigned.
+  useEffect(() => {
+    if (!token) return;
+    const socket: Socket = io(API_URL.replace(/\/api\/?$/, ""), { auth: { token } });
+    socket.on("booking_assigned", () => {
+      qc.invalidateQueries({ queryKey: bookingsKey });
+      qc.invalidateQueries({ queryKey: notificationsKey });
+    });
+    return () => {
+      socket.disconnect();
+    };
+  }, [token, qc]);
 
   const isHomepage = location.pathname === "/app" || location.pathname === "/app/";
 

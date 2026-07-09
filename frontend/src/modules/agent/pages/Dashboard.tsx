@@ -91,7 +91,7 @@ export function Dashboard() {
               <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-soft">
                 <span className="flex items-center gap-1.5"><Clock className="size-4 text-primary" /> {active.slot}</span>
                 <span className="flex items-center gap-1.5"><MapPin className="size-4 text-primary" /> {active.addressLine}</span>
-                <span className="flex items-center gap-1.5"><Navigation className="size-4 text-primary" /> {active.distanceKm} km away</span>
+                <span className="flex items-center gap-1.5"><Navigation className="size-4 text-primary" /> {active.distanceKm != null ? `${active.distanceKm} km away` : "Nearby"}</span>
               </div>
             </div>
             <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">

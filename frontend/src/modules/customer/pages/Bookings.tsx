@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CalendarDays, MapPin, Clock, Plus, ArrowLeft } from "lucide-react";
+import { CalendarDays, MapPin, Clock, Plus, ArrowLeft, UserCheck, Loader2 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -8,8 +8,41 @@ import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { SkeletonListCards } from "@shared/ui/Skeleton";
 import { useBookings } from "../api/queries";
 import { useCancelBooking } from "../api/mutations";
-import type { BookingStatus } from "../types";
+import type { Booking, BookingStatus } from "../types";
 import { formatDate, formatMoney } from "@shared/lib/format";
+
+/** A small live indicator of where the booking is in the dispatch pipeline. */
+function CleanerStatus({ booking }: { booking: Booking }) {
+  if (booking.status !== "upcoming") return null;
+  if (booking.agentName) {
+    return (
+      <p className="mt-2 flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+        <UserCheck className="size-4" /> {booking.agentName} assigned
+      </p>
+    );
+  }
+  const d = booking.dispatchStatus;
+  if (d === "scheduled") {
+    return (
+      <p className="mt-2 flex items-center gap-1.5 text-sm text-violet-600">
+        <Clock className="size-4" /> A cleaner will be auto-assigned before your slot
+      </p>
+    );
+  }
+  if (d === "pending_admin") {
+    return (
+      <p className="mt-2 flex items-center gap-1.5 text-sm text-amber-600">
+        <Clock className="size-4" /> Assigning a cleaner shortly
+      </p>
+    );
+  }
+  // searching / offered (or unknown-but-upcoming) → actively finding someone.
+  return (
+    <p className="mt-2 flex items-center gap-1.5 text-sm text-primary">
+      <Loader2 className="size-4 animate-spin" /> Finding your nearest cleaner…
+    </p>
+  );
+}
 
 const FILTERS: { id: BookingStatus | "all"; label: string }[] = [
   { id: "all", label: "All" },
@@ -108,6 +141,7 @@ export function Bookings() {
                     <MapPin className="size-4 text-primary" /> {b.addressLabel}
                   </span>
                 </div>
+                <CleanerStatus booking={b} />
               </div>
 
               <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">

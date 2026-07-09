@@ -1,7 +1,6 @@
 import { User } from "../user/user.model";
 import { Booking } from "../booking/booking.model";
 import { Plan } from "../catalog/plan.model";
-import { agentLiveSince } from "../user/presence";
 import { ApiError } from "../../shared/utils/ApiError";
 import { isValidActivePlan } from "../catalog/plan.service";
 
@@ -95,14 +94,16 @@ export async function scheduleSubscriptionWash(
     throw ApiError.badRequest(`Wash limit reached for the current cycle (${plan.washesPerMonth} washes max)`);
   }
 
-  // Derive the society from address
+  // Derive the society + service coordinates from the chosen address.
   const society = address.society || address.line;
+  const addrCoords = address.coordinates;
+  const location =
+    addrCoords && addrCoords.length === 2
+      ? { type: "Point" as const, coordinates: [addrCoords[0], addrCoords[1]] as [number, number] }
+      : undefined;
 
-  // Auto-assign agent
-  const liveFilter = { role: "agent", agentStatus: "verified", online: true, lastSeenAt: { $gte: agentLiveSince() } };
-  const agent =
-    (await User.findOne({ ...liveFilter, area: society })) ?? (await User.findOne(liveFilter));
-
+  // No instant assignment — the scheduler auto-assigns the nearest cleaner
+  // shortly before the chosen slot (dispatchStatus "scheduled").
   const booking = await Booking.create({
     user: userId,
     vehicleType: vehicle.type,
@@ -114,12 +115,14 @@ export async function scheduleSubscriptionWash(
     addressLabel: address.label,
     addressLine: address.line,
     society,
+    location,
     price: 0,
     isSubscriptionWash: true,
     status: "upcoming",
-    assignedAgent: agent?.id ?? null,
-    agentName: agent?.name ?? null,
+    assignedAgent: null,
+    agentName: null,
     jobStatus: "assigned",
+    dispatchStatus: "scheduled",
   });
 
   return booking;

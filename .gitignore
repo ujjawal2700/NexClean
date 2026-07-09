@@ -48,3 +48,13 @@ QODER.md
 .qoder/
 .vscode/mcp.json
 .github/code-review-graph.instruction.md
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Coverage
+coverage/
+.nyc_output/

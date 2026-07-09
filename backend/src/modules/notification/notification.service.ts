@@ -20,6 +20,16 @@ export async function notifyUser(userId: string, input: NotifyInput): Promise<vo
   await sendPush(user.deviceTokens, input);
 }
 
+/**
+ * Push to a user's devices WITHOUT persisting an in-app notification.
+ * Used for ephemeral events (e.g. dispatch offers) that shouldn't clutter the feed.
+ */
+export async function pushToUser(userId: string, input: PushPayload): Promise<void> {
+  const user = await User.findById(userId).select("deviceTokens");
+  if (!user) return;
+  await sendPush(user.deviceTokens, input);
+}
+
 export async function registerToken(userId: string, token: string) {
   await User.updateOne({ _id: userId }, { $addToSet: { deviceTokens: token } });
 }

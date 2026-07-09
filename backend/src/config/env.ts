@@ -32,6 +32,15 @@ export const env = {
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? "",
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY ?? "",
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET ?? "",
+  // SMSIndiaHub Integration Settings
+  smsIndiaHubUser: process.env.SMS_INDIA_HUB_USER ?? "",
+  smsIndiaHubPassword: process.env.SMS_INDIA_HUB_PASSWORD ?? "",
+  smsIndiaHubApiKey: process.env.SMS_INDIA_HUB_API_KEY ?? "",
+  smsIndiaHubSenderId: process.env.SMS_INDIA_HUB_SENDER_ID ?? "",
+  smsIndiaHubEntityId: process.env.SMS_INDIA_HUB_ENTITY_ID ?? "",
+  smsIndiaHubTemplateId: process.env.SMS_INDIA_HUB_TEMPLATE_ID ?? "",
+  smsIndiaHubGwid: process.env.SMS_INDIA_HUB_GWID ?? "2",
+  smsIndiaHubTemplate: process.env.SMS_INDIA_HUB_TEMPLATE ?? "Welcome to the NexClean powered by Appzeto.Your OTP for registration is {{otp}}.BGADEC",
 };
 
 export const pushEnabled = env.firebaseServiceAccount.length > 0;
@@ -40,6 +49,9 @@ export const cloudinaryEnabled =
   env.cloudinaryCloudName.length > 0 &&
   env.cloudinaryApiKey.length > 0 &&
   env.cloudinaryApiSecret.length > 0;
+export const smsEnabled =
+  env.smsIndiaHubApiKey.length > 0 ||
+  (env.smsIndiaHubUser.length > 0 && env.smsIndiaHubPassword.length > 0);
 
 export const isProd = env.nodeEnv === "production";
 

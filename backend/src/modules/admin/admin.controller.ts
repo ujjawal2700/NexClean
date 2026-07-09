@@ -57,6 +57,14 @@ export async function autoAssignBooking(req: Request, res: Response): Promise<Re
   return ok(res, await service.autoAssignBooking(String(req.params.id)), "Agent auto-assigned");
 }
 
+export async function dispatchQueue(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.dispatchQueue());
+}
+
+export async function assignableAgents(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.assignableAgents(String(req.params.id)));
+}
+
 export async function agents(_req: Request, res: Response): Promise<Response> {
   return ok(res, await service.listAgents());
 }

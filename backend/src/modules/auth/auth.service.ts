@@ -8,6 +8,7 @@ import { signToken, type Role } from "../../shared/utils/jwt";
 import { generateOtp } from "../../shared/utils/otp";
 import type { CustomerSignupInput, AgentSignupInput } from "./auth.validation";
 import { verifyPassword } from "../../shared/utils/crypto";
+import { sendSmsOtp } from "../../shared/services/sms";
 
 /** Normalize a phone string to a consistent stored form. */
 export function normalize(phone: string): string {
@@ -44,7 +45,9 @@ export async function sendOtp(rawPhone: string): Promise<{ sent: boolean }> {
     { upsert: true, new: true },
   );
 
-  console.log(`📲 OTP for ${phone}: ${code} (demo ${env.demoOtp} also works)`);
+  // Dispatch OTP via SMS service (SMSINDIAHUB)
+  await sendSmsOtp(phone, code);
+
   return { sent: true };
 }
 

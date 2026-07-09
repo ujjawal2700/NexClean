@@ -92,10 +92,20 @@ export async function removeVehicle(userId: string, vehicleId: string) {
 
 export async function addAddress(
   userId: string,
-  address: { label: string; line: string; society?: string },
+  address: { label: string; line: string; society?: string; lat?: number; lng?: number; placeId?: string },
 ) {
   const user = await getUser(userId);
-  user.addresses.push({ label: address.label, line: address.line, society: address.society || "" });
+  const coordinates =
+    typeof address.lat === "number" && typeof address.lng === "number"
+      ? [address.lng, address.lat] // GeoJSON order
+      : undefined;
+  user.addresses.push({
+    label: address.label,
+    line: address.line,
+    society: address.society || "",
+    coordinates,
+    placeId: address.placeId || "",
+  });
   await user.save();
   return user;
 }

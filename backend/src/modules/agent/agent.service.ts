@@ -2,14 +2,21 @@ import { Booking, type BookingDocument } from "../booking/booking.model";
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { trigger as triggerAreaAlert } from "../area-alert/areaAlert.service";
+import { toPoint, haversineMeters, type LngLat } from "../../shared/geo";
 
 const JOB_FLOW = ["assigned", "enroute", "arrived", "in_progress", "completed"] as const;
 type JobStatus = (typeof JOB_FLOW)[number];
 
+/** Real distance (km) between the agent and a booking, or null when unknown. */
+function jobDistanceKm(b: BookingDocument, agentPoint?: LngLat): number | null {
+  const coords = (b.location as unknown as { coordinates?: number[] } | undefined)?.coordinates;
+  if (!agentPoint || !coords || coords.length !== 2) return null;
+  return Number((haversineMeters(agentPoint, [coords[0], coords[1]]) / 1000).toFixed(1));
+}
+
 /** Shape a booking into the agent-facing "job" the frontend expects. */
-function mapJob(b: BookingDocument) {
+function mapJob(b: BookingDocument, agentPoint?: LngLat) {
   const user = b.user as unknown as { name?: string } | null;
-  const lastByte = parseInt(b.id.slice(-2), 16) || 12;
   return {
     id: b.id,
     customerName: (user && typeof user === "object" && user.name) || "Customer",
@@ -21,7 +28,7 @@ function mapJob(b: BookingDocument) {
     addressLabel: b.addressLabel,
     addressLine: b.addressLine,
     society: b.society,
-    distanceKm: Number((0.8 + (lastByte % 40) / 10).toFixed(1)),
+    distanceKm: jobDistanceKm(b, agentPoint),
     price: b.price,
     payout: Math.round(b.price * 0.7),
     status: b.jobStatus,
@@ -30,11 +37,19 @@ function mapJob(b: BookingDocument) {
   };
 }
 
+/** Current live coordinates of an agent as [lng, lat], or undefined. */
+async function getAgentPoint(agentId: string): Promise<LngLat | undefined> {
+  const agent = await User.findById(agentId).select("liveLocation");
+  const coords = (agent?.liveLocation as unknown as { coordinates?: number[] } | undefined)?.coordinates;
+  return coords && coords.length === 2 ? [coords[0], coords[1]] : undefined;
+}
+
 export async function listJobs(agentId: string) {
+  const agentPoint = await getAgentPoint(agentId);
   const bookings = await Booking.find({ assignedAgent: agentId })
     .populate("user", "name")
     .sort({ createdAt: -1 });
-  return bookings.map(mapJob);
+  return bookings.map((b) => mapJob(b, agentPoint));
 }
 
 async function getOwnedJob(agentId: string, bookingId: string) {
@@ -59,7 +74,7 @@ export async function advanceStatus(agentId: string, bookingId: string) {
     await User.updateOne({ _id: agentId }, { $inc: { jobsDone: 1 } });
   }
   await booking.save();
-  return mapJob(booking);
+  return mapJob(booking, await getAgentPoint(agentId));
 }
 
 export async function setPhoto(agentId: string, bookingId: string, kind: "before" | "after") {
@@ -67,7 +82,7 @@ export async function setPhoto(agentId: string, bookingId: string, kind: "before
   if (kind === "before") booking.hasBefore = true;
   else booking.hasAfter = true;
   await booking.save();
-  return mapJob(booking);
+  return mapJob(booking, await getAgentPoint(agentId));
 }
 
 export async function summary(agentId: string) {
@@ -83,19 +98,84 @@ export async function summary(agentId: string) {
   };
 }
 
-export async function setOnline(agentId: string, online: boolean) {
+type Coords = { lat?: number; lng?: number };
+
+/** Build a location patch from optional coords (skips when not provided). */
+function locationPatch(coords?: Coords) {
+  const point = toPoint(coords?.lat, coords?.lng);
+  return point ? { liveLocation: point, locationUpdatedAt: new Date() } : {};
+}
+
+function isValidLocationUpdate(
+  prevLoc: { coordinates?: number[] } | undefined,
+  prevTime: Date | null | undefined,
+  newLat: number,
+  newLng: number,
+  agentId: string,
+): boolean {
+  if (!prevLoc || !prevLoc.coordinates || prevLoc.coordinates.length !== 2 || !prevTime) {
+    return true; // no previous location/time to compare
+  }
+  const distanceMeters = haversineMeters(
+    [prevLoc.coordinates[0], prevLoc.coordinates[1]],
+    [newLng, newLat],
+  );
+  const timeDiffSeconds = (Date.now() - new Date(prevTime).getTime()) / 1000;
+  if (distanceMeters > 100 && timeDiffSeconds > 0) {
+    const speedKmH = (distanceMeters / 1000) / (timeDiffSeconds / 3600);
+    if (speedKmH > 150) {
+      console.warn(
+        `[GPS Spoofing Check] Agent ${agentId} anomaly: moved ${distanceMeters.toFixed(0)}m in ${timeDiffSeconds.toFixed(1)}s (${speedKmH.toFixed(1)} km/h). Location update ignored.`,
+      );
+      return false;
+    }
+  }
+  return true;
+}
+
+export async function setOnline(agentId: string, online: boolean, coords?: Coords) {
   // Going online counts as an immediate heartbeat so the badge flips live right away.
-  const update = online ? { online, lastSeenAt: new Date() } : { online };
+  let update: any;
+  if (online) {
+    update = { online, lastSeenAt: new Date() };
+    if (coords && coords.lat != null && coords.lng != null) {
+      const agent = await User.findById(agentId).select("liveLocation locationUpdatedAt");
+      if (agent && isValidLocationUpdate(agent.liveLocation as any, agent.locationUpdatedAt, coords.lat, coords.lng, agentId)) {
+        Object.assign(update, locationPatch(coords));
+      }
+    }
+  } else {
+    update = { online };
+  }
   const agent = await User.findByIdAndUpdate(agentId, update, { new: true });
   if (!agent) throw ApiError.notFound("Agent not found");
   return agent;
 }
 
-/** Keeps the agent's "live" status fresh; the app calls this on an interval while open. */
-export async function heartbeat(agentId: string) {
-  const agent = await User.findByIdAndUpdate(agentId, { lastSeenAt: new Date() }, { new: true });
+/** Keeps the agent's "live" status (and optionally location) fresh. */
+export async function heartbeat(agentId: string, coords?: Coords) {
+  const update: any = { lastSeenAt: new Date() };
+  if (coords && coords.lat != null && coords.lng != null) {
+    const agent = await User.findById(agentId).select("liveLocation locationUpdatedAt");
+    if (agent && isValidLocationUpdate(agent.liveLocation as any, agent.locationUpdatedAt, coords.lat, coords.lng, agentId)) {
+      Object.assign(update, locationPatch(coords));
+    }
+  }
+  const agent = await User.findByIdAndUpdate(agentId, update, { new: true });
   if (!agent) throw ApiError.notFound("Agent not found");
   return agent;
+}
+
+/** Persist a streamed live location (from the socket channel). Best-effort, no throw. */
+export async function updateAgentLocation(agentId: string, lat: number, lng: number) {
+  const agent = await User.findById(agentId).select("liveLocation locationUpdatedAt");
+  if (!agent) return;
+  if (!isValidLocationUpdate(agent.liveLocation as any, agent.locationUpdatedAt, lat, lng, agentId)) {
+    return;
+  }
+  const patch = locationPatch({ lat, lng });
+  if (!("liveLocation" in patch)) return;
+  await User.updateOne({ _id: agentId, role: "agent" }, patch);
 }
 
 /** Agent notifies nearby customers (Smart Area Alert) for a society. */

@@ -1,4 +1,5 @@
 import { Schema, model, Types, type HydratedDocument, type InferSchemaType } from "mongoose";
+import { geoPointSchema } from "../../shared/geo";
 
 const bookingSchema = new Schema(
   {
@@ -13,6 +14,8 @@ const bookingSchema = new Schema(
     addressLabel: { type: String, required: true },
     addressLine: { type: String, required: true },
     society: { type: String, default: "" },
+    // Service location captured from the customer's address (Google Places). [lng, lat].
+    location: { type: geoPointSchema(), default: undefined },
     price: { type: Number, required: true },
     discountCode: { type: String, default: null },
     discountAmount: { type: Number, default: 0 },
@@ -27,6 +30,7 @@ const bookingSchema = new Schema(
     // Agent fulfilment
     assignedAgent: { type: Types.ObjectId, ref: "User", default: null, index: true },
     agentName: { type: String, default: null },
+    assignedAt: { type: Date, default: null },
     jobStatus: {
       type: String,
       enum: ["assigned", "enroute", "arrived", "in_progress", "completed"],
@@ -34,6 +38,25 @@ const bookingSchema = new Schema(
     },
     hasBefore: { type: Boolean, default: false },
     hasAfter: { type: Boolean, default: false },
+
+    // Real-time dispatch pipeline
+    dispatchStatus: {
+      type: String,
+      // scheduled  → subscription wash waiting for its day (auto-assigned nearest before the slot)
+      // searching  → looking for a cleaner (sequential nearest-first offers)
+      // offered    → an offer is currently out to `currentOfferAgent`
+      // assigned   → a cleaner accepted / was assigned
+      // pending_admin → radius exhausted, awaiting manual assignment
+      // cancelled  → booking cancelled
+      enum: ["scheduled", "searching", "offered", "assigned", "pending_admin", "cancelled"],
+      default: "assigned",
+      index: true,
+    },
+    currentOfferAgent: { type: Types.ObjectId, ref: "User", default: null },
+    offerExpiresAt: { type: Date, default: null },
+    declinedAgents: { type: [Types.ObjectId], default: [] },
+    searchRadiusM: { type: Number, default: 0 },
+    dispatchAttempts: { type: Number, default: 0 },
   },
   {
     timestamps: true,
@@ -47,6 +70,9 @@ const bookingSchema = new Schema(
     },
   },
 );
+
+// Geospatial index so we can rank agents by distance from the service point.
+bookingSchema.index({ location: "2dsphere" });
 
 export type BookingDocument = HydratedDocument<InferSchemaType<typeof bookingSchema>>;
 export const Booking = model("Booking", bookingSchema);
