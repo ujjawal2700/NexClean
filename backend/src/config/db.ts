@@ -29,6 +29,11 @@ async function dropStaleIndexes(): Promise<void> {
   } catch {
     // already dropped, or never existed — nothing to do
   }
+  try {
+    await mongoose.connection.db?.collection("users").dropIndex("referralCode_1");
+  } catch {
+    // already dropped, or never existed — nothing to do
+  }
 }
 
 export function isDbConnected(): boolean {

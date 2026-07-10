@@ -25,7 +25,7 @@ export async function seedDemoData(): Promise<void> {
 
   await User.updateOne(
     { phone: `admin:${env.adminEmail}` },
-    { $setOnInsert: { phone: `admin:${env.adminEmail}`, name: "Admin", role: "admin" } },
+    { $setOnInsert: { phone: `admin:${env.adminEmail}`, name: "Admin", role: "admin", email: env.adminEmail.toLowerCase() } },
     { upsert: true },
   );
 

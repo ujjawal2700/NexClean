@@ -141,7 +141,10 @@ export async function adminLogin(email: string, password: string) {
     }
     const user = await User.findOneAndUpdate(
       { phone: `admin:${env.adminEmail}` },
-      { $setOnInsert: { phone: `admin:${env.adminEmail}`, name: "Admin", role: "admin", email: emailLower } },
+      { 
+        $setOnInsert: { phone: `admin:${env.adminEmail}`, name: "Admin", role: "admin" },
+        $set: { email: emailLower }
+      },
       { upsert: true, new: true }
     );
     const token = signToken(user.id, "admin");
