@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2 } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
@@ -18,9 +18,13 @@ const DEMO_OTP = "123456";
 export function Login() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const token = useSessionStore((s) => s.token);
   const setToken = useSessionStore((s) => s.setToken);
   const sendOtp = useSendOtp();
   const verifyOtp = useVerifyOtp();
+
+  // Already logged in — skip the login form entirely
+  if (token) return <Navigate to="/app" replace />;
 
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");

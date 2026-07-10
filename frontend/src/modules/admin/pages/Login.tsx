@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, Navigate } from "react-router-dom";
 import { Mail, Lock, ArrowRight, ShieldCheck, Loader2, Eye, EyeOff } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Logo } from "@shared/components/brand/Logo";
@@ -12,8 +12,13 @@ import { useAdminLogin } from "../api/admin.api";
 
 export function Login() {
   const navigate = useNavigate();
+  const token = useAdminSession((s) => s.token);
   const setSession = useAdminSession((s) => s.setSession);
   const login = useAdminLogin();
+
+  // Already logged in — skip the login form entirely
+  if (token) return <Navigate to="/admin" replace />;
+
 
   const [email, setEmail] = useState("superadmin@gmail.com");
   const [password, setPassword] = useState("");

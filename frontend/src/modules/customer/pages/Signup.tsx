@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   User, Mail, Phone, Gift, ArrowRight, ArrowLeft, ShieldCheck,
@@ -26,8 +26,12 @@ export function Signup() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const qc = useQueryClient();
+  const token = useSessionStore((s) => s.token);
   const setToken = useSessionStore((s) => s.setToken);
   const signup = useCustomerSignup();
+
+  // Already logged in — redirect to dashboard
+  if (token) return <Navigate to="/app" replace />;
   const verifyOtp = useVerifyOtp();
   const submitLead = useSubmitLead();
 

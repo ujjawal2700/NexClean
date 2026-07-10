@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   User,
@@ -61,11 +61,14 @@ type Step = "details" | "kyc" | "otp";
 export function Signup() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const token = useAgentSession((s) => s.token);
   const setToken = useAgentSession((s) => s.setToken);
   const signup = useAgentSignup();
   const sendOtp = useSendOtp();
   const verifyOtp = useVerifyOtp();
 
+  // Already logged in — redirect to dashboard
+  if (token) return <Navigate to="/agent" replace />;
   const [step, setStep] = useState<Step>("details");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");

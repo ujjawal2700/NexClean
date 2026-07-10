@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Phone, ArrowRight, ArrowLeft, BadgeCheck, Loader2 } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
@@ -15,9 +15,13 @@ import { useSendOtp, useVerifyOtp, meKey } from "../api/agent.api";
 export function Login() {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const token = useAgentSession((s) => s.token);
   const setToken = useAgentSession((s) => s.setToken);
   const sendOtp = useSendOtp();
   const verifyOtp = useVerifyOtp();
+
+  // Already logged in — skip the login form entirely
+  if (token) return <Navigate to="/agent" replace />;
 
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
