@@ -101,6 +101,8 @@ export function useAdminLogin() {
   });
 }
 
+export const useAdminMe = () => useAuthedQuery<{ name: string; permissions: string[] }>(["admin", "me"], "/auth/me");
+
 /* ------------------------------- Queries --------------------------------- */
 
 export const useStats = () => useAuthedQuery<AdminStats>(keys.stats, "/admin/stats", { refetchInterval: 20_000 });

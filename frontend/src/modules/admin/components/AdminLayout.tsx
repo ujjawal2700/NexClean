@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -33,7 +33,7 @@ import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
 import { useAdminSession } from "../store/sessionStore";
-import { useAgents, useLeads } from "../api/admin.api";
+import { useAgents, useLeads, useAdminMe } from "../api/admin.api";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true, permission: "dashboard" },
@@ -115,14 +115,28 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
 export function AdminLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { name, clear, permissions } = useAdminSession();
+  const { token, name, clear, permissions, setSession } = useAdminSession();
   const [open, setOpen] = useState(false);
+
+  const { data: me, error } = useAdminMe();
 
   const onLogout = () => {
     clear();
     qc.clear();
     navigate("/admin/login");
   };
+
+  useEffect(() => {
+    if (me && token) {
+      setSession(token, me.name, me.permissions);
+    }
+  }, [me, token, setSession]);
+
+  useEffect(() => {
+    if (error) {
+      onLogout();
+    }
+  }, [error]);
 
   return (
     <div className="min-h-dvh bg-bg">
