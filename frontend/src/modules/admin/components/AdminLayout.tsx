@@ -115,7 +115,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
 export function AdminLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { token, name, clear, permissions, setSession } = useAdminSession();
+  const { token, name, clear, permissions = [], setSession } = useAdminSession();
   const [open, setOpen] = useState(false);
 
   const { data: me, error } = useAdminMe();
@@ -128,7 +128,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (me && token) {
-      setSession(token, me.name, me.permissions);
+      setSession(token, me.name, me.permissions || []);
     }
   }, [me, token, setSession]);
 
@@ -194,7 +194,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             <div className="text-right">
               <p className="text-sm font-medium text-ink">{name}</p>
               <p className="text-xs text-muted">
-                {permissions.includes("*") ? "Super Admin" : "Staff Member"}
+                {permissions?.includes("*") ? "Super Admin" : "Staff Member"}
               </p>
             </div>
             <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-semibold text-white">
