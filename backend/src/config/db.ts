@@ -5,13 +5,26 @@ import { env } from "./env";
  * Connect to MongoDB Atlas via Mongoose. Called after the HTTP server is
  * already listening so /api/health works even if the database is unreachable.
  */
-export async function connectDb(): Promise<void> {
+export async function connectDb(retries = 5, delayMs = 5000): Promise<void> {
   mongoose.set("strictQuery", true);
-  await mongoose.connect(env.mongoUri, {
-    serverSelectionTimeoutMS: 8000,
-  });
-  console.log("✓ MongoDB connected");
-  await dropStaleIndexes();
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await mongoose.connect(env.mongoUri, {
+        serverSelectionTimeoutMS: 8000,
+      });
+      console.log("✓ MongoDB connected");
+      await dropStaleIndexes();
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`⚠️ MongoDB connection attempt ${attempt}/${retries} failed: ${message}`);
+      if (attempt === retries) {
+        throw error;
+      }
+      console.log(`Retrying in ${delayMs / 1000}s...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
 }
 
 /**
