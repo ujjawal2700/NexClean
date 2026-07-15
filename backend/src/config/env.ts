@@ -14,10 +14,22 @@ export const env = {
   demoOtp: process.env.DEMO_OTP ?? "123456",
   // Comma-separated CORS allow-list, normalized (trailing slashes stripped) so
   // a value like "https://app.vercel.app/" still matches the browser's Origin.
-  clientOrigins: (process.env.CLIENT_ORIGIN ?? "http://localhost:5173,https://nexclean.in,https://www.nexclean.in")
-    .split(",")
-    .map((s) => s.trim().replace(/\/+$/, ""))
-    .filter(Boolean),
+  // Production domains are always included so a blank/misconfigured
+  // CLIENT_ORIGIN on the host (e.g. Render) can't lock out the live site —
+  // `??` alone doesn't catch an env var set to "", which previously resolved
+  // to an empty allow-list and blocked every origin.
+  clientOrigins: Array.from(
+    new Set(
+      [
+        ...(process.env.CLIENT_ORIGIN ?? "").split(","),
+        "http://localhost:5173",
+        "https://nexclean.in",
+        "https://www.nexclean.in",
+      ]
+        .map((s) => s.trim().replace(/\/+$/, ""))
+        .filter(Boolean),
+    ),
+  ),
   // Base64-encoded Firebase service-account JSON. When empty, push runs in
   // mock mode (logs instead of sending) so the engine is fully testable offline.
   firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ?? "",
