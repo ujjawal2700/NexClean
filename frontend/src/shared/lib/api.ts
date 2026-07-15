@@ -15,17 +15,17 @@ export class ApiError extends Error {
 }
 
 const getApiUrl = (): string => {
-  const envUrl = import.meta.env.VITE_API_URL as string | undefined;
-  if (envUrl) {
-    return envUrl.replace(/\/$/, "");
-  }
-
   // Auto-resolve to production backend when deployed on nexclean.in
   if (typeof window !== "undefined") {
     const { hostname } = window.location;
     if (hostname !== "localhost" && hostname !== "127.0.0.1") {
       return "https://nexclean.onrender.com/api";
     }
+  }
+
+  const envUrl = import.meta.env.VITE_API_URL as string | undefined;
+  if (envUrl) {
+    return envUrl.replace(/\/$/, "");
   }
 
   return "http://localhost:4000/api";
