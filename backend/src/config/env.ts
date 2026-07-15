@@ -14,7 +14,7 @@ export const env = {
   demoOtp: process.env.DEMO_OTP ?? "123456",
   // Comma-separated CORS allow-list, normalized (trailing slashes stripped) so
   // a value like "https://app.vercel.app/" still matches the browser's Origin.
-  clientOrigins: (process.env.CLIENT_ORIGIN ?? "http://localhost:5173,https://nexclean.in")
+  clientOrigins: (process.env.CLIENT_ORIGIN ?? "http://localhost:5173,https://nexclean.in,https://www.nexclean.in")
     .split(",")
     .map((s) => s.trim().replace(/\/+$/, ""))
     .filter(Boolean),
