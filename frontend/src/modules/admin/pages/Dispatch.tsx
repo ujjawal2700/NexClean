@@ -12,7 +12,7 @@ import {
   CalendarClock,
   ChevronDown,
 } from "lucide-react";
-import { API_URL } from "@shared/lib/api";
+import { SOCKET_URL } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -63,7 +63,7 @@ export function Dispatch() {
   // Live refresh: the backend emits on every dispatch state change.
   useEffect(() => {
     if (!token) return;
-    const socket: Socket = io(API_URL.replace(/\/api\/?$/, ""), { auth: { token } });
+    const socket: Socket = io(SOCKET_URL, { auth: { token } });
     const refresh = () => qc.invalidateQueries({ queryKey: ["admin", "dispatch"] });
     socket.on("dispatch_update", refresh);
     socket.on("dispatch_pending", refresh);

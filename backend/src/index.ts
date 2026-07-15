@@ -7,19 +7,31 @@ import { startDispatchWorker, resumeDispatch, stopDispatchWorker } from "./modul
 
 const app = createApp();
 
+// Under PM2 cluster mode, every worker imports this module and would
+// otherwise run the dispatch sweep/subscription-scheduler loop in parallel —
+// redundant at best, racy at worst (e.g. duplicate subscription charges).
+// PM2 sets NODE_APP_INSTANCE per worker; only "0" runs the singleton job.
+// In fork mode / local dev the var is unset, so it still runs.
+const isPrimaryInstance =
+  process.env.NODE_APP_INSTANCE === undefined || process.env.NODE_APP_INSTANCE === "0";
+
 const server = app.listen(env.port, () => {
   console.log(`🚀 NexClean API listening on http://localhost:${env.port}`);
   console.log(`   Health: http://localhost:${env.port}/api/health`);
 });
 
 // Initialize Sockets
-initSocket(server);
+initSocket(server).catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`✗ Socket.IO init failed: ${message}`);
+});
 
 // Connect to MongoDB after the server is already listening so the health
 // endpoint stays available even if the database is temporarily unreachable.
 connectDb()
   .then(() => seedDemoData())
   .then(async () => {
+    if (!isPrimaryInstance) return;
     // Recover any in-flight dispatch state, then start the offer/scheduler loop.
     await resumeDispatch().catch((err) =>
       console.error("dispatch resume failed:", (err as Error).message),

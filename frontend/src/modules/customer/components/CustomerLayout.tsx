@@ -4,7 +4,7 @@ import { LayoutDashboard, CalendarPlus, ClipboardList, CreditCard, User, Bell } 
 import { io, type Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@shared/lib/utils";
-import { API_URL } from "@shared/lib/api";
+import { SOCKET_URL } from "@shared/lib/api";
 import { Logo } from "@shared/components/brand/Logo";
 import { getPushToken } from "@shared/lib/push";
 import { useMe, useNotifications, bookingsKey, notificationsKey } from "../api/queries";
@@ -43,7 +43,7 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   // Live: refresh bookings/notifications the moment a cleaner is assigned.
   useEffect(() => {
     if (!token) return;
-    const socket: Socket = io(API_URL.replace(/\/api\/?$/, ""), { auth: { token } });
+    const socket: Socket = io(SOCKET_URL, { auth: { token } });
     socket.on("booking_assigned", () => {
       qc.invalidateQueries({ queryKey: bookingsKey });
       qc.invalidateQueries({ queryKey: notificationsKey });

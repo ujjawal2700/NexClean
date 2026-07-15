@@ -15,14 +15,6 @@ export class ApiError extends Error {
 }
 
 const getApiUrl = (): string => {
-  // Auto-resolve to production backend when deployed on nexclean.in
-  if (typeof window !== "undefined") {
-    const { hostname } = window.location;
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      return "https://nexclean.onrender.com/api";
-    }
-  }
-
   const envUrl = import.meta.env.VITE_API_URL as string | undefined;
   if (envUrl) {
     return envUrl.replace(/\/$/, "");
@@ -32,6 +24,13 @@ const getApiUrl = (): string => {
 };
 
 export const API_URL = getApiUrl();
+
+// Base URL for the socket.io connection, derived from API_URL. When API_URL
+// is a relative path (e.g. "/api", self-hosted behind one nginx origin),
+// this resolves to undefined so socket.io-client defaults to the current
+// page origin — passing "" explicitly does not do the same thing and breaks
+// the connection.
+export const SOCKET_URL = API_URL.replace(/\/api\/?$/, "") || undefined;
 
 type TokenSource = { prefix: string; get: () => string | null };
 const tokenSources: TokenSource[] = [];

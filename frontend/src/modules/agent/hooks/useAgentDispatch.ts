@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { io, type Socket } from "socket.io-client";
-import { API_URL, ApiError } from "@shared/lib/api";
+import { SOCKET_URL, ApiError } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
 import { useAgentMe, jobsKey, summaryKey, fetchCurrentOffer, acceptOffer, declineOffer } from "../api/agent.api";
 import type { JobOffer } from "../types";
@@ -67,8 +67,7 @@ export function useAgentDispatch(): AgentDispatch {
   // Socket connection + offer events.
   useEffect(() => {
     if (!token) return;
-    const socketUrl = API_URL.replace(/\/api\/?$/, "");
-    const socket = io(socketUrl, { auth: { token } });
+    const socket = io(SOCKET_URL, { auth: { token } });
     socketRef.current = socket;
 
     socket.on("job_offer", (o: JobOffer) => {

@@ -8,6 +8,10 @@ export const env = {
   port: Number(process.env.PORT ?? 4000),
   nodeEnv: process.env.NODE_ENV ?? "development",
   mongoUri: process.env.MONGODB_URI ?? "mongodb://127.0.0.1:27017/nexclean",
+  // Redis backs the Socket.IO adapter so real-time events (dispatch offers,
+  // chat, notifications) reach clients connected to any PM2 cluster worker,
+  // not just the one that emitted them. Unset in single-instance/dev mode.
+  redisUrl: process.env.REDIS_URL ?? "",
   jwtSecret: process.env.JWT_SECRET ?? "dev-secret-change-me",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "30d",
   otpExpiryMin: Number(process.env.OTP_EXPIRY_MIN ?? 5),

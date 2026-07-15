@@ -14,7 +14,7 @@ import { Button } from "@shared/ui/Button";
 import { useMe, useSiteContent, useSupportConfig, useSupportTickets, useTicketMessages } from "../api/queries";
 import { useCreateTicket, useCloseTicket, useSendMessage } from "../api/mutations";
 import { useSessionStore } from "../store/sessionStore";
-import { API_URL } from "@shared/lib/api";
+import { SOCKET_URL } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
 import type { ChatMessage, SupportTicket } from "../types";
 import { useNavigate } from "react-router-dom";
@@ -71,8 +71,7 @@ export function HelpSupport() {
       return;
     }
 
-    const socketUrl = API_URL.replace(/\/api\/?$/, "");
-    const socket = io(socketUrl, {
+    const socket = io(SOCKET_URL, {
       auth: { token },
     });
 

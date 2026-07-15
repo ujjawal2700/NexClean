@@ -17,7 +17,7 @@ import {
   useUpdateSupportConfig,
 } from "../../customer/api/mutations";
 import { useAdminSession } from "../store/sessionStore";
-import { API_URL } from "@shared/lib/api";
+import { SOCKET_URL } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
 import type { ChatMessage } from "../../customer/types";
 
@@ -80,8 +80,7 @@ export function ChatPanel() {
   useEffect(() => {
     if (!token) return;
 
-    const socketUrl = API_URL.replace(/\/api\/?$/, "");
-    const socket = io(socketUrl, {
+    const socket = io(SOCKET_URL, {
       auth: { token },
     });
 

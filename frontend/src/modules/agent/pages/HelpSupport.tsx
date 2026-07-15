@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
-import { API_URL } from "@shared/lib/api";
+import { SOCKET_URL } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useAgentSession } from "../store/sessionStore";
@@ -81,8 +81,7 @@ export function HelpSupport() {
       return;
     }
 
-    const socketUrl = API_URL.replace(/\/api\/?$/, "");
-    const socket = io(socketUrl, {
+    const socket = io(SOCKET_URL, {
       auth: { token },
     });
 

@@ -1,4 +1,6 @@
 import { Server, Socket } from "socket.io";
+import { createClient } from "redis";
+import { createAdapter } from "@socket.io/redis-adapter";
 import { verifyToken } from "../utils/jwt";
 import { SupportTicket } from "../../modules/chat/ticket.model";
 import { notifyUser } from "../../modules/notification/notification.service";
@@ -16,7 +18,7 @@ interface AuthenticatedSocket extends Socket {
   };
 }
 
-export function initSocket(server: any) {
+export async function initSocket(server: any) {
   io = new Server(server, {
     cors: {
       origin(origin, callback) {
@@ -36,6 +38,19 @@ export function initSocket(server: any) {
       credentials: true,
     },
   });
+
+  // In single-process mode this is a no-op — events already reach every
+  // connected client directly. Under PM2 cluster mode, each worker only
+  // knows about its own sockets, so without this adapter io.to(room).emit()
+  // (dispatch offers, chat, notifications) would silently miss clients
+  // connected to a different worker.
+  if (env.redisUrl) {
+    const pubClient = createClient({ url: env.redisUrl });
+    const subClient = pubClient.duplicate();
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log("🔌 Socket.IO using Redis adapter for cross-worker broadcast");
+  }
 
   // Authentication Middleware
   io.use((socket: AuthenticatedSocket, next) => {
