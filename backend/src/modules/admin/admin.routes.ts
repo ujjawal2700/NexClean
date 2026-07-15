@@ -79,11 +79,6 @@ adminRouter.patch("/special-coupons/:id/assign", requirePermission("promotions")
 adminRouter.patch("/special-coupons/:id/toggle-active", requirePermission("promotions"), asyncHandler(c.toggleSpecialCouponActive));
 adminRouter.patch("/special-coupons/:id/reactivate", requirePermission("promotions"), asyncHandler(c.reactivateSpecialCoupon));
 
-adminRouter.get("/referral-campaigns", requirePermission("promotions"), asyncHandler(c.referralCampaigns));
-adminRouter.post("/referral-campaigns", requirePermission("promotions"), asyncHandler(c.createReferralCampaign));
-adminRouter.patch("/referral-campaigns/:id", requirePermission("promotions"), asyncHandler(c.updateReferralCampaign));
-adminRouter.delete("/referral-campaigns/:id", requirePermission("promotions"), asyncHandler(c.deleteReferralCampaign));
-
 adminRouter.get("/promo-banners", requirePermission("promotions"), asyncHandler(c.promoBanners));
 adminRouter.post("/promo-banners", requirePermission("promotions"), asyncHandler(c.createPromoBanner));
 adminRouter.patch("/promo-banners/:id", requirePermission("promotions"), asyncHandler(c.updatePromoBanner));
@@ -100,7 +95,9 @@ adminRouter.put("/content", requirePermission("content"), asyncHandler(c.updateC
 adminRouter.get("/leads", requirePermission("leads"), asyncHandler(listLeads));
 adminRouter.delete("/leads/:id", requirePermission("leads"), asyncHandler(deleteLead));
 
-// Referrals logs
+// Referrals — program config + logs
+adminRouter.get("/referral-config", requirePermission("referrals"), asyncHandler(c.referralConfig));
+adminRouter.put("/referral-config", requirePermission("referrals"), asyncHandler(c.updateReferralConfigHandler));
 adminRouter.get("/referral-logs", requirePermission("referrals"), asyncHandler(c.listReferralLogs));
 
 // Upload media to Cloudinary

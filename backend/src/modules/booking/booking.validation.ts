@@ -9,6 +9,8 @@ export const createBookingSchema = z.object({
   addressLabel: z.string().min(1),
   addressLine: z.string().min(1),
   discountCode: z.string().trim().min(1).optional(),
+  // Coins the customer chose to redeem as a checkout discount (server re-validates & clamps).
+  coinsToRedeem: z.number().int().min(0).optional(),
   // Service-location geo, captured from Google Places on the client. Optional so
   // older clients still work — a booking without coords routes to the admin queue.
   lat: z.number().min(-90).max(90).optional(),

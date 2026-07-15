@@ -4,7 +4,7 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { normalize, sendOtp, verifyOtpCode } from "../auth/auth.service";
 import { isValidCategoryKey } from "../catalog/category.service";
 import { Booking } from "../booking/booking.model";
-import { ReferralCampaign } from "../promotions/referralCampaign.model";
+import { getReferralConfig } from "../promotions/referralConfig.service";
 
 
 async function getUser(userId: string) {
@@ -122,8 +122,7 @@ export async function getReferralSummary(userId: string) {
   const referralCode = await ensureReferralCode(user);
   const referredUsers = await User.find({ referredBy: userId }).sort({ createdAt: -1 });
 
-  const campaign = await ReferralCampaign.findOne({ active: true }).sort({ createdAt: -1 });
-  const rewardAmount = campaign ? campaign.referrerReward : 0;
+  const config = await getReferralConfig();
 
   const enrichedUsers = await Promise.all(
     referredUsers.map(async (u) => {
@@ -145,8 +144,11 @@ export async function getReferralSummary(userId: string) {
 
   return {
     referralCode,
-    referralEarnings: user.referralEarnings,
-    rewardAmount,
+    coins: user.coins,
+    coinsPerRupee: config.coinsPerRupee,
+    rewardAmount: config.referrerReward,
+    refereeReward: config.refereeReward,
+    programActive: config.active,
     referredUsers: enrichedUsers,
   };
 }

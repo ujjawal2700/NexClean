@@ -52,10 +52,13 @@ const userSchema = new Schema(
     activePlan: { type: String, default: null },
     deviceTokens: { type: [String], default: [] },
 
-    // Referrals (customers only)
+    // Referrals + wallet (customers only)
     referralCode: { type: String, default: null, unique: true, sparse: true, index: true },
     referredBy: { type: Types.ObjectId, ref: "User", default: null },
-    referralEarnings: { type: Number, default: 0 },
+    // One-time guard: set true once the referrer has been rewarded for this user's first milestone.
+    referralRewarded: { type: Boolean, default: false },
+    // Coin wallet balance. Coins are earned via referrals and redeemable at checkout.
+    coins: { type: Number, default: 0, min: 0 },
 
     // Agent profile (only meaningful when role === "agent")
     area: { type: String, default: "" },

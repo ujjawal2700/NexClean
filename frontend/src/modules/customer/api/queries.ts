@@ -10,6 +10,7 @@ import type {
   CatalogPlan,
   PromoBanner,
   ReferralSummary,
+  Wallet,
   VehicleCategory,
   VehicleBrand,
   VehicleModel,
@@ -25,6 +26,7 @@ export const notificationsKey = ["notifications"] as const;
 export const plansKey = ["catalog", "plans"] as const;
 export const promoBannersKey = ["catalog", "promo-banners"] as const;
 export const referralsKey = ["referrals"] as const;
+export const walletKey = ["wallet"] as const;
 export const vehicleCategoriesKey = ["catalog", "vehicle-categories"] as const;
 export const vehicleBrandsKey = ["catalog", "vehicle-brands"] as const;
 export const vehicleModelsKey = (brandId: string) => ["catalog", "vehicle-brands", brandId, "models"] as const;
@@ -86,6 +88,16 @@ export function useReferralSummary() {
   return useQuery({
     queryKey: referralsKey,
     queryFn: () => apiFetch<ReferralSummary>("/users/me/referrals"),
+    enabled: !!token,
+  });
+}
+
+/** The customer's coin wallet: balance, its ₹ value, and recent transactions. */
+export function useWallet() {
+  const token = useSessionStore((s) => s.token);
+  return useQuery({
+    queryKey: walletKey,
+    queryFn: () => apiFetch<Wallet>("/wallet"),
     enabled: !!token,
   });
 }

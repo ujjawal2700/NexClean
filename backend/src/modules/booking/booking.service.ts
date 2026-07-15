@@ -5,6 +5,7 @@ import { getPrice, getPackageRecord } from "../pricing/pricing.service";
 import { applyDiscountCode, incrementDiscountUsage } from "../promotions/discountCode.service";
 import { applySpecialCoupon, markSpecialCouponUsed } from "../promotions/specialCoupon.service";
 import { SPECIAL_COUPON_PREFIX } from "../promotions/specialCoupon.model";
+import { redeemCoins, computeCoinRedemption } from "../wallet/wallet.service";
 import { notifyUser } from "../notification/notification.service";
 import { startDispatch } from "../dispatch/dispatch.service";
 import { toPoint } from "../../shared/geo";
@@ -24,47 +25,66 @@ export async function computePrice(
     vehicleType: CreateBookingInput["vehicleType"];
     packageId: string;
     discountCode?: string;
+    coinsToRedeem?: number;
   },
 ) {
   const pkg = await getPackageRecord(input.packageId);
   if (!pkg || pkg.active === false) throw ApiError.badRequest("Unknown package");
 
   const basePrice = await getPrice(input.vehicleType, pkg.id);
-  if (!input.discountCode) {
-    return {
-      pkg,
-      basePrice,
-      price: basePrice,
-      discountAmount: 0,
-      discountCodeId: null,
-      discountCodeLabel: null,
-      isSpecialCoupon: false,
-    };
+
+  // 1) Discount code, if supplied.
+  let discountAmount = 0;
+  let discountCodeId: string | null = null;
+  let discountCodeLabel: string | null = null;
+  let isSpecialCoupon = false;
+  if (input.discountCode) {
+    const raw = input.discountCode.trim().toUpperCase();
+    isSpecialCoupon = raw.startsWith(SPECIAL_COUPON_PREFIX);
+    const applied = isSpecialCoupon
+      ? await (async () => {
+          const r = await applySpecialCoupon(raw, basePrice, userId);
+          return { discountAmount: r.discountAmount, codeId: r.couponId, code: r.code };
+        })()
+      : await applyDiscountCode(raw, basePrice);
+    discountAmount = applied.discountAmount;
+    discountCodeId = applied.codeId;
+    discountCodeLabel = applied.code;
   }
 
-  const raw = input.discountCode.trim().toUpperCase();
-  const isSpecialCoupon = raw.startsWith(SPECIAL_COUPON_PREFIX);
-  const { discountAmount, codeId, code } = isSpecialCoupon
-    ? await (async () => {
-        const r = await applySpecialCoupon(raw, basePrice, userId);
-        return { discountAmount: r.discountAmount, codeId: r.couponId, code: r.code };
-      })()
-    : await applyDiscountCode(raw, basePrice);
+  const priceAfterDiscount = basePrice - discountAmount;
+
+  // 2) Coin redemption, capped by the admin's max-redeem % and the user's balance.
+  const { coinsRedeemed, coinDiscount } = await computeCoinRedemption(
+    userId,
+    priceAfterDiscount,
+    input.coinsToRedeem,
+  );
 
   return {
     pkg,
     basePrice,
-    price: basePrice - discountAmount,
+    price: priceAfterDiscount - coinDiscount,
     discountAmount,
-    discountCodeId: codeId,
-    discountCodeLabel: code,
+    discountCodeId,
+    discountCodeLabel,
     isSpecialCoupon,
+    coinsRedeemed,
+    coinDiscount,
   };
 }
 
 export async function createBooking(userId: string, input: CreateBookingInput) {
-  const { pkg, price, discountAmount, discountCodeId, discountCodeLabel, isSpecialCoupon } =
-    await computePrice(userId, input);
+  const {
+    pkg, price, discountAmount, discountCodeId, discountCodeLabel, isSpecialCoupon,
+    coinsRedeemed, coinDiscount,
+  } = await computePrice(userId, input);
+
+  // Debit the redeemed coins up front so a discounted booking can never be
+  // created without the coins actually being spent (throws if balance is short).
+  if (coinsRedeemed > 0) {
+    await redeemCoins(userId, coinsRedeemed, { note: `Redeemed on booking (${pkg.name})` });
+  }
 
   // Derive the society + service coordinates from the customer's matching address.
   const customer = await User.findById(userId);
@@ -95,6 +115,8 @@ export async function createBooking(userId: string, input: CreateBookingInput) {
     price,
     discountCode: discountCodeLabel,
     discountAmount,
+    coinsRedeemed,
+    coinDiscount,
     status: "upcoming",
     assignedAgent: null,
     agentName: null,

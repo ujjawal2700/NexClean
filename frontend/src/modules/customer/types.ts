@@ -80,6 +80,8 @@ export type Booking = {
   price: number;
   discountCode?: string | null;
   discountAmount?: number;
+  coinsRedeemed?: number;
+  coinDiscount?: number;
   status: BookingStatus;
   dispatchStatus?: DispatchStatus;
   agentName?: string | null;
@@ -106,9 +108,28 @@ export type ReferredUser = {
 
 export type ReferralSummary = {
   referralCode: string | null;
-  referralEarnings: number;
+  coins: number;
+  coinsPerRupee: number;
   rewardAmount: number;
+  refereeReward: number;
+  programActive: boolean;
   referredUsers: ReferredUser[];
+};
+
+export type WalletTransaction = {
+  id: string;
+  type: "referral_welcome" | "referral_reward" | "redeem";
+  coins: number;
+  balanceAfter: number;
+  note: string;
+  createdAt: string;
+};
+
+export type Wallet = {
+  coins: number;
+  coinsPerRupee: number;
+  rupeeValue: number;
+  transactions: WalletTransaction[];
 };
 
 
@@ -139,7 +160,7 @@ export type User = {
   subscriptionStartDate?: string | null;
   subscriptionEndDate?: string | null;
   referralCode?: string | null;
-  referralEarnings?: number;
+  coins?: number;
   createdAt?: string;
 };
 

@@ -4,6 +4,7 @@ import { Payment, type PaymentDocument } from "../payment/payment.model";
 import { Campaign } from "./campaign.model";
 import { TriggeredAlert } from "../area-alert/areaAlert.model";
 import { notifyUser } from "../notification/notification.service";
+import { maybeCreditReferrer } from "../promotions/referral.service";
 import { ApiError } from "../../shared/utils/ApiError";
 import { isAgentLive } from "../user/presence";
 import * as dispatch from "../dispatch/dispatch.service";
@@ -91,6 +92,15 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
   }
 
   await booking.save();
+
+  // Marking a booking completed is a qualifying referral milestone for its customer.
+  if (status === "completed") {
+    const customerId = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
+    void maybeCreditReferrer(customerId).catch((err) =>
+      console.error("referral credit failed:", (err as Error).message),
+    );
+  }
+
   return mapBooking(booking);
 }
 
@@ -333,7 +343,7 @@ export async function getCustomer(id: string) {
     vehicles: customer.vehicles,
     addresses: customer.addresses,
     referralCode: customer.referralCode,
-    referralEarnings: customer.referralEarnings ?? 0,
+    coins: customer.coins ?? 0,
     referredBy: referredBy ? {
       name: referredBy.name,
       phone: referredBy.phone,

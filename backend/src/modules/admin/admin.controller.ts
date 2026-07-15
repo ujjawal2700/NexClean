@@ -9,7 +9,7 @@ import * as vehicleModelService from "../brand/vehicleModel.service";
 import * as categoryService from "../catalog/category.service";
 import * as discountCodeService from "../promotions/discountCode.service";
 import * as specialCouponService from "../promotions/specialCoupon.service";
-import * as referralCampaignService from "../promotions/referralCampaign.service";
+import { getReferralConfig, updateReferralConfig } from "../promotions/referralConfig.service";
 import * as promoBannerService from "../promotions/promoBanner.service";
 import * as service from "./admin.service";
 import { getContent, updateContent } from "../content/content.service";
@@ -369,42 +369,21 @@ export async function reactivateSpecialCoupon(req: Request, res: Response): Prom
   return ok(res, await specialCouponService.reactivateSpecialCoupon(String(req.params.id)), "Coupon reactivated");
 }
 
-export async function referralCampaigns(_req: Request, res: Response): Promise<Response> {
-  return ok(res, await referralCampaignService.listReferralCampaigns());
+export async function referralConfig(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await getReferralConfig());
 }
 
-const createReferralCampaignSchema = z.object({
-  name: z.string().trim().min(1),
-  referrerReward: z.number().min(0),
-  refereeReward: z.number().min(0),
-  description: z.string().trim().optional(),
-});
-export async function createReferralCampaign(req: Request, res: Response): Promise<Response> {
-  const parsed = createReferralCampaignSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest("Invalid referral campaign");
-  return created(res, await referralCampaignService.createReferralCampaign(parsed.data), "Referral campaign created");
-}
-
-const updateReferralCampaignSchema = z.object({
-  name: z.string().trim().min(1).optional(),
+const updateReferralConfigSchema = z.object({
   referrerReward: z.number().min(0).optional(),
   refereeReward: z.number().min(0).optional(),
-  description: z.string().trim().optional(),
+  coinsPerRupee: z.number().min(1).optional(),
+  maxRedeemPercent: z.number().min(0).max(100).optional(),
   active: z.boolean().optional(),
 });
-export async function updateReferralCampaign(req: Request, res: Response): Promise<Response> {
-  const parsed = updateReferralCampaignSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest("Invalid referral campaign update");
-  return ok(
-    res,
-    await referralCampaignService.updateReferralCampaign(String(req.params.id), parsed.data),
-    "Referral campaign updated",
-  );
-}
-
-export async function deleteReferralCampaign(req: Request, res: Response): Promise<Response> {
-  await referralCampaignService.deleteReferralCampaign(String(req.params.id));
-  return ok(res, null, "Referral campaign deleted");
+export async function updateReferralConfigHandler(req: Request, res: Response): Promise<Response> {
+  const parsed = updateReferralConfigSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid referral config update");
+  return ok(res, await updateReferralConfig(parsed.data), "Referral settings updated");
 }
 
 export async function promoBanners(_req: Request, res: Response): Promise<Response> {

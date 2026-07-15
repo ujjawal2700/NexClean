@@ -11,6 +11,7 @@ import { Subscriptions } from "./pages/Subscriptions";
 import { Profile } from "./pages/Profile";
 import { EditProfile } from "./pages/EditProfile";
 import { ReferEarn } from "./pages/ReferEarn";
+import { Wallet } from "./pages/Wallet";
 import { Vehicles } from "./pages/Vehicles";
 import { Addresses } from "./pages/Addresses";
 import { Notifications } from "./pages/Notifications";
@@ -46,6 +47,7 @@ export function CustomerApp() {
           <Route path="profile" element={<Profile />} />
           <Route path="profile/edit" element={<EditProfile />} />
           <Route path="profile/refer" element={<ReferEarn />} />
+          <Route path="wallet" element={<Wallet />} />
           <Route path="profile/vehicles" element={<Vehicles />} />
           <Route path="profile/addresses" element={<Addresses />} />
           <Route path="help" element={<HelpSupport />} />

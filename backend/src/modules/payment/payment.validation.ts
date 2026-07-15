@@ -9,6 +9,7 @@ export const previewAmountSchema = z.object({
   vehicleType: z.string().min(1),
   packageId: z.string().min(1),
   discountCode: z.string().trim().min(1).optional(),
+  coinsToRedeem: z.number().int().min(0).optional(),
 });
 
 export const verifyPaymentSchema = z.object({

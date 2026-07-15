@@ -1,12 +1,127 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Gift, Users, Search, Calendar, Phone, ArrowRight,
-  CheckCircle2, Award, Loader2, Sparkles,
+  CheckCircle2, Award, Loader2, Sparkles, Coins, Save,
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Input } from "@shared/ui/Input";
-import { useReferralLogs } from "../api/admin.api";
+import { Button } from "@shared/ui/Button";
+import { useReferralLogs, useReferralConfig, useUpdateReferralConfig } from "../api/admin.api";
 import { cn } from "@shared/lib/utils";
+
+function ReferralSettingsSection() {
+  const { data: config } = useReferralConfig();
+  const update = useUpdateReferralConfig();
+
+  const [referrerReward, setReferrerReward] = useState("");
+  const [refereeReward, setRefereeReward] = useState("");
+  const [coinsPerRupee, setCoinsPerRupee] = useState("");
+  const [maxRedeemPercent, setMaxRedeemPercent] = useState("");
+  const [active, setActive] = useState(true);
+
+  // Sync local form state once the config loads.
+  useEffect(() => {
+    if (!config) return;
+    setReferrerReward(String(config.referrerReward));
+    setRefereeReward(String(config.refereeReward));
+    setCoinsPerRupee(String(config.coinsPerRupee));
+    setMaxRedeemPercent(String(config.maxRedeemPercent));
+    setActive(config.active);
+  }, [config]);
+
+  const save = () => {
+    update.mutate({
+      referrerReward: Number(referrerReward),
+      refereeReward: Number(refereeReward),
+      coinsPerRupee: Number(coinsPerRupee),
+      maxRedeemPercent: Number(maxRedeemPercent),
+      active,
+    });
+  };
+
+  const rate = Number(coinsPerRupee) || 1;
+
+  return (
+    <GlassCard className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Coins className="size-5 text-primary" />
+          <p className="font-display text-lg font-semibold text-ink">Referral Program Settings</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setActive((a) => !a)}
+          className={cn(
+            "rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+            active
+              ? "bg-green-500/10 text-green-600 border-green-500/20"
+              : "bg-gray-500/10 text-muted border-line",
+          )}
+        >
+          {active ? "Program Active" : "Program Paused"}
+        </button>
+      </div>
+      <p className="text-sm text-muted">
+        A single program for the whole app. Rewards are paid in coins; the conversion rate sets what a coin is
+        worth when customers redeem them at checkout.
+      </p>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="space-y-1.5">
+          <span className="text-xs font-semibold text-muted">Referrer reward (coins)</span>
+          <Input
+            name="referrerReward"
+            type="number"
+            min="0"
+            value={referrerReward}
+            onChange={(e) => setReferrerReward(e.target.value)}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-xs font-semibold text-muted">New user reward (coins)</span>
+          <Input
+            name="refereeReward"
+            type="number"
+            min="0"
+            value={refereeReward}
+            onChange={(e) => setRefereeReward(e.target.value)}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-xs font-semibold text-muted">Conversion rate (coins per ₹1)</span>
+          <Input
+            name="coinsPerRupee"
+            type="number"
+            min="1"
+            value={coinsPerRupee}
+            onChange={(e) => setCoinsPerRupee(e.target.value)}
+          />
+        </label>
+        <label className="space-y-1.5">
+          <span className="text-xs font-semibold text-muted">Max order covered by coins (%)</span>
+          <Input
+            name="maxRedeemPercent"
+            type="number"
+            min="0"
+            max="100"
+            value={maxRedeemPercent}
+            onChange={(e) => setMaxRedeemPercent(e.target.value)}
+          />
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-muted">
+          e.g. ₹1 = {rate} coin{rate === 1 ? "" : "s"} · {Number(referrerReward) || 0} coins ≈ ₹
+          {Math.floor((Number(referrerReward) || 0) / rate)} for the referrer.
+        </p>
+        <Button size="sm" onClick={save} disabled={update.isPending}>
+          <Save className="size-4" /> {update.isPending ? "Saving…" : "Save settings"}
+        </Button>
+      </div>
+    </GlassCard>
+  );
+}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", {
@@ -43,9 +158,9 @@ export function Referrals() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-ink">Referral Logs</h1>
+          <h1 className="font-display text-2xl font-bold text-ink">Referrals</h1>
           <p className="mt-1 text-sm text-muted">
-            Track user invitation logs, referral codes, and conversion milestones.
+            Configure the referral program and track invitation logs & conversion milestones.
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3 py-1.5">
@@ -55,6 +170,9 @@ export function Referrals() {
           </span>
         </div>
       </div>
+
+      {/* Program settings */}
+      <ReferralSettingsSection />
 
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-3">

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
-import { meKey, bookingsKey, notificationsKey } from "./queries";
+import { meKey, bookingsKey, notificationsKey, walletKey, referralsKey } from "./queries";
+import type { RazorpayResponse } from "@shared/lib/razorpay";
 import type { User, Booking, CarType, SupportTicket, ChatMessage, SupportConfig } from "../types";
 
 /* ---------------------------- Notifications ------------------------------ */
@@ -105,10 +106,44 @@ export function useRemoveAddress() {
   );
 }
 
-export function useSubscribe() {
-  return useUserMutation((planId: string) =>
-    apiFetch<User>("/subscriptions", { method: "POST", body: { planId } }),
-  );
+export type SubscriptionCheckoutVars = { planId: string; vehicleType?: string; coinsToRedeem?: number };
+
+/** Create a Razorpay order (or mock) for a subscription purchase. */
+export function useCreateSubscriptionOrder() {
+  return useMutation({
+    mutationFn: (vars: SubscriptionCheckoutVars) =>
+      apiFetch<OrderResponse>("/subscriptions/order", { method: "POST", body: vars }),
+  });
+}
+
+/** Verify the Razorpay payment (or mock) and activate the subscription. */
+export function useVerifySubscription() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: SubscriptionCheckoutVars & Partial<RazorpayResponse>) =>
+      apiFetch<User>("/subscriptions/verify", { method: "POST", body: vars }),
+    onSuccess: (user) => {
+      qc.setQueryData(meKey, user);
+      qc.invalidateQueries({ queryKey: walletKey });
+      qc.invalidateQueries({ queryKey: referralsKey });
+    },
+  });
+}
+
+export type SubscriptionPreview = {
+  basePrice: number;
+  price: number;
+  coinsRedeemed: number;
+  coinDiscount: number;
+  coinsPerRupee: number;
+};
+
+/** Preview a subscription's price with coins applied, before committing. */
+export function usePreviewSubscription() {
+  return useMutation({
+    mutationFn: (vars: SubscriptionCheckoutVars) =>
+      apiFetch<SubscriptionPreview>("/subscriptions/preview", { method: "POST", body: vars }),
+  });
 }
 
 export function useUnsubscribe() {
@@ -126,6 +161,8 @@ export type CreateBookingInput = {
   addressLabel: string;
   addressLine: string;
   discountCode?: string;
+  /** Coins the customer chose to redeem (server clamps to balance + admin cap). */
+  coinsToRedeem?: number;
   /** Service-location geo from the selected address (enables nearest-agent dispatch). */
   lat?: number;
   lng?: number;
@@ -136,7 +173,11 @@ export function useCreateBooking() {
   return useMutation({
     mutationFn: (input: CreateBookingInput) =>
       apiFetch<Booking>("/bookings", { method: "POST", body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: bookingsKey }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: bookingsKey });
+      qc.invalidateQueries({ queryKey: walletKey });
+      qc.invalidateQueries({ queryKey: referralsKey });
+    },
   });
 }
 
@@ -162,12 +203,14 @@ export type PreviewAmountResponse = {
   price: number;
   discountAmount: number;
   discountCode: string | null;
+  coinsRedeemed: number;
+  coinDiscount: number;
 };
 
-/** Validate a discount code and preview the discounted total before paying. */
+/** Validate a discount code / coin redemption and preview the final total before paying. */
 export function usePreviewDiscount() {
   return useMutation({
-    mutationFn: (vars: { vehicleType: CarType; packageId: string; discountCode?: string }) =>
+    mutationFn: (vars: { vehicleType: CarType; packageId: string; discountCode?: string; coinsToRedeem?: number }) =>
       apiFetch<PreviewAmountResponse>("/payments/preview", { method: "POST", body: vars }),
   });
 }
@@ -184,7 +227,11 @@ export function useVerifyPayment() {
   return useMutation({
     mutationFn: (input: VerifyPaymentInput) =>
       apiFetch<Booking>("/payments/verify", { method: "POST", body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: bookingsKey }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: bookingsKey });
+      qc.invalidateQueries({ queryKey: walletKey });
+      qc.invalidateQueries({ queryKey: referralsKey });
+    },
   });
 }
 

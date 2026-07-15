@@ -31,7 +31,7 @@ const PERMISSION_SECTIONS = [
   { key: "vehicle-brands", label: "Vehicle Brands" },
   { key: "promotions", label: "Coupons & Banners" },
   { key: "special-coupons", label: "Special Coupons" },
-  { key: "referrals", label: "Referrals Logs" },
+  { key: "referrals", label: "Referrals & Coins" },
   { key: "content", label: "Landing & Static Content" },
   { key: "reports", label: "Analytics Reports" },
   { key: "roles", label: "Roles & Staff Management" },

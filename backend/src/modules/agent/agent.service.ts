@@ -2,6 +2,7 @@ import { Booking, type BookingDocument } from "../booking/booking.model";
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { trigger as triggerAreaAlert } from "../area-alert/areaAlert.service";
+import { maybeCreditReferrer } from "../promotions/referral.service";
 import { toPoint, haversineMeters, type LngLat } from "../../shared/geo";
 
 const JOB_FLOW = ["assigned", "enroute", "arrived", "in_progress", "completed"] as const;
@@ -74,6 +75,16 @@ export async function advanceStatus(agentId: string, bookingId: string) {
     await User.updateOne({ _id: agentId }, { $inc: { jobsDone: 1 } });
   }
   await booking.save();
+
+  // A completed service is a qualifying referral milestone for the customer.
+  // Fire-and-forget: never block job completion on the reward.
+  if (next === "completed") {
+    const customerId = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
+    void maybeCreditReferrer(customerId).catch((err) =>
+      console.error("referral credit failed:", (err as Error).message),
+    );
+  }
+
   return mapJob(booking, await getAgentPoint(agentId));
 }
 

@@ -19,6 +19,9 @@ const bookingSchema = new Schema(
     price: { type: Number, required: true },
     discountCode: { type: String, default: null },
     discountAmount: { type: Number, default: 0 },
+    // Coins the customer redeemed on this booking and the ₹ discount they bought.
+    coinsRedeemed: { type: Number, default: 0 },
+    coinDiscount: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["upcoming", "completed", "cancelled"],

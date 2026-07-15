@@ -12,6 +12,7 @@ import {
   Loader2,
   Tag,
   X,
+  Coins,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
@@ -21,7 +22,7 @@ import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { BrandModelSelect, type VehicleSelection } from "../../components/BrandModelSelect";
 import { ApiError } from "@shared/lib/api";
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
-import { useMe, useVehicleCategories, useCategoryLabel } from "../../api/queries";
+import { useMe, useVehicleCategories, useCategoryLabel, useWallet } from "../../api/queries";
 import { useCreateOrder, useVerifyPayment, usePreviewDiscount } from "../../api/mutations";
 import type { PreviewAmountResponse } from "../../api/mutations";
 import { PACKAGES, TIME_SLOTS, upcomingDates, priceFor } from "../../data/catalog";
@@ -57,6 +58,7 @@ export function BookingFlow() {
   const createOrder = useCreateOrder();
   const verifyPayment = useVerifyPayment();
   const previewDiscount = usePreviewDiscount();
+  const { data: wallet } = useWallet();
 
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(EMPTY);
@@ -67,6 +69,7 @@ export function BookingFlow() {
   const [discountInput, setDiscountInput] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<PreviewAmountResponse | null>(null);
   const [discountError, setDiscountError] = useState("");
+  const [coinsToRedeem, setCoinsToRedeem] = useState(0);
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -75,27 +78,50 @@ export function BookingFlow() {
   const total = draft.vehicleType && pkg ? priceFor(basePriceFor(draft.vehicleType), pkg) : 0;
   const payable = appliedDiscount ? appliedDiscount.price : total;
   const address = addresses.find((a) => a.id === draft.addressId) ?? null;
+  const walletCoins = wallet?.coins ?? 0;
+
+  /** Re-price with the server, factoring in the applied code and any coins redeemed. */
+  const refreshQuote = async (code: string | undefined, coins: number) => {
+    if (!draft.vehicleType || !pkg) return;
+    if (!code && coins <= 0) {
+      setAppliedDiscount(null);
+      return;
+    }
+    const result = await previewDiscount.mutateAsync({
+      vehicleType: draft.vehicleType,
+      packageId: pkg.id,
+      discountCode: code,
+      coinsToRedeem: coins > 0 ? coins : undefined,
+    });
+    setAppliedDiscount(result);
+    return result;
+  };
 
   const applyDiscount = async () => {
     if (!draft.vehicleType || !pkg || !discountInput.trim()) return;
     setDiscountError("");
     try {
-      const result = await previewDiscount.mutateAsync({
-        vehicleType: draft.vehicleType,
-        packageId: pkg.id,
-        discountCode: discountInput.trim(),
-      });
-      setAppliedDiscount(result);
+      await refreshQuote(discountInput.trim(), coinsToRedeem);
     } catch (e) {
-      setAppliedDiscount(null);
       setDiscountError(e instanceof ApiError ? e.message : "Invalid discount code");
     }
   };
 
-  const clearDiscount = () => {
+  const clearDiscount = async () => {
     setDiscountInput("");
-    setAppliedDiscount(null);
     setDiscountError("");
+    try {
+      await refreshQuote(undefined, coinsToRedeem);
+    } catch { /* leave prior quote in place */ }
+  };
+
+  const toggleCoins = async () => {
+    const next = coinsToRedeem > 0 ? 0 : walletCoins;
+    const code = appliedDiscount?.discountCode ? discountInput.trim() : undefined;
+    try {
+      await refreshQuote(code, next);
+      setCoinsToRedeem(next);
+    } catch { /* ignore */ }
   };
 
   const canContinue = [
@@ -119,7 +145,8 @@ export function BookingFlow() {
       slot: draft.slot,
       addressLabel: address.label,
       addressLine: address.line,
-      discountCode: appliedDiscount ? discountInput.trim() : undefined,
+      discountCode: appliedDiscount?.discountCode ? discountInput.trim() : undefined,
+      coinsToRedeem: coinsToRedeem > 0 ? coinsToRedeem : undefined,
       // GeoJSON stores [lng, lat]; the API expects lat/lng.
       lat: address.coordinates?.[1],
       lng: address.coordinates?.[0],
@@ -211,6 +238,10 @@ export function BookingFlow() {
                   applyDiscount={applyDiscount}
                   clearDiscount={clearDiscount}
                   applying={previewDiscount.isPending}
+                  walletCoins={walletCoins}
+                  coinsUsed={coinsToRedeem}
+                  coinDiscount={appliedDiscount?.coinDiscount ?? 0}
+                  toggleCoins={toggleCoins}
                 />
               )}
             </motion.div>
@@ -511,6 +542,10 @@ function PaymentSummary({
   applyDiscount,
   clearDiscount,
   applying,
+  walletCoins,
+  coinsUsed,
+  coinDiscount,
+  toggleCoins,
 }: {
   draft: Draft;
   categoryLabel: (key: string) => string;
@@ -522,6 +557,10 @@ function PaymentSummary({
   applyDiscount: () => void;
   clearDiscount: () => void;
   applying: boolean;
+  walletCoins: number;
+  coinsUsed: number;
+  coinDiscount: number;
+  toggleCoins: () => void;
 }) {
   const [method, setMethod] = useState("upi");
   const methods = [
@@ -594,6 +633,43 @@ function PaymentSummary({
         )}
       </div>
 
+      {walletCoins > 0 && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={toggleCoins}
+            className={cn(
+              "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all",
+              coinsUsed > 0
+                ? "border-amber-400/50 bg-amber-400/10 ring-2 ring-amber-400/20"
+                : "border-line bg-surface hover:border-amber-400/40",
+            )}
+          >
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
+              <Coins className="size-4.5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-ink">
+                {coinsUsed > 0 ? "Coins applied" : `Use your ${walletCoins.toLocaleString("en-IN")} coins`}
+              </p>
+              <p className="text-xs text-muted">
+                {coinsUsed > 0 && coinDiscount > 0
+                  ? `Saving ${formatMoney(coinDiscount)} with coins`
+                  : "Redeem coins for a discount on this booking"}
+              </p>
+            </div>
+            <span
+              className={cn(
+                "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
+                coinsUsed > 0 ? "bg-amber-500 justify-end" : "bg-line justify-start",
+              )}
+            >
+              <span className="size-5 rounded-full bg-white shadow" />
+            </span>
+          </button>
+        </div>
+      )}
+
       <div className="mt-5 rounded-2xl border border-line bg-surface-muted/50 p-4 text-sm text-muted">
         Secured by <span className="font-medium text-ink">Razorpay</span>. {formatMoney(total)} will
         be collected on confirmation. Without test keys configured, payment is simulated and the
@@ -648,11 +724,19 @@ function OrderSummary({
             <dd className="max-w-[60%] text-right font-medium text-ink">{r.value}</dd>
           </div>
         ))}
-        {discount && (
+        {discount?.discountCode && discount.discountAmount > 0 && (
           <div className="flex items-start justify-between gap-4 text-sm">
             <dt className="text-muted">Discount ({discount.discountCode})</dt>
             <dd className="max-w-[60%] text-right font-medium text-emerald-600">
               −{formatMoney(discount.discountAmount)}
+            </dd>
+          </div>
+        )}
+        {discount && discount.coinDiscount > 0 && (
+          <div className="flex items-start justify-between gap-4 text-sm">
+            <dt className="text-muted">Coins ({discount.coinsRedeemed.toLocaleString("en-IN")})</dt>
+            <dd className="max-w-[60%] text-right font-medium text-amber-600">
+              −{formatMoney(discount.coinDiscount)}
             </dd>
           </div>
         )}
@@ -699,6 +783,12 @@ function Confirmation({ booking }: { booking: Booking }) {
             <Row
               label={`Discount${booking.discountCode ? ` (${booking.discountCode})` : ""}`}
               value={`−${formatMoney(booking.discountAmount)}`}
+            />
+          )}
+          {!!booking.coinDiscount && (
+            <Row
+              label={`Coins (${(booking.coinsRedeemed ?? 0).toLocaleString("en-IN")})`}
+              value={`−${formatMoney(booking.coinDiscount)}`}
             />
           )}
           <div className="flex items-center justify-between border-t border-line pt-3">

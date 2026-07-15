@@ -9,6 +9,7 @@ import {
   Mail,
   Phone,
   Gift,
+  Coins,
   Pencil,
   ChevronRight,
   HelpCircle,
@@ -109,6 +110,20 @@ export function Profile() {
               <div className="min-w-0 flex-1">
                 <p className="font-display font-semibold text-ink text-sm sm:text-base">Edit profile</p>
                 <p className="text-xs text-muted truncate">Name, email &amp; phone number</p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </GlassCard>
+          </Link>
+
+          {/* Wallet Link */}
+          <Link to="/app/wallet">
+            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
+                <Coins className="size-4.5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-semibold text-ink text-sm sm:text-base">Wallet</p>
+                <p className="text-xs text-muted truncate">Coin balance &amp; history</p>
               </div>
               <ChevronRight className="size-4 shrink-0 text-muted" />
             </GlassCard>

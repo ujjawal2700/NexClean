@@ -29,7 +29,7 @@ import type {
   VehicleModel,
   DiscountCode,
   SpecialCoupon,
-  ReferralCampaign,
+  ReferralConfig,
   PromoBanner,
   AdminReports,
   AudienceSizes,
@@ -65,7 +65,7 @@ const keys = {
   vehicleModels: (brandId: string) => ["admin", "vehicle-brands", brandId, "models"] as const,
   discountCodes: ["admin", "discount-codes"] as const,
   specialCoupons: ["admin", "special-coupons"] as const,
-  referralCampaigns: ["admin", "referral-campaigns"] as const,
+  referralConfig: ["admin", "referral-config"] as const,
   promoBanners: ["admin", "promo-banners"] as const,
   reports: ["admin", "reports"] as const,
   audienceSizes: ["admin", "campaigns", "audience-sizes"] as const,
@@ -128,8 +128,8 @@ export const useZones = () => useAuthedQuery<ServiceZone[]>(keys.zones, "/admin/
 export const useVehicleBrands = () => useAuthedQuery<VehicleBrand[]>(keys.vehicleBrands, "/admin/vehicle-brands");
 export const useDiscountCodes = () => useAuthedQuery<DiscountCode[]>(keys.discountCodes, "/admin/discount-codes");
 export const useSpecialCoupons = () => useAuthedQuery<SpecialCoupon[]>(keys.specialCoupons, "/admin/special-coupons");
-export const useReferralCampaigns = () =>
-  useAuthedQuery<ReferralCampaign[]>(keys.referralCampaigns, "/admin/referral-campaigns");
+export const useReferralConfig = () =>
+  useAuthedQuery<ReferralConfig>(keys.referralConfig, "/admin/referral-config");
 export const usePromoBanners = () => useAuthedQuery<PromoBanner[]>(keys.promoBanners, "/admin/promo-banners");
 export const useReports = () => useAuthedQuery<AdminReports>(keys.reports, "/admin/reports");
 export const useContent = () => useAuthedQuery<SiteContent>(keys.content, "/admin/content");
@@ -556,29 +556,12 @@ export function useReactivateSpecialCoupon() {
   });
 }
 
-export function useCreateReferralCampaign() {
+export function useUpdateReferralConfig() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { name: string; referrerReward: number; refereeReward: number; description?: string }) =>
-      apiFetch<ReferralCampaign>("/admin/referral-campaigns", { method: "POST", body: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.referralCampaigns }),
-  });
-}
-
-export function useUpdateReferralCampaign() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (vars: { id: string } & Partial<Omit<ReferralCampaign, "id">>) =>
-      apiFetch<ReferralCampaign>(`/admin/referral-campaigns/${vars.id}`, { method: "PATCH", body: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.referralCampaigns }),
-  });
-}
-
-export function useDeleteReferralCampaign() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => apiFetch<null>(`/admin/referral-campaigns/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.referralCampaigns }),
+    mutationFn: (vars: Partial<ReferralConfig>) =>
+      apiFetch<ReferralConfig>("/admin/referral-config", { method: "PUT", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.referralConfig }),
   });
 }
 

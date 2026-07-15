@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Plus, Trash2, Percent, Share2, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Plus, Trash2, Percent, Image as ImageIcon, Loader2 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -10,10 +10,6 @@ import {
   useCreateDiscountCode,
   useUpdateDiscountCode,
   useDeleteDiscountCode,
-  useReferralCampaigns,
-  useCreateReferralCampaign,
-  useUpdateReferralCampaign,
-  useDeleteReferralCampaign,
   usePromoBanners,
   useCreatePromoBanner,
   useUpdatePromoBanner,
@@ -131,89 +127,6 @@ function DiscountCodesSection() {
           </div>
         ))}
         {codes.length === 0 && <p className="text-sm text-muted">No discount codes yet. Add one above.</p>}
-      </div>
-    </GlassCard>
-  );
-}
-
-function ReferralCampaignsSection() {
-  const { data: campaigns = [] } = useReferralCampaigns();
-  const create = useCreateReferralCampaign();
-  const update = useUpdateReferralCampaign();
-  const remove = useDeleteReferralCampaign();
-
-  const [name, setName] = useState("");
-  const [referrerReward, setReferrerReward] = useState("");
-  const [refereeReward, setRefereeReward] = useState("");
-
-  const submit = () => {
-    if (!name.trim() || !referrerReward || !refereeReward) return;
-    create.mutate(
-      { name: name.trim(), referrerReward: Number(referrerReward), refereeReward: Number(refereeReward) },
-      {
-        onSuccess: () => {
-          setName("");
-          setReferrerReward("");
-          setRefereeReward("");
-        },
-      },
-    );
-  };
-
-  return (
-    <GlassCard className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Share2 className="size-5 text-primary" />
-        <p className="font-display text-lg font-semibold text-ink">Referral Campaigns</p>
-      </div>
-      <p className="text-sm text-muted">Reward existing customers and new sign-ups when they refer friends.</p>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Input name="referralName" placeholder="e.g. Refer & Earn" value={name} onChange={(e) => setName(e.target.value)} />
-        <Input
-          name="referrerReward"
-          type="number"
-          placeholder="Referrer reward (₹)"
-          value={referrerReward}
-          onChange={(e) => setReferrerReward(e.target.value)}
-        />
-        <Input
-          name="refereeReward"
-          type="number"
-          placeholder="New customer reward (₹)"
-          value={refereeReward}
-          onChange={(e) => setRefereeReward(e.target.value)}
-        />
-      </div>
-      <Button size="sm" onClick={submit} disabled={create.isPending || !name.trim() || !referrerReward || !refereeReward}>
-        <Plus className="size-4" /> Add referral campaign
-      </Button>
-
-      <div className="space-y-2">
-        {campaigns.map((c) => (
-          <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface/60 p-3">
-            <div className="min-w-0">
-              <p className={`text-sm font-semibold ${c.active ? "text-ink" : "text-muted line-through"}`}>{c.name}</p>
-              <p className="text-xs text-muted">
-                Referrer gets {formatMoney(c.referrerReward)} · New customer gets {formatMoney(c.refereeReward)}
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={update.isPending}
-                onClick={() => update.mutate({ id: c.id, active: !c.active })}
-              >
-                {c.active ? "Active" : "Inactive"}
-              </Button>
-              <Button variant="ghost" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(c.id)}>
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
-          </div>
-        ))}
-        {campaigns.length === 0 && <p className="text-sm text-muted">No referral campaigns yet. Add one above.</p>}
       </div>
     </GlassCard>
   );
@@ -373,11 +286,10 @@ export function Promotions() {
     <div className="space-y-8">
       <div>
         <h1 className="font-display text-3xl text-ink">Coupon & Promotions</h1>
-        <p className="mt-1 text-muted">Manage discount codes, referral campaigns, and promotional banners.</p>
+        <p className="mt-1 text-muted">Manage discount codes and promotional banners.</p>
       </div>
 
       <DiscountCodesSection />
-      <ReferralCampaignsSection />
       <PromotionalBannersSection />
     </div>
   );

@@ -1,6 +1,6 @@
 import { Otp } from "./otp.model";
 import { User } from "../user/user.model";
-import { ReferralCampaign } from "../promotions/referralCampaign.model";
+import { creditRefereeWelcome } from "../promotions/referral.service";
 import { generateUniqueReferralCode } from "../user/user.service";
 import { env } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
@@ -97,13 +97,10 @@ export async function customerSignup(input: CustomerSignupInput) {
     referredBy: referrer?.id ?? null,
   });
 
-  // Credit both sides from the first active referral campaign (if one exists).
+  // New user gets their welcome coins immediately. The referrer is credited
+  // later, once this user reaches their first qualifying milestone.
   if (referrer) {
-    const campaign = await ReferralCampaign.findOne({ active: true }).sort({ createdAt: -1 });
-    if (campaign) {
-      await User.findByIdAndUpdate(referrer.id, { $inc: { referralEarnings: campaign.referrerReward } });
-      await User.findByIdAndUpdate(user.id, { $inc: { referralEarnings: campaign.refereeReward } });
-    }
+    await creditRefereeWelcome(user.id, referrer.id);
   }
 
   return sendOtp(phone);

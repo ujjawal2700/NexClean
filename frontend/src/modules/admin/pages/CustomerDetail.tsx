@@ -181,8 +181,8 @@ export function CustomerDetail() {
               </span>
             </div>
             <div className="flex justify-between items-center py-2.5 border-b border-line">
-              <span className="text-sm text-muted">Referral Earnings</span>
-              <span className="text-sm font-bold text-ink">{formatMoney(customer.referralEarnings)}</span>
+              <span className="text-sm text-muted">Coin Balance</span>
+              <span className="text-sm font-bold text-ink">{customer.coins.toLocaleString("en-IN")} coins</span>
             </div>
             <div className="py-2.5">
               <span className="block text-sm text-muted mb-2">Referred By</span>

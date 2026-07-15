@@ -12,19 +12,24 @@ import {
   MapPin,
   AlertCircle,
   ArrowLeft,
+  Coins,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { formatMoney } from "@shared/lib/format";
-import { useMe, usePlans, useCategoryLabel, useSubscriptionSchedule } from "../api/queries";
+import { useMe, usePlans, useCategoryLabel, useSubscriptionSchedule, useWallet } from "../api/queries";
 import {
-  useSubscribe,
+  useCreateSubscriptionOrder,
+  useVerifySubscription,
   useUnsubscribe,
+  usePreviewSubscription,
   useScheduleSubscriptionWash,
   useRescheduleSubscriptionWash,
   useCancelBooking,
 } from "../api/mutations";
+import type { SubscriptionPreview } from "../api/mutations";
+import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import { TIME_SLOTS } from "../data/catalog";
 import type { CarType, CatalogPlan, Booking } from "../types";
 
@@ -55,16 +60,23 @@ export function Subscriptions() {
   const { data: me } = useMe();
   const { data: plans = [], isLoading: plansLoading } = usePlans();
   const categoryLabel = useCategoryLabel();
-  const subscribe = useSubscribe();
+  const createSubOrder = useCreateSubscriptionOrder();
+  const verifySub = useVerifySubscription();
   const unsubscribe = useUnsubscribe();
+  const previewSub = usePreviewSubscription();
+  const { data: wallet } = useWallet();
 
   const { data: scheduleData, isLoading: scheduleLoading } = useSubscriptionSchedule();
   const scheduleWash = useScheduleSubscriptionWash();
   const rescheduleWash = useRescheduleSubscriptionWash();
   const cancelWash = useCancelBooking();
 
+  const [subProcessing, setSubProcessing] = useState(false);
+
   const busy =
-    subscribe.isPending ||
+    subProcessing ||
+    createSubOrder.isPending ||
+    verifySub.isPending ||
     unsubscribe.isPending ||
     scheduleWash.isPending ||
     rescheduleWash.isPending ||
@@ -95,6 +107,99 @@ export function Subscriptions() {
 
   const priceForPlan = (plan: CatalogPlan) =>
     vehicleType ? plan.prices[vehicleType] : plan.price;
+
+  // Subscription checkout (with optional coin redemption)
+  const walletCoins = wallet?.coins ?? 0;
+  const [checkoutPlan, setCheckoutPlan] = useState<CatalogPlan | null>(null);
+  const [subUseCoins, setSubUseCoins] = useState(false);
+  const [subQuote, setSubQuote] = useState<SubscriptionPreview | null>(null);
+  const [checkoutError, setCheckoutError] = useState("");
+
+  const openCheckout = (plan: CatalogPlan) => {
+    setCheckoutPlan(plan);
+    setSubUseCoins(false);
+    setSubQuote(null);
+    setCheckoutError("");
+  };
+
+  const payableSub = subQuote ? subQuote.price : checkoutPlan ? priceForPlan(checkoutPlan) : 0;
+
+  const toggleSubCoins = async () => {
+    if (!checkoutPlan) return;
+    const next = !subUseCoins;
+    setSubUseCoins(next);
+    if (!next) {
+      setSubQuote(null);
+      return;
+    }
+    try {
+      const q = await previewSub.mutateAsync({
+        planId: checkoutPlan.id,
+        vehicleType: vehicleType ?? undefined,
+        coinsToRedeem: walletCoins,
+      });
+      setSubQuote(q);
+    } catch {
+      setSubUseCoins(false);
+    }
+  };
+
+  const confirmSubscribe = async () => {
+    if (!checkoutPlan) return;
+    setCheckoutError("");
+    setSubProcessing(true);
+
+    const checkoutVars = {
+      planId: checkoutPlan.id,
+      vehicleType: vehicleType ?? undefined,
+      coinsToRedeem: subUseCoins ? walletCoins : undefined,
+    };
+
+    const finish = () => {
+      setCheckoutPlan(null);
+      setShowCatalog(false);
+      setSubProcessing(false);
+    };
+
+    try {
+      const order = await createSubOrder.mutateAsync(checkoutVars);
+
+      // Mock/free (no Razorpay keys, or coins cover the full amount): activate directly.
+      if (order.mock) {
+        await verifySub.mutateAsync(checkoutVars);
+        finish();
+        return;
+      }
+
+      // Live mode: open Razorpay Checkout, then verify the signature server-side.
+      const loaded = await loadRazorpay();
+      if (!loaded) throw new Error("Couldn't load the payment gateway");
+
+      openRazorpay({
+        key: order.keyId,
+        amount: order.amount * 100,
+        currency: order.currency,
+        order_id: order.orderId,
+        name: "NexClean",
+        description: `${checkoutPlan.name} subscription`,
+        prefill: { name: me?.name, contact: me?.phone },
+        theme: { color: "#4F7CFF" },
+        handler: async (r) => {
+          try {
+            await verifySub.mutateAsync({ ...checkoutVars, ...r });
+            finish();
+          } catch (e: any) {
+            setCheckoutError(e?.message || "Payment verification failed");
+            setSubProcessing(false);
+          }
+        },
+        modal: { ondismiss: () => setSubProcessing(false) },
+      });
+    } catch (err: any) {
+      setCheckoutError(err?.message || "Failed to subscribe. Please try again.");
+      setSubProcessing(false);
+    }
+  };
 
   const handleOpenSchedule = () => {
     setSelectedVehicleId(me?.vehicles[0]?.id || "");
@@ -741,7 +846,7 @@ export function Subscriptions() {
                     variant={meta.featured ? "glass" : "primary"}
                     className={cn("w-full", meta.featured && "bg-white text-primary hover:bg-white")}
                     disabled={busy}
-                    onClick={() => subscribe.mutate(plan.id)}
+                    onClick={() => openCheckout(plan)}
                   >
                     Choose {plan.name}
                   </Button>
@@ -761,6 +866,97 @@ export function Subscriptions() {
           You're on the <span className="font-medium text-ink capitalize">{activePlan}</span> plan.
           Subscription billing connects when the backend (Razorpay) is live.
         </GlassCard>
+      )}
+
+      {/* MODAL: Subscription checkout */}
+      {checkoutPlan && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-5 backdrop-blur-sm">
+          <GlassCard className="w-full max-w-md border border-line shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-line pb-3">
+              <h3 className="font-display text-xl font-bold text-ink">Confirm subscription</h3>
+              <button onClick={() => setCheckoutPlan(null)} className="text-muted hover:text-ink">
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div>
+              <p className="font-display text-lg font-semibold text-ink">{checkoutPlan.name}</p>
+              <p className="text-sm text-muted">
+                {washesLabel(checkoutPlan.washesPerMonth)}
+                {vehicleType ? ` · ${categoryLabel(vehicleType)}` : ""}
+              </p>
+            </div>
+
+            {checkoutError && (
+              <div className="flex items-center gap-2 rounded-xl bg-red-50/15 border border-red-500/20 p-3.5 text-xs text-red-500">
+                <AlertCircle className="size-4 shrink-0" />
+                <span>{checkoutError}</span>
+              </div>
+            )}
+
+            {walletCoins > 0 && (
+              <button
+                type="button"
+                onClick={toggleSubCoins}
+                disabled={previewSub.isPending}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all",
+                  subUseCoins
+                    ? "border-amber-400/50 bg-amber-400/10 ring-2 ring-amber-400/20"
+                    : "border-line bg-surface hover:border-amber-400/40",
+                )}
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
+                  <Coins className="size-4.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-ink">
+                    {subUseCoins ? "Coins applied" : `Use your ${walletCoins.toLocaleString("en-IN")} coins`}
+                  </p>
+                  <p className="text-xs text-muted">
+                    {subUseCoins && subQuote && subQuote.coinDiscount > 0
+                      ? `Saving ${formatMoney(subQuote.coinDiscount)} with coins`
+                      : "Redeem coins for a discount on this plan"}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
+                    subUseCoins ? "bg-amber-500 justify-end" : "bg-line justify-start",
+                  )}
+                >
+                  <span className="size-5 rounded-full bg-white shadow" />
+                </span>
+              </button>
+            )}
+
+            <dl className="space-y-2 border-t border-line pt-4 text-sm">
+              <div className="flex items-center justify-between">
+                <dt className="text-muted">Plan price</dt>
+                <dd className="font-medium text-ink">{formatMoney(priceForPlan(checkoutPlan))}/mo</dd>
+              </div>
+              {subQuote && subQuote.coinDiscount > 0 && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted">Coins ({subQuote.coinsRedeemed.toLocaleString("en-IN")})</dt>
+                  <dd className="font-medium text-amber-600">−{formatMoney(subQuote.coinDiscount)}</dd>
+                </div>
+              )}
+              <div className="flex items-center justify-between border-t border-line pt-2">
+                <dt className="text-muted">Due now</dt>
+                <dd className="font-display text-xl font-semibold text-ink">{formatMoney(payableSub)}</dd>
+              </div>
+            </dl>
+
+            <div className="flex gap-3 border-t border-line/50 pt-4">
+              <Button className="flex-1" onClick={confirmSubscribe} disabled={busy}>
+                {subProcessing ? "Processing…" : `Pay ${formatMoney(payableSub)}`}
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setCheckoutPlan(null)} disabled={busy}>
+                Cancel
+              </Button>
+            </div>
+          </GlassCard>
+        </div>
       )}
     </div>
   );

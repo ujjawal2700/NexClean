@@ -3,10 +3,30 @@ import { ok } from "../../shared/utils/apiResponse";
 import { ApiError } from "../../shared/utils/ApiError";
 import * as subService from "./subscription.service";
 
-export async function subscribe(req: Request, res: Response): Promise<Response> {
-  const planId = String(req.body.planId ?? "");
-  if (!(await subService.isPlanId(planId))) throw ApiError.badRequest("Unknown plan");
-  const user = await subService.subscribe(req.userId!, planId);
+export async function previewSubscription(req: Request, res: Response): Promise<Response> {
+  const { planId, vehicleType, coinsToRedeem } = req.body;
+  const result = await subService.previewSubscription(req.userId!, String(planId), vehicleType, coinsToRedeem);
+  return ok(res, result);
+}
+
+export async function createSubscriptionOrder(req: Request, res: Response): Promise<Response> {
+  const { planId, vehicleType, coinsToRedeem } = req.body;
+  if (!(await subService.isPlanId(String(planId ?? "")))) throw ApiError.badRequest("Unknown plan");
+  const order = await subService.createSubscriptionOrder(req.userId!, { planId: String(planId), vehicleType, coinsToRedeem });
+  return ok(res, order);
+}
+
+export async function verifySubscription(req: Request, res: Response): Promise<Response> {
+  const { planId, vehicleType, coinsToRedeem, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+  if (!(await subService.isPlanId(String(planId ?? "")))) throw ApiError.badRequest("Unknown plan");
+  const user = await subService.verifyAndSubscribe(req.userId!, {
+    planId: String(planId),
+    vehicleType,
+    coinsToRedeem,
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+  });
   return ok(res, user, "Subscribed");
 }
 

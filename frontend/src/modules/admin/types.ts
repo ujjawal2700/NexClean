@@ -211,7 +211,7 @@ export type AdminCustomerDetail = AdminCustomer & {
   vehicles: CustomerVehicle[];
   addresses: CustomerAddress[];
   referralCode: string | null;
-  referralEarnings: number;
+  coins: number;
   referredBy: {
     name: string;
     phone: string;
@@ -328,12 +328,11 @@ export type SpecialCoupon = {
   createdAt: string;
 };
 
-export type ReferralCampaign = {
-  id: string;
-  name: string;
+export type ReferralConfig = {
   referrerReward: number;
   refereeReward: number;
-  description: string;
+  coinsPerRupee: number;
+  maxRedeemPercent: number;
   active: boolean;
 };
 

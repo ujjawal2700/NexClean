@@ -55,7 +55,7 @@ export function ReferEarn() {
           </span>
           <h2 className="font-display text-2xl font-bold text-ink">Share the Love, Get Rewarded</h2>
           <p className="text-sm text-ink-soft max-w-xl leading-relaxed">
-            Invite your friends to NexClean! You'll earn <span className="font-bold text-primary">{formatMoney(referrals?.rewardAmount ?? 100)}</span> for every friend who signs up and completes their first booking. There's no limit to how much you can earn!
+            Invite your friends to NexClean! You'll earn <span className="font-bold text-primary">{referrals?.rewardAmount ?? 100} coins</span> for every friend who signs up and completes their first service. Coins land in your wallet — redeem them for discounts at checkout!
           </p>
         </div>
       </GlassCard>
@@ -84,17 +84,19 @@ export function ReferEarn() {
           </div>
         </GlassCard>
 
-        {/* Card 2: Earnings */}
+        {/* Card 2: Coin balance */}
         <GlassCard className="flex flex-col justify-between p-5 bg-surface">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted">Total Earnings</p>
-            <p className="text-xs text-muted mt-0.5">Credited to your account balance</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted">Coin Balance</p>
+            <p className="text-xs text-muted mt-0.5">Redeemable at checkout</p>
           </div>
           <div className="mt-4">
-            <h3 className="font-display text-3xl font-extrabold text-emerald-600">
-              {formatMoney(referrals?.referralEarnings ?? 0)}
+            <h3 className="font-display text-3xl font-extrabold text-amber-500">
+              {(referrals?.coins ?? 0).toLocaleString("en-IN")} <span className="text-lg">coins</span>
             </h3>
-            <p className="text-xs text-muted mt-1">From completed referrals</p>
+            <p className="text-xs text-muted mt-1">
+              ≈ {formatMoney(Math.floor((referrals?.coins ?? 0) / (referrals?.coinsPerRupee || 1)))} in value
+            </p>
           </div>
         </GlassCard>
       </div>
@@ -186,8 +188,8 @@ export function ReferEarn() {
                           {isRewarded ? "₹" : "3"}
                         </div>
                         <span className="mt-2 text-[11px] font-bold text-ink leading-tight">Reward</span>
-                        <span className="text-[9px] font-medium text-emerald-600">
-                          {isRewarded ? `+${formatMoney(referrals.rewardAmount || 100)}` : "Pending"}
+                        <span className="text-[9px] font-medium text-amber-600">
+                          {isRewarded ? `+${referrals.rewardAmount || 100} coins` : "Pending"}
                         </span>
                       </div>
                     </div>
