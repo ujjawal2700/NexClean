@@ -43,7 +43,7 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   // Live: refresh bookings/notifications the moment a cleaner is assigned.
   useEffect(() => {
     if (!token) return;
-    const socket: Socket = io(SOCKET_URL, { auth: { token } });
+    const socket: Socket = io(SOCKET_URL, { auth: { token }, transports: ["websocket"] });
     socket.on("booking_assigned", () => {
       qc.invalidateQueries({ queryKey: bookingsKey });
       qc.invalidateQueries({ queryKey: notificationsKey });

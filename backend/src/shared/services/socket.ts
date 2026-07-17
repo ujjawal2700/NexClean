@@ -37,6 +37,15 @@ export async function initSocket(server: any) {
       methods: ["GET", "POST"],
       credentials: true,
     },
+    // Skip HTTP long-polling entirely. Under PM2 cluster mode, nginx proxies
+    // every request to the same port 4000, but which of the 4 worker
+    // processes actually handles a given connection is decided inside
+    // Node's cluster module — invisible to nginx. Polling's sequential
+    // handshake requests can each land on a different worker, and a worker
+    // that doesn't recognize another's session id returns 400. A WebSocket
+    // is one persistent connection, so it's pinned to a single worker for
+    // its lifetime and never hits this.
+    transports: ["websocket"],
   });
 
   // In single-process mode this is a no-op — events already reach every

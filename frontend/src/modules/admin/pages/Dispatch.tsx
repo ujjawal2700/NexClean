@@ -63,7 +63,7 @@ export function Dispatch() {
   // Live refresh: the backend emits on every dispatch state change.
   useEffect(() => {
     if (!token) return;
-    const socket: Socket = io(SOCKET_URL, { auth: { token } });
+    const socket: Socket = io(SOCKET_URL, { auth: { token }, transports: ["websocket"] });
     const refresh = () => qc.invalidateQueries({ queryKey: ["admin", "dispatch"] });
     socket.on("dispatch_update", refresh);
     socket.on("dispatch_pending", refresh);

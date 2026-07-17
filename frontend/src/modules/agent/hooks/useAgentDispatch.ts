@@ -67,7 +67,7 @@ export function useAgentDispatch(): AgentDispatch {
   // Socket connection + offer events.
   useEffect(() => {
     if (!token) return;
-    const socket = io(SOCKET_URL, { auth: { token } });
+    const socket = io(SOCKET_URL, { auth: { token }, transports: ["websocket"] });
     socketRef.current = socket;
 
     socket.on("job_offer", (o: JobOffer) => {

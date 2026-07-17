@@ -82,6 +82,7 @@ export function ChatPanel() {
 
     const socket = io(SOCKET_URL, {
       auth: { token },
+      transports: ["websocket"],
     });
 
     socketRef.current = socket;
