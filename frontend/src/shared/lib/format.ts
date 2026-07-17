@@ -15,8 +15,8 @@ export function formatTime(iso: string): string {
   });
 }
 
-export function formatMoney(value: number): string {
-  return `₹${value.toLocaleString("en-IN")}`;
+export function formatMoney(value: number | null | undefined): string {
+  return `₹${(value ?? 0).toLocaleString("en-IN")}`;
 }
 
 export function greeting(): string {
