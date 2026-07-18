@@ -83,5 +83,14 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
     );
   }
 
-  return (envelope?.data as T) ?? (payload as T);
+  // A response wrapped in the {success, data} envelope always yields
+  // envelope.data, even when that's legitimately null (e.g. "no current
+  // offer") — falling back to the raw payload only when there's no
+  // envelope at all. `data: null ?? payload` previously mistook a real
+  // null for "no envelope" and returned the whole {success, data} object
+  // instead, which every caller's `if (result)` then treated as truthy.
+  if (envelope && typeof envelope === "object" && "data" in envelope) {
+    return envelope.data as T;
+  }
+  return payload as T;
 }
