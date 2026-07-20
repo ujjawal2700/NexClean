@@ -11,7 +11,8 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { ApiError } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
 import { meKey, useSendOtp, useVerifyOtp } from "../api/agent.api";
-import { Stepper } from "../../customer/pages/booking/BookingFlow";
+import { Stepper } from "@shared/ui/Stepper";
+
 
 export function Login() {
   const navigate = useNavigate();

@@ -3,13 +3,14 @@ import { Aurora } from "@shared/components/visual/Aurora";
 import { Container } from "@shared/components/layout/Container";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
-import { Header } from "../components/Header";
+import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
 
 export function Support() {
   return (
     <div className="min-h-dvh bg-bg">
-      <Header />
+      <Navbar />
+
 
       <main className="relative pt-24 pb-20 overflow-hidden">
         <Aurora />

@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2, UserX, Mail, MapPin, X } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Badge } from "@shared/ui/Badge";
 import { Input } from "@shared/ui/Input";
@@ -12,6 +13,7 @@ import { Stepper } from "@shared/ui/Stepper";
 import { useSendOtp, useVerifyOtp } from "../api/mutations";
 import { meKey } from "../api/queries";
 import { useSessionStore } from "../store/sessionStore";
+
 
 const DEMO_OTP = "123456";
 

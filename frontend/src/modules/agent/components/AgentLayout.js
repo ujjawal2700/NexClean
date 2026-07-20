@@ -1,0 +1,69 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { useEffect, useRef } from "react";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { LayoutDashboard, ListChecks, Wallet, User, MapPinOff } from "lucide-react";
+import { cn } from "@shared/lib/utils";
+import { Logo } from "@shared/components/brand/Logo";
+import { getPushToken, saveDeviceToken } from "@shared/lib/push";
+import { useAgentMe, useToggleOnline, useHeartbeat, useRegisterToken } from "../api/agent.api";
+import { useAgentDispatch } from "../hooks/useAgentDispatch";
+import { OfferOverlay } from "./OfferOverlay";
+const HEARTBEAT_INTERVAL_MS = 25_000;
+/** Registers this device for push once per session so offers ping when backgrounded. */
+function useRegisterPushToken() {
+    const registerToken = useRegisterToken();
+    const registered = useRef(false);
+    useEffect(() => {
+        if (registered.current)
+            return;
+        registered.current = true;
+        getPushToken()
+            .then((t) => {
+            saveDeviceToken(t);
+            registerToken.mutate(t);
+        })
+            .catch(() => { });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+}
+/** Keeps the agent's "live" status fresh on the server for as long as this layout is mounted. */
+function useAgentHeartbeat() {
+    const heartbeat = useHeartbeat();
+    useEffect(() => {
+        heartbeat.mutate();
+        const interval = setInterval(() => heartbeat.mutate(), HEARTBEAT_INTERVAL_MS);
+        const onVisible = () => {
+            if (document.visibilityState === "visible")
+                heartbeat.mutate();
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+}
+const NAV = [
+    { to: "/agent", label: "Today", icon: LayoutDashboard, end: true },
+    { to: "/agent/jobs", label: "Jobs", icon: ListChecks, end: false },
+    { to: "/agent/earnings", label: "Earnings", icon: Wallet, end: false },
+    { to: "/agent/profile", label: "Profile", icon: User, end: false },
+];
+export function OnlineToggle() {
+    const { data: me } = useAgentMe();
+    const toggle = useToggleOnline();
+    const online = me?.online ?? false;
+    return (_jsxs("button", { onClick: () => toggle.mutate(!online), disabled: toggle.isPending, className: cn("flex items-center gap-2 rounded-pill border px-3 py-1.5 text-sm font-medium transition-colors", online ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-line bg-surface text-muted"), "aria-pressed": online, children: [_jsxs("span", { className: cn("relative flex size-2.5", !online && "opacity-50"), children: [online && _jsx("span", { className: "absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" }), _jsx("span", { className: cn("relative inline-flex size-2.5 rounded-full", online ? "bg-emerald-500" : "bg-muted") })] }), online ? "Online" : "Offline"] }));
+}
+export function AgentLayout({ children }) {
+    const location = useLocation();
+    const navigate = useNavigate();
+    const { data: me } = useAgentMe();
+    useAgentHeartbeat();
+    useRegisterPushToken();
+    const dispatch = useAgentDispatch();
+    const isHomepage = location.pathname === "/agent" || location.pathname === "/agent/";
+    const showLocationNudge = (me?.online ?? false) && !dispatch.locating;
+    return (_jsxs("div", { className: "min-h-dvh bg-bg", children: [_jsx(OfferOverlay, { dispatch: dispatch }), isHomepage && (_jsx("header", { className: "sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl", children: _jsxs("div", { className: "mx-auto flex h-16 max-w-5xl items-center justify-between px-5", children: [_jsxs("button", { onClick: () => navigate("/agent"), className: "flex items-center gap-2 text-[1.05rem]", children: [_jsx(Logo, { variant: "full" }), _jsx("span", { className: "hidden rounded-pill bg-ink/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted sm:inline", children: "Agent" })] }), _jsx("nav", { className: "hidden items-center gap-1 md:flex", children: NAV.map((item) => (_jsxs(NavLink, { to: item.to, end: item.end, className: ({ isActive }) => cn("flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-colors", isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:text-primary"), children: [_jsx(item.icon, { className: "size-4" }), item.label] }, item.to))) }), _jsx("div", { className: "flex items-center gap-2", children: _jsx(OnlineToggle, {}) })] }) })), _jsxs("main", { className: "mx-auto max-w-5xl px-5 pb-28 pt-8 md:pb-16", children: [showLocationNudge && (_jsxs("div", { className: "mb-5 flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700", children: [_jsx(MapPinOff, { className: "size-4 shrink-0" }), _jsx("span", { children: "Turn on location access to receive nearby job requests while you're online." })] })), children] }), _jsx("nav", { className: "fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/90 backdrop-blur-xl md:hidden", children: _jsx("div", { className: "mx-auto flex max-w-md items-center justify-around px-2 py-2", children: NAV.map((item) => (_jsxs(NavLink, { to: item.to, end: item.end, className: ({ isActive }) => cn("flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-[10px] font-medium transition-colors", isActive ? "text-primary" : "text-muted"), children: [_jsx(item.icon, { className: "size-5" }), item.label] }, item.to))) }) })] }));
+}

@@ -6,9 +6,10 @@
   "description": "NexClean web app — role-based modules (landing, customer, agent, admin).",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -p tsconfig.app.json --noEmit"
+
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.5",
