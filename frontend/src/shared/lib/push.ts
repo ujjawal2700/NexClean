@@ -74,6 +74,15 @@ function loadFirebaseSdk(): Promise<any> {
 
 let foregroundBound = false;
 
+export function saveDeviceToken(token: string): void {
+  if (typeof window === "undefined" || !token) return;
+  try {
+    localStorage.setItem(KEY, token);
+  } catch (err) {
+    console.warn("Failed to save device token to localStorage:", err);
+  }
+}
+
 /**
  * Resolve a push token to register with the backend. Prefers a real FCM token;
  * falls back to the synthetic token if Firebase isn't configured, permission is
@@ -91,12 +100,16 @@ export async function getPushToken(): Promise<string> {
     !("serviceWorker" in navigator) ||
     typeof Notification === "undefined"
   ) {
+    saveDeviceToken(fallback);
     return fallback;
   }
 
   try {
     const permission = await Notification.requestPermission();
-    if (permission !== "granted") return fallback;
+    if (permission !== "granted") {
+      saveDeviceToken(fallback);
+      return fallback;
+    }
 
     const firebase = await loadFirebaseSdk();
     if (!firebase.apps.length) firebase.initializeApp(config);
@@ -107,10 +120,10 @@ export async function getPushToken(): Promise<string> {
     const registration = await navigator.serviceWorker.register(swUrl);
 
     const token: string = await messaging.getToken({ vapidKey, serviceWorkerRegistration: registration });
-    if (!token) return fallback;
+    const finalToken = token || fallback;
 
-    // Persist real FCM token to localStorage so local storage and DB stay synced
-    localStorage.setItem(KEY, token);
+    // Persist active FCM / device token to localStorage so local storage and DB stay in sync
+    saveDeviceToken(finalToken);
 
     // Show foreground messages while the app is open (bind once).
     if (!foregroundBound) {
@@ -123,20 +136,22 @@ export async function getPushToken(): Promise<string> {
       });
     }
 
-    return token;
+    return finalToken;
   } catch (err) {
     console.warn("FCM token retrieval failed; using fallback token:", err);
+    saveDeviceToken(fallback);
     return fallback;
   }
 }
 
 export function getStoredDeviceToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(KEY);
+  return localStorage.getItem(KEY) || getOrCreateDeviceToken();
 }
 
 export function clearStoredDeviceToken(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(KEY);
 }
+
 

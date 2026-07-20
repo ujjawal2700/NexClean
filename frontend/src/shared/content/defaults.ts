@@ -30,6 +30,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
       {
         title: "Support",
         links: [
+          { label: "Customer Support", href: "/support" },
           { label: "Help center", href: "/help" },
           { label: "Privacy policy", href: "/privacy" },
           { label: "Terms of service", href: "/terms" },

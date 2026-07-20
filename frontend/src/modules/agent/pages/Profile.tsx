@@ -11,12 +11,14 @@ import {
   ChevronRight,
   HelpCircle,
   LogOut,
+  UserX,
   Pencil,
   Power,
+  Loader2,
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
-import { useAgentMe, useToggleOnline } from "../api/agent.api";
+import { useAgentMe, useToggleOnline, useDeactivateAccount } from "../api/agent.api";
 
 export function Profile() {
   const navigate = useNavigate();
@@ -24,7 +26,9 @@ export function Profile() {
   const clear = useAgentSession((s) => s.clear);
   const { data: me } = useAgentMe();
   const toggleOnline = useToggleOnline();
+  const deactivateAccount = useDeactivateAccount();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
 
   const handleLogout = () => {
     setShowLogoutConfirm(true);
@@ -32,6 +36,18 @@ export function Profile() {
 
   const confirmLogout = () => {
     setShowLogoutConfirm(false);
+    clear();
+    qc.clear();
+    navigate("/agent/login");
+  };
+
+  const confirmDeactivate = async () => {
+    try {
+      await deactivateAccount.mutateAsync();
+    } catch {
+      /* ignore */
+    }
+    setShowDeactivateConfirm(false);
     clear();
     qc.clear();
     navigate("/agent/login");
@@ -176,22 +192,33 @@ export function Profile() {
         Background-checked &amp; insured. Specialist credentials verified by the NexClean operations team.
       </GlassCard>
 
-      {/* Log out Button */}
-      <Button
-        variant="outline"
-        onClick={handleLogout}
-        className="w-full mt-6 text-red-500 border-red-200 hover:bg-red-50/15 flex items-center justify-center gap-2 bg-surface"
-      >
-        <LogOut className="size-[18px]" />
-        <span>Log out</span>
-      </Button>
+      {/* Account Action Buttons */}
+      <div className="space-y-3 pt-4">
+        <Button
+          variant="outline"
+          onClick={handleLogout}
+          className="w-full text-ink-soft border-line hover:bg-surface-muted flex items-center justify-center gap-2 bg-surface"
+        >
+          <LogOut className="size-[18px]" />
+          <span>Log out</span>
+        </Button>
+
+        <Button
+          variant="outline"
+          onClick={() => setShowDeactivateConfirm(true)}
+          className="w-full text-red-500 border-red-200 hover:bg-red-50/15 flex items-center justify-center gap-2 bg-surface"
+        >
+          <UserX className="size-[18px]" />
+          <span>Delete / Deactivate account</span>
+        </Button>
+      </div>
 
       {/* Custom Logout Confirmation Modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/30 backdrop-blur-sm animate-fade-in">
           <GlassCard className="w-full max-w-sm space-y-6 bg-surface p-6 shadow-xl border border-line">
             <div className="space-y-2 text-center">
-              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-ink/5 text-ink">
                 <LogOut className="size-6" />
               </div>
               <h3 className="font-display text-lg font-bold text-ink">Log Out</h3>
@@ -210,9 +237,44 @@ export function Profile() {
               </Button>
               <Button
                 onClick={confirmLogout}
-                className="flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+                className="flex-1 rounded-xl bg-ink text-surface hover:bg-ink/90 cursor-pointer"
               >
                 Log out
+              </Button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* Custom Deactivate Confirmation Modal */}
+      {showDeactivateConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/30 backdrop-blur-sm animate-fade-in">
+          <GlassCard className="w-full max-w-sm space-y-6 bg-surface p-6 shadow-xl border border-line">
+            <div className="space-y-2 text-center">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">
+                <UserX className="size-6" />
+              </div>
+              <h3 className="font-display text-lg font-bold text-ink">Deactivate Account?</h3>
+              <p className="text-sm text-muted leading-relaxed">
+                Are you sure you want to deactivate your agent profile? You will be logged out immediately. Once deactivated, only an admin can reactivate your account.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeactivateConfirm(false)}
+                disabled={deactivateAccount.isPending}
+                className="flex-1 rounded-xl cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDeactivate}
+                disabled={deactivateAccount.isPending}
+                className="flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+              >
+                {deactivateAccount.isPending ? <Loader2 className="size-4 animate-spin" /> : "Deactivate"}
               </Button>
             </div>
           </GlassCard>
@@ -221,3 +283,4 @@ export function Profile() {
     </div>
   );
 }
+

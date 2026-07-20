@@ -62,9 +62,10 @@ export async function verifyOtp(rawPhone: string, code: string) {
     { upsert: true, new: true },
   );
 
-  if (user.role === "customer" && user.status === "suspended") {
-    throw ApiError.forbidden("This account has been suspended. Contact support for help.");
+  if (user.status === "suspended") {
+    throw ApiError.forbidden("ACCOUNT_DEACTIVATED: Your account is deactivated. Please contact customer support for assistance.");
   }
+
 
   // Cover accounts created via OTP-only login (no customerSignup) or from before referral codes existed.
   if (user.role === "customer" && !user.referralCode) {

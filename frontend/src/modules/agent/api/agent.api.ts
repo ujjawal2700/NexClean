@@ -118,7 +118,14 @@ export function useRegisterToken() {
   });
 }
 
+export function useDeactivateAccount() {
+  return useMutation({
+    mutationFn: () => apiFetch<{ deactivated: boolean }>("/users/me/deactivate", { method: "POST" }),
+  });
+}
+
 /* -------------------------- Dispatch offers ------------------------------ */
+
 
 /** The agent's current live offer (used to restore the popup after a reconnect). */
 export function fetchCurrentOffer() {

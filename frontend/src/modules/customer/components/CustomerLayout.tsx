@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@shared/lib/utils";
 import { SOCKET_URL } from "@shared/lib/api";
 import { Logo } from "@shared/components/brand/Logo";
-import { getPushToken } from "@shared/lib/push";
+import { getPushToken, saveDeviceToken } from "@shared/lib/push";
 import { useMe, useNotifications, bookingsKey, notificationsKey } from "../api/queries";
 import { useRegisterToken } from "../api/mutations";
 import { useSessionStore } from "../store/sessionStore";
@@ -36,9 +36,15 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (registered.current) return;
     registered.current = true;
-    getPushToken().then((t) => registerToken.mutate(t)).catch(() => {});
+    getPushToken()
+      .then((t) => {
+        saveDeviceToken(t);
+        registerToken.mutate(t);
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   // Live: refresh bookings/notifications the moment a cleaner is assigned.
   useEffect(() => {

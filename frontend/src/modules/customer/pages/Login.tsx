@@ -1,17 +1,17 @@
 import { useState, useRef } from "react";
 import { useNavigate, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2 } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
-import { Logo } from "@shared/components/brand/Logo";
-import { Button } from "@shared/ui/Button";
-import { Input } from "@shared/ui/Input";
 import { Badge } from "@shared/ui/Badge";
-import { Stepper } from "@shared/ui/Stepper";
+import { Input } from "@shared/ui/Input";
+import { Button } from "@shared/ui/Button";
+import { Logo } from "@shared/components/brand/Logo";
+import { GlassCard } from "@shared/ui/GlassCard";
 import { ApiError } from "@shared/lib/api";
-import { useSessionStore } from "../store/sessionStore";
+import { Stepper } from "@shared/ui/Stepper";
 import { useSendOtp, useVerifyOtp } from "../api/mutations";
 import { meKey } from "../api/queries";
+import { useSessionStore } from "../store/sessionStore";
 
 const DEMO_OTP = "123456";
 
@@ -27,12 +27,9 @@ export function Login() {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
-  const phoneRef = useRef(phone);
+  const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
+  const phoneRef = useRef("");
 
-  // Already logged in — skip the login form entirely. Must come after every
-  // hook call above (Rules of Hooks): this becomes true mid-session right
-  // after a successful login, and an earlier return here would make this
-  // component render fewer hooks than its previous pass.
   if (token) return <Navigate to="/app" replace />;
 
   const send = async () => {
@@ -66,7 +63,13 @@ export function Login() {
       qc.setQueryData(meKey, user);
       navigate("/app", { replace: true });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Verification failed");
+      const msg = e instanceof ApiError ? e.message : String(e);
+      if (msg.includes("ACCOUNT_DEACTIVATED") || msg.includes("deactivated") || msg.includes("suspended")) {
+        setShowDeactivatedModal(true);
+        setError("Your account has been deactivated.");
+      } else {
+        setError(msg || "Verification failed");
+      }
     }
   };
 
@@ -160,7 +163,66 @@ export function Login() {
           </Link>
         </p>
       </div>
+
+      {showDeactivatedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-md animate-fade-in">
+          <GlassCard className="w-full max-w-md space-y-6 bg-surface p-6 shadow-2xl border border-line relative">
+            <button
+              onClick={() => setShowDeactivatedModal(false)}
+              className="absolute top-4 right-4 text-muted hover:text-ink p-1 rounded-lg transition-colors"
+            >
+              <X className="size-5" />
+            </button>
+
+            <div className="space-y-3 text-center pt-2">
+              <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-600">
+                <UserX className="size-7" />
+              </div>
+              <h3 className="font-display text-2xl font-bold text-ink">Account Deactivated</h3>
+              <p className="text-sm text-muted leading-relaxed">
+                Your profile has been deactivated. Only an administrator can reactivate your account. Please contact customer support for assistance.
+              </p>
+            </div>
+
+            <div className="space-y-3 rounded-2xl border border-line bg-surface-muted/50 p-4 text-left text-xs">
+              <div className="flex items-center gap-3">
+                <Phone className="size-4 text-primary shrink-0" />
+                <div>
+                  <p className="text-muted font-medium">Customer Support Phone</p>
+                  <p className="font-bold text-ink text-sm">+91 98765 43210</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 border-t border-line/40 pt-2.5">
+                <Mail className="size-4 text-primary shrink-0" />
+                <div>
+                  <p className="text-muted font-medium">Support Email</p>
+                  <p className="font-bold text-ink text-sm">support@nexclean.in</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 border-t border-line/40 pt-2.5">
+                <MapPin className="size-4 text-primary shrink-0" />
+                <div>
+                  <p className="text-muted font-medium">Office Address</p>
+                  <p className="font-medium text-ink">NexClean HQ, 102 Sector 5, HSR Layout, Bengaluru 560102</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <a href="tel:+919876543210" className="flex-1">
+                <Button className="w-full rounded-xl">Call Support</Button>
+              </a>
+              <Button
+                variant="outline"
+                onClick={() => setShowDeactivatedModal(false)}
+                className="flex-1 rounded-xl"
+              >
+                Close
+              </Button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </main>
   );
 }
-

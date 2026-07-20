@@ -147,10 +147,16 @@ export async function listAgents() {
 }
 
 export async function setAgentStatus(id: string, status: "verified" | "pending" | "suspended") {
-  const agent = await User.findOneAndUpdate({ _id: id, role: "agent" }, { agentStatus: status }, { new: true });
+  const userStatus = status === "suspended" ? "suspended" : "active";
+  const agent = await User.findOneAndUpdate(
+    { _id: id, role: "agent" },
+    { agentStatus: status, status: userStatus },
+    { new: true },
+  );
   if (!agent) throw ApiError.notFound("Agent not found");
   return mapAgent(agent);
 }
+
 
 export async function updateAgentArea(id: string, area: string) {
   const agent = await User.findOneAndUpdate({ _id: id, role: "agent" }, { area }, { new: true });

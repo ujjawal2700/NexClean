@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { LayoutDashboard, ListChecks, Wallet, User, MapPinOff } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
-import { getPushToken } from "@shared/lib/push";
+import { getPushToken, saveDeviceToken } from "@shared/lib/push";
 import { useAgentMe, useToggleOnline, useHeartbeat, useRegisterToken } from "../api/agent.api";
 import { useAgentDispatch } from "../hooks/useAgentDispatch";
 import { OfferOverlay } from "./OfferOverlay";
@@ -17,7 +17,12 @@ function useRegisterPushToken() {
   useEffect(() => {
     if (registered.current) return;
     registered.current = true;
-    getPushToken().then((t) => registerToken.mutate(t)).catch(() => {});
+    getPushToken()
+      .then((t) => {
+        saveDeviceToken(t);
+        registerToken.mutate(t);
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }

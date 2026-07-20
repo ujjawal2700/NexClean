@@ -17,6 +17,8 @@ export const userRouter = Router();
 userRouter.use(requireAuth);
 
 userRouter.patch("/me", validateBody(updateProfileSchema), asyncHandler(userController.updateProfile));
+userRouter.post("/me/deactivate", asyncHandler(userController.deactivateAccount));
+
 
 userRouter.post(
   "/me/phone/request-otp",

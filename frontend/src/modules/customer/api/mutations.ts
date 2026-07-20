@@ -26,6 +26,13 @@ export function useMarkNotificationsRead() {
 
 /* ------------------------------- Auth ----------------------------------- */
 
+export function useDeactivateAccount() {
+  return useMutation({
+    mutationFn: () => apiFetch<{ deactivated: boolean }>("/users/me/deactivate", { method: "POST" }),
+  });
+}
+
+
 export function useSendOtp() {
   return useMutation({
     mutationFn: (phone: string) =>

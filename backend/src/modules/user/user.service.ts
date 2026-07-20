@@ -39,6 +39,15 @@ export async function updateProfile(userId: string, updates: { name?: string; em
   return user;
 }
 
+export async function deactivateUser(userId: string) {
+  const user = await getUser(userId);
+  user.status = "suspended";
+  user.deviceTokens = [];
+  await user.save();
+  return { deactivated: true };
+}
+
+
 /** Send an OTP to a new phone number, after confirming it's free to claim. */
 export async function requestPhoneChange(userId: string, rawPhone: string) {
   const phone = normalize(rawPhone);

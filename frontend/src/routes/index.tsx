@@ -30,6 +30,8 @@ const Privacy = lazy(() =>
 const Terms = lazy(() => import("@modules/landing/pages/Terms").then((m) => ({ default: m.Terms })));
 const Refund = lazy(() =>
   import("@modules/landing/pages/Refund").then((m) => ({ default: m.Refund })),
+);const Support = lazy(() =>
+  import("@modules/landing/pages/Support").then((m) => ({ default: m.Support })),
 );
 
 /**
@@ -47,10 +49,12 @@ export function AppRoutes() {
         <Route path="/about" element={<About />} />
         <Route path="/careers" element={<Careers />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/support" element={<Support />} />
         <Route path="/help" element={<Help />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/refund" element={<Refund />} />
+
 
         {/* Customer module */}
         <Route path="/app/*" element={<CustomerApp />} />
