@@ -1,0 +1,18 @@
+{
+  "name": "@nexclean/tests",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:e2e": "playwright test --project=customer-e2e --project=agent-e2e --project=admin-e2e",
+    "test:headed": "playwright test --project=customer-e2e --project=agent-e2e --project=admin-e2e --headed",
+    "test:all": "./run-all.sh",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.10.5"
+  }
+}

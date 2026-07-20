@@ -15,7 +15,7 @@ export function ComingSoon() {
       <div className="relative z-10 w-full max-w-md text-center">
         {/* Logo */}
         <div className="mb-8 flex justify-center">
-          <Link to="/">
+          <Link to="/app">
             <Logo variant="full" />
           </Link>
         </div>
@@ -65,7 +65,7 @@ export function ComingSoon() {
 
         {/* CTA */}
         <div className="mt-8 space-y-3">
-          <Link to="/">
+          <Link to="/app">
             <Button className="w-full" variant="outline">
               <ArrowLeft className="size-4" /> Back to home
             </Button>

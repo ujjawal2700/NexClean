@@ -10,14 +10,18 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction): v
   if (!header?.startsWith("Bearer ")) {
     throw ApiError.unauthorized("Missing authentication token");
   }
+  let payload: ReturnType<typeof verifyToken>;
   try {
-    const payload = verifyToken(header.slice(7));
-    req.userId = payload.sub;
-    req.userRole = payload.role;
-    next();
+    payload = verifyToken(header.slice(7));
   } catch {
     throw ApiError.unauthorized("Invalid or expired token");
   }
+  // `next()` runs outside the try/catch above: requireRole() calls this with a
+  // synchronous callback that itself throws (403 for a wrong role), and that
+  // must not be caught here and remapped to a misleading 401.
+  req.userId = payload.sub;
+  req.userRole = payload.role;
+  next();
 }
 
 /** Requires the authenticated user to have one of the given roles. */

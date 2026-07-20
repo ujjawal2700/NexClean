@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2, X, Car } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -25,6 +25,14 @@ function ModelRows({ brand }: { brand: VehicleBrand }) {
 
   const [name, setName] = useState("");
   const [categoryKey, setCategoryKey] = useState(categories[0]?.key ?? "");
+
+  // `categories` loads asynchronously — if it was still empty on mount, the
+  // useState initializer above never gets a real value, permanently disabling
+  // "Add model" (its category select LOOKS populated once the fetch resolves,
+  // but categoryKey stays ""). Sync it once real categories arrive.
+  useEffect(() => {
+    if (!categoryKey && categories.length > 0) setCategoryKey(categories[0].key);
+  }, [categories, categoryKey]);
 
   const categoryName = (key: string) => categories.find((c) => c.key === key)?.name ?? key;
 

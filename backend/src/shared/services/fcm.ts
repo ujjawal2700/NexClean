@@ -1,4 +1,5 @@
 import { env, pushEnabled } from "../../config/env";
+import { User } from "../../modules/user/user.model";
 
 export type PushPayload = {
   title: string;
@@ -8,7 +9,12 @@ export type PushPayload = {
 
 // Loosely typed to avoid a hard compile-time dependency on firebase-admin
 // when push is running in mock mode.
-let messaging: { sendEachForMulticast: (msg: unknown) => Promise<{ successCount: number }> } | null = null;
+let messaging: {
+  sendEachForMulticast: (msg: unknown) => Promise<{
+    successCount: number;
+    responses: Array<{ success: boolean; error?: { code?: string; message?: string } }>;
+  }>;
+} | null = null;
 let initialized = false;
 
 async function getMessaging() {
@@ -35,7 +41,8 @@ async function getMessaging() {
  * so the whole Smart Area Alert flow is testable without external services.
  */
 export async function sendPush(tokens: string[], payload: PushPayload): Promise<{ sent: number; mocked: boolean }> {
-  const valid = tokens.filter(Boolean);
+  // Deduplicate tokens array to prevent sending duplicate notifications to the same device
+  const valid = Array.from(new Set(tokens.filter(Boolean)));
   const m = await getMessaging();
 
   if (!m || valid.length === 0) {
@@ -48,5 +55,29 @@ export async function sendPush(tokens: string[], payload: PushPayload): Promise<
     notification: { title: payload.title, body: payload.body },
     data: payload.data ?? {},
   });
+
+  // Clean up invalid or unregistered tokens from DB
+  if (res.responses && res.responses.length > 0) {
+    const invalidTokens: string[] = [];
+    res.responses.forEach((resp, idx) => {
+      if (!resp.success && resp.error) {
+        const code = resp.error.code;
+        if (
+          code === "messaging/invalid-registration-token" ||
+          code === "messaging/registration-token-not-registered"
+        ) {
+          invalidTokens.push(valid[idx]);
+        }
+      }
+    });
+
+    if (invalidTokens.length > 0) {
+      User.updateMany({ deviceTokens: { $in: invalidTokens } }, { $pullAll: { deviceTokens: invalidTokens } }).catch(
+        (err) => console.error("Failed to clean up invalid FCM tokens:", err)
+      );
+    }
+  }
+
   return { sent: res.successCount, mocked: false };
 }
+

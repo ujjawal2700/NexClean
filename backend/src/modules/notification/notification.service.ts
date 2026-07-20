@@ -31,8 +31,21 @@ export async function pushToUser(userId: string, input: PushPayload): Promise<vo
 }
 
 export async function registerToken(userId: string, token: string) {
+  // Ensure global token uniqueness across all users: pull from any existing user accounts first
+  await User.updateMany({ deviceTokens: token }, { $pull: { deviceTokens: token } });
+  // Add token to target user's deviceTokens array (deduplicated via $addToSet)
   await User.updateOne({ _id: userId }, { $addToSet: { deviceTokens: token } });
 }
+
+export async function unregisterToken(userId: string, token: string) {
+  await User.updateOne({ _id: userId }, { $pull: { deviceTokens: token } });
+}
+
+export async function removeDeadTokens(tokens: string[]) {
+  if (!tokens || tokens.length === 0) return;
+  await User.updateMany({ deviceTokens: { $in: tokens } }, { $pullAll: { deviceTokens: tokens } });
+}
+
 
 export async function listForUser(userId: string) {
   return Notification.find({ user: userId }).sort({ createdAt: -1 }).limit(50);

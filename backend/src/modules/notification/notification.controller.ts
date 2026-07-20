@@ -13,6 +13,14 @@ export async function registerToken(req: Request, res: Response): Promise<Respon
   return ok(res, { registered: true }, "Device registered");
 }
 
+export async function unregisterToken(req: Request, res: Response): Promise<Response> {
+  const parsed = tokenSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("A valid device token is required");
+  await service.unregisterToken(req.userId!, parsed.data.token);
+  return ok(res, { unregistered: true }, "Device unregistered");
+}
+
+
 export async function list(req: Request, res: Response): Promise<Response> {
   const items = await service.listForUser(req.userId!);
   return ok(res, items);

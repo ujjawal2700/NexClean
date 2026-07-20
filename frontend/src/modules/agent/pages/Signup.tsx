@@ -67,8 +67,6 @@ export function Signup() {
   const sendOtp = useSendOtp();
   const verifyOtp = useVerifyOtp();
 
-  // Already logged in — redirect to dashboard
-  if (token) return <Navigate to="/agent" replace />;
   const [step, setStep] = useState<Step>("details");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -79,6 +77,12 @@ export function Signup() {
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const phoneRef = useRef(phone);
+
+  // Already logged in — redirect to dashboard. Must come after every hook
+  // call above (Rules of Hooks): this becomes true mid-session right after a
+  // successful signup (see the otp step below), and an earlier return here
+  // would make this component render fewer hooks than its previous pass.
+  if (token) return <Navigate to="/agent" replace />;
 
   const goToKyc = () => {
     if (name.trim().length < 2) return setError("Enter your full name");
@@ -134,7 +138,7 @@ export function Signup() {
       <Aurora />
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-8 flex justify-center">
-          <Link to="/">
+          <Link to="/agent">
             <Logo variant="full" />
           </Link>
         </div>

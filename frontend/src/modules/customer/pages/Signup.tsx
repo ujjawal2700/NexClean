@@ -29,9 +29,6 @@ export function Signup() {
   const token = useSessionStore((s) => s.token);
   const setToken = useSessionStore((s) => s.setToken);
   const signup = useCustomerSignup();
-
-  // Already logged in — redirect to dashboard
-  if (token) return <Navigate to="/app" replace />;
   const verifyOtp = useVerifyOtp();
   const submitLead = useSubmitLead();
 
@@ -59,6 +56,12 @@ export function Signup() {
 
   const { data: cities = [], isLoading: citiesLoading } = usePublicCities();
   const { data: zones = [], isLoading: zonesLoading } = usePublicZones(selectedCityId);
+
+  // Already logged in — redirect to dashboard. Must come after every hook
+  // call above (Rules of Hooks): this becomes true mid-session right after a
+  // successful signup (see the otp step below), and an earlier return here
+  // would make this component render fewer hooks than its previous pass.
+  if (token) return <Navigate to="/app" replace />;
 
   const stepIndex: Record<Step, number> = { details: 0, location: 1, otp: 2 };
 
@@ -161,7 +164,7 @@ export function Signup() {
       <Aurora />
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-8 flex justify-center">
-          <Link to="/">
+          <Link to="/app">
             <Logo variant="full" />
           </Link>
         </div>

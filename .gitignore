@@ -1,11 +1,28 @@
-# Dependencies
+# Dependencies & Package Managers
 node_modules/
+.pnpm-store/
+.yarn/
+.npm/
 
-# Build output
+# Build & Output Directories
 dist/
+dist-ssr/
 build/
+out/
+.next/
+.nuxt/
+.output/
+*.tsbuildinfo
 
-# Environment / secrets
+# Python & Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.pyc
+
+# Environment & Secret Files
 .env
 .env.local
 .env.development.local
@@ -17,51 +34,64 @@ build/
 .env.*
 !.env.example
 
-# Logs
+# Logs & Temporary Files
 *.log
 npm-debug.log*
-
-# OS / editor
-.DS_Store
-Thumbs.db
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.tmp
+*.temp
+*.bak
 *.swp
+*.swo
+nul
+temp_*
 branch_structure.json
-temp_auto_push.bat
-temp_interactive_push.bat
-.gitignore
 
-# Added by code-review-graph
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs & Code Editors
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.user
+
+# AI Tooling & Local Config Artifacts
+.claude/
 .code-review-graph/
-
-# TypeScript incremental build cache
-*.tsbuildinfo
-
-# AI tool / editor configs (local-only, not part of the app)
 .cursorrules
-.windsurfrules
+.gemini/
+.github/code-review-graph.instruction.md
+.kiro/
 .mcp.json
 .opencode.json
+.qoder/
+.windsurfrules
 AGENTS.md
 CLAUDE.md
 GEMINI.md
 QODER.md
-.claude/settings.json
-.claude/skills/debug-issue/
-.claude/skills/explore-codebase/
-.claude/skills/refactor-safely/
-.claude/skills/review-changes/
-.gemini/
-.kiro/
-.qoder/
-.vscode/mcp.json
-.github/code-review-graph.instruction.md
 
-# Playwright test artifacts
+# Testing & Coverage Artifacts
 test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
-
-# Coverage
+.run-logs/
 coverage/
 .nyc_output/
+.eslintcache
+

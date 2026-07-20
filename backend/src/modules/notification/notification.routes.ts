@@ -8,5 +8,7 @@ export const notificationRouter = Router();
 notificationRouter.use(requireAuth);
 
 notificationRouter.post("/register-token", asyncHandler(controller.registerToken));
+notificationRouter.post("/unregister-token", asyncHandler(controller.unregisterToken));
 notificationRouter.get("/", asyncHandler(controller.list));
 notificationRouter.patch("/read", asyncHandler(controller.markRead));
+

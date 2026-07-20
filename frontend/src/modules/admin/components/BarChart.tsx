@@ -8,8 +8,8 @@ export function BarChart({ data, format }: { data: Bar[]; format?: (v: number) =
 
   return (
     <div className="flex h-48 items-end gap-3">
-      {data.map((d) => (
-        <div key={d.label} className="flex flex-1 flex-col items-center gap-2">
+      {data.map((d, i) => (
+        <div key={`${d.label}-${i}`} className="flex flex-1 flex-col items-center gap-2">
           <div className="flex w-full flex-1 items-end">
             <motion.div
               initial={{ height: 0 }}

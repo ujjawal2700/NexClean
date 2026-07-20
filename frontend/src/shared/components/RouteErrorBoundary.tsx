@@ -8,9 +8,9 @@ import { Logo } from "@shared/components/brand/Logo";
 type RouteErrorBoundaryProps = {
   children: ReactNode;
   /** Where "Go to home" should send the user — the home route of the module this boundary guards. */
-  homePath: string;
-  /** Label for the home destination, e.g. "customer home", "agent home", "admin home". */
-  homeLabel: string;
+  homePath?: string;
+  /** Label for the home destination, e.g. "customer home", "cleaner home", "admin home". */
+  homeLabel?: string;
 };
 
 type RouteErrorBoundaryState = { error: Error | null };
@@ -32,16 +32,32 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
     console.error("Route crashed:", error, info.componentStack);
   }
 
+  getHomeDetails = () => {
+    if (this.props.homePath && this.props.homePath !== "/") {
+      return { homePath: this.props.homePath, homeLabel: this.props.homeLabel || "home" };
+    }
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    if (path.startsWith("/agent")) {
+      return { homePath: "/agent", homeLabel: "cleaner home" };
+    }
+    if (path.startsWith("/admin")) {
+      return { homePath: "/admin", homeLabel: "admin home" };
+    }
+    return { homePath: "/app", homeLabel: "customer home" };
+  };
+
   handleRefresh = () => {
     window.location.reload();
   };
 
   handleGoHome = () => {
-    window.location.href = this.props.homePath;
+    const { homePath } = this.getHomeDetails();
+    window.location.href = homePath;
   };
 
   render() {
     if (!this.state.error) return this.props.children;
+    const { homeLabel } = this.getHomeDetails();
 
     return (
       <main className="relative grid min-h-dvh place-items-center overflow-hidden px-6">
@@ -56,7 +72,7 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
           <h1 className="mt-5 font-display text-2xl text-ink">Something went wrong</h1>
           <p className="mt-2 text-sm text-muted">
             This page hit an unexpected error. You can try refreshing, or head back to your{" "}
-            {this.props.homeLabel}.
+            {homeLabel}.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Button variant="outline" className="flex-1" onClick={this.handleRefresh}>
@@ -71,3 +87,4 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
     );
   }
 }
+

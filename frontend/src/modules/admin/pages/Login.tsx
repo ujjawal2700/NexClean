@@ -16,14 +16,16 @@ export function Login() {
   const setSession = useAdminSession((s) => s.setSession);
   const login = useAdminLogin();
 
-  // Already logged in — skip the login form entirely
-  if (token) return <Navigate to="/admin" replace />;
-
-
   const [email, setEmail] = useState("superadmin@gmail.com");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+
+  // Already logged in — skip the login form entirely. Must come after every
+  // hook call above (Rules of Hooks): this becomes true mid-session right
+  // after a successful login, and an earlier return here would make this
+  // component render fewer hooks than its previous pass.
+  if (token) return <Navigate to="/admin" replace />;
 
   const submit = async () => {
     if (!/^\S+@\S+\.\S+$/.test(email)) return setError("Enter a valid email");
@@ -43,7 +45,7 @@ export function Login() {
       <Aurora />
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-8 flex justify-center">
-          <Link to="/">
+          <Link to="/admin">
             <Logo variant="full" className="h-20 md:h-24" />
           </Link>
         </div>

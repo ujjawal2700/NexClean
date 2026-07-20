@@ -28,11 +28,11 @@ export function ModulePlaceholder({ module, phase, description }: ModulePlacehol
         </h1>
         <p className="mx-auto mt-5 max-w-md text-pretty text-muted">{description}</p>
         <Link
-          to="/"
+          to="/app"
           className="mt-8 inline-flex items-center gap-2 text-sm font-medium text-primary transition-colors hover:text-ink"
         >
           <ArrowLeft className="size-4" />
-          Back to landing
+          Back to home
         </Link>
       </div>
     </main>

@@ -20,14 +20,17 @@ export function Login() {
   const sendOtp = useSendOtp();
   const verifyOtp = useVerifyOtp();
 
-  // Already logged in — skip the login form entirely
-  if (token) return <Navigate to="/agent" replace />;
-
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const phoneRef = useRef(phone);
+
+  // Already logged in — skip the login form entirely. Must come after every
+  // hook call above (Rules of Hooks): this becomes true mid-session right
+  // after a successful login, and an earlier return here would make this
+  // component render fewer hooks than its previous pass.
+  if (token) return <Navigate to="/agent" replace />;
 
   const send = async () => {
     if (!/^\d{10}$/.test(phone)) return setError("Enter a valid 10-digit number");
@@ -46,7 +49,7 @@ export function Login() {
     setError("");
     try {
       const { token, user } = await verifyOtp.mutateAsync({ phone: phoneRef.current, code: otp });
-      if (user.role !== "agent") {
+      if (user.role !== "agent" && user.role !== "cleaner") {
         setError("This number isn't registered as an agent.");
         return;
       }
@@ -63,7 +66,7 @@ export function Login() {
       <Aurora />
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-8 flex justify-center">
-          <Link to="/">
+          <Link to="/agent">
             <Logo variant="full" />
           </Link>
         </div>
@@ -141,11 +144,8 @@ export function Login() {
             Apply to join
           </Link>
         </p>
-        <p className="mt-2 text-center text-sm text-muted">
-          Looking to book a wash?{" "}
-          <Link to="/app" className="font-medium text-primary hover:underline">Customer app</Link>
-        </p>
       </div>
     </main>
   );
 }
+

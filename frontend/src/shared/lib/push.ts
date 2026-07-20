@@ -109,6 +109,9 @@ export async function getPushToken(): Promise<string> {
     const token: string = await messaging.getToken({ vapidKey, serviceWorkerRegistration: registration });
     if (!token) return fallback;
 
+    // Persist real FCM token to localStorage so local storage and DB stay synced
+    localStorage.setItem(KEY, token);
+
     // Show foreground messages while the app is open (bind once).
     if (!foregroundBound) {
       foregroundBound = true;
@@ -126,3 +129,14 @@ export async function getPushToken(): Promise<string> {
     return fallback;
   }
 }
+
+export function getStoredDeviceToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(KEY);
+}
+
+export function clearStoredDeviceToken(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(KEY);
+}
+
