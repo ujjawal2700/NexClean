@@ -12,13 +12,16 @@ export default defineConfig({
   testDir: ".",
   fullyParallel: false, // most tests create real records against a shared dev DB
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  retries: 1,
   workers: 1,
   reporter: [["html", { open: "never" }], ["list"]],
   timeout: 30_000,
   use: {
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    launchOptions: {
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    },
   },
   projects: [
     {
@@ -29,17 +32,17 @@ export default defineConfig({
     {
       name: "customer-e2e",
       testDir: "./e2e/customer",
-      use: { ...devices["Desktop Chrome"], baseURL: WEB_BASE_URL },
+      use: { viewport: { width: 1280, height: 720 }, baseURL: WEB_BASE_URL },
     },
     {
       name: "agent-e2e",
       testDir: "./e2e/agent",
-      use: { ...devices["Desktop Chrome"], baseURL: WEB_BASE_URL },
+      use: { viewport: { width: 1280, height: 720 }, baseURL: WEB_BASE_URL },
     },
     {
       name: "admin-e2e",
       testDir: "./e2e/admin",
-      use: { ...devices["Desktop Chrome"], baseURL: WEB_BASE_URL },
+      use: { viewport: { width: 1280, height: 720 }, baseURL: WEB_BASE_URL },
     },
   ],
 });

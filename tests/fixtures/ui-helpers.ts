@@ -11,10 +11,12 @@ import { ADMIN_EMAIL, ADMIN_PASSWORD, DEMO_OTP, SEED_AGENT_PHONE, freshPhone } f
 
 /** Logs a fresh, never-before-seen phone number in through /app/login and lands on /app. */
 export async function loginCustomerUI(page: Page, phone: string = freshPhone()): Promise<string> {
-  await page.goto("/app/login");
+  await page.goto("/app/login", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.goto("/app/login", { waitUntil: "domcontentloaded" });
   await page.locator('input[name="phone"]').fill(phone);
   await page.getByRole("button", { name: "Send OTP" }).click();
-  await expect(page.locator("h1")).toHaveText("Verify your number");
+  await expect(page.locator("h1")).toHaveText("Verify your number", { timeout: 15_000 });
   await page.locator('input[name="otp"]').fill(DEMO_OTP);
   await page.getByRole("button", { name: "Verify & continue" }).click();
   await page.waitForURL(/\/app$/);
@@ -23,10 +25,12 @@ export async function loginCustomerUI(page: Page, phone: string = freshPhone()):
 
 /** Logs the seeded verified demo agent (9000000001) in through /agent/login and lands on /agent. */
 export async function loginAgentUI(page: Page, phone: string = SEED_AGENT_PHONE): Promise<void> {
-  await page.goto("/agent/login");
+  await page.goto("/agent/login", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.goto("/agent/login", { waitUntil: "domcontentloaded" });
   await page.locator('input[name="phone"]').fill(phone);
   await page.getByRole("button", { name: "Send OTP" }).click();
-  await expect(page.locator("h1")).toHaveText("Verify your number");
+  await expect(page.locator("h1")).toHaveText("Verify your number", { timeout: 15_000 });
   await page.locator('input[name="otp"]').fill(DEMO_OTP);
   await page.getByRole("button", { name: "Verify & continue" }).click();
   await page.waitForURL(/\/agent$/);
@@ -38,7 +42,9 @@ export async function loginAdminUI(
   email: string = ADMIN_EMAIL,
   password: string = ADMIN_PASSWORD,
 ): Promise<void> {
-  await page.goto("/admin/login");
+  await page.goto("/admin/login", { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.goto("/admin/login", { waitUntil: "domcontentloaded" });
   const emailInput = page.locator('input[name="email"]');
   await emailInput.fill("");
   await emailInput.fill(email);

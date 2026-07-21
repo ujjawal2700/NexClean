@@ -26,6 +26,14 @@ async function firstPackageId(request: APIRequestContext): Promise<string> {
  * part of the full run.
  */
 async function createFreshVerifiedAgent(request: APIRequestContext): Promise<{ token: string; userId: string }> {
+  // Put seeded agents offline so this fresh agent is strictly the only online candidate
+  for (const phone of ["9000000001", "9000000002", "9000000003", "9000000004"]) {
+    try {
+      const { token } = await loginAsAgent(request, phone);
+      await request.patch("/agent/online", { headers: authHeader(token), data: { online: false } });
+    } catch { /* ignore */ }
+  }
+
   const phone = freshPhone();
   await request.post("/auth/agent/signup", {
     data: {
@@ -133,7 +141,7 @@ test.describe("Agent", () => {
     // is too tight under any system load and flakes if the booking lands just
     // after a sweep tick. Give it a full sweep-interval's worth of margin.
     let offer: { data: { bookingId?: string } } | null = null;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 30; i++) {
       const res = await request.get("/agent/offers/current", { headers: authHeader(agentToken) });
       const body = await res.json();
       if (body.data?.bookingId === bookingId) {
@@ -181,7 +189,7 @@ test.describe("Agent", () => {
     const bookingId = created.data.id;
 
     let offer: { data: { bookingId?: string } } | null = null;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 30; i++) {
       const res = await request.get("/agent/offers/current", { headers: authHeader(agentToken) });
       const body = await res.json();
       if (body.data?.bookingId === bookingId) {
@@ -217,5 +225,14 @@ test.describe("Agent", () => {
     // Declining twice / declining a stale offer id doesn't throw — always {ok:true}.
     const declineAgain = await request.post(`/agent/offers/${bookingId}/decline`, { headers: authHeader(agentToken) });
     expect(declineAgain.ok()).toBeTruthy();
+  });
+
+  test.afterAll(async ({ request }) => {
+    for (const phone of ["9000000001", "9000000002", "9000000003", "9000000004"]) {
+      try {
+        const { token } = await loginAsAgent(request, phone);
+        await request.patch("/agent/online", { headers: authHeader(token), data: { online: true, lat: NEAR_LAT, lng: NEAR_LNG } });
+      } catch { /* ignore */ }
+    }
   });
 });

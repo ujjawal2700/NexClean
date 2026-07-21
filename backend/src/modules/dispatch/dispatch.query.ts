@@ -44,7 +44,7 @@ export async function findNearestEligibleAgents(
         },
       },
     },
-    { $limit: limit },
+    { $limit: MAX_CANDIDATES },
     { $project: { name: 1, distanceM: 1 } },
   ]);
 
@@ -60,5 +60,6 @@ export async function findNearestEligibleAgents(
 
   return candidates
     .filter((c) => !busyIds.has(String(c._id)))
+    .slice(0, limit)
     .map((c) => ({ id: String(c._id), name: c.name, distanceM: Math.round(c.distanceM) }));
 }

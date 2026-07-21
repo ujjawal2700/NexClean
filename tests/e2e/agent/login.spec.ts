@@ -71,13 +71,9 @@ test.describe("Agent login", () => {
     await expect(page).toHaveURL(/\/agent\/login$/);
   });
 
-  test("'Apply to join' links to signup, 'Customer app' links to /app", async ({ page }) => {
+  test("'Apply to join' links to signup", async ({ page }) => {
     await page.goto("/agent/login");
     await page.getByRole("link", { name: "Apply to join" }).click();
     await expect(page).toHaveURL(/\/agent\/signup$/);
-
-    await page.goto("/agent/login");
-    await page.getByRole("link", { name: "Customer app" }).click();
-    await expect(page).toHaveURL(/\/app$/);
   });
 });

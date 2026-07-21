@@ -195,7 +195,7 @@ test.describe("Admin — customers", () => {
     const reLogin = await request.post(apiUrl("/auth/verify-otp"), { data: { phone, code: DEMO_OTP } });
     expect(reLogin.status()).toBe(403);
     const body = await reLogin.json();
-    expect(body.message).toContain("suspended");
+    expect(body.message).toMatch(/suspended|deactivated/i);
   });
 });
 

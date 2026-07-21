@@ -100,7 +100,7 @@ test.describe("Booking flow", () => {
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: /Express Wash/ }).click();
     await page.getByRole("button", { name: "Continue" }).click();
-    await page.locator("button").filter({ hasText: /Mon|Tue|Wed|Thu|Fri|Sat|Sun/ }).first().click();
+    await page.locator("button").filter({ hasText: /Mon|Tue|Wed|Thu|Fri|Sat|Sun/ }).nth(1).click();
     await page.getByRole("button", { name: "08:00 AM" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
 
