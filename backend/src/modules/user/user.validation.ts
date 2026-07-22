@@ -3,7 +3,14 @@ import { z } from "zod";
 export const updateProfileSchema = z.object({
   name: z.string().min(1).max(60).optional(),
   email: z.string().trim().email().max(120).optional().or(z.literal("")),
+  phone: z.string().max(20).optional(),
 });
+
+export const changePasswordSchema = z.object({
+  newPassword: z.string().min(6, "Password must be at least 6 characters"),
+  code: z.string().min(4, "OTP code is required"),
+});
+
 
 export const requestPhoneChangeSchema = z.object({
   phone: z.string().min(7).max(20),

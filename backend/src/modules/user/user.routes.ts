@@ -4,6 +4,7 @@ import { requireAuth } from "../../shared/middleware/auth";
 import { validateBody } from "../../shared/middleware/validate";
 import {
   updateProfileSchema,
+  changePasswordSchema,
   addVehicleSchema,
   addAddressSchema,
   requestPhoneChangeSchema,
@@ -17,6 +18,7 @@ export const userRouter = Router();
 userRouter.use(requireAuth);
 
 userRouter.patch("/me", validateBody(updateProfileSchema), asyncHandler(userController.updateProfile));
+userRouter.patch("/me/password", validateBody(changePasswordSchema), asyncHandler(userController.updatePasswordWithOtp));
 userRouter.post("/me/deactivate", asyncHandler(userController.deactivateAccount));
 
 

@@ -7,6 +7,12 @@ export async function updateProfile(req: Request, res: Response): Promise<Respon
   return ok(res, user, "Profile updated");
 }
 
+export async function updatePasswordWithOtp(req: Request, res: Response): Promise<Response> {
+  const result = await userService.updatePasswordWithOtp(req.userId!, req.body);
+  return ok(res, result, "Password updated successfully");
+}
+
+
 export async function deactivateAccount(req: Request, res: Response): Promise<Response> {
   const result = await userService.deactivateUser(req.userId!);
   return ok(res, result, "Account deactivated");

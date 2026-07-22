@@ -1,0 +1,44 @@
+import { useAdminMe } from "../api/admin.api";
+import { UserProfileEdit } from "@shared/components/UserProfileEdit";
+import { Skeleton } from "@shared/ui/Skeleton";
+import { useQueryClient } from "@tanstack/react-query";
+
+export function AdminProfile() {
+  const { data: me, isLoading, refetch } = useAdminMe();
+  const qc = useQueryClient();
+
+  const handleProfileUpdated = () => {
+    refetch();
+    qc.invalidateQueries({ queryKey: ["admin", "me"] });
+  };
+
+  if (isLoading || !me) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6">
+        <Skeleton className="h-28 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="font-display text-3xl text-ink">Account Profile</h1>
+        <p className="mt-1 text-muted">Manage your personal information, contact details, and security credentials.</p>
+      </div>
+
+      <UserProfileEdit
+        user={{
+          id: me.id,
+          name: me.name,
+          email: me.email || "",
+          phone: me.phone || "",
+          role: "admin",
+          permissions: me.permissions || [],
+        }}
+        onProfileUpdated={handleProfileUpdated}
+      />
+    </div>
+  );
+}

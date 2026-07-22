@@ -191,19 +191,26 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </button>
           <div className="hidden lg:block" />
           <div className="flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-sm font-medium text-ink">{name}</p>
-              <p className="text-xs text-muted">
-                {permissions?.includes("*") ? "Super Admin" : "Staff Member"}
-              </p>
-            </div>
-            <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-semibold text-white">
-              {name.slice(0, 1).toUpperCase()}
-            </span>
+            <button
+              onClick={() => navigate("/admin/profile")}
+              title="Click to edit profile & change password"
+              className="flex items-center gap-3 rounded-2xl p-1.5 transition-all hover:bg-surface-muted/80 cursor-pointer group"
+            >
+              <div className="text-right">
+                <p className="text-sm font-medium text-ink group-hover:text-primary transition-colors">{name}</p>
+                <p className="text-xs text-muted">
+                  {permissions?.includes("*") ? "Super Admin" : "Staff Member"}
+                </p>
+              </div>
+              <span className="grid size-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-semibold text-white shadow-sm ring-2 ring-primary/20 group-hover:scale-105 transition-transform">
+                {name.slice(0, 1).toUpperCase()}
+              </span>
+            </button>
             <Button variant="ghost" size="sm" onClick={onLogout} className="lg:hidden" aria-label="Log out">
               <LogOut className="size-4" />
             </Button>
           </div>
+
         </header>
 
         <main className="px-5 py-8 md:px-8">{children}</main>

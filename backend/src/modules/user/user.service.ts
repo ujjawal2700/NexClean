@@ -31,16 +31,35 @@ async function ensureReferralCode(user: Awaited<ReturnType<typeof getUser>>) {
   return user.referralCode;
 }
 
-export async function updateProfile(userId: string, updates: { name?: string; email?: string }) {
+import { hashPassword } from "../../shared/utils/crypto";
+
+export async function updateProfile(userId: string, updates: { name?: string; email?: string; phone?: string }) {
   const user = await getUser(userId);
-  if (user.role === "agent" && user.agentStatus !== "verified") {
-    throw ApiError.badRequest("Agent is not verified");
+  if (updates.name !== undefined) user.name = updates.name.trim();
+  if (updates.email !== undefined) user.email = updates.email.trim();
+  if (updates.phone !== undefined && updates.phone.trim() !== "") {
+    const norm = normalize(updates.phone);
+    if (user.phone !== norm) {
+      const existing = await User.findOne({ phone: norm, _id: { $ne: userId } });
+      if (existing) throw ApiError.badRequest("Mobile number already in use by another user");
+      user.phone = norm;
+    }
   }
-  if (updates.name !== undefined) user.name = updates.name;
-  if (updates.email !== undefined) user.email = updates.email;
   await user.save();
   return user;
 }
+
+export async function updatePasswordWithOtp(userId: string, input: { newPassword: string; code: string }) {
+  const user = await getUser(userId);
+  if (!user.phone || !user.phone.trim()) {
+    throw ApiError.badRequest("Please add a phone number to your profile before changing your password.");
+  }
+  await verifyOtpCode(user.phone, input.code);
+  user.password = hashPassword(input.newPassword);
+  await user.save();
+  return { success: true, message: "Password updated successfully" };
+}
+
 
 export async function deactivateUser(userId: string) {
   const user = await getUser(userId);
