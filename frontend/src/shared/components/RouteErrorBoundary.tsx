@@ -69,11 +69,16 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
           <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-red-500/10 text-red-500">
             <AlertTriangle className="size-7" />
           </span>
-          <h1 className="mt-5 font-display text-2xl text-ink">Something went wrong</h1>
           <p className="mt-2 text-sm text-muted">
             This page hit an unexpected error. You can try refreshing, or head back to your{" "}
             {homeLabel}.
           </p>
+          {this.state.error && (
+            <div className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-left font-mono text-xs text-red-600 overflow-x-auto max-h-32">
+              <p className="font-bold">{this.state.error.name}: {this.state.error.message}</p>
+            </div>
+          )}
+
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Button variant="outline" className="flex-1" onClick={this.handleRefresh}>
               <RefreshCw className="size-4" /> Refresh page
