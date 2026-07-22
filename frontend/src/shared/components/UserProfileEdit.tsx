@@ -58,9 +58,10 @@ export function UserProfileEdit({
 
   useEffect(() => {
     if (user) {
-      setName(user.name || "");
+      // Strip numbers if legacy name had numbers or clean up phone
+      setName((user.name || "").replace(/[^a-zA-Z\s.'-]/g, ""));
       setEmail(user.email || "");
-      const digits = (user.phone || "").replace(/\D/g, "");
+      const digits = (user.phone || "").replace(/\D/g, "").slice(0, 10);
       setPhone(digits);
     }
   }, [user]);
@@ -80,11 +81,31 @@ export function UserProfileEdit({
     e.preventDefault();
     setProfileError("");
     setProfileSuccess("");
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedName || !/^[a-zA-Z\s.'-]+$/.test(trimmedName)) {
+      setProfileError("Full Name must contain letters only (no numbers or special characters).");
+      return;
+    }
+
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setProfileError("Please enter a valid email address (e.g. name@domain.com).");
+      return;
+    }
+
+    if (trimmedPhone && !/^\d{10}$/.test(trimmedPhone)) {
+      setProfileError("Mobile number must be exactly 10 digits.");
+      return;
+    }
+
     setProfileSaving(true);
     try {
       await apiFetch("/users/me", {
         method: "PATCH",
-        body: { name: name.trim(), email: email.trim(), phone: phone.trim() },
+        body: { name: trimmedName, email: trimmedEmail, phone: trimmedPhone },
       });
       setProfileSuccess("Profile details saved successfully");
       onProfileUpdated?.();
@@ -98,8 +119,8 @@ export function UserProfileEdit({
 
   // Step 1: Send OTP to user's phone
   const handleSendOtp = async () => {
-    if (!phone || phone.trim().length < 10) {
-      setOtpError("Please add a valid mobile number to your profile first.");
+    if (!phone || phone.trim().length !== 10) {
+      setOtpError("Please enter a valid 10-digit mobile number in your profile first.");
       return;
     }
     setOtpError("");
@@ -176,8 +197,7 @@ export function UserProfileEdit({
     }
   };
 
-  const hasPhone = Boolean(phone && phone.trim().length >= 10);
-
+  const hasPhone = Boolean(phone && phone.trim().length === 10);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -194,7 +214,7 @@ export function UserProfileEdit({
             </span>
           </div>
           <p className="mt-1 text-sm text-muted">
-            {email || "No email set"} · {hasPhone ? `+91 ${phone}` : "No phone number added"}
+            {email || "No email set"} · {hasPhone ? `+91 ${phone}` : "No valid 10-digit mobile number added"}
           </p>
         </div>
       </GlassCard>
@@ -227,8 +247,8 @@ export function UserProfileEdit({
               label="Full Name"
               leading={<UserIcon className="size-4" />}
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
+              onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z\s.'-]/g, ""))}
+              placeholder="Full name (letters only)"
               required
             />
             <Input
@@ -247,11 +267,13 @@ export function UserProfileEdit({
               name="phone"
               label="Mobile Number"
               type="tel"
+              inputMode="numeric"
+              maxLength={10}
               leading={<Phone className="size-4" />}
               value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-              placeholder="10-digit mobile number"
-              hint={!hasPhone ? "⚠️ A mobile number is required to receive OTP for password resets." : undefined}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              placeholder="Strict 10-digit mobile number"
+              hint={!hasPhone ? "⚠️ A valid 10-digit mobile number is required to receive OTP for password resets." : undefined}
             />
           </div>
 
@@ -271,15 +293,15 @@ export function UserProfileEdit({
           <h3 className="font-display text-lg font-semibold text-ink">Password &amp; Security</h3>
         </div>
 
-        {/* Notice if no phone number set */}
+        {/* Notice if no valid 10-digit phone number set */}
         {!hasPhone ? (
           <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-700 space-y-2">
             <div className="flex items-center gap-2 font-semibold text-amber-800">
               <AlertTriangle className="size-5 text-amber-600" />
-              <span>Mobile Number Required</span>
+              <span>10-Digit Mobile Number Required</span>
             </div>
             <p className="text-sm">
-              No mobile number is set for your account. Please enter and save your 10-digit mobile number in the form above before changing your password.
+              No valid 10-digit mobile number is set for your account. Please enter and save your 10-digit mobile number in the form above before changing your password.
             </p>
           </div>
         ) : (
@@ -362,7 +384,7 @@ export function UserProfileEdit({
                   label="New Password"
                   type="password"
                   leading={<KeyRound className="size-4" />}
-                  placeholder="Min 6 characters"
+                  placeholder="Min 6 characters (any symbols)"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   disabled={otpStep !== "verified"}

@@ -1,10 +1,20 @@
 import { z } from "zod";
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(1).max(60).optional(),
-  email: z.string().trim().email().max(120).optional().or(z.literal("")),
-  phone: z.string().max(20).optional(),
+  name: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .max(60)
+    .regex(/^[a-zA-Z\s.'-]+$/, "Name must contain letters only, no numbers or special symbols")
+    .optional(),
+  email: z.string().trim().email("Enter a valid email address").max(120).optional().or(z.literal("")),
+  phone: z
+    .string()
+    .regex(/^\d{10}$/, "Mobile number must be exactly 10 digits")
+    .optional()
+    .or(z.literal("")),
 });
+
 
 export const changePasswordSchema = z.object({
   newPassword: z.string().min(6, "Password must be at least 6 characters"),
