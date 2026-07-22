@@ -11,7 +11,10 @@ import {
   Save,
   Send,
   Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -382,8 +385,19 @@ export function UserProfileEdit({
                 <Input
                   name="newPassword"
                   label="New Password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   leading={<KeyRound className="size-4" />}
+                  trailing={
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      tabIndex={-1}
+                      className="text-muted hover:text-ink transition-colors p-1 cursor-pointer"
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  }
                   placeholder="Min 6 characters (any symbols)"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -393,14 +407,38 @@ export function UserProfileEdit({
                 <Input
                   name="confirmPassword"
                   label="Confirm New Password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   leading={<Lock className="size-4" />}
+                  trailing={
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      tabIndex={-1}
+                      className="text-muted hover:text-ink transition-colors p-1 cursor-pointer"
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  }
                   placeholder="Repeat new password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={otpStep !== "verified"}
                   required
                 />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <label className="flex items-center gap-2 text-xs font-medium text-ink cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={showPassword}
+                    onChange={(e) => setShowPassword(e.target.checked)}
+                    disabled={otpStep !== "verified"}
+                    className="size-4 rounded border-line text-primary focus:ring-primary/20 cursor-pointer"
+                  />
+                  <span>Show password</span>
+                </label>
               </div>
 
               <div className="pt-1">
