@@ -314,7 +314,7 @@ export function Subscriptions() {
               >
                 <ArrowLeft className="size-4" />
               </button>
-              <h1 className="font-display text-3xl text-ink">Active Subscription</h1>
+              <h1 className="font-display text-2xl text-ink sm:text-3xl">Active Subscription</h1>
             </div>
             <p className="mt-2 text-sm text-muted pl-12">Book and manage your washes for this billing cycle.</p>
           </div>
@@ -503,7 +503,7 @@ export function Subscriptions() {
         {/* MODAL 1: Schedule Wash */}
         {isScheduleOpen && (
           <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-5 backdrop-blur-sm">
-            <GlassCard className="w-full max-w-lg overflow-y-auto max-h-[90vh] border border-line shadow-2xl space-y-6">
+            <GlassCard className="w-full max-w-lg overflow-y-auto overflow-x-hidden max-h-[90vh] border border-line shadow-2xl space-y-6">
               <div className="flex items-center justify-between border-b border-line pb-3">
                 <h3 className="font-display text-xl font-bold text-ink">Schedule Subscription Wash</h3>
                 <button onClick={() => setIsScheduleOpen(false)} className="text-muted hover:text-ink">
@@ -636,7 +636,7 @@ export function Subscriptions() {
         {/* MODAL 2: Reschedule Wash */}
         {isRescheduleOpen && (
           <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-5 backdrop-blur-sm">
-            <GlassCard className="w-full max-w-lg border border-line shadow-2xl space-y-6">
+            <GlassCard className="w-full max-w-lg overflow-y-auto overflow-x-hidden max-h-[90vh] border border-line shadow-2xl space-y-6">
               <div className="flex items-center justify-between border-b border-line pb-3">
                 <h3 className="font-display text-xl font-bold text-ink">Reschedule Wash</h3>
                 <button onClick={() => setIsRescheduleOpen(false)} className="text-muted hover:text-ink">
@@ -738,7 +738,7 @@ export function Subscriptions() {
             >
               <ArrowLeft className="size-4" />
             </button>
-            <h1 className="font-display text-3xl text-ink">Subscription plans</h1>
+            <h1 className="font-display text-2xl text-ink sm:text-3xl">Subscription plans</h1>
           </div>
           <p className="mt-2 text-sm text-muted pl-12">Subscribe once, save on every wash. Cancel anytime.</p>
         </div>
@@ -806,7 +806,7 @@ export function Subscriptions() {
                 {!vehicleType && (
                   <span className={cn("pb-1 text-sm", meta.featured ? "text-white/80" : "text-muted")}>from</span>
                 )}
-                <span className="font-display text-4xl font-semibold">{formatMoney(priceForPlan(plan))}</span>
+                <span className="font-display text-3xl font-semibold sm:text-4xl">{formatMoney(priceForPlan(plan))}</span>
                 <span className={cn("pb-1 text-sm", meta.featured ? "text-white/80" : "text-muted")}>/month</span>
               </div>
               {vehicleType && (

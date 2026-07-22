@@ -42,7 +42,7 @@ export function Jobs() {
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-3xl text-ink">Jobs</h1>
+        <h1 className="font-display text-2xl text-ink sm:text-3xl">Jobs</h1>
       </div>
 
       <div className="mb-6 inline-flex gap-1 rounded-pill border border-line bg-surface/70 p-1">

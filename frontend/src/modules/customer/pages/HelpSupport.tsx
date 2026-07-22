@@ -179,7 +179,7 @@ export function HelpSupport() {
             >
               <ArrowLeft className="size-4" />
             </button>
-            <h1 className="font-display text-3xl text-ink">Help &amp; Support</h1>
+            <h1 className="font-display text-2xl text-ink sm:text-3xl">Help &amp; Support</h1>
           </div>
           <p className="mt-2 text-sm text-muted pl-12">Browse frequently asked questions or chat with support agents.</p>
         </div>

@@ -35,6 +35,7 @@ export type DispatchStatus =
   | "searching"
   | "offered"
   | "assigned"
+  | "in_progress"
   | "pending_admin"
   | "cancelled";
 
@@ -50,6 +51,7 @@ export type DispatchQueueItem = {
   addressLine: string;
   price: number;
   dispatchStatus: DispatchStatus;
+  agentName: string | null;
   isSubscriptionWash: boolean;
   hasLocation: boolean;
   dispatchAttempts: number;

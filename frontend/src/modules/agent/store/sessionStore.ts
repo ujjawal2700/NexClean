@@ -13,7 +13,11 @@ export const useAgentSession = create<SessionState>()(
   persist(
     (set) => ({
       token: null,
-      setToken: (token) => set({ token }),
+      setToken: (token) => {
+        // Enforce single-role: log out the customer session before activating agent.
+        localStorage.removeItem("nexclean-session");
+        set({ token });
+      },
       clear: () => set({ token: null }),
     }),
     { name: "nexclean-agent-session" },

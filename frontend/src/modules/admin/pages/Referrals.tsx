@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Gift, Users, Search, Calendar, Phone, ArrowRight,
-  CheckCircle2, Award, Loader2, Sparkles, Coins, Save,
+  CheckCircle2, Award, Loader2, Sparkles, Coins, Save, Pencil,
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Input } from "@shared/ui/Input";
@@ -13,6 +13,7 @@ function ReferralSettingsSection() {
   const { data: config } = useReferralConfig();
   const update = useUpdateReferralConfig();
 
+  const [isEditing, setIsEditing] = useState(false);
   const [referrerReward, setReferrerReward] = useState("");
   const [refereeReward, setRefereeReward] = useState("");
   const [coinsPerRupee, setCoinsPerRupee] = useState("");
@@ -30,13 +31,31 @@ function ReferralSettingsSection() {
   }, [config]);
 
   const save = () => {
-    update.mutate({
-      referrerReward: Number(referrerReward),
-      refereeReward: Number(refereeReward),
-      coinsPerRupee: Number(coinsPerRupee),
-      maxRedeemPercent: Number(maxRedeemPercent),
-      active,
-    });
+    update.mutate(
+      {
+        referrerReward: Number(referrerReward),
+        refereeReward: Number(refereeReward),
+        coinsPerRupee: Number(coinsPerRupee),
+        maxRedeemPercent: Number(maxRedeemPercent),
+        active,
+      },
+      {
+        onSuccess: () => {
+          setIsEditing(false);
+        },
+      },
+    );
+  };
+
+  const cancelEdit = () => {
+    if (config) {
+      setReferrerReward(String(config.referrerReward));
+      setRefereeReward(String(config.refereeReward));
+      setCoinsPerRupee(String(config.coinsPerRupee));
+      setMaxRedeemPercent(String(config.maxRedeemPercent));
+      setActive(config.active);
+    }
+    setIsEditing(false);
   };
 
   const rate = Number(coinsPerRupee) || 1;
@@ -50,12 +69,14 @@ function ReferralSettingsSection() {
         </div>
         <button
           type="button"
-          onClick={() => setActive((a) => !a)}
+          disabled={!isEditing}
+          onClick={() => isEditing && setActive((a) => !a)}
           className={cn(
             "rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
             active
               ? "bg-green-500/10 text-green-600 border-green-500/20"
               : "bg-gray-500/10 text-muted border-line",
+            !isEditing && "cursor-default opacity-80"
           )}
         >
           {active ? "Program Active" : "Program Paused"}
@@ -73,6 +94,7 @@ function ReferralSettingsSection() {
             name="referrerReward"
             type="number"
             min="0"
+            disabled={!isEditing}
             value={referrerReward}
             onChange={(e) => setReferrerReward(e.target.value)}
           />
@@ -83,6 +105,7 @@ function ReferralSettingsSection() {
             name="refereeReward"
             type="number"
             min="0"
+            disabled={!isEditing}
             value={refereeReward}
             onChange={(e) => setRefereeReward(e.target.value)}
           />
@@ -93,6 +116,7 @@ function ReferralSettingsSection() {
             name="coinsPerRupee"
             type="number"
             min="1"
+            disabled={!isEditing}
             value={coinsPerRupee}
             onChange={(e) => setCoinsPerRupee(e.target.value)}
           />
@@ -104,6 +128,7 @@ function ReferralSettingsSection() {
             type="number"
             min="0"
             max="100"
+            disabled={!isEditing}
             value={maxRedeemPercent}
             onChange={(e) => setMaxRedeemPercent(e.target.value)}
           />
@@ -115,13 +140,27 @@ function ReferralSettingsSection() {
           e.g. ₹1 = {rate} coin{rate === 1 ? "" : "s"} · {Number(referrerReward) || 0} coins ≈ ₹
           {Math.floor((Number(referrerReward) || 0) / rate)} for the referrer.
         </p>
-        <Button size="sm" onClick={save} disabled={update.isPending}>
-          <Save className="size-4" /> {update.isPending ? "Saving…" : "Save settings"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {isEditing ? (
+            <>
+              <Button size="sm" variant="outline" onClick={cancelEdit} disabled={update.isPending}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={save} disabled={update.isPending}>
+                <Save className="size-4" /> {update.isPending ? "Saving…" : "Save settings"}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+              <Pencil className="size-4" /> Edit settings
+            </Button>
+          )}
+        </div>
       </div>
     </GlassCard>
   );
 }
+
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", {

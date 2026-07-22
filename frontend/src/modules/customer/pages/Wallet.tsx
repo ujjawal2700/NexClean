@@ -33,7 +33,7 @@ export function Wallet() {
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-3xl text-ink">Wallet</h1>
+        <h1 className="font-display text-2xl text-ink sm:text-3xl">Wallet</h1>
       </div>
 
       {/* Balance */}
@@ -43,7 +43,7 @@ export function Wallet() {
             <Coins className="size-3.5" /> Coin Balance
           </span>
           <div>
-            <h2 className="font-display text-4xl font-extrabold text-ink">
+            <h2 className="font-display text-3xl font-extrabold text-ink sm:text-4xl">
               {(wallet?.coins ?? 0).toLocaleString("en-IN")} <span className="text-2xl text-amber-600">coins</span>
             </h2>
             <p className="text-sm text-ink-soft mt-1">

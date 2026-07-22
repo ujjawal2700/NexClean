@@ -25,7 +25,7 @@ export function ComingSoon() {
           <Rocket className="size-12 text-white" strokeWidth={1.5} />
         </div>
 
-        <h1 className="text-3xl font-bold text-ink">You're on the list! 🎉</h1>
+        <h1 className="text-2xl font-bold text-ink sm:text-3xl">You're on the list! 🎉</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted">
           We're not in your city yet, but we're growing fast. Your account is ready and your spot
           has been saved. We'll send you a notification the moment NexClean launches near you.

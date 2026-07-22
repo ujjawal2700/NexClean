@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,6 +12,8 @@ import {
   ArrowLeft,
   BadgeCheck,
   Loader2,
+  AlertCircle,
+  X,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Aurora } from "@shared/components/visual/Aurora";
@@ -22,7 +24,7 @@ import { Badge } from "@shared/ui/Badge";
 import { Stepper } from "@shared/ui/Stepper";
 import { ApiError } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
-import { useAgentSignup, useSendOtp, useVerifyOtp, meKey } from "../api/agent.api";
+import { useAgentSignup, useSendSignupOtp, useVerifyOtpCodeOnly, meKey, useAgentSignupBasic, useAgentMe } from "../api/agent.api";
 
 function fileToDataUri(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -56,7 +58,7 @@ async function fileToCompressedDataUri(file: File, maxDim = 1600, quality = 0.8)
   }
 }
 
-type Step = "details" | "kyc" | "otp";
+type Step = "details" | "otp" | "kyc";
 
 export function Signup() {
   const navigate = useNavigate();
@@ -64,8 +66,10 @@ export function Signup() {
   const token = useAgentSession((s) => s.token);
   const setToken = useAgentSession((s) => s.setToken);
   const signup = useAgentSignup();
-  const sendOtp = useSendOtp();
-  const verifyOtp = useVerifyOtp();
+  const signupBasic = useAgentSignupBasic();
+  const sendSignupOtp = useSendSignupOtp();
+  const verifyOtpCodeOnly = useVerifyOtpCodeOnly();
+  const { data: me, isLoading: isLoadingMe } = useAgentMe();
 
   const [step, setStep] = useState<Step>("details");
   const [name, setName] = useState("");
@@ -76,21 +80,94 @@ export function Signup() {
   const [aadharBack, setAadharBack] = useState("");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
+  const [resendTimer, setResendTimer] = useState(30);
+  const [resendSuccess, setResendSuccess] = useState("");
   const phoneRef = useRef(phone);
 
-  // Already logged in — redirect to dashboard. Must come after every hook
-  // call above (Rules of Hooks): this becomes true mid-session right after a
-  // successful signup (see the otp step below), and an earlier return here
-  // would make this component render fewer hooks than its previous pass.
-  if (token) return <Navigate to="/agent" replace />;
+  useEffect(() => {
+    if (step !== "otp" || resendTimer <= 0) return;
+    const timer = setInterval(() => {
+      setResendTimer((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [step, resendTimer]);
 
-  const goToKyc = () => {
+  useEffect(() => {
+    if (token && me && me.agentStatus === "unverified") {
+      setStep("kyc");
+      setName(me.name || "");
+      setPhone(me.phone || "");
+      setArea(me.area || "");
+      phoneRef.current = me.phone || "";
+    }
+  }, [token, me]);
+
+  if (token && isLoadingMe) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (token && me && me.agentStatus !== "unverified") {
+    return <Navigate to="/agent" replace />;
+  }
+
+  const submitDetails = async () => {
     if (name.trim().length < 2) return setError("Enter your full name");
     if (!/^\d{10}$/.test(phone)) return setError("Enter a valid 10-digit number");
     if (area.trim().length < 2) return setError("Enter the area / society you'll operate in");
     setError("");
+    setToast("");
     phoneRef.current = phone;
-    setStep("kyc");
+
+    try {
+      await sendSignupOtp.mutateAsync(phone);
+      setResendTimer(30);
+      setResendSuccess("");
+      setStep("otp");
+    } catch (e: any) {
+      const msg = e?.message || "Couldn't send OTP. Is the API running?";
+      setError(msg);
+      if (msg.toLowerCase().includes("already exist") || msg.toLowerCase().includes("exists")) {
+        setToast("User already exists with this number");
+      }
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendTimer > 0) return;
+    setError("");
+    setResendSuccess("");
+    try {
+      await sendSignupOtp.mutateAsync(phoneRef.current);
+      setResendTimer(30);
+      setResendSuccess("New verification code sent!");
+    } catch (e: any) {
+      setError(e?.message || "Couldn't resend code");
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (otp.length !== 6) return setError("Enter the 6-digit code");
+    setError("");
+    try {
+      const res = await signupBasic.mutateAsync({
+        name: name.trim(),
+        phone: phoneRef.current,
+        area: area.trim(),
+        code: otp,
+      });
+      if (res.token && res.user) {
+        setToken(res.token);
+        qc.setQueryData(meKey, res.user);
+        setStep("kyc");
+      }
+    } catch (e: any) {
+      setError(e?.message || "Incorrect code");
+    }
   };
 
   const submitKyc = async () => {
@@ -98,7 +175,7 @@ export function Signup() {
     if (!aadharFront || !aadharBack) return setError("Upload both sides of your Aadhar card");
     setError("");
     try {
-      await signup.mutateAsync({
+      const res = await signup.mutateAsync({
         name: name.trim(),
         phone: phoneRef.current,
         area: area.trim(),
@@ -106,30 +183,13 @@ export function Signup() {
         aadharFront,
         aadharBack,
       });
-      setStep("otp");
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn't submit application. Is the API running?");
-    }
-  };
-
-  const resend = async () => {
-    try {
-      await sendOtp.mutateAsync(phoneRef.current);
-    } catch {
-      /* the demo code still works even if resend fails */
-    }
-  };
-
-  const verify = async () => {
-    if (otp.length !== 6) return setError("Enter the 6-digit code");
-    setError("");
-    try {
-      const { token, user } = await verifyOtp.mutateAsync({ phone: phoneRef.current, code: otp });
-      setToken(token);
-      qc.setQueryData(meKey, user);
-      navigate("/agent", { replace: true });
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Verification failed");
+      if (res.token && res.user) {
+        setToken(res.token);
+        qc.setQueryData(meKey, res.user);
+        navigate("/agent", { replace: true });
+      }
+    } catch (e: any) {
+      setError(e?.message || "Couldn't submit application. Is the API running?");
     }
   };
 
@@ -143,14 +203,26 @@ export function Signup() {
           </Link>
         </div>
 
-        <div className="glass rounded-card p-8 shadow-[var(--shadow-lift)]">
-          <Stepper steps={["Details", "KYC", "Verify"]} current={step === "details" ? 0 : step === "kyc" ? 1 : 2} />
+        {toast && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-red-500/15 border border-red-500/30 p-4 text-sm font-medium text-red-600 dark:text-red-400 animate-fade-in">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="size-5 shrink-0" />
+              <span>{toast}</span>
+            </div>
+            <button type="button" onClick={() => setToast("")} className="text-red-500 hover:text-red-700">
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
+
+        <div className="glass rounded-card p-5 sm:p-8 shadow-[var(--shadow-lift)]">
+          <Stepper steps={["Details", "Verify", "KYC"]} current={step === "details" ? 0 : step === "otp" ? 1 : 2} />
           {step === "details" && (
             <>
               <Badge className="mb-5">Become a specialist</Badge>
               <h1 className="text-2xl text-ink">Join as a cleaner</h1>
               <p className="mt-2 text-sm text-muted">
-                Tell us about yourself. You'll submit your ID next for verification.
+                Tell us about yourself. You'll verify your mobile number next.
               </p>
 
               <div className="mt-6 space-y-4">
@@ -183,27 +255,85 @@ export function Signup() {
                   leading={<MapPin className="size-4" />}
                   value={area}
                   onChange={(e) => setArea(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && goToKyc()}
+                  onKeyDown={(e) => e.key === "Enter" && submitDetails()}
                 />
                 {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-500">{error}</p>}
-                <Button className="w-full" onClick={goToKyc}>
-                  Continue <ArrowRight className="size-4" />
+                <Button className="w-full" onClick={submitDetails} disabled={sendSignupOtp.isPending}>
+                  {sendSignupOtp.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <>Continue <ArrowRight className="size-4" /></>
+                  )}
                 </Button>
+              </div>
+            </>
+          )}
+
+          {step === "otp" && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setOtp("");
+                  setStep("details");
+                  setError("");
+                  setToast("");
+                }}
+                className="mb-5 inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary"
+              >
+                <ArrowLeft className="size-4" /> Back to details
+              </button>
+              <h1 className="text-2xl text-ink">Verify your number</h1>
+              <p className="mt-2 text-sm text-muted">
+                Enter the 6-digit code sent to <span className="font-medium text-ink">+91 {phoneRef.current}</span>.
+              </p>
+
+              <div className="mt-6 space-y-4">
+                <Input
+                  name="otp"
+                  autoComplete="one-time-code"
+                  label="One-time code"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="••••••"
+                  className="tracking-[0.5em]"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                  onKeyDown={(e) => e.key === "Enter" && verifyOtp()}
+                  hint="Demo code: 123456"
+                  error={error}
+                />
+                {resendSuccess && (
+                  <p className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400">
+                    {resendSuccess}
+                  </p>
+                )}
+                <Button className="w-full" onClick={verifyOtp} disabled={verifyOtpCodeOnly.isPending}>
+                  {verifyOtpCodeOnly.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <>Verify &amp; continue <ArrowRight className="size-4" /></>
+                  )}
+                </Button>
+                <button
+                  type="button"
+                  disabled={resendTimer > 0 || sendSignupOtp.isPending}
+                  onClick={handleResend}
+                  className="w-full text-center text-xs font-medium text-muted hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {sendSignupOtp.isPending
+                    ? "Sending..."
+                    : resendTimer > 0
+                    ? `Resend code in ${resendTimer}s`
+                    : "Resend code"}
+                </button>
               </div>
             </>
           )}
 
           {step === "kyc" && (
             <>
-              <button
-                onClick={() => {
-                  setStep("details");
-                  setError("");
-                }}
-                className="mb-5 inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary"
-              >
-                <ArrowLeft className="size-4" /> Back
-              </button>
+
               <h1 className="text-2xl text-ink">Identity verification</h1>
               <p className="mt-2 text-sm text-muted">
                 Submit your Aadhar for KYC. Our team reviews this before you can go live.
@@ -233,38 +363,6 @@ export function Signup() {
                     <>Submit application <ArrowRight className="size-4" /></>
                   )}
                 </Button>
-              </div>
-            </>
-          )}
-
-          {step === "otp" && (
-            <>
-              <h1 className="text-2xl text-ink">Verify your number</h1>
-              <p className="mt-2 text-sm text-muted">
-                Enter the 6-digit code sent to <span className="font-medium text-ink">+91 {phoneRef.current}</span>.
-              </p>
-
-              <div className="mt-6 space-y-4">
-                <Input
-                  name="otp"
-                  autoComplete="one-time-code"
-                  label="One-time code"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="••••••"
-                  className="tracking-[0.5em]"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                  onKeyDown={(e) => e.key === "Enter" && verify()}
-                  hint="Demo code: 123456"
-                  error={error}
-                />
-                <Button className="w-full" onClick={verify} disabled={verifyOtp.isPending}>
-                  {verifyOtp.isPending ? <Loader2 className="size-4 animate-spin" /> : <>Verify &amp; continue <ArrowRight className="size-4" /></>}
-                </Button>
-                <button onClick={resend} className="w-full text-center text-xs text-muted hover:text-primary">
-                  Resend code
-                </button>
               </div>
             </>
           )}

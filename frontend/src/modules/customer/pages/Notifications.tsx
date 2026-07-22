@@ -45,7 +45,7 @@ export function Notifications() {
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-3xl text-ink">Notifications</h1>
+        <h1 className="font-display text-2xl text-ink sm:text-3xl">Notifications</h1>
       </div>
 
       {isLoading ? (

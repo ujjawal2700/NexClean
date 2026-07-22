@@ -28,10 +28,15 @@ async function unwrap<T>(res: { ok: () => boolean; json: () => Promise<unknown> 
   return body.data as T;
 }
 
+const API_BASE = (process.env.API_BASE_URL ?? "http://127.0.0.1:4000/api").replace("localhost", "127.0.0.1");
+function apiUrl(path: string): string {
+  return path.startsWith("http") ? path.replace("localhost", "127.0.0.1") : `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
 /** Logs a phone in via the OTP flow (send + verify with the always-valid demo code) and returns a bearer token. */
 export async function loginByPhone(request: APIRequestContext, phone: string): Promise<{ token: string; userId: string }> {
-  await request.post("/auth/send-otp", { data: { phone } });
-  const res = await request.post("/auth/verify-otp", { data: { phone, code: DEMO_OTP } });
+  await request.post(apiUrl("/auth/send-otp"), { data: { phone } });
+  const res = await request.post(apiUrl("/auth/verify-otp"), { data: { phone, code: DEMO_OTP } });
   const data = await unwrap<{ token: string; user: { id: string } }>(res, "verify-otp");
   return { token: data.token, userId: data.user.id };
 }
@@ -48,7 +53,7 @@ export async function loginAsAgent(request: APIRequestContext) {
 
 /** Logs in as the seeded super admin. */
 export async function loginAsAdmin(request: APIRequestContext): Promise<{ token: string }> {
-  const res = await request.post("/auth/admin-login", { data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } });
+  const res = await request.post(apiUrl("/auth/admin-login"), { data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD } });
   const data = await unwrap<{ token: string }>(res, "admin-login");
   return { token: data.token };
 }

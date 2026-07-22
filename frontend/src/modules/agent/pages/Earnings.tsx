@@ -32,21 +32,21 @@ export function Earnings() {
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-3xl text-ink">Earnings</h1>
+        <h1 className="font-display text-2xl text-ink sm:text-3xl">Earnings</h1>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {isLoading ? (
           <SkeletonStatCards count={4} />
         ) : (
           stats.map((s) => (
-            <GlassCard key={s.label} className="flex items-center gap-3">
-              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <s.icon className="size-5" />
+            <GlassCard key={s.label} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary sm:size-11">
+                <s.icon className="size-4 sm:size-5" />
               </span>
               <div className="min-w-0">
-                <p className="font-display text-xl font-semibold text-ink">{s.value}</p>
-                <p className="truncate text-xs text-muted">{s.label}</p>
+                <p className="font-display text-lg font-semibold text-ink sm:text-xl">{s.value}</p>
+                <p className="text-[11px] leading-tight text-muted sm:text-xs">{s.label}</p>
               </div>
             </GlassCard>
           ))

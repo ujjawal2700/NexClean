@@ -19,3 +19,7 @@ agentRouter.post("/notify-area", asyncHandler(controller.notifyArea));
 agentRouter.get("/offers/current", asyncHandler(controller.currentOffer));
 agentRouter.post("/offers/:id/accept", asyncHandler(controller.acceptOffer));
 agentRouter.post("/offers/:id/decline", asyncHandler(controller.declineOffer));
+
+// Available jobs pool (for agents who were offline during dispatch)
+agentRouter.get("/available-jobs", asyncHandler(controller.availableJobs));
+agentRouter.post("/jobs/:id/claim", asyncHandler(controller.claimJob));

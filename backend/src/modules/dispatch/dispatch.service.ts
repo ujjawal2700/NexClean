@@ -49,8 +49,16 @@ function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
 }
 
 /** Live-updates the admin dispatch console. */
-function emitDispatchUpdate() {
+export function emitDispatchUpdate() {
   emitToAdmins("dispatch_update", { at: Date.now() });
+}
+
+/**
+ * Tell a specific agent their pending offer has been cancelled (booking was
+ * cancelled or completed by admin before they responded).
+ */
+export function emitCancelToAgent(agentId: string, bookingId: string) {
+  emitToUser(agentId, "offer_revoked", { bookingId });
 }
 
 async function sendOffer(b: BookingDocument, candidate: NearbyAgent) {
@@ -113,11 +121,6 @@ export async function offerNext(bookingId: string): Promise<void> {
   if (b.dispatchStatus === "assigned" || b.dispatchStatus === "cancelled") return;
 
   const point = bookingPoint(b);
-  if (!point) {
-    // No coordinates → nobody to rank; let an admin place it manually.
-    await moveToAdminQueue(b);
-    return;
-  }
 
   // Don't double-offer while a live offer is still outstanding.
   if (
@@ -133,43 +136,100 @@ export async function offerNext(bookingId: string): Promise<void> {
   // locked by another job between query and lock) only for this pass.
   const excluded = (b.declinedAgents ?? []).map((d) => String(d));
 
-  const startIdx = Math.max(0, SEARCH_RADII_M.indexOf(b.searchRadiusM || SEARCH_RADII_M[0]));
-  for (let i = startIdx; i < SEARCH_RADII_M.length; i++) {
-    const radius = SEARCH_RADII_M[i];
-    const candidates = await findNearestEligibleAgents(point, radius, excluded, OFFER_BATCH);
-    const candidate = candidates[0];
-    if (!candidate) continue; // widen to the next ring
+  if (point) {
+    // ── GEO PATH: Booking has coordinates → nearest-first ──────────────────
+    const startIdx = Math.max(0, SEARCH_RADII_M.indexOf(b.searchRadiusM || SEARCH_RADII_M[0]));
+    for (let i = startIdx; i < SEARCH_RADII_M.length; i++) {
+      const radius = SEARCH_RADII_M[i];
+      const candidates = await findNearestEligibleAgents(point, radius, excluded, OFFER_BATCH);
+      const candidate = candidates[0];
+      if (!candidate) continue; // widen to the next ring
 
-    // Atomically lock the cleaner to this offer (guards concurrent dispatch).
-    const locked = await User.updateOne(
-      { _id: candidate.id, currentOfferBooking: null },
-      { currentOfferBooking: b._id },
-    );
-    if (locked.modifiedCount === 0) {
-      excluded.push(candidate.id); // taken by another job — skip and retry this ring
-      i--;
-      continue;
+      // Atomically lock the cleaner to this offer (guards concurrent dispatch).
+      const locked = await User.updateOne(
+        { _id: candidate.id, currentOfferBooking: null },
+        { currentOfferBooking: b._id },
+      );
+      if (locked.modifiedCount === 0) {
+        excluded.push(candidate.id); // taken by another job — skip and retry this ring
+        i--;
+        continue;
+      }
+
+      b.set("currentOfferAgent", new Types.ObjectId(candidate.id));
+      b.offerExpiresAt = new Date(Date.now() + OFFER_TTL_MS);
+      b.dispatchStatus = "offered";
+      b.searchRadiusM = radius;
+      b.dispatchAttempts = (b.dispatchAttempts ?? 0) + 1;
+      await b.save();
+
+      await sendOffer(b, candidate);
+      emitDispatchUpdate();
+      return;
     }
-
-    b.set("currentOfferAgent", new Types.ObjectId(candidate.id));
-    b.offerExpiresAt = new Date(Date.now() + OFFER_TTL_MS);
-    b.dispatchStatus = "offered";
-    b.searchRadiusM = radius;
-    b.dispatchAttempts = (b.dispatchAttempts ?? 0) + 1;
-    await b.save();
-
-    await sendOffer(b, candidate);
-    emitDispatchUpdate();
+    // All radii exhausted → admin queue
+    await moveToAdminQueue(b);
     return;
   }
 
-  await moveToAdminQueue(b);
+  // ── NO-GEO FALLBACK: Booking has no coordinates (e.g. dev mode / no GPS) ──
+  // Dispatch to the most-recently-seen online verified agent who hasn't declined.
+  const liveSince = agentLiveSince();
+  const excludeIds = excluded.map((id) => new Types.ObjectId(id));
+
+  const baseQuery = {
+    role: "agent",
+    agentStatus: "verified",
+    online: true,
+    currentOfferBooking: null,
+    ...(excludeIds.length ? { _id: { $nin: excludeIds } } : {}),
+  };
+
+  // Try recently-heartbeating agents first, then fall back to any online agent.
+  let fallbackAgent = await User.findOne({ ...baseQuery, lastSeenAt: { $gte: liveSince } })
+    .sort({ lastSeenAt: -1 })
+    .select("_id name");
+
+  if (!fallbackAgent) {
+    // Second chance: agent is marked online but heartbeat is stale (e.g. dev/test).
+    fallbackAgent = await User.findOne(baseQuery).sort({ lastSeenAt: -1 }).select("_id name");
+  }
+
+  if (!fallbackAgent) {
+    // No live agents at all → admin queue
+    await moveToAdminQueue(b);
+    return;
+  }
+
+  const locked = await User.updateOne(
+    { _id: fallbackAgent._id, currentOfferBooking: null },
+    { currentOfferBooking: b._id },
+  );
+  if (locked.modifiedCount === 0) {
+    // Agent got grabbed by another booking simultaneously — try again
+    await offerNext(bookingId);
+    return;
+  }
+
+  b.set("currentOfferAgent", new Types.ObjectId(String(fallbackAgent._id)));
+  b.offerExpiresAt = new Date(Date.now() + OFFER_TTL_MS);
+  b.dispatchStatus = "offered";
+  b.dispatchAttempts = (b.dispatchAttempts ?? 0) + 1;
+  await b.save();
+
+  await sendOffer(b, {
+    id: String(fallbackAgent._id),
+    name: fallbackAgent.name ?? "Agent",
+    distanceM: 0,
+  });
+  emitDispatchUpdate();
 }
 
 /** A cleaner accepts the offer. First writer wins; everyone else gets "taken". */
 export async function acceptOffer(agentId: string, bookingId: string) {
   const agent = await User.findOne({ _id: agentId, role: "agent" });
   if (!agent) throw ApiError.notFound("Agent not found");
+  if (agent.agentStatus !== "verified") throw ApiError.badRequest("Agent is not verified");
 
   const now = new Date();
   const booking = await Booking.findOneAndUpdate(
@@ -292,6 +352,35 @@ export async function autoAssignNearest(bookingId: string) {
   return assignAgentToBooking(bookingId, candidate.id);
 }
 
+/**
+ * Bulk re-dispatch: find every booking that is stuck in the queue
+ * (searching / offered / pending_admin) and re-trigger the dispatch pipeline
+ * for each one. Returns a count of how many were kicked off.
+ */
+export async function autoAssignAll(): Promise<{ kicked: number; skipped: number }> {
+  const bookings = await Booking.find({
+    status: "upcoming",
+    dispatchStatus: { $in: ["searching", "offered", "pending_admin"] },
+    assignedAgent: null,
+  }).limit(50);
+
+  let kicked = 0;
+  let skipped = 0;
+
+  for (const b of bookings) {
+    try {
+      // Re-run the full offer pipeline (nearest first, then stale-heartbeat fallback).
+      await offerNext(String(b._id));
+      kicked++;
+    } catch {
+      skipped++;
+    }
+  }
+
+  emitDispatchUpdate();
+  return { kicked, skipped };
+}
+
 /** Nearby cleaners for the admin picker, ranked by distance when coords exist. */
 export async function listAssignableAgents(bookingId: string) {
   const booking = await Booking.findById(bookingId);
@@ -343,6 +432,14 @@ export async function listAssignableAgents(bookingId: string) {
 function mapQueueBooking(b: BookingDocument) {
   const user = b.user as unknown as { name?: string } | null;
   const offerAgent = b.currentOfferAgent as unknown as { name?: string } | null;
+
+  // Surface in-progress job status as a distinct dispatchStatus so the
+  // frontend can render the correct badge without a separate field.
+  const effectiveDispatch =
+    b.dispatchStatus === "assigned" && b.jobStatus === "in_progress"
+      ? "in_progress"
+      : b.dispatchStatus;
+
   return {
     id: String(b._id),
     customerName: (user && typeof user === "object" && user.name) || "Customer",
@@ -353,7 +450,8 @@ function mapQueueBooking(b: BookingDocument) {
     society: b.society,
     addressLine: b.addressLine,
     price: b.price,
-    dispatchStatus: b.dispatchStatus,
+    dispatchStatus: effectiveDispatch as typeof b.dispatchStatus,
+    agentName: b.agentName ?? null,
     isSubscriptionWash: b.isSubscriptionWash,
     hasLocation: !!bookingPoint(b),
     dispatchAttempts: b.dispatchAttempts ?? 0,
@@ -362,11 +460,16 @@ function mapQueueBooking(b: BookingDocument) {
   };
 }
 
-/** Bookings still working through (or stuck in) the dispatch pipeline. */
+/**
+ * Live dispatch view for the admin console.
+ * Shows all active bookings: those still finding a cleaner + those already
+ * assigned and in-flight. Excludes cancelled and completed bookings.
+ */
 export async function listAdminQueue() {
   const bookings = await Booking.find({
-    status: "upcoming",
-    dispatchStatus: { $in: ["scheduled", "searching", "offered", "pending_admin"] },
+    // Exclude terminal states.
+    status: { $in: ["upcoming"] },
+    dispatchStatus: { $nin: ["cancelled"] },
   })
     .populate("user", "name")
     .populate("currentOfferAgent", "name")

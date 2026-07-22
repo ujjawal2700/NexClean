@@ -76,7 +76,7 @@ export function Login() {
           </Link>
         </div>
 
-        <div className="glass rounded-card p-8 shadow-[var(--shadow-lift)]">
+        <div className="glass rounded-card p-5 sm:p-8 shadow-[var(--shadow-lift)]">
           <Stepper steps={["Number", "Verify"]} current={step === "phone" ? 0 : 1} />
           {step === "phone" ? (
             <>

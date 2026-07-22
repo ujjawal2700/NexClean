@@ -1,9 +1,7 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Plus, Trash2, MapPin, Building2 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
-import { Input } from "@shared/ui/Input";
-import { usePlacesAutocomplete } from "@shared/hooks/usePlacesAutocomplete";
 import {
   useCities,
   useZones,
@@ -20,21 +18,17 @@ function CitiesPanel() {
   const create = useCreateCity();
   const update = useUpdateCity();
   const remove = useDeleteCity();
-  const [name, setName] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  usePlacesAutocomplete({
-    inputRef,
-    types: ["(cities)"],
-    onSelect: (placeName) => {
-      const cityOnly = placeName.split(",")[0].trim();
-      setName(cityOnly);
-    },
-  });
+  const [cityName, setCityName] = useState("");
 
   const submit = () => {
-    if (!name.trim()) return;
-    create.mutate({ name: name.trim() }, { onSuccess: () => setName("") });
+    const val = cityName.trim();
+    if (!val) return;
+    create.mutate(
+      { name: val },
+      {
+        onSuccess: () => setCityName(""),
+      },
+    );
   };
 
   return (
@@ -45,17 +39,28 @@ function CitiesPanel() {
       </div>
       <p className="mt-1 text-sm text-muted">Disabling a city marks it unavailable for service.</p>
 
-      <div className="mt-4 flex gap-2">
-        <Input
-          ref={inputRef}
-          name="cityName"
-          placeholder="Search and select city (e.g. Bengaluru)"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <Button onClick={submit} disabled={create.isPending || !name.trim()}>
-          <Plus className="size-4" /> Add
-        </Button>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start">
+        <div className="flex-1">
+          <label className="mb-1.5 block text-xs font-medium text-muted">City Name</label>
+          <input
+            type="text"
+            value={cityName}
+            onChange={(e) => setCityName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+            placeholder="Type city name (e.g. Bengaluru)"
+            className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-sm text-ink outline-none placeholder:text-muted focus:border-primary/50"
+          />
+        </div>
+        <div className="flex flex-col">
+          <span className="hidden sm:block mb-1.5 text-xs font-medium opacity-0 select-none">Action</span>
+          <Button
+            onClick={submit}
+            disabled={create.isPending || !cityName.trim()}
+            className="h-12 rounded-2xl px-5 shrink-0"
+          >
+            <Plus className="size-4" /> Add
+          </Button>
+        </div>
       </div>
 
       <div className="mt-5 space-y-2">
@@ -64,7 +69,9 @@ function CitiesPanel() {
             key={c.id}
             className="flex items-center justify-between rounded-xl border border-line bg-surface/60 px-3 py-2.5"
           >
-            <p className={`text-sm font-medium ${c.active ? "text-ink" : "text-muted line-through"}`}>{c.name}</p>
+            <p className={`text-sm font-medium ${c.active ? "text-ink" : "text-muted line-through"}`}>
+              {c.name}
+            </p>
             <div className="flex items-center gap-1.5">
               <Button
                 variant="outline"
@@ -74,7 +81,12 @@ function CitiesPanel() {
               >
                 {c.active ? "Active" : "Inactive"}
               </Button>
-              <Button variant="ghost" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(c.id)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate(c.id)}
+              >
                 <Trash2 className="size-4" />
               </Button>
             </div>
@@ -92,25 +104,18 @@ function ZonesPanel() {
   const create = useCreateZone();
   const update = useUpdateZone();
   const remove = useDeleteZone();
-  const [name, setName] = useState("");
+  const [zoneName, setZoneName] = useState("");
   const [cityId, setCityId] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const selectedCity = cities.find((c) => c.id === cityId);
-
-  usePlacesAutocomplete({
-    inputRef,
-    types: ["geocode", "establishment"],
-    cityName: selectedCity?.name,
-    onSelect: (placeName) => {
-      const zoneOnly = placeName.split(",")[0].trim();
-      setName(zoneOnly);
-    },
-  });
 
   const submit = () => {
-    if (!name.trim() || !cityId) return;
-    create.mutate({ name: name.trim(), cityId }, { onSuccess: () => setName("") });
+    const val = zoneName.trim();
+    if (!val || !cityId) return;
+    create.mutate(
+      { name: val, cityId },
+      {
+        onSuccess: () => setZoneName(""),
+      },
+    );
   };
 
   return (
@@ -119,27 +124,30 @@ function ZonesPanel() {
         <MapPin className="size-5 text-primary" />
         <p className="font-display text-lg font-semibold text-ink">Service zones</p>
       </div>
-      <p className="mt-1 text-sm text-muted">Areas/societies grouped by city. Used to assign agents to a service area.</p>
+      <p className="mt-1 text-sm text-muted">
+        Areas/societies grouped by city. Used to assign agents to a service area.
+      </p>
 
-      <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-end">
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start">
         <div className="flex-1">
-          <p className="mb-1 text-xs font-medium text-muted">Service Zone / Society</p>
-          <Input
-            ref={inputRef}
-            name="zoneName"
-            placeholder="Search location (e.g. Indiranagar)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+          <label className="mb-1.5 block text-xs font-medium text-muted">Service Zone / Society</label>
+          <input
+            type="text"
+            value={zoneName}
+            onChange={(e) => setZoneName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+            placeholder={cityId ? "Type zone / society name" : "Select a city first"}
             disabled={!cityId}
-            hint={!cityId ? "Please select a city first" : undefined}
+            className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-sm text-ink outline-none placeholder:text-muted focus:border-primary/50 disabled:opacity-50"
           />
+          {!cityId && <p className="mt-1.5 text-xs text-muted">Please select a city first</p>}
         </div>
-        <div className="flex flex-col">
-          <p className="mb-1.5 text-xs font-medium text-muted">City</p>
+        <div className="sm:w-48">
+          <label className="mb-1.5 block text-xs font-medium text-muted">City</label>
           <select
             value={cityId}
             onChange={(e) => setCityId(e.target.value)}
-            className="h-12 rounded-2xl border border-line bg-surface px-4 text-sm text-ink outline-none focus:border-primary/50"
+            className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-sm text-ink outline-none focus:border-primary/50 disabled:opacity-50"
           >
             <option value="">Select city</option>
             {cities.map((c) => (
@@ -149,13 +157,16 @@ function ZonesPanel() {
             ))}
           </select>
         </div>
-        <Button
-          onClick={submit}
-          disabled={create.isPending || !name.trim() || !cityId}
-          className="h-12 rounded-2xl"
-        >
-          <Plus className="size-4" /> Add
-        </Button>
+        <div className="flex flex-col">
+          <span className="hidden sm:block mb-1.5 text-xs font-medium opacity-0 select-none">Action</span>
+          <Button
+            onClick={submit}
+            disabled={create.isPending || !zoneName.trim() || !cityId}
+            className="h-12 rounded-2xl px-5 shrink-0"
+          >
+            <Plus className="size-4" /> Add
+          </Button>
+        </div>
       </div>
 
       <div className="mt-5 space-y-2">
@@ -165,7 +176,9 @@ function ZonesPanel() {
             className="flex items-center justify-between rounded-xl border border-line bg-surface/60 px-3 py-2.5"
           >
             <div>
-              <p className={`text-sm font-medium ${z.active ? "text-ink" : "text-muted line-through"}`}>{z.name}</p>
+              <p className={`text-sm font-medium ${z.active ? "text-ink" : "text-muted line-through"}`}>
+                {z.name}
+              </p>
               <p className="text-xs text-muted">{z.cityName}</p>
             </div>
             <div className="flex items-center gap-1.5">
@@ -177,7 +190,12 @@ function ZonesPanel() {
               >
                 {z.active ? "Active" : "Inactive"}
               </Button>
-              <Button variant="ghost" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(z.id)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate(z.id)}
+              >
                 <Trash2 className="size-4" />
               </Button>
             </div>
@@ -188,7 +206,6 @@ function ZonesPanel() {
     </GlassCard>
   );
 }
-
 
 export function Locations() {
   return (

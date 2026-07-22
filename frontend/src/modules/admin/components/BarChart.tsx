@@ -1,31 +1,62 @@
 import { motion } from "motion/react";
+import { TrendingUp } from "lucide-react";
 
 type Bar = { label: string; value: number };
 
-/** Lightweight CSS/SVG-free bar chart — no charting dependency. */
+/** Premium CSS Bar Chart with fixed track height so percentage heights never collapse. */
 export function BarChart({ data, format }: { data: Bar[]; format?: (v: number) => string }) {
-  const max = Math.max(...data.map((d) => d.value), 1);
+  const max = Math.max(...data.map((d) => d.value), 0);
+  const hasData = max > 0;
+
+  if (!hasData) {
+    return (
+      <div className="flex h-52 flex-col items-center justify-center gap-2 text-muted">
+        <TrendingUp className="size-8 opacity-30" />
+        <p className="text-sm font-medium">No revenue recorded yet</p>
+        <p className="text-xs opacity-60">Revenue trends appear here automatically as bookings occur</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-48 items-end gap-3">
-      {data.map((d, i) => (
-        <div key={`${d.label}-${i}`} className="flex flex-1 flex-col items-center gap-2">
-          <div className="flex w-full flex-1 items-end">
-            <motion.div
-              initial={{ height: 0 }}
-              whileInView={{ height: `${(d.value / max) * 100}%` }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-              className="group relative w-full rounded-t-lg bg-gradient-to-t from-primary to-accent"
-            >
-              <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-medium text-ink opacity-0 transition-opacity group-hover:opacity-100">
-                {format ? format(d.value) : d.value}
-              </span>
-            </motion.div>
+    <div className="flex h-52 items-end gap-1 sm:gap-2">
+      {data.map((d, i) => {
+        // Enforce a min height of 6% for non-zero values so small bars remain visible
+        const rawPct = max > 0 ? (d.value / max) * 100 : 0;
+        const pct = d.value > 0 ? Math.max(6, Math.round(rawPct)) : 0;
+
+        return (
+          <div key={`${d.label}-${i}`} className="group flex h-full flex-1 flex-col items-center justify-end min-w-0">
+            {/* Top label / value */}
+            <div className="mb-1 flex h-5 items-center justify-center">
+              {d.value > 0 && (
+                <span className="whitespace-nowrap text-[10px] font-bold text-primary transition-transform group-hover:scale-110">
+                  {format ? format(d.value) : d.value}
+                </span>
+              )}
+            </div>
+
+            {/* Bar Track Container with explicit 144px (h-36) height */}
+            <div className="relative flex h-36 w-full items-end justify-center rounded-t-lg bg-primary/5 p-0.5 border border-line/30">
+              {pct > 0 ? (
+                <motion.div
+                  initial={{ height: "0%" }}
+                  animate={{ height: `${pct}%` }}
+                  transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: Math.min(i * 0.02, 0.3) }}
+                  className="w-full rounded-t-md bg-gradient-to-t from-primary via-primary to-accent shadow-sm"
+                />
+              ) : (
+                <div className="h-[2px] w-full rounded-full bg-line/50" />
+              )}
+            </div>
+
+            {/* Bottom Label */}
+            <span className="mt-2 text-[10px] font-medium text-muted truncate max-w-full text-center">
+              {d.label}
+            </span>
           </div>
-          <span className="text-xs text-muted">{d.label}</span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

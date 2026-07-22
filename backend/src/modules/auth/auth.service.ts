@@ -6,7 +6,7 @@ import { env } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
 import { signToken, type Role } from "../../shared/utils/jwt";
 import { generateOtp } from "../../shared/utils/otp";
-import type { CustomerSignupInput, AgentSignupInput } from "./auth.validation";
+import type { CustomerSignupInput, AgentSignupInput, AgentSignupBasicInput } from "./auth.validation";
 import { verifyPassword } from "../../shared/utils/crypto";
 import { sendSmsOtp } from "../../shared/services/sms";
 
@@ -51,6 +51,23 @@ export async function sendOtp(rawPhone: string): Promise<{ sent: boolean }> {
   return { sent: true };
 }
 
+/** Send an OTP for signup, verifying first that no user already exists with this phone. */
+export async function sendSignupOtp(rawPhone: string): Promise<{ sent: boolean }> {
+  const phone = normalize(rawPhone);
+  const existing = await User.findOne({ phone });
+  if (existing) {
+    throw ApiError.badRequest("A user already exists with this mobile number. Please log in.");
+  }
+  return sendOtp(phone);
+}
+
+/** Verify an OTP code without creating/upserting a User record. */
+export async function verifyOtpCodeOnly(rawPhone: string, code: string): Promise<{ verified: boolean }> {
+  const phone = normalize(rawPhone);
+  await verifyOtpCode(phone, code);
+  return { verified: true };
+}
+
 /** Verify an OTP, upsert the user, and return a JWT + the user. */
 export async function verifyOtp(rawPhone: string, code: string) {
   const phone = normalize(rawPhone);
@@ -65,7 +82,6 @@ export async function verifyOtp(rawPhone: string, code: string) {
   if (user.status === "suspended") {
     throw ApiError.forbidden("ACCOUNT_DEACTIVATED: Your account is deactivated. Please contact customer support for assistance.");
   }
-
 
   // Cover accounts created via OTP-only login (no customerSignup) or from before referral codes existed.
   if (user.role === "customer" && !user.referralCode) {
@@ -107,25 +123,59 @@ export async function customerSignup(input: CustomerSignupInput) {
   return sendOtp(phone);
 }
 
-/** Register a new agent account with KYC documents (pending admin review), then send the OTP. */
+/** Register a new agent account with KYC documents (pending admin review) after OTP verification. */
 export async function agentSignup(input: AgentSignupInput) {
   const phone = normalize(input.phone);
-  const existing = await User.findOne({ phone });
-  if (existing) throw ApiError.badRequest("An account with this number already exists. Please log in.");
+  let user = await User.findOne({ phone });
+  
+  if (user) {
+    if (user.agentStatus !== "unverified") {
+      throw ApiError.badRequest("An account with this number already exists. Please log in.");
+    }
+    user.aadharNumber = input.aadharNumber;
+    user.aadharFrontUrl = input.aadharFront;
+    user.aadharBackUrl = input.aadharBack;
+    user.agentStatus = "pending";
+    await user.save();
+  } else {
+    user = await User.create({
+      phone,
+      name: input.name,
+      role: "agent",
+      area: input.area,
+      online: false,
+      agentStatus: "pending",
+      aadharNumber: input.aadharNumber,
+      aadharFrontUrl: input.aadharFront,
+      aadharBackUrl: input.aadharBack,
+    });
+  }
 
-  await User.create({
+  const token = signToken(user.id, "agent");
+  return { token, user, sent: true };
+}
+
+/** Create an unverified agent account immediately after OTP verification during signup basic step. */
+export async function agentSignupBasic(input: AgentSignupBasicInput) {
+  const phone = normalize(input.phone);
+  await verifyOtpCode(phone, input.code);
+
+  const existing = await User.findOne({ phone });
+  if (existing) {
+    throw ApiError.badRequest("An account with this number already exists. Please log in.");
+  }
+
+  const user = await User.create({
     phone,
     name: input.name,
     role: "agent",
     area: input.area,
     online: false,
-    agentStatus: "pending",
-    aadharNumber: input.aadharNumber,
-    aadharFrontUrl: input.aadharFront,
-    aadharBackUrl: input.aadharBack,
+    agentStatus: "unverified",
   });
 
-  return sendOtp(phone);
+  const token = signToken(user.id, "agent");
+  return { token, user };
 }
 
 /** Email + password login for the admin console (seeded demo credentials). */

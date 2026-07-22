@@ -25,7 +25,7 @@ import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import { useMe, useVehicleCategories, useCategoryLabel, useWallet } from "../../api/queries";
 import { useCreateOrder, useVerifyPayment, usePreviewDiscount } from "../../api/mutations";
 import type { PreviewAmountResponse } from "../../api/mutations";
-import { PACKAGES, TIME_SLOTS, upcomingDates, priceFor } from "../../data/catalog";
+import { PACKAGES, TIME_SLOTS, availableSlotsForDate, upcomingDates, priceFor } from "../../data/catalog";
 import type { CarType, Booking, Vehicle, Address, VehicleCategory } from "../../types";
 import { formatMoney } from "@shared/lib/format";
 import { Stepper, STEP_LABELS } from "./Stepper";
@@ -197,23 +197,23 @@ export function BookingFlow() {
   if (confirmed) return <Confirmation booking={confirmed} />;
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <div className="mb-8 flex items-center gap-3">
+    <div className="mx-auto max-w-4xl overflow-x-hidden">
+      <div className="mb-6 flex items-center gap-3">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer"
+          className="flex shrink-0 items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer"
           aria-label="Back"
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-2xl font-semibold text-ink">Book a cleaning</h1>
+        <h1 className="font-display text-xl font-semibold text-ink sm:text-2xl">Book a cleaning</h1>
       </div>
 
       <Stepper current={step} />
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         {/* step body */}
-        <div>
+        <div className="min-w-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
@@ -247,12 +247,23 @@ export function BookingFlow() {
             </motion.div>
           </AnimatePresence>
 
+          {/* Sticky mobile total strip */}
+          {step > 0 && total > 0 && (
+            <div className="mt-6 flex items-center justify-between rounded-2xl border border-line bg-surface-muted/60 px-4 py-3 lg:hidden">
+              <span className="text-sm text-muted">Estimated total</span>
+              <span className="font-display text-lg font-semibold text-ink">
+                {appliedDiscount ? formatMoney(appliedDiscount.price) : formatMoney(total)}
+              </span>
+            </div>
+          )}
+
           {/* nav */}
-          <div className="mt-8 flex items-center justify-between">
+          <div className="mt-6 flex items-center justify-between gap-3">
             <Button
               variant="ghost"
               onClick={() => setStep((s) => Math.max(0, s - 1))}
               disabled={step === 0}
+              className="shrink-0"
             >
               <ArrowLeft className="size-4" /> Back
             </Button>
@@ -261,7 +272,7 @@ export function BookingFlow() {
                 Continue <ArrowRight className="size-4" />
               </Button>
             ) : (
-              <Button onClick={pay} disabled={processing} className="min-w-44">
+              <Button onClick={pay} disabled={processing} className="min-w-36 sm:min-w-44">
                 {processing ? (
                   <>
                     <Loader2 className="size-4 animate-spin" /> Processing…
@@ -430,56 +441,75 @@ function PackageStep({
 
 function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) => void }) {
   const dates = upcomingDates(7);
+  const slots = availableSlotsForDate(draft.date);
+
+  // When a date is selected, if the currently chosen slot is no longer valid, clear it.
+  const selectDate = (iso: string) => {
+    const available = availableSlotsForDate(iso);
+    const slotStillValid = draft.slot && available.includes(draft.slot);
+    set({ date: iso, slot: slotStillValid ? draft.slot : null });
+  };
+
   return (
     <div>
       <StepHeading title="Pick a date & time" subtitle="When should the specialist arrive?" />
-      <div className="flex gap-2.5 overflow-x-auto pb-2">
-        {dates.map((d) => {
-          const iso = d.toISOString();
-          const selected = draft.date && new Date(draft.date).toDateString() === d.toDateString();
-          return (
-            <button
-              key={iso}
-              onClick={() => set({ date: iso })}
-              className={cn(
-                "flex w-16 shrink-0 flex-col items-center rounded-2xl border py-3 transition-all",
-                selected
-                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                  : "border-line bg-surface hover:border-primary/40",
-              )}
-            >
-              <span className="text-xs text-muted">
-                {d.toLocaleDateString("en-IN", { weekday: "short" })}
-              </span>
-              <span className="font-display text-lg font-semibold text-ink">{d.getDate()}</span>
-              <span className="text-xs text-muted">
-                {d.toLocaleDateString("en-IN", { month: "short" })}
-              </span>
-            </button>
-          );
-        })}
+
+      {/* Date picker — horizontal scroll ONLY within this row, never the page */}
+      <div className="-mx-0 w-full">
+        <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
+          {dates.map((d) => {
+            const iso = d.toISOString();
+            const selected = draft.date && new Date(draft.date).toDateString() === d.toDateString();
+            return (
+              <button
+                key={iso}
+                onClick={() => selectDate(iso)}
+                className={cn(
+                  "flex w-[4.25rem] shrink-0 flex-col items-center rounded-2xl border py-3 transition-all",
+                  selected
+                    ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                    : "border-line bg-surface hover:border-primary/40",
+                )}
+              >
+                <span className="text-[11px] font-medium text-muted">
+                  {d.toLocaleDateString("en-IN", { weekday: "short" })}
+                </span>
+                <span className="font-display text-lg font-semibold text-ink">{d.getDate()}</span>
+                <span className="text-[11px] text-muted">
+                  {d.toLocaleDateString("en-IN", { month: "short" })}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <p className="mb-3 mt-6 text-sm font-medium text-muted">Time slot</p>
-      <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
-        {TIME_SLOTS.map((slot) => {
-          const selected = draft.slot === slot;
-          return (
-            <button
-              key={slot}
-              onClick={() => set({ slot })}
-              className={cn(
-                "rounded-xl border py-2.5 text-sm font-medium transition-all",
-                selected
-                  ? "border-primary bg-primary/5 text-primary ring-2 ring-primary/20"
-                  : "border-line bg-surface text-ink-soft hover:border-primary/40",
-              )}
-            >
-              {slot}
-            </button>
-          );
-        })}
-      </div>
+      {draft.date && slots.length === 0 ? (
+        <p className="rounded-2xl border border-amber-300/40 bg-amber-50/60 px-4 py-3 text-sm text-amber-700">
+          No more slots available today — please pick a future date.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2.5 xs:grid-cols-3 sm:grid-cols-4">
+          {slots.map((slot) => {
+            const selected = draft.slot === slot;
+            return (
+              <button
+                key={slot}
+                onClick={() => set({ slot })}
+                className={cn(
+                  "rounded-xl border px-2 py-2.5 text-sm font-medium transition-all",
+                  selected
+                    ? "border-primary bg-primary/5 text-primary ring-2 ring-primary/20"
+                    : "border-line bg-surface text-ink-soft hover:border-primary/40",
+                )}
+              >
+                {slot}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -714,7 +744,7 @@ function OrderSummary({
   ];
 
   return (
-    <GlassCard className="h-fit lg:sticky lg:top-24">
+    <GlassCard className="hidden h-fit lg:block lg:sticky lg:top-24">
       <p className="font-display text-lg font-semibold text-ink">Summary</p>
       <p className="mt-1 text-xs text-muted">Step {step + 1} of {STEP_LABELS.length}</p>
       <dl className="mt-5 space-y-3">

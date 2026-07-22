@@ -40,16 +40,54 @@ export const TIME_SLOTS = [
   "02:00 PM",
   "03:30 PM",
   "05:00 PM",
+  "06:30 PM",
 ];
 
-/** Next N selectable dates starting today. */
+/** Parse a slot string like "05:00 PM" into [hour, minute] in 24h format. */
+function slotTo24h(slot: string): [number, number] {
+  const [timePart, meridiem] = slot.split(" ");
+  const [h, m] = timePart.split(":").map(Number);
+  const hour = meridiem === "PM" && h !== 12 ? h + 12 : meridiem === "AM" && h === 12 ? 0 : h;
+  return [hour, m];
+}
+
+/**
+ * For a given date (ISO string), return only the time slots that are still
+ * bookable. On today, we require at least 1 hour of lead time.
+ */
+export function availableSlotsForDate(dateIso: string | null): string[] {
+  if (!dateIso) return TIME_SLOTS;
+  const selected = new Date(dateIso);
+  const now = new Date();
+  const isToday = selected.toDateString() === now.toDateString();
+  if (!isToday) return TIME_SLOTS;
+
+  const nowH = now.getHours();
+  const nowM = now.getMinutes();
+  return TIME_SLOTS.filter((slot) => {
+    const [h, m] = slotTo24h(slot);
+    // Require at least 60 minutes lead time
+    return h * 60 + m > nowH * 60 + nowM + 60;
+  });
+}
+
+/** Next N selectable dates starting today (only include today if it has upcoming slots). */
 export function upcomingDates(count = 7): Date[] {
   const out: Date[] = [];
   const base = new Date();
   for (let i = 0; i < count; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
+    // For today, only include if at least one slot is still open
+    if (i === 0 && availableSlotsForDate(d.toISOString()).length === 0) continue;
     out.push(d);
+  }
+  // Always return `count` total days (fill from the end if today was skipped)
+  if (out.length < count) {
+    const last = out[out.length - 1] ?? base;
+    const extra = new Date(last);
+    extra.setDate(last.getDate() + 1);
+    out.push(extra);
   }
   return out;
 }

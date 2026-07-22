@@ -169,7 +169,7 @@ export function Signup() {
           </Link>
         </div>
 
-        <div className="glass rounded-card p-8 shadow-[var(--shadow-lift)]">
+        <div className="glass rounded-card p-5 sm:p-8 shadow-[var(--shadow-lift)]">
           <Stepper steps={["Details", "Location", "Verify"]} current={stepIndex[step]} />
 
           {/* ─── Step 1: Details ──────────────────────────────────────── */}

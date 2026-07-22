@@ -43,6 +43,8 @@ export function EditProfile() {
     navigate("/agent/profile");
   };
 
+  const isUnverified = me?.agentStatus === "unverified";
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       {/* Title block */}
@@ -54,8 +56,14 @@ export function EditProfile() {
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-3xl text-ink">Edit Profile</h1>
+        <h1 className="font-display text-2xl text-ink sm:text-3xl">Edit Profile</h1>
       </div>
+
+      {isUnverified && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700">
+          ⚠️ Complete KYC verification to update your profile details.
+        </div>
+      )}
 
       {/* Personal Details Card */}
       <GlassCard className="space-y-5">
@@ -72,6 +80,7 @@ export function EditProfile() {
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Rohit Kumar"
+            disabled={isUnverified}
           />
           <Input
             name="phone"
@@ -83,7 +92,7 @@ export function EditProfile() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 pt-2">
-          <Button size="sm" onClick={save} disabled={updateName.isPending}>
+          <Button size="sm" onClick={save} disabled={updateName.isPending || isUnverified}>
             {saved ? (
               <>
                 <Check className="size-4" /> Saved

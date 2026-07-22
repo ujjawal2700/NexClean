@@ -16,10 +16,38 @@ export function useSendOtp() {
   });
 }
 
+export function useSendSignupOtp() {
+  return useMutation({
+    mutationFn: (phone: string) =>
+      apiFetch<{ sent: boolean }>("/auth/send-signup-otp", { method: "POST", body: { phone } }),
+  });
+}
+
+export function useVerifyOtpCodeOnly() {
+  return useMutation({
+    mutationFn: (vars: { phone: string; code: string }) =>
+      apiFetch<{ verified: boolean }>("/auth/verify-otp-code", { method: "POST", body: vars }),
+  });
+}
+
 export function useVerifyOtp() {
   return useMutation({
     mutationFn: (vars: { phone: string; code: string }) =>
       apiFetch<{ token: string; user: AgentProfile }>("/auth/verify-otp", { method: "POST", body: vars }),
+  });
+}
+
+export type AgentSignupBasicInput = {
+  name: string;
+  phone: string;
+  area: string;
+  code: string;
+};
+
+export function useAgentSignupBasic() {
+  return useMutation({
+    mutationFn: (vars: AgentSignupBasicInput) =>
+      apiFetch<{ token: string; user: AgentProfile }>("/auth/agent/signup-basic", { method: "POST", body: vars }),
   });
 }
 
@@ -35,7 +63,7 @@ export type AgentSignupInput = {
 export function useAgentSignup() {
   return useMutation({
     mutationFn: (vars: AgentSignupInput) =>
-      apiFetch<{ sent: boolean }>("/auth/agent/signup", { method: "POST", body: vars }),
+      apiFetch<{ token: string; user: AgentProfile; sent?: boolean }>("/auth/agent/signup", { method: "POST", body: vars }),
   });
 }
 
@@ -126,7 +154,6 @@ export function useDeactivateAccount() {
 
 /* -------------------------- Dispatch offers ------------------------------ */
 
-
 /** The agent's current live offer (used to restore the popup after a reconnect). */
 export function fetchCurrentOffer() {
   return apiFetch<JobOffer | null>("/agent/offers/current");
@@ -140,4 +167,37 @@ export function acceptOffer(bookingId: string) {
 /** Decline an offer — dispatch moves on to the next-nearest cleaner. */
 export function declineOffer(bookingId: string) {
   return apiFetch<{ ok: boolean }>(`/agent/offers/${bookingId}/decline`, { method: "POST" });
+}
+
+/* ----------------------- Available jobs pool ----------------------------- */
+
+export const availableJobsKey = ["agent", "available-jobs"] as const;
+
+/**
+ * Today's unclaimed bookings visible to all online verified agents.
+ * Polls every 30s so the list stays fresh without a manual refresh.
+ */
+export function useAvailableJobs() {
+  const token = useAgentSession((s) => s.token);
+  return useQuery({
+    queryKey: availableJobsKey,
+    queryFn: () => apiFetch<Job[]>("/agent/available-jobs"),
+    enabled: !!token,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+}
+
+/** Claim a job from the available pool — atomically self-assigns. */
+export function useClaimJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (bookingId: string) =>
+      apiFetch<Job>(`/agent/jobs/${bookingId}/claim`, { method: "POST" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: jobsKey });
+      void qc.invalidateQueries({ queryKey: summaryKey });
+      void qc.invalidateQueries({ queryKey: availableJobsKey });
+    },
+  });
 }

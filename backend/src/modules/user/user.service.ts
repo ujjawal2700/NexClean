@@ -33,6 +33,9 @@ async function ensureReferralCode(user: Awaited<ReturnType<typeof getUser>>) {
 
 export async function updateProfile(userId: string, updates: { name?: string; email?: string }) {
   const user = await getUser(userId);
+  if (user.role === "agent" && user.agentStatus !== "verified") {
+    throw ApiError.badRequest("Agent is not verified");
+  }
   if (updates.name !== undefined) user.name = updates.name;
   if (updates.email !== undefined) user.email = updates.email;
   await user.save();

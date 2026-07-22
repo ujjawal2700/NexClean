@@ -62,11 +62,11 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   const isHomepage = location.pathname === "/app" || location.pathname === "/app/";
 
   return (
-    <div className="min-h-dvh bg-bg">
+    <div className="min-h-dvh overflow-x-hidden bg-bg">
       {/* top bar */}
       {isHomepage && (
         <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl">
-          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
+          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-5">
             <button onClick={() => navigate("/app")} className="text-[1.1rem]" aria-label="Dashboard">
               <Logo variant="full" />
             </button>
@@ -110,7 +110,7 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* content */}
-      <main className="mx-auto max-w-6xl px-5 pb-28 pt-8 md:pb-16">
+      <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-5 sm:pt-8 md:pb-16">
         {children}
       </main>
 

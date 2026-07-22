@@ -24,6 +24,7 @@ import {
   useAssignableAgents,
   useAssignBooking,
   useAutoAssignBooking,
+  useAutoAssignAll,
 } from "../api/admin.api";
 import type { DispatchQueueItem, DispatchStatus } from "../types";
 
@@ -33,6 +34,7 @@ const STATUS_STYLE: Record<DispatchStatus, string> = {
   searching: "bg-blue-500/10 text-blue-600 border-blue-500/20",
   scheduled: "bg-violet-500/10 text-violet-600 border-violet-500/20",
   assigned: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  in_progress: "bg-primary/10 text-primary border-primary/20",
   cancelled: "bg-ink/5 text-muted border-line",
 };
 
@@ -42,6 +44,7 @@ const STATUS_LABEL: Record<DispatchStatus, string> = {
   searching: "Searching",
   scheduled: "Scheduled",
   assigned: "Assigned",
+  in_progress: "In progress",
   cancelled: "Cancelled",
 };
 
@@ -51,12 +54,14 @@ const STATUS_RANK: Record<DispatchStatus, number> = {
   offered: 1,
   searching: 2,
   scheduled: 3,
-  assigned: 4,
-  cancelled: 5,
+  in_progress: 4,
+  assigned: 5,
+  cancelled: 6,
 };
 
 export function Dispatch() {
   const { data: queue = [], isLoading } = useDispatchQueue();
+  const autoAssignAll = useAutoAssignAll();
   const token = useAdminSession((s) => s.token);
   const qc = useQueryClient();
 
@@ -93,13 +98,27 @@ export function Dispatch() {
             Live view of jobs finding a cleaner. {pendingCount > 0 ? `${pendingCount} need manual assignment.` : "All flowing automatically."}
           </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-pill border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-600">
-          <span className="relative flex size-2">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
-            <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => autoAssignAll.mutate()}
+            disabled={autoAssignAll.isPending}
+            className="bg-primary hover:bg-primary/90 text-white shadow-sm font-medium"
+          >
+            {autoAssignAll.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Wand2 className="size-4" />
+            )}
+            Auto-assign all
+          </Button>
+          <span className="inline-flex items-center gap-1.5 rounded-pill border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-medium text-emerald-600">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+              <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+            </span>
+            Live
           </span>
-          Live
-        </span>
+        </div>
       </div>
 
       {pendingCount > 0 && (
@@ -134,8 +153,11 @@ export function Dispatch() {
 }
 
 function DispatchRow({ item }: { item: DispatchQueueItem }) {
+  const [open, setOpen] = useState(false);
+  const needsAssignment = ["pending_admin", "searching", "offered", "scheduled"].includes(item.dispatchStatus);
+
   return (
-    <GlassCard className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <GlassCard className={cn("flex flex-col gap-4 md:flex-row md:items-center md:justify-between transition-all", open && "relative z-30 shadow-xl border-primary/30")}>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn("rounded-pill border px-2.5 py-0.5 text-xs font-semibold", STATUS_STYLE[item.dispatchStatus])}>
@@ -146,7 +168,7 @@ function DispatchRow({ item }: { item: DispatchQueueItem }) {
               <CalendarClock className="size-3" /> Subscription
             </span>
           )}
-          {!item.hasLocation && (
+          {!item.hasLocation && needsAssignment && (
             <span className="inline-flex items-center gap-1 rounded-pill bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600">
               <MapPin className="size-3" /> No location
             </span>
@@ -178,13 +200,18 @@ function DispatchRow({ item }: { item: DispatchQueueItem }) {
             <span>Will auto-assign the nearest cleaner before the slot</span>
           ) : item.dispatchStatus === "pending_admin" ? (
             <span className="text-red-500">No cleaner accepted after {item.dispatchAttempts} attempt{item.dispatchAttempts === 1 ? "" : "s"}</span>
+          ) : (item.dispatchStatus === "assigned" || item.dispatchStatus === "in_progress") && item.agentName ? (
+            <span className="flex items-center gap-1 text-emerald-600">
+              <UserCheck className="size-3.5" />
+              <span className="font-medium">{item.agentName}</span> is on this job
+            </span>
           ) : null}
         </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
         <span className="font-display font-semibold text-ink">{formatMoney(item.price)}</span>
-        <AssignControls item={item} />
+        {needsAssignment && <AssignControls item={item} open={open} setOpen={setOpen} />}
       </div>
     </GlassCard>
   );
@@ -199,8 +226,15 @@ function OfferCountdown({ expiresAt }: { expiresAt: string }) {
   return <span className="ml-1 tabular-nums text-amber-600">· {left}s left</span>;
 }
 
-function AssignControls({ item }: { item: DispatchQueueItem }) {
-  const [open, setOpen] = useState(false);
+function AssignControls({
+  item,
+  open,
+  setOpen,
+}: {
+  item: DispatchQueueItem;
+  open: boolean;
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
   const assign = useAssignBooking();
   const autoAssign = useAutoAssignBooking();
   const { data: agents = [], isLoading } = useAssignableAgents(open ? item.id : null);
@@ -213,7 +247,7 @@ function AssignControls({ item }: { item: DispatchQueueItem }) {
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+  }, [open, setOpen]);
 
   return (
     <div className="relative flex items-center gap-1.5" ref={ref}>
@@ -232,7 +266,7 @@ function AssignControls({ item }: { item: DispatchQueueItem }) {
       </Button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-1.5 max-h-72 w-64 overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-xl">
+        <div className="absolute right-0 top-full z-50 mt-1.5 max-h-72 w-64 overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-2xl">
           {isLoading ? (
             <p className="flex items-center gap-2 px-3 py-4 text-sm text-muted">
               <Loader2 className="size-4 animate-spin" /> Finding cleaners…

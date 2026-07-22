@@ -102,7 +102,7 @@ else
     export CLOUDINARY_API_KEY=""
     export CLOUDINARY_API_SECRET=""
     export FIREBASE_SERVICE_ACCOUNT_BASE64=""
-    exec npm run dev
+    exec npm run test-start
   ) >"$LOG_DIR/backend.log" 2>&1 &
   BACKEND_PID=$!
   STARTED_BACKEND=1

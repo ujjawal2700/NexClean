@@ -54,6 +54,7 @@ export function Profile() {
   };
 
   const verified = me?.agentStatus === "verified";
+  const isUnverified = me?.agentStatus === "unverified";
 
   // Get user initials for avatar
   const getInitials = () => {
@@ -69,7 +70,7 @@ export function Profile() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       {/* Title */}
-      <h1 className="font-display text-3xl text-ink">Profile</h1>
+      <h1 className="font-display text-2xl text-ink sm:text-3xl">Profile</h1>
 
       {/* User Header Info Card */}
       <GlassCard className="flex flex-col sm:flex-row items-center gap-5 p-6 bg-gradient-to-br from-surface to-surface-muted/30">
@@ -143,7 +144,7 @@ export function Profile() {
         <Button
           variant={me?.online ? "outline" : "primary"}
           size="sm"
-          disabled={toggleOnline.isPending}
+          disabled={toggleOnline.isPending || isUnverified}
           onClick={() => toggleOnline.mutate(!me?.online)}
           className="rounded-xl px-4 py-2 text-xs font-semibold"
         >
@@ -157,18 +158,33 @@ export function Profile() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           {/* Edit Profile Link */}
-          <Link to="/agent/profile/edit">
-            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                <Pencil className="size-4.5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-display font-semibold text-ink text-sm sm:text-base">Edit profile</p>
-                <p className="text-xs text-muted truncate">Update full name</p>
-              </div>
-              <ChevronRight className="size-4 shrink-0 text-muted" />
-            </GlassCard>
-          </Link>
+          {isUnverified ? (
+            <div className="opacity-50 cursor-not-allowed h-full">
+              <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface h-full">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                  <Pencil className="size-4.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-display font-semibold text-ink text-sm sm:text-base">Edit profile</p>
+                  <p className="text-xs text-muted truncate">Update full name</p>
+                </div>
+                <ChevronRight className="size-4 shrink-0 text-muted" />
+              </GlassCard>
+            </div>
+          ) : (
+            <Link to="/agent/profile/edit">
+              <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                  <Pencil className="size-4.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-display font-semibold text-ink text-sm sm:text-base">Edit profile</p>
+                  <p className="text-xs text-muted truncate">Update full name</p>
+                </div>
+                <ChevronRight className="size-4 shrink-0 text-muted" />
+              </GlassCard>
+            </Link>
+          )}
 
           {/* Help & Support Link */}
           <Link to="/agent/help">

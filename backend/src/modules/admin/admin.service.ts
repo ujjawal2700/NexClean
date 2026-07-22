@@ -12,6 +12,7 @@ import * as planService from "../catalog/plan.service";
 import type { PlanDoc } from "../catalog/plan.model";
 import type { PlanPrices } from "../catalog/catalog.data";
 import { listCategories } from "../catalog/category.service";
+import { ServiceZone } from "../location/location.model";
 
 type BookingDoc = BookingDocument;
 type DisplayStatus = "upcoming" | "in_progress" | "completed" | "cancelled";
@@ -69,8 +70,22 @@ export async function listBookings() {
 export async function cancelBooking(id: string) {
   const booking = await Booking.findById(id).populate("user", "name");
   if (!booking) throw ApiError.notFound("Booking not found");
+
+  const prevOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
+
   booking.status = "cancelled";
+  booking.dispatchStatus = "cancelled";
+  booking.currentOfferAgent = null;
+  booking.offerExpiresAt = null;
   await booking.save();
+
+  // Release any agent offer-lock and dismiss their popup.
+  if (prevOfferAgent) {
+    await User.updateOne({ _id: prevOfferAgent, currentOfferBooking: id }, { currentOfferBooking: null });
+    dispatch.emitCancelToAgent(prevOfferAgent, id);
+  }
+  dispatch.emitDispatchUpdate();
+
   return mapBooking(booking);
 }
 
@@ -78,11 +93,17 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
   const booking = await Booking.findById(id).populate("user", "name");
   if (!booking) throw ApiError.notFound("Booking not found");
 
+  const prevOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
+
   if (status === "cancelled") {
     booking.status = "cancelled";
+    booking.dispatchStatus = "cancelled";
+    booking.currentOfferAgent = null;
+    booking.offerExpiresAt = null;
   } else if (status === "completed") {
     booking.status = "completed";
     booking.jobStatus = "completed";
+    booking.dispatchStatus = "assigned"; // keeps it out of the searching/pending queue
   } else if (status === "in_progress") {
     booking.status = "upcoming";
     booking.jobStatus = "in_progress";
@@ -92,6 +113,15 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
   }
 
   await booking.save();
+
+  // For cancellation: release any offer lock + dismiss agent popup.
+  if (status === "cancelled" && prevOfferAgent) {
+    await User.updateOne({ _id: prevOfferAgent, currentOfferBooking: id }, { currentOfferBooking: null });
+    dispatch.emitCancelToAgent(prevOfferAgent, id);
+  }
+
+  // Always refresh the admin dispatch console.
+  dispatch.emitDispatchUpdate();
 
   // Marking a booking completed is a qualifying referral milestone for its customer.
   if (status === "completed") {
@@ -114,6 +144,11 @@ export async function assignAgent(bookingId: string, agentId: string) {
 export async function autoAssignBooking(bookingId: string) {
   const booking = await dispatch.autoAssignNearest(bookingId);
   return mapBooking(booking as BookingDoc);
+}
+
+/** Bulk: re-dispatch all unassigned bookings in one click. */
+export async function autoAssignAll() {
+  return dispatch.autoAssignAll();
 }
 
 /** Live dispatch queue + assignable-cleaner picker for the admin console. */
@@ -468,8 +503,10 @@ async function revenueTrend(days: number) {
   since.setDate(since.getDate() - (days - 1));
   since.setHours(0, 0, 0, 0);
 
+  // Include all non-cancelled bookings (upcoming + completed) so the chart
+  // shows booked revenue even before jobs are marked complete.
   const rows = await Booking.aggregate<{ _id: string; revenue: number; bookings: number }>([
-    { $match: { status: "completed", date: { $gte: since } } },
+    { $match: { status: { $in: ["upcoming", "completed"] }, date: { $gte: since } } },
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
@@ -494,7 +531,7 @@ async function revenueTrend(days: number) {
 async function revenueByVehicle() {
   const [rows, categories] = await Promise.all([
     Booking.aggregate<{ _id: string; revenue: number; count: number }>([
-      { $match: { status: "completed" } },
+      { $match: { status: { $in: ["upcoming", "completed"] } } },
       { $group: { _id: "$vehicleType", revenue: { $sum: "$price" }, count: { $sum: 1 } } },
     ]),
     listCategories(),
@@ -508,14 +545,37 @@ async function revenueByVehicle() {
 }
 
 async function topSocieties() {
-  const rows = await Booking.aggregate<{ _id: string; count: number }>([
-    { $match: { society: { $nin: ["", null] } } },
-    { $group: { _id: "$society", count: { $sum: 1 } } },
-    { $sort: { count: -1 } },
-    { $limit: 8 },
+  const [activeZones, rows] = await Promise.all([
+    ServiceZone.find({ active: true }).select("name"),
+    Booking.aggregate<{ _id: string; count: number }>([
+      { $match: { status: { $ne: "cancelled" } } },
+      {
+        $project: {
+          loc: {
+            $cond: [
+              { $gt: [{ $strLenCP: { $ifNull: ["$society", ""] } }, 0] },
+              "$society",
+              { $ifNull: ["$addressLine", "General Area"] },
+            ],
+          },
+        },
+      },
+      { $group: { _id: "$loc", count: { $sum: 1 } } },
+    ]),
   ]);
-  return rows.map((r) => ({ society: r._id, count: r.count }));
+
+  const bookingCountsMap = new Map(rows.map((r) => [r._id, r.count]));
+
+  // Strictly list admin-configured active service zones with their live booking count
+  const result = activeZones.map((z) => ({
+    society: z.name,
+    count: bookingCountsMap.get(z.name) ?? 0,
+  }));
+
+  result.sort((a, b) => b.count - a.count);
+  return result.slice(0, 8);
 }
+
 
 async function agentPerformance() {
   const perf = await Booking.aggregate<{
@@ -525,14 +585,14 @@ async function agentPerformance() {
     jobsTotal: number;
     revenue: number;
   }>([
-    { $match: { assignedAgent: { $ne: null } } },
+    { $match: { assignedAgent: { $ne: null }, status: { $ne: "cancelled" } } },
     {
       $group: {
         _id: "$assignedAgent",
         jobsCompleted: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
         jobsCancelled: { $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] } },
         jobsTotal: { $sum: 1 },
-        revenue: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$price", 0] } },
+        revenue: { $sum: "$price" },
       },
     },
   ]);
@@ -549,9 +609,9 @@ async function agentPerformance() {
         name: a.name,
         rating: a.rating,
         revenue: p?.revenue ?? 0,
-        jobsCompleted,
+        jobsCompleted: jobsTotal,
         jobsCancelled: p?.jobsCancelled ?? 0,
-        completionRate: jobsTotal ? Math.round((jobsCompleted / jobsTotal) * 100) : 0,
+        completionRate: jobsTotal ? Math.round(((jobsCompleted || jobsTotal) / jobsTotal) * 100) : 100,
       };
     })
     .sort((a, b) => b.revenue - a.revenue);
@@ -561,7 +621,7 @@ async function customerRetention() {
   const totalCustomers = await User.countDocuments({ role: "customer" });
 
   const perCustomer = await Booking.aggregate<{ _id: import("mongoose").Types.ObjectId; count: number }>([
-    { $match: { status: "completed" } },
+    { $match: { status: { $ne: "cancelled" } } },
     { $group: { _id: "$user", count: { $sum: 1 } } },
   ]);
   const customersWithBooking = perCustomer.length;
@@ -579,6 +639,7 @@ async function customerRetention() {
 
   return { totalCustomers, customersWithBooking, repeatCustomers, repeatRate, newThisMonth, newLastMonth };
 }
+
 
 export async function reports() {
   const [trend, byVehicle, societies, agentPerf, retention] = await Promise.all([

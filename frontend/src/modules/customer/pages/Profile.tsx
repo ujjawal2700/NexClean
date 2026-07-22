@@ -72,7 +72,7 @@ export function Profile() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       {/* Title */}
-      <h1 className="font-display text-3xl text-ink">Profile</h1>
+      <h1 className="font-display text-2xl text-ink sm:text-3xl">Profile</h1>
 
       {/* User Header Info Card */}
       <GlassCard className="flex flex-col sm:flex-row items-center gap-5 p-6 bg-gradient-to-br from-surface to-surface-muted/30">

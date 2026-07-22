@@ -76,7 +76,7 @@ export function Bookings() {
           >
             <ArrowLeft className="size-4" />
           </button>
-          <h1 className="font-display text-3xl text-ink">My bookings</h1>
+          <h1 className="font-display text-2xl text-ink sm:text-3xl">My bookings</h1>
         </div>
         <Button asChild size="sm">
           <Link to="/app/book">

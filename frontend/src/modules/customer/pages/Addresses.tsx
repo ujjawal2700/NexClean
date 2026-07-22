@@ -66,7 +66,7 @@ export function Addresses() {
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-3xl text-ink">Saved addresses</h1>
+        <h1 className="font-display text-2xl text-ink sm:text-3xl">Saved addresses</h1>
       </div>
 
       <GlassCard>

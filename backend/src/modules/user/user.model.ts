@@ -66,7 +66,7 @@ const userSchema = new Schema(
     jobsDone: { type: Number, default: 0 },
     online: { type: Boolean, default: true },
     lastSeenAt: { type: Date, default: null },
-    agentStatus: { type: String, enum: ["verified", "pending", "suspended"], default: "verified" },
+    agentStatus: { type: String, enum: ["verified", "pending", "suspended", "unverified"], default: "verified" },
 
     // Agent live location (streamed while online) — used for nearest-agent dispatch. [lng, lat].
     liveLocation: { type: geoPointSchema(), default: undefined },

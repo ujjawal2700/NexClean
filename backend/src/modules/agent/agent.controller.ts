@@ -63,3 +63,13 @@ export async function notifyArea(req: Request, res: Response): Promise<Response>
   const record = await service.notifyArea(req.userId!, parsed.data.society);
   return ok(res, record, `Alert sent to ${record.sentCount} nearby customer(s)`);
 }
+
+/** GET /agent/available-jobs — today's unclaimed jobs the agent can pick up. */
+export async function availableJobs(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.listAvailableJobs(req.userId!));
+}
+
+/** POST /agent/jobs/:id/claim — agent self-assigns from the available pool. */
+export async function claimJob(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.claimJob(req.userId!, String(req.params.id)), "Job claimed");
+}

@@ -32,7 +32,15 @@ export const agentSignupSchema = z.object({
   aadharBack: dataUri,
 });
 
+export const agentSignupBasicSchema = z.object({
+  name: z.string().trim().min(2, "Enter your full name"),
+  phone: z.string().regex(/^\+?[\d\s]{10,15}$/, "Enter a valid phone number"),
+  area: z.string().trim().min(2, "Enter the area / society you'll operate in"),
+  code: z.string().length(6, "Code must be 6 digits"),
+});
+
 export type SendOtpInput = z.infer<typeof sendOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
 export type CustomerSignupInput = z.infer<typeof customerSignupSchema>;
 export type AgentSignupInput = z.infer<typeof agentSignupSchema>;
+export type AgentSignupBasicInput = z.infer<typeof agentSignupBasicSchema>;

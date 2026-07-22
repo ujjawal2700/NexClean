@@ -57,13 +57,18 @@ export function OnlineToggle() {
   const { data: me } = useAgentMe();
   const toggle = useToggleOnline();
   const online = me?.online ?? false;
+  const isUnverified = me?.agentStatus === "unverified";
   return (
     <button
       onClick={() => toggle.mutate(!online)}
-      disabled={toggle.isPending}
+      disabled={toggle.isPending || isUnverified}
       className={cn(
         "flex items-center gap-2 rounded-pill border px-3 py-1.5 text-sm font-medium transition-colors",
-        online ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-line bg-surface text-muted",
+        isUnverified
+          ? "opacity-50 cursor-not-allowed border-line bg-surface text-muted"
+          : online
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
+          : "border-line bg-surface text-muted",
       )}
       aria-pressed={online}
     >
@@ -88,7 +93,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
   const showLocationNudge = (me?.online ?? false) && !dispatch.locating;
 
   return (
-    <div className="min-h-dvh bg-bg">
+    <div className="min-h-dvh overflow-x-hidden bg-bg">
       {/* Incoming-offer popup — rendered above everything, on every page. */}
       <OfferOverlay dispatch={dispatch} />
 
@@ -128,7 +133,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
         </header>
       )}
 
-      <main className="mx-auto max-w-5xl px-5 pb-28 pt-8 md:pb-16">
+      <main className="mx-auto max-w-5xl px-4 pb-28 pt-6 sm:px-5 sm:pt-8 md:pb-16">
         {showLocationNudge && (
           <div className="mb-5 flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
             <MapPinOff className="size-4 shrink-0" />

@@ -15,8 +15,8 @@ const app = createApp();
 const isPrimaryInstance =
   process.env.NODE_APP_INSTANCE === undefined || process.env.NODE_APP_INSTANCE === "0";
 
-const server = app.listen(env.port, () => {
-  console.log(`🚀 NexClean API listening on http://localhost:${env.port}`);
+const server = app.listen(env.port, "0.0.0.0", () => {
+  console.log(`🚀 NexClean API listening on http://0.0.0.0:${env.port}`);
   console.log(`   Health: http://localhost:${env.port}/api/health`);
 });
 

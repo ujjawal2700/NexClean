@@ -243,6 +243,18 @@ export function useAutoAssignBooking() {
   });
 }
 
+export function useAutoAssignAll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ kicked: number; skipped: number }>("/admin/dispatch/auto-assign-all", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.bookings });
+      qc.invalidateQueries({ queryKey: keys.dispatch });
+    },
+  });
+}
+
 /* ------------------------------ Dispatch --------------------------------- */
 
 /** Live dispatch queue (searching / offered / pending / scheduled). */

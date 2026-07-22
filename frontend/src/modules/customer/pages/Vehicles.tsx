@@ -52,7 +52,7 @@ export function Vehicles() {
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-3xl text-ink">Your garage</h1>
+        <h1 className="font-display text-2xl text-ink sm:text-3xl">Your garage</h1>
       </div>
 
       <GlassCard>

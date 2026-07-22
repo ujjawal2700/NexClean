@@ -66,8 +66,9 @@ export const cloudinaryEnabled =
   env.cloudinaryApiKey.length > 0 &&
   env.cloudinaryApiSecret.length > 0;
 export const smsEnabled =
-  env.smsIndiaHubApiKey.length > 0 ||
-  (env.smsIndiaHubUser.length > 0 && env.smsIndiaHubPassword.length > 0);
+  env.nodeEnv !== "test" &&
+  (env.smsIndiaHubApiKey.length > 0 ||
+    (env.smsIndiaHubUser.length > 0 && env.smsIndiaHubPassword.length > 0));
 
 export const isProd = env.nodeEnv === "production";
 

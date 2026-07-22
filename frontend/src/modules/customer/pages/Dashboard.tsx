@@ -29,28 +29,28 @@ export function Dashboard() {
         {meLoading ? (
           <Skeleton className="mt-1 h-9 w-48" />
         ) : (
-          <h1 className="text-3xl text-ink">{name || "Member"} 👋</h1>
+          <h1 className="text-2xl text-ink sm:text-3xl">{name || "Member"} 👋</h1>
         )}
       </div>
 
       {/* hero CTA + next booking */}
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-        <div className="relative overflow-hidden rounded-card bg-gradient-to-br from-primary to-primary-soft p-8 text-white shadow-[var(--shadow-glow)]">
+        <div className="relative overflow-hidden rounded-card bg-gradient-to-br from-primary to-primary-soft p-5 text-white shadow-[var(--shadow-glow)] sm:p-8">
           <div
             className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full opacity-40 blur-2xl"
             style={{ background: "radial-gradient(circle, #00C2FF, transparent 70%)" }}
           />
           <div className="relative">
-            <p className="text-sm font-medium uppercase tracking-[0.16em] text-white/80">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/80 sm:text-sm">
               Doorstep car care
             </p>
-            <h2 className="mt-3 max-w-xs font-display text-3xl font-semibold">
+            <h2 className="mt-2 font-display text-2xl font-semibold sm:mt-3 sm:max-w-xs sm:text-3xl">
               Ready for a spotless ride?
             </h2>
-            <p className="mt-2 max-w-sm text-white/85">
+            <p className="mt-1.5 text-sm text-white/85 sm:mt-2 sm:max-w-sm">
               Book a certified specialist to your location in under a minute.
             </p>
-            <Button asChild variant="glass" className="mt-6 bg-white text-primary hover:bg-white">
+            <Button asChild variant="glass" className="mt-4 bg-white text-primary hover:bg-white sm:mt-6">
               <Link to="/app/book">
                 Book a cleaning <ArrowRight className="size-4" />
               </Link>
@@ -105,10 +105,12 @@ export function Dashboard() {
             <Sparkles className="size-5 text-primary" />
             <h2 className="font-display text-xl font-semibold text-ink">Special Offers</h2>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-none">
-            {banners.map((b) => {
+          {/* Banners: intentionally horizontally scrollable, contained with overflow-hidden on parent */}
+          <div className="overflow-hidden">
+            <div className="flex gap-4 overflow-x-auto pb-3">
+              {banners.map((b) => {
               const content = (
-                <div className="relative h-36 w-80 shrink-0 overflow-hidden rounded-card border border-line shadow-sm transition-transform hover:scale-[1.01]">
+                <div className="relative h-36 w-72 shrink-0 overflow-hidden rounded-card border border-line shadow-sm transition-transform hover:scale-[1.01] sm:w-80">
                   <img src={b.imageUrl} alt={b.title} className="size-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                   <div className="absolute inset-x-0 bottom-0 p-4">
@@ -130,6 +132,7 @@ export function Dashboard() {
                 <div key={b.id}>{content}</div>
               );
             })}
+            </div>
           </div>
         </section>
       )}

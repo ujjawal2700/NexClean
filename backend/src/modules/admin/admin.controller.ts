@@ -61,6 +61,11 @@ export async function dispatchQueue(_req: Request, res: Response): Promise<Respo
   return ok(res, await service.dispatchQueue());
 }
 
+/** Bulk: re-dispatch every unassigned booking in one click. */
+export async function autoAssignAll(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.autoAssignAll(), "Bulk auto-assign triggered");
+}
+
 export async function assignableAgents(req: Request, res: Response): Promise<Response> {
   return ok(res, await service.assignableAgents(String(req.params.id)));
 }

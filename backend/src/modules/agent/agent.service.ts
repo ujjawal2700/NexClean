@@ -1,9 +1,11 @@
-import { Booking, type BookingDocument } from "../booking/booking.model";
-import { User } from "../user/user.model";
-import { ApiError } from "../../shared/utils/ApiError";
-import { trigger as triggerAreaAlert } from "../area-alert/areaAlert.service";
-import { maybeCreditReferrer } from "../promotions/referral.service";
-import { toPoint, haversineMeters, type LngLat } from "../../shared/geo";
+import { Booking, type BookingDocument } from "../booking/booking.model.js";
+import { User } from "../user/user.model.js";
+import { ApiError } from "../../shared/utils/ApiError.js";
+import { trigger as triggerAreaAlert } from "../area-alert/areaAlert.service.js";
+import { maybeCreditReferrer } from "../promotions/referral.service.js";
+import { toPoint, haversineMeters, type LngLat } from "../../shared/geo.js";
+import { emitToUser, emitToAdmins } from "../../shared/services/socket.js";
+import { notifyUser } from "../notification/notification.service.js";
 
 const JOB_FLOW = ["assigned", "enroute", "arrived", "in_progress", "completed"] as const;
 type JobStatus = (typeof JOB_FLOW)[number];
@@ -145,13 +147,18 @@ function isValidLocationUpdate(
 }
 
 export async function setOnline(agentId: string, online: boolean, coords?: Coords) {
+  const agentCheck = await User.findById(agentId);
+  if (!agentCheck) throw ApiError.notFound("Agent not found");
+  if (online && agentCheck.agentStatus !== "verified") {
+    throw ApiError.badRequest("Agent is not verified");
+  }
+
   // Going online counts as an immediate heartbeat so the badge flips live right away.
   let update: any;
   if (online) {
     update = { online, lastSeenAt: new Date() };
     if (coords && coords.lat != null && coords.lng != null) {
-      const agent = await User.findById(agentId).select("liveLocation locationUpdatedAt");
-      if (agent && isValidLocationUpdate(agent.liveLocation as any, agent.locationUpdatedAt, coords.lat, coords.lng, agentId)) {
+      if (isValidLocationUpdate(agentCheck.liveLocation as any, agentCheck.locationUpdatedAt, coords.lat, coords.lng, agentId)) {
         Object.assign(update, locationPatch(coords));
       }
     }
@@ -159,28 +166,30 @@ export async function setOnline(agentId: string, online: boolean, coords?: Coord
     update = { online };
   }
   const agent = await User.findByIdAndUpdate(agentId, update, { new: true });
-  if (!agent) throw ApiError.notFound("Agent not found");
-  return agent;
+  return agent!;
 }
 
-/** Keeps the agent's "live" status (and optionally location) fresh. */
 export async function heartbeat(agentId: string, coords?: Coords) {
+  const agent = await User.findById(agentId);
+  if (!agent) throw ApiError.notFound("Agent not found");
+  if (agent.agentStatus !== "verified") {
+    throw ApiError.badRequest("Agent is not verified");
+  }
+
   const update: any = { lastSeenAt: new Date() };
   if (coords && coords.lat != null && coords.lng != null) {
-    const agent = await User.findById(agentId).select("liveLocation locationUpdatedAt");
-    if (agent && isValidLocationUpdate(agent.liveLocation as any, agent.locationUpdatedAt, coords.lat, coords.lng, agentId)) {
+    if (isValidLocationUpdate(agent.liveLocation as any, agent.locationUpdatedAt, coords.lat, coords.lng, agentId)) {
       Object.assign(update, locationPatch(coords));
     }
   }
-  const agent = await User.findByIdAndUpdate(agentId, update, { new: true });
-  if (!agent) throw ApiError.notFound("Agent not found");
-  return agent;
+  const updatedAgent = await User.findByIdAndUpdate(agentId, update, { new: true });
+  return updatedAgent!;
 }
 
 /** Persist a streamed live location (from the socket channel). Best-effort, no throw. */
 export async function updateAgentLocation(agentId: string, lat: number, lng: number) {
-  const agent = await User.findById(agentId).select("liveLocation locationUpdatedAt");
-  if (!agent) return;
+  const agent = await User.findById(agentId).select("liveLocation locationUpdatedAt agentStatus");
+  if (!agent || agent.agentStatus !== "verified") return;
   if (!isValidLocationUpdate(agent.liveLocation as any, agent.locationUpdatedAt, lat, lng, agentId)) {
     return;
   }
@@ -192,5 +201,88 @@ export async function updateAgentLocation(agentId: string, lat: number, lng: num
 /** Agent notifies nearby customers (Smart Area Alert) for a society. */
 export async function notifyArea(agentId: string, society: string) {
   const agent = await User.findById(agentId);
-  return triggerAreaAlert(society, agent?.name);
+  if (!agent || agent.agentStatus !== "verified") {
+    throw ApiError.badRequest("Agent is not verified");
+  }
+  return triggerAreaAlert(society, agent.name);
+}
+
+/**
+ * Return today's bookings that are in the dispatch pool (unassigned).
+ * These are visible to all online verified agents as "available work"
+ * they can claim directly — useful when the browser was closed during dispatch.
+ */
+export async function listAvailableJobs(agentId: string) {
+  const agent = await User.findById(agentId);
+  if (!agent || agent.agentStatus !== "verified") return [];
+
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const bookings = await Booking.find({
+    status: "upcoming",
+    dispatchStatus: { $in: ["searching", "pending_admin", "offered"] },
+    assignedAgent: null,
+    date: { $gte: startOfDay, $lte: endOfDay },
+  })
+    .populate("user", "name")
+    .sort({ date: 1, slot: 1 })
+    .limit(20);
+
+  const agentPoint = await getAgentPoint(agentId);
+  return bookings.map((b) => mapJob(b, agentPoint));
+}
+
+/**
+ * An agent directly claims an available booking from the pool.
+ * Works like accepting an offer but skips the offer-lock step.
+ * The booking must still be unassigned at the time of the claim.
+ */
+export async function claimJob(agentId: string, bookingId: string) {
+  const agent = await User.findById(agentId);
+  if (!agent) throw ApiError.notFound("Agent not found");
+  if (agent.agentStatus !== "verified") throw ApiError.badRequest("Agent is not verified");
+
+  // Atomically grab the booking if it's still unclaimed.
+  const booking = await Booking.findOneAndUpdate(
+    {
+      _id: bookingId,
+      status: "upcoming",
+      dispatchStatus: { $in: ["searching", "pending_admin", "offered"] },
+      assignedAgent: null,
+    },
+    {
+      $set: {
+        assignedAgent: agent._id,
+        agentName: agent.name,
+        dispatchStatus: "assigned",
+        jobStatus: "assigned",
+        assignedAt: new Date(),
+        currentOfferAgent: null,
+        offerExpiresAt: null,
+      },
+    },
+    { new: true },
+  ).populate("user", "name");
+
+  if (!booking) throw ApiError.badRequest("This job is no longer available");
+
+  // Release any other agent's offer lock on this booking.
+  await User.updateMany({ currentOfferBooking: booking._id }, { currentOfferBooking: null });
+
+  // Notify the customer.
+  const cid = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
+  emitToUser(cid, "booking_assigned", { bookingId: String(booking._id), agentName: agent.name });
+  emitToAdmins("dispatch_update", { at: Date.now() });
+  void notifyUser(cid, {
+    type: "booking",
+    title: "✅ Cleaner on the way",
+    body: `${agent.name} has been assigned to your ${booking.packageName}.`,
+    data: { bookingId: String(booking._id) },
+  }).catch(() => {});
+
+  const agentPoint = await getAgentPoint(agentId);
+  return mapJob(booking, agentPoint);
 }

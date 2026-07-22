@@ -44,7 +44,7 @@ export function ReferEarn() {
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-3xl text-ink">Refer &amp; Earn</h1>
+        <h1 className="font-display text-2xl text-ink sm:text-3xl">Refer &amp; Earn</h1>
       </div>
 
       {/* Promotional Banner */}
@@ -91,7 +91,7 @@ export function ReferEarn() {
             <p className="text-xs text-muted mt-0.5">Redeemable at checkout</p>
           </div>
           <div className="mt-4">
-            <h3 className="font-display text-3xl font-extrabold text-amber-500">
+            <h3 className="font-display text-2xl font-extrabold text-amber-500 sm:text-3xl">
               {(referrals?.coins ?? 0).toLocaleString("en-IN")} <span className="text-lg">coins</span>
             </h3>
             <p className="text-xs text-muted mt-1">
