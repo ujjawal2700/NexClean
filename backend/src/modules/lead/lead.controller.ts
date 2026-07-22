@@ -31,3 +31,15 @@ export async function deleteLead(req: Request, res: Response): Promise<Response>
   await service.deleteLead(String(req.params.id));
   return ok(res, null, "Lead deleted");
 }
+
+/** PATCH /admin/leads/:id/status — admin only */
+export async function updateLeadStatus(req: Request, res: Response): Promise<Response> {
+  const status = String(req.body.status || "new");
+  if (!["new", "contacted", "converted"].includes(status)) {
+    throw ApiError.badRequest("Invalid lead status");
+  }
+  const lead = await service.updateLeadStatus(String(req.params.id), status as "new" | "contacted" | "converted");
+
+  return ok(res, lead, "Lead status updated");
+}
+

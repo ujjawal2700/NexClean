@@ -2,7 +2,8 @@ import { Router } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { requireRole, requirePermission } from "../../shared/middleware/auth";
 import * as c from "./admin.controller";
-import { listLeads, deleteLead } from "../lead/lead.controller";
+import { listLeads, deleteLead, updateLeadStatus } from "../lead/lead.controller";
+
 
 export const adminRouter = Router();
 
@@ -94,6 +95,7 @@ adminRouter.put("/content", requirePermission("content"), asyncHandler(c.updateC
 
 // Leads — customers from unserviced cities
 adminRouter.get("/leads", requirePermission("leads"), asyncHandler(listLeads));
+adminRouter.patch("/leads/:id/status", requirePermission("leads"), asyncHandler(updateLeadStatus));
 adminRouter.delete("/leads/:id", requirePermission("leads"), asyncHandler(deleteLead));
 
 // Referrals — program config + logs

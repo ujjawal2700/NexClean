@@ -366,8 +366,10 @@ export type Lead = {
   city: string;
   location: string;
   notified: boolean;
+  status: "new" | "contacted" | "converted";
   createdAt: string;
 };
+
 
 export type AdminReferralLog = {
   id: string;

@@ -66,7 +66,8 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const { data: leads = [] } = useLeads();
   const permissions = useAdminSession((s) => s.permissions) || [];
   const pendingCount = agents.filter((a) => a.status === "pending").length;
-  const leadCount = leads.length;
+  const leadCount = leads.filter((l) => (l.status ?? "new") === "new").length;
+
 
   const filteredNav = NAV.filter((item) => {
     if (permissions.includes("*")) return true;

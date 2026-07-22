@@ -22,11 +22,14 @@ const leadSchema = new Schema(
     city: { type: String, required: true, trim: true },
     location: { type: String, default: "", trim: true },
     deviceToken: { type: String, default: "" },
+    /** Lead lifecycle status: new (awaiting launch), contacted, converted */
+    status: { type: String, enum: ["new", "contacted", "converted"], default: "new" },
     /** Set to true once admin sends the "we're live in your city" notification. */
     notified: { type: Boolean, default: false },
   },
   { timestamps: true, toJSON: jsonTransform },
 );
+
 
 export type LeadDoc = HydratedDocument<InferSchemaType<typeof leadSchema>>;
 export const Lead = model("Lead", leadSchema);

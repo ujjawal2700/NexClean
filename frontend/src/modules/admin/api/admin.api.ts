@@ -615,6 +615,16 @@ export function useDeleteLead() {
   });
 }
 
+export function useUpdateLeadStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; status: "new" | "contacted" | "converted" }) =>
+      apiFetch<Lead>(`/admin/leads/${vars.id}/status`, { method: "PATCH", body: { status: vars.status } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.leads }),
+  });
+}
+
+
 /* ─────────────────────────── Referrals Logs ─────────────────────────────── */
 
 export const useReferralLogs = () => useAuthedQuery<AdminReferralLog[]>(keys.referralLogs, "/admin/referral-logs");

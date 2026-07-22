@@ -19,6 +19,7 @@ function mapLead(l: LeadDoc) {
     city: l.city,
     location: l.location,
     notified: l.notified,
+    status: (l as unknown as { status?: string }).status ?? "new",
     createdAt: (l as unknown as { createdAt: Date }).createdAt,
   };
 }
@@ -51,6 +52,16 @@ export async function deleteLead(id: string) {
   if (!lead) throw ApiError.notFound("Lead not found");
 }
 
-export async function countLeads() {
-  return Lead.countDocuments();
+export async function updateLeadStatus(id: string, status: "new" | "contacted" | "converted") {
+  const lead = await Lead.findById(id);
+  if (!lead) throw ApiError.notFound("Lead not found");
+  lead.status = status;
+  await lead.save();
+  return mapLead(lead);
 }
+
+
+export async function countLeads() {
+  return Lead.countDocuments({ status: { $ne: "converted" } });
+}
+
