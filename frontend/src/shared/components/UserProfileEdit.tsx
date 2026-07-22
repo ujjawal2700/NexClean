@@ -201,14 +201,19 @@ export function UserProfileEdit({
   };
 
   const hasPhone = Boolean(phone && phone.trim().length === 10);
+  const initialChar =
+    name && typeof name === "string" && name.trim().length > 0
+      ? name.trim().slice(0, 1).toUpperCase()
+      : "U";
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Header Profile Summary */}
       <GlassCard className="flex flex-col sm:flex-row items-center gap-5">
         <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-accent text-2xl font-bold text-white shadow-md">
-          {name.slice(0, 1).toUpperCase() || "U"}
+          {initialChar}
         </span>
+
         <div className="flex-1 text-center sm:text-left">
           <div className="flex items-center justify-center sm:justify-start gap-2">
             <h2 className="font-display text-2xl font-bold text-ink">{name || "User Profile"}</h2>
