@@ -7,7 +7,8 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { signToken, type Role } from "../../shared/utils/jwt";
 import { generateOtp } from "../../shared/utils/otp";
 import type { CustomerSignupInput, AgentSignupInput, AgentSignupBasicInput } from "./auth.validation";
-import { verifyPassword } from "../../shared/utils/crypto";
+import { verifyPassword, hashPassword } from "../../shared/utils/crypto";
+
 import { sendSmsOtp } from "../../shared/services/sms";
 
 /** Normalize a phone string to a consistent stored form. */
@@ -178,34 +179,46 @@ export async function agentSignupBasic(input: AgentSignupBasicInput) {
   return { token, user };
 }
 
-/** Email + password login for the admin console (seeded demo credentials). */
+/** Email + password login for the admin console (verifies against database password). */
 export async function adminLogin(email: string, password: string) {
   const emailLower = email.trim().toLowerCase();
+  const isSuperAdminEmail = emailLower === env.adminEmail.toLowerCase();
 
-  // 1. Super Admin seeded check
-  if (emailLower === env.adminEmail.toLowerCase()) {
-    if (password !== env.adminPassword) {
-      throw ApiError.unauthorized("Invalid email or password");
-    }
-    const user = await User.findOneAndUpdate(
-      { phone: `admin:${env.adminEmail}` },
-      { 
-        $setOnInsert: { phone: `admin:${env.adminEmail}`, name: "Admin", role: "admin" },
-        $set: { email: emailLower }
-      },
-      { upsert: true, new: true }
-    );
-    const token = signToken(user.id, "admin");
-    return { token, user: { ...user.toJSON(), permissions: ["*"] } };
+  // 1. Find user in MongoDB by email or superadmin handle
+  let user = await User.findOne({
+    $or: [
+      { email: emailLower, role: "admin" },
+      { phone: `admin:${emailLower}`, role: "admin" },
+    ],
+  }).populate("adminRoleId");
+
+  // 2. If Super Admin logging in for the first time before record exists, seed user
+  if (!user && isSuperAdminEmail) {
+    user = await User.create({
+      phone: `admin:${emailLower}`,
+      name: "Admin",
+      email: emailLower,
+      role: "admin",
+      password: hashPassword(env.adminPassword),
+    });
   }
 
-  // 2. Database sub-admin (staff) check
-  const user = await User.findOne({ email: emailLower, role: "admin" }).populate("adminRoleId");
-  if (!user || !user.password) {
+  if (!user) {
     throw ApiError.unauthorized("Invalid email or password");
   }
 
-  const isMatch = verifyPassword(password, user.password);
+  // 3. Verify password against DB hash or env fallback
+  let isMatch = false;
+  if (user.password) {
+    isMatch = verifyPassword(password, user.password);
+  } else if (isSuperAdminEmail) {
+    isMatch = password === env.adminPassword;
+    if (isMatch) {
+      user.password = hashPassword(password);
+      await user.save();
+    }
+  }
+
   if (!isMatch) {
     throw ApiError.unauthorized("Invalid email or password");
   }
@@ -215,8 +228,9 @@ export async function adminLogin(email: string, password: string) {
   }
 
   const token = signToken(user.id, "admin");
+  const isSuper = isSuperAdminEmail || user.phone === `admin:${env.adminEmail}` || !user.adminRoleId;
   const role = user.adminRoleId as any;
-  const permissions = role ? role.permissions : [];
+  const permissions = isSuper ? ["*"] : role ? role.permissions : [];
 
   return {
     token,
@@ -224,11 +238,13 @@ export async function adminLogin(email: string, password: string) {
       id: user.id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
       role: user.role,
       permissions,
     },
   };
 }
+
 
 export async function getMe(userId: string) {
   const user = await User.findById(userId).populate("adminRoleId");
