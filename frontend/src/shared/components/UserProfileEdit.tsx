@@ -60,7 +60,8 @@ export function UserProfileEdit({
     if (user) {
       setName(user.name || "");
       setEmail(user.email || "");
-      setPhone(user.phone || "");
+      const digits = (user.phone || "").replace(/\D/g, "");
+      setPhone(digits);
     }
   }, [user]);
 
@@ -81,7 +82,7 @@ export function UserProfileEdit({
     setProfileSuccess("");
     setProfileSaving(true);
     try {
-      await apiFetch("/user/me", {
+      await apiFetch("/users/me", {
         method: "PATCH",
         body: { name: name.trim(), email: email.trim(), phone: phone.trim() },
       });
@@ -158,7 +159,7 @@ export function UserProfileEdit({
 
     setPasswordSaving(true);
     try {
-      await apiFetch("/user/me/password", {
+      await apiFetch("/users/me/password", {
         method: "PATCH",
         body: { newPassword, code: otpCode.trim() },
       });
@@ -176,6 +177,7 @@ export function UserProfileEdit({
   };
 
   const hasPhone = Boolean(phone && phone.trim().length >= 10);
+
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
