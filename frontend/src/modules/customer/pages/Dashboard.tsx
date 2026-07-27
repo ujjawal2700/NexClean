@@ -20,6 +20,7 @@ export function Dashboard() {
   const activePlan = me?.activePlan ?? null;
   const next = bookings.filter((b) => b.status === "upcoming")[0];
   const cheapestBase = categories.length ? Math.min(...categories.map((c) => c.basePrice)) : 0;
+  const categoryImageMap = new Map(categories.map((c) => [c.key, c.imageUrl]));
 
   return (
     <div className="space-y-8">
@@ -162,7 +163,7 @@ export function Dashboard() {
             : vehicles.map((v) => (
                 <GlassCard key={v.id} interactive className="flex items-center gap-4">
                   <div className="w-24 shrink-0">
-                    <CarSilhouette type={v.type} uid={`dash-${v.id}`} />
+                    <CarSilhouette type={v.type} imageUrl={categoryImageMap.get(v.type)} uid={`dash-${v.id}`} />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate font-display font-semibold text-ink">{v.name}</p>

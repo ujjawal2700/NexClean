@@ -6,14 +6,16 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { BrandModelSelect, type VehicleSelection } from "../components/BrandModelSelect";
-import { useMe, useCategoryLabel } from "../api/queries";
+import { useMe, useCategoryLabel, useVehicleCategories } from "../api/queries";
 import { useAddVehicle, useRemoveVehicle } from "../api/mutations";
 
 export function Vehicles() {
   const navigate = useNavigate();
   const { data: me } = useMe();
+  const { data: categories = [] } = useVehicleCategories();
   const vehicles = me?.vehicles ?? [];
   const categoryLabel = useCategoryLabel();
+  const categoryImageMap = new Map(categories.map((c) => [c.key, c.imageUrl]));
 
   const addVehicle = useAddVehicle();
   const removeVehicle = useRemoveVehicle();
@@ -79,7 +81,7 @@ export function Vehicles() {
           {vehicles.map((v) => (
             <div key={v.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
               <div className="w-20 shrink-0">
-                <CarSilhouette type={v.type} uid={`prof-${v.id}`} />
+                <CarSilhouette type={v.type} imageUrl={categoryImageMap.get(v.type)} uid={`prof-${v.id}`} />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-display font-semibold text-ink">{v.name}</p>

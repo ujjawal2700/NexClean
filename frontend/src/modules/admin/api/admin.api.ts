@@ -255,6 +255,21 @@ export function useAutoAssignAll() {
   });
 }
 
+export function useRescheduleBooking() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; date: string; slot: string }) =>
+      apiFetch<AdminBooking>(`/admin/bookings/${vars.id}/reschedule`, {
+        method: "PATCH",
+        body: { date: vars.date, slot: vars.slot },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.bookings });
+      qc.invalidateQueries({ queryKey: keys.dispatch });
+    },
+  });
+}
+
 /* ------------------------------ Dispatch --------------------------------- */
 
 /** Live dispatch queue (searching / offered / pending / scheduled). */
@@ -398,7 +413,7 @@ export function useCategoryLabel() {
 export function useCreateVehicleCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { name: string; basePrice: number }) =>
+    mutationFn: (vars: { name: string; basePrice: number; imageUrl?: string }) =>
       apiFetch<VehicleCategory>("/admin/vehicle-categories", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleCategories }),
   });
@@ -407,7 +422,7 @@ export function useCreateVehicleCategory() {
 export function useUpdateVehicleCategory() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { id: string; name?: string; basePrice?: number; active?: boolean; sortOrder?: number }) =>
+    mutationFn: (vars: { id: string; name?: string; basePrice?: number; imageUrl?: string; active?: boolean; sortOrder?: number }) =>
       apiFetch<VehicleCategory>(`/admin/vehicle-categories/${vars.id}`, { method: "PATCH", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleCategories }),
   });

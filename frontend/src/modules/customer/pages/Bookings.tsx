@@ -31,15 +31,15 @@ function CleanerStatus({ booking }: { booking: Booking }) {
   }
   if (d === "pending_admin") {
     return (
-      <p className="mt-2 flex items-center gap-1.5 text-sm text-amber-600">
-        <Clock className="size-4" /> Assigning a cleaner shortly
+      <p className="mt-2 flex items-center gap-1.5 text-sm text-amber-600 font-medium">
+        <Clock className="size-4" /> High demand · Priority assignment in progress
       </p>
     );
   }
   // searching / offered (or unknown-but-upcoming) → actively finding someone.
   return (
-    <p className="mt-2 flex items-center gap-1.5 text-sm text-primary">
-      <Loader2 className="size-4 animate-spin" /> Finding your nearest cleaner…
+    <p className="mt-2 flex items-center gap-1.5 text-sm font-medium text-primary">
+      <Loader2 className="size-4 animate-spin" /> Searching nearby cleaners...
     </p>
   );
 }

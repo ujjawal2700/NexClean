@@ -18,6 +18,7 @@ const categorySchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     key: { type: String, required: true, trim: true, lowercase: true, unique: true },
+    imageUrl: { type: String, default: "" },
     sortOrder: { type: Number, default: 0 },
     active: { type: Boolean, default: true },
   },

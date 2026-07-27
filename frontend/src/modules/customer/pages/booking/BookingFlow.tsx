@@ -25,7 +25,7 @@ import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import { useMe, useVehicleCategories, useCategoryLabel, useWallet } from "../../api/queries";
 import { useCreateOrder, useVerifyPayment, usePreviewDiscount } from "../../api/mutations";
 import type { PreviewAmountResponse } from "../../api/mutations";
-import { PACKAGES, TIME_SLOTS, availableSlotsForDate, upcomingDates, priceFor } from "../../data/catalog";
+import { PACKAGES, availableSlotsForDate, upcomingDates, priceFor } from "../../data/catalog";
 import type { CarType, Booking, Vehicle, Address, VehicleCategory } from "../../types";
 import { formatMoney } from "@shared/lib/format";
 import { Stepper, STEP_LABELS } from "./Stepper";
@@ -321,6 +321,7 @@ function VehicleStep({
   vehicles: Vehicle[];
   categoryLabel: (key: string) => string;
 }) {
+  const { data: categories = [] } = useVehicleCategories();
   const usingSavedVehicle = vehicles.some((v) => v.name === draft.vehicleName && v.type === draft.vehicleType);
 
   const onResolved = (selection: VehicleSelection | null) => {
@@ -347,7 +348,7 @@ function VehicleStep({
                 )}
               >
                 <div className="w-20 shrink-0">
-                  <CarSilhouette type={v.type} uid={`pick-${v.id}`} />
+                  <CarSilhouette type={v.type} imageUrl={categories.find((c) => c.key === v.type)?.imageUrl} uid={`pick-${v.id}`} />
                 </div>
                 <div className="min-w-0">
                   <p className="truncate font-display font-semibold text-ink">{v.name}</p>

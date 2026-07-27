@@ -34,6 +34,7 @@ function mapCategory(c: VehicleCategoryDoc, basePrice?: Record<string, number>) 
     id: c.id,
     name: c.name,
     key: c.key,
+    imageUrl: (c as unknown as { imageUrl?: string }).imageUrl || "",
     sortOrder: c.sortOrder,
     active: c.active,
     basePrice: basePrice?.[c.key] ?? 0,
@@ -67,7 +68,7 @@ export async function isValidCategoryKey(key: string): Promise<boolean> {
   return (await VehicleCategory.exists({ key, active: true })) != null;
 }
 
-export async function createCategory(input: { name: string; basePrice: number }) {
+export async function createCategory(input: { name: string; basePrice: number; imageUrl?: string }) {
   await ensureSeeded();
   const key = slugify(input.name);
   if (!key) throw ApiError.badRequest("Invalid category name");
@@ -78,6 +79,7 @@ export async function createCategory(input: { name: string; basePrice: number })
   const category = await VehicleCategory.create({
     name: input.name,
     key,
+    imageUrl: input.imageUrl || "",
     sortOrder: (maxSort?.sortOrder ?? -1) + 1,
     active: true,
   });
@@ -98,12 +100,13 @@ export async function createCategory(input: { name: string; basePrice: number })
 
 export async function updateCategory(
   id: string,
-  patch: { name?: string; basePrice?: number; active?: boolean; sortOrder?: number },
+  patch: { name?: string; basePrice?: number; active?: boolean; sortOrder?: number; imageUrl?: string },
 ) {
   const category = await VehicleCategory.findById(id);
   if (!category) throw ApiError.notFound("Category not found");
 
   if (patch.name !== undefined) category.name = patch.name;
+  if (patch.imageUrl !== undefined) category.imageUrl = patch.imageUrl;
   if (patch.active !== undefined) category.active = patch.active;
   if (patch.sortOrder !== undefined) category.sortOrder = patch.sortOrder;
   await category.save();

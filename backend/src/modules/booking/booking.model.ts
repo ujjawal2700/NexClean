@@ -60,6 +60,11 @@ const bookingSchema = new Schema(
     declinedAgents: { type: [Types.ObjectId], default: [] },
     searchRadiusM: { type: Number, default: 0 },
     dispatchAttempts: { type: Number, default: 0 },
+
+    // Auto-reschedule tracking
+    rescheduleCount: { type: Number, default: 0 },
+    lastRescheduledAt: { type: Date, default: null },
+    autoRescheduled: { type: Boolean, default: false },
   },
   {
     timestamps: true,

@@ -18,6 +18,7 @@ export type VehicleCategory = {
   id: string;
   name: string;
   key: string;
+  imageUrl?: string;
   basePrice: number;
   sortOrder: number;
   active: boolean;

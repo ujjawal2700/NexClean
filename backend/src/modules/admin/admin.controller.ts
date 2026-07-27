@@ -57,6 +57,32 @@ export async function autoAssignBooking(req: Request, res: Response): Promise<Re
   return ok(res, await service.autoAssignBooking(String(req.params.id)), "Agent auto-assigned");
 }
 
+const rescheduleSchema = z.object({
+  date: z.string().min(1),
+  slot: z.string().min(1),
+});
+export async function rescheduleBooking(req: Request, res: Response): Promise<Response> {
+  const parsed = rescheduleSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Date and slot are required");
+  return ok(res, await service.rescheduleBooking(String(req.params.id), parsed.data), "Booking rescheduled successfully");
+}
+
+import { getRescheduleConfig, updateRescheduleConfig } from "../dispatch/slotScheduler.service";
+
+export async function getRescheduleConfigCtl(_req: Request, res: Response): Promise<Response> {
+  return ok(res, getRescheduleConfig());
+}
+
+const rescheduleConfigSchema = z.object({
+  bufferMinutes: z.number().int().min(0).optional(),
+  maxDaysLimit: z.number().int().min(1).optional(),
+});
+export async function updateRescheduleConfigCtl(req: Request, res: Response): Promise<Response> {
+  const parsed = rescheduleConfigSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid reschedule config");
+  return ok(res, updateRescheduleConfig(parsed.data), "Reschedule config updated");
+}
+
 export async function dispatchQueue(_req: Request, res: Response): Promise<Response> {
   return ok(res, await service.dispatchQueue());
 }
@@ -208,7 +234,11 @@ export async function vehicleCategories(_req: Request, res: Response): Promise<R
   return ok(res, await categoryService.listCategories());
 }
 
-const createCategorySchema = z.object({ name: z.string().trim().min(1), basePrice: z.number().positive() });
+const createCategorySchema = z.object({
+  name: z.string().trim().min(1),
+  basePrice: z.number().positive(),
+  imageUrl: z.string().optional(),
+});
 export async function createVehicleCategory(req: Request, res: Response): Promise<Response> {
   const parsed = createCategorySchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Category name and base price are required");
@@ -218,6 +248,7 @@ export async function createVehicleCategory(req: Request, res: Response): Promis
 const updateCategorySchema = z.object({
   name: z.string().trim().min(1).optional(),
   basePrice: z.number().positive().optional(),
+  imageUrl: z.string().optional(),
   active: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
 });

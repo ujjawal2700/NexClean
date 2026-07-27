@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
 
 /** A vehicle category key — admin-managed, not a fixed set. */
@@ -5,6 +7,7 @@ export type CarType = string;
 
 type CarSilhouetteProps = {
   type?: CarType;
+  imageUrl?: string;
   className?: string;
   /** unique id base to avoid gradient collisions when many render */
   uid?: string;
@@ -72,7 +75,26 @@ const SHAPES: Record<string, CarShape> = {
 
 const DEFAULT_SHAPE = SHAPES.sedan;
 
-export function CarSilhouette({ type = "sedan", className, uid = "car" }: CarSilhouetteProps) {
+export function CarSilhouette({ type = "sedan", imageUrl: propImageUrl, className, uid = "car" }: CarSilhouetteProps) {
+  const { data: categories } = useQuery({
+    queryKey: ["catalog", "vehicle-categories"],
+    queryFn: () => apiFetch<Array<{ key: string; imageUrl?: string }>>("/catalog/vehicle-categories"),
+    staleTime: 1000 * 60 * 5,
+    enabled: !propImageUrl,
+  });
+
+  const effectiveImageUrl = propImageUrl || categories?.find((c) => c.key === type)?.imageUrl;
+
+  if (effectiveImageUrl) {
+    return (
+      <img
+        src={effectiveImageUrl}
+        alt={type || "vehicle"}
+        className={cn("h-full w-auto max-h-32 object-contain mx-auto rounded-lg drop-shadow-sm", className)}
+      />
+    );
+  }
+
   const shape = SHAPES[type] ?? DEFAULT_SHAPE;
   const gid = `${uid}-${type}-grad`;
   const sid = `${uid}-${type}-shine`;

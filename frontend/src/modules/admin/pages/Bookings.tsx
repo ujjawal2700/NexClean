@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, X, Wand2 } from "lucide-react";
+import { Search, X, Wand2, Calendar, Loader2 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -12,11 +12,23 @@ import {
   useAgents,
   useAssignBooking,
   useAutoAssignBooking,
+  useRescheduleBooking,
   useSetBookingStatus,
   useCategoryLabel,
 } from "../api/admin.api";
 import { type BookingStatus, type AdminBooking } from "../types";
 import { BOOKING_STATUS_STYLE } from "../lib/status";
+
+const TIME_SLOTS = [
+  "08:00 AM",
+  "09:30 AM",
+  "11:00 AM",
+  "12:30 PM",
+  "02:00 PM",
+  "03:30 PM",
+  "05:00 PM",
+  "06:30 PM",
+];
 
 const FILTERS: { id: BookingStatus | "all"; label: string }[] = [
   { id: "all", label: "All" },
@@ -32,6 +44,85 @@ const STATUS_OPTIONS: { id: BookingStatus; label: string }[] = [
   { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
 ];
+
+function RescheduleModal({
+  booking,
+  onClose,
+}: {
+  booking: AdminBooking;
+  onClose: () => void;
+}) {
+  const reschedule = useRescheduleBooking();
+  const initialDate = booking.date ? new Date(booking.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+  const [date, setDate] = useState(initialDate);
+  const [slot, setSlot] = useState(booking.slot || TIME_SLOTS[0]);
+
+  const submit = () => {
+    if (!date || !slot) return;
+    reschedule.mutate(
+      { id: booking.id, date, slot },
+      { onSuccess: () => onClose() }
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-xl space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-lg font-semibold text-ink">
+            Reschedule Booking
+          </h3>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-muted hover:text-ink"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <p className="text-sm text-muted">
+          Reschedule <span className="font-medium text-ink">{booking.vehicleName}</span> ({booking.customerName}) to a new date & time slot.
+        </p>
+
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Select Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-primary/50"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted">Select Time Slot</label>
+            <select
+              value={slot}
+              onChange={(e) => setSlot(e.target.value)}
+              className="h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-primary/50"
+            >
+              {TIME_SLOTS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={submit} disabled={reschedule.isPending || !date || !slot}>
+            {reschedule.isPending ? <Loader2 className="size-4 animate-spin" /> : "Save & Reschedule"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function AgentCell({ booking }: { booking: AdminBooking }) {
   const { data: agents = [] } = useAgents();
@@ -97,6 +188,7 @@ export function Bookings() {
   const categoryLabel = useCategoryLabel();
   const [filter, setFilter] = useState<BookingStatus | "all">("all");
   const [query, setQuery] = useState("");
+  const [rescheduleBookingTarget, setRescheduleBookingTarget] = useState<AdminBooking | null>(null);
 
   const list = bookings.filter((b) => {
     const matchesStatus = filter === "all" || b.status === filter;
@@ -112,9 +204,16 @@ export function Bookings() {
 
   return (
     <div className="space-y-6">
+      {rescheduleBookingTarget && (
+        <RescheduleModal
+          booking={rescheduleBookingTarget}
+          onClose={() => setRescheduleBookingTarget(null)}
+        />
+      )}
+
       <div>
         <h1 className="font-display text-3xl text-ink">Bookings</h1>
-        <p className="mt-1 text-muted">{bookings.length} total · assign agents and control status.</p>
+        <p className="mt-1 text-muted">{bookings.length} total · assign agents, reschedule & control status.</p>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -154,7 +253,7 @@ export function Bookings() {
               <th className="px-2 py-2 font-medium">Agent</th>
               <th className="px-2 py-2 font-medium">Status</th>
               <th className="px-2 py-2 text-right font-medium">Amount</th>
-              <th className="px-2 py-2"></th>
+              <th className="px-2 py-2 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -176,13 +275,28 @@ export function Bookings() {
                 </td>
                 <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(b.price)}</td>
                 <td className="px-2 py-3 text-right">
-                  {b.status === "upcoming" || b.status === "in_progress" ? (
-                    <Button variant="ghost" size="sm" disabled={cancelBooking.isPending} onClick={() => cancelBooking.mutate(b.id)}>
-                      <X className="size-4" /> Cancel
-                    </Button>
-                  ) : (
-                    <span className="text-xs text-muted">—</span>
-                  )}
+                  <div className="flex items-center justify-end gap-1">
+                    {b.status === "upcoming" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRescheduleBookingTarget(b)}
+                        title="Reschedule Booking"
+                      >
+                        <Calendar className="size-3.5" /> Reschedule
+                      </Button>
+                    )}
+                    {(b.status === "upcoming" || b.status === "in_progress") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={cancelBooking.isPending}
+                        onClick={() => cancelBooking.mutate(b.id)}
+                      >
+                        <X className="size-4" /> Cancel
+                      </Button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

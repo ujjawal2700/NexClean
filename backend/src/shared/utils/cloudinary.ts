@@ -16,13 +16,16 @@ if (cloudinaryEnabled) {
  */
 export async function uploadImage(base64Data: string): Promise<string> {
   if (!cloudinaryEnabled) {
-    console.log("☁️ [cloudinary:mock] Cloudinary credentials missing. Returning fallback mock URL.");
-    // Return a beautiful unsplash mockup car care image as fallback
+    console.log("☁️ [cloudinary:mock] Cloudinary credentials missing. Returning uploaded base64 data URL or mock fallback.");
+    if (base64Data.startsWith("data:image/")) {
+      return base64Data;
+    }
     return "https://images.unsplash.com/photo-1607860108855-64acf2078ed9?q=80&w=600&auto=format&fit=crop";
   }
 
   const result = await cloudinary.uploader.upload(base64Data, {
     folder: "nexclean",
+    format: "webp",
   });
   return result.secure_url;
 }

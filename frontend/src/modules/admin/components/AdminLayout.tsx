@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   MessageSquare,
   Radio,
+  Search,
 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -62,54 +63,81 @@ const NAV = [
 
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+  const [search, setSearch] = useState("");
   const { data: agents = [] } = useAgents();
   const { data: leads = [] } = useLeads();
   const permissions = useAdminSession((s) => s.permissions) || [];
   const pendingCount = agents.filter((a) => a.status === "pending").length;
   const leadCount = leads.filter((l) => (l.status ?? "new") === "new").length;
 
-
   const filteredNav = NAV.filter((item) => {
-    if (permissions.includes("*")) return true;
-    return permissions.includes(item.permission);
+    const hasPermission = permissions.includes("*") || permissions.includes(item.permission);
+    if (!hasPermission) return false;
+    if (!search.trim()) return true;
+    return item.label.toLowerCase().includes(search.trim().toLowerCase());
   });
 
   return (
-    <nav className="flex flex-col gap-1">
-      {filteredNav.map((item) => {
-        const isVerification = item.to === "/admin/agent-verification";
-        const isLeads = item.to === "/admin/leads";
-        return (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors",
-                isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:bg-surface-muted hover:text-ink",
-              )
-            }
+    <div className="space-y-3">
+      <div className="relative px-0.5">
+        <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search sections..."
+          className="h-9 w-full rounded-xl border border-line bg-surface/60 pl-8 pr-7 text-xs text-ink outline-none transition-all focus:border-primary/50 focus:bg-surface"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+            aria-label="Clear search"
           >
-            <span className="flex items-center gap-3">
-              <item.icon className="size-[18px]" />
-              <span>{item.label}</span>
-            </span>
-            {isVerification && pendingCount > 0 && (
-              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-orange-500 font-display text-[10px] font-semibold text-white">
-                {pendingCount}
+            <X className="size-3.5" />
+          </button>
+        )}
+      </div>
+
+      <nav className="flex flex-col gap-1">
+        {filteredNav.map((item) => {
+          const isVerification = item.to === "/admin/agent-verification";
+          const isLeads = item.to === "/admin/leads";
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={onNavigate}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors",
+                  isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:bg-surface-muted hover:text-ink",
+                )
+              }
+            >
+              <span className="flex items-center gap-3">
+                <item.icon className="size-[18px]" />
+                <span>{item.label}</span>
               </span>
-            )}
-            {isLeads && leadCount > 0 && (
-              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-amber-500 font-display text-[10px] font-semibold text-white">
-                {leadCount > 99 ? "99+" : leadCount}
-              </span>
-            )}
-          </NavLink>
-        );
-      })}
-    </nav>
+              {isVerification && pendingCount > 0 && (
+                <span className="grid size-5 shrink-0 place-items-center rounded-full bg-orange-500 font-display text-[10px] font-semibold text-white">
+                  {pendingCount}
+                </span>
+              )}
+              {isLeads && leadCount > 0 && (
+                <span className="grid size-5 shrink-0 place-items-center rounded-full bg-amber-500 font-display text-[10px] font-semibold text-white">
+                  {leadCount > 99 ? "99+" : leadCount}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
+        {filteredNav.length === 0 && (
+          <p className="px-3 py-6 text-center text-xs text-muted">No sections match "{search}"</p>
+        )}
+      </nav>
+    </div>
   );
 }
 

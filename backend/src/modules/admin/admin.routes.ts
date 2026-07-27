@@ -16,10 +16,13 @@ adminRouter.get("/bookings", requirePermission("bookings"), asyncHandler(c.booki
 adminRouter.patch("/bookings/:id/cancel", requirePermission("bookings"), asyncHandler(c.cancelBooking));
 adminRouter.patch("/bookings/:id/status", requirePermission("bookings"), asyncHandler(c.setBookingStatus));
 adminRouter.patch("/bookings/:id/assign", requirePermission("bookings"), asyncHandler(c.assignBooking));
+adminRouter.patch("/bookings/:id/reschedule", requirePermission("bookings"), asyncHandler(c.rescheduleBooking));
 adminRouter.post("/bookings/:id/auto-assign", requirePermission("bookings"), asyncHandler(c.autoAssignBooking));
 adminRouter.get("/bookings/:id/assignable-agents", requirePermission("bookings"), asyncHandler(c.assignableAgents));
 adminRouter.get("/dispatch/queue", requirePermission("bookings"), asyncHandler(c.dispatchQueue));
 adminRouter.post("/dispatch/auto-assign-all", requirePermission("bookings"), asyncHandler(c.autoAssignAll));
+adminRouter.get("/reschedule-config", requirePermission("bookings"), asyncHandler(c.getRescheduleConfigCtl));
+adminRouter.put("/reschedule-config", requirePermission("bookings"), asyncHandler(c.updateRescheduleConfigCtl));
 
 adminRouter.get("/agents", requirePermission("agents"), asyncHandler(c.agents));
 adminRouter.get("/agents/:id", requirePermission("agents"), asyncHandler(c.agentDetail));

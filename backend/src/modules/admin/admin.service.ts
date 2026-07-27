@@ -3,7 +3,7 @@ import { User, type UserDoc } from "../user/user.model";
 import { Payment, type PaymentDocument } from "../payment/payment.model";
 import { Campaign } from "./campaign.model";
 import { TriggeredAlert } from "../area-alert/areaAlert.model";
-import { notifyUser } from "../notification/notification.service";
+import { notifyUser, pushToUser } from "../notification/notification.service";
 import { maybeCreditReferrer } from "../promotions/referral.service";
 import { ApiError } from "../../shared/utils/ApiError";
 import { isAgentLive } from "../user/presence";
@@ -85,6 +85,50 @@ export async function cancelBooking(id: string) {
     dispatch.emitCancelToAgent(prevOfferAgent, id);
   }
   dispatch.emitDispatchUpdate();
+
+  return mapBooking(booking);
+}
+
+export async function rescheduleBooking(id: string, input: { date: string; slot: string }) {
+  const booking = await Booking.findById(id).populate("user", "name");
+  if (!booking) throw ApiError.notFound("Booking not found");
+
+  const prevOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
+
+  booking.date = new Date(input.date);
+  booking.slot = input.slot;
+  booking.status = "upcoming";
+  booking.dispatchStatus = "searching";
+  booking.rescheduleCount = 0;
+  booking.autoRescheduled = false;
+  booking.currentOfferAgent = null;
+  booking.offerExpiresAt = null;
+  booking.set("declinedAgents", []);
+  await booking.save();
+
+  if (prevOfferAgent) {
+    await User.updateOne({ _id: prevOfferAgent, currentOfferBooking: id }, { currentOfferBooking: null });
+    dispatch.emitCancelToAgent(prevOfferAgent, id);
+  }
+
+  const cid = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
+  const dateFormatted = new Date(input.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+  await pushToUser(cid, {
+    title: "📅 Service Rescheduled by Admin",
+    body: `Your ${booking.packageName} service has been rescheduled to ${dateFormatted} at ${input.slot}.`,
+    data: { bookingId: String(booking._id), kind: "rescheduled" },
+  }).catch((err: unknown) => console.error("reschedule push failed:", (err as Error).message));
+
+  await notifyUser(cid, {
+    type: "booking",
+    title: "📅 Booking Rescheduled",
+    body: `Admin rescheduled your service to ${dateFormatted} at ${input.slot}.`,
+    data: { bookingId: String(booking._id) },
+  }).catch((err: unknown) => console.error("reschedule notify failed:", (err as Error).message));
+
+  dispatch.emitDispatchUpdate();
+  void dispatch.offerNext(id).catch((err) => console.error("offerNext error on admin reschedule:", (err as Error).message));
 
   return mapBooking(booking);
 }

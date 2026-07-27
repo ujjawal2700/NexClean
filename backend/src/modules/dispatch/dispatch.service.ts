@@ -540,6 +540,8 @@ export async function sweepOffers(): Promise<void> {
   }
 }
 
+import { sweepAndRescheduleMissedSlots } from "./slotScheduler.service";
+
 let workerHandle: NodeJS.Timeout | null = null;
 let lastSubscriptionRun = 0;
 const SUBSCRIPTION_TICK_MS = 30_000;
@@ -550,6 +552,9 @@ export function startDispatchWorker() {
     void (async () => {
       try {
         await sweepOffers();
+        await sweepAndRescheduleMissedSlots().catch((err) =>
+          console.error("missed slot sweep failed:", (err as Error).message),
+        );
         if (Date.now() - lastSubscriptionRun >= SUBSCRIPTION_TICK_MS) {
           lastSubscriptionRun = Date.now();
           await runSubscriptionScheduler();
@@ -580,6 +585,12 @@ export async function resumeDispatch(): Promise<void> {
     { dispatchStatus: "offered" },
     { $set: { dispatchStatus: "searching", currentOfferAgent: null, offerExpiresAt: null } },
   );
+
+  // Auto-reschedule any past missed slots on startup
+  await sweepAndRescheduleMissedSlots().catch((err) =>
+    console.error("startup missed slot sweep failed:", (err as Error).message),
+  );
+
   const pending = await Booking.find({
     dispatchStatus: "searching",
     status: "upcoming",

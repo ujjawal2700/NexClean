@@ -79,7 +79,7 @@ export function Pricing() {
           {categories.map((c) => (
             <div key={c.key} className="rounded-2xl border border-line bg-surface/60 p-4">
               <div className="mb-2 h-14">
-                <CarSilhouette type={c.key} uid={`price-${c.key}`} className="mx-auto h-full w-auto" />
+                <CarSilhouette type={c.key} imageUrl={c.imageUrl} uid={`price-${c.key}`} className="mx-auto h-full w-auto" />
               </div>
               <p className="text-center text-sm font-medium text-ink">{c.name}</p>
               <div className="mt-3 flex items-center gap-1 rounded-xl border border-line bg-surface px-3 focus-within:border-primary/50">
