@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { Booking, type BookingDocument } from "../booking/booking.model";
 import { User, type UserDoc } from "../user/user.model";
 import { Payment, type PaymentDocument } from "../payment/payment.model";
@@ -317,16 +318,45 @@ async function audienceFilter(audience: string): Promise<Record<string, unknown>
   if (audience === "Active customers") {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 30);
-    const ids = await Booking.distinct("user", { createdAt: { $gte: cutoff } });
+
+    const bookingUserIds = await Booking.distinct("user", {
+      $or: [
+        { createdAt: { $gte: cutoff } },
+        { date: { $gte: cutoff } },
+        { status: "upcoming" },
+      ],
+    });
+
+    const activeUsers = await User.find({
+      role: "customer",
+      $or: [
+        { _id: { $in: bookingUserIds.map((id) => new Types.ObjectId(String(id))) } },
+        { activePlan: { $ne: null } },
+        { createdAt: { $gte: cutoff } },
+      ],
+    }).select("_id");
+
+    const ids = activeUsers.map((u) => u._id);
     return { role: "customer", _id: { $in: ids } };
   }
   if (audience === "Lapsed customers") {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 60);
-    const everBooked = await Booking.distinct("user", {});
-    const recent = new Set((await Booking.distinct("user", { createdAt: { $gte: cutoff } })).map(String));
-    const lapsedIds = everBooked.filter((id) => !recent.has(String(id)));
-    return { role: "customer", _id: { $in: lapsedIds } };
+
+    const activeUserIds = new Set(
+      (
+        await Booking.distinct("user", {
+          $or: [{ createdAt: { $gte: cutoff } }, { date: { $gte: cutoff } }, { status: "upcoming" }],
+        })
+      ).map(String),
+    );
+
+    const everBooked = (await Booking.distinct("user", {})).map(String);
+    const lapsedUserIds = everBooked
+      .filter((id) => !activeUserIds.has(id))
+      .map((id) => new Types.ObjectId(id));
+
+    return { role: "customer", _id: { $in: lapsedUserIds } };
   }
   return { role: "customer" };
 }
