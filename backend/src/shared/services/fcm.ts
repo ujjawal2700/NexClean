@@ -24,10 +24,37 @@ async function getMessaging() {
 
   try {
     const admin = await import("firebase-admin");
-    const json = JSON.parse(Buffer.from(env.firebaseServiceAccount, "base64").toString("utf8"));
+    const raw = env.firebaseServiceAccount.trim().replace(/^['"]|['"]$/g, "");
+
+    let json: any;
+    try {
+      // 1. Try parsing as base64-encoded JSON first
+      const decoded = Buffer.from(raw, "base64").toString("utf8");
+      if (decoded.trim().startsWith("{")) {
+        json = JSON.parse(decoded);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (!json) {
+      try {
+        // 2. Try parsing as raw JSON string directly (in case raw JSON was pasted into .env)
+        if (raw.trim().startsWith("{")) {
+          json = JSON.parse(raw);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (!json || typeof json !== "object" || !json.project_id) {
+      throw new Error("FIREBASE_SERVICE_ACCOUNT_BASE64 must contain valid Firebase service account JSON or base64 string");
+    }
+
     const app = admin.apps.length ? admin.app() : admin.initializeApp({ credential: admin.credential.cert(json) });
     messaging = admin.messaging(app) as unknown as typeof messaging;
-    console.log("✓ Firebase Cloud Messaging initialized");
+    console.log("✓ Firebase Cloud Messaging initialized for project:", json.project_id);
   } catch (err) {
     console.error("✗ FCM init failed, falling back to mock mode:", (err as Error).message);
     messaging = null;

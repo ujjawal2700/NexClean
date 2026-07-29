@@ -56,6 +56,8 @@ export async function initSocket(server: any) {
   if (env.redisUrl) {
     const pubClient = createClient({ url: env.redisUrl });
     const subClient = pubClient.duplicate();
+    pubClient.on("error", (err) => console.error("Redis pubClient error:", err.message));
+    subClient.on("error", (err) => console.error("Redis subClient error:", err.message));
     await Promise.all([pubClient.connect(), subClient.connect()]);
     io.adapter(createAdapter(pubClient, subClient));
     console.log("🔌 Socket.IO using Redis adapter for cross-worker broadcast");
