@@ -79,12 +79,13 @@ const keys = {
 };
 
 
-function useAuthedQuery<T>(key: readonly unknown[], path: string, opts?: { refetchInterval?: number }) {
+function useAuthedQuery<T>(key: readonly unknown[], path: string, opts?: { refetchInterval?: number; staleTime?: number }) {
   const token = useAdminSession((s) => s.token);
   return useQuery({
     queryKey: key,
     queryFn: () => apiFetch<T>(path),
     enabled: !!token,
+    staleTime: opts?.staleTime ?? 30_000,
     refetchInterval: opts?.refetchInterval,
   });
 }

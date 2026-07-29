@@ -4,8 +4,10 @@ import { Search } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Input } from "@shared/ui/Input";
+import { Pagination } from "@shared/ui/Pagination";
 import { SkeletonTableRows } from "@shared/ui/Skeleton";
 import { formatMoney, formatDate } from "@shared/lib/format";
+import { usePagination } from "@shared/lib/usePagination";
 import { useCustomers, usePlans } from "../api/admin.api";
 import { CUSTOMER_STATUS_STYLE } from "../lib/status";
 import type { CustomerStatus } from "../types";
@@ -42,6 +44,8 @@ export function Customers() {
       c.email.toLowerCase().includes(q);
     return matchesStatus && matchesPlan && matchesQuery;
   });
+
+  const paginated = usePagination(list, 10);
 
   return (
     <div className="space-y-6">
@@ -113,7 +117,7 @@ export function Customers() {
           </thead>
           <tbody>
             {isLoading && <SkeletonTableRows rows={6} cols={7} />}
-            {!isLoading && list.map((c) => (
+            {!isLoading && paginated.pageItems.map((c) => (
               <tr
                 key={c.id}
                 onClick={() => navigate(`/admin/customers/${c.id}`)}
@@ -144,6 +148,11 @@ export function Customers() {
             )}
           </tbody>
         </table>
+        <Pagination
+          page={paginated.page}
+          totalPages={paginated.totalPages}
+          onPageChange={paginated.setPage}
+        />
       </GlassCard>
     </div>
   );

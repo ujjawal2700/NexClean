@@ -5,6 +5,8 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
+import { Pagination } from "@shared/ui/Pagination";
+import { usePagination } from "@shared/lib/usePagination";
 import { useAgents, useSetAgentStatus, useUpdateAgentArea } from "../api/admin.api";
 import { AGENT_STATUS_STYLE } from "../lib/status";
 import type { AdminAgent } from "../types";
@@ -82,6 +84,8 @@ export function Agents() {
     return matchesStatus && matchesQuery;
   });
 
+  const paginated = usePagination(list, 9);
+
   return (
     <div className="space-y-6">
       <div>
@@ -118,7 +122,7 @@ export function Agents() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {list.map((a) => (
+        {paginated.pageItems.map((a) => (
           <GlassCard key={a.id} className="flex flex-col">
             <Link to={`/admin/agents/${a.id}`} className="flex items-start gap-3">
               <span className="grid size-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display font-semibold text-white">
@@ -204,6 +208,12 @@ export function Agents() {
           <p className="col-span-full py-12 text-center text-muted">No agents match your search.</p>
         )}
       </div>
+
+      <Pagination
+        page={paginated.page}
+        totalPages={paginated.totalPages}
+        onPageChange={paginated.setPage}
+      />
     </div>
   );
 }

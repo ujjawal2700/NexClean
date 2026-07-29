@@ -4,7 +4,9 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
+import { Pagination } from "@shared/ui/Pagination";
 import { formatMoney, formatDate } from "@shared/lib/format";
+import { usePagination } from "@shared/lib/usePagination";
 import { usePayments, usePaymentStats, useRefundPayment, useSettlePayment } from "../api/admin.api";
 import { StatCard } from "../components/StatCard";
 import { PAYMENT_STATUS_STYLE, PAYMENT_STATUS_LABEL, SETTLEMENT_STATUS_STYLE } from "../lib/status";
@@ -29,17 +31,17 @@ const isToday = (dateStr: string | Date) => {
 
 const isYesterday = (dateStr: string | Date) => {
   const date = new Date(dateStr);
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
+  const y = new Date();
+  y.setDate(y.getDate() - 1);
   return (
-    date.getDate() === yesterday.getDate() &&
-    date.getMonth() === yesterday.getMonth() &&
-    date.getFullYear() === yesterday.getFullYear()
+    date.getDate() === y.getDate() &&
+    date.getMonth() === y.getMonth() &&
+    date.getFullYear() === y.getFullYear()
   );
 };
 
 export function Payments() {
-  const { data: payments = [] } = usePayments();
+  const { data: rawPayments = [] } = usePayments();
   const { data: stats } = usePaymentStats();
   const refund = useRefundPayment();
   const settle = useSettlePayment();
@@ -49,89 +51,88 @@ export function Payments() {
   const [dateFilter, setDateFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date-desc");
 
-  // Distinct agent names for the select filter dropdown
+  // Extract unique agent names for filter
   const agentsList = Array.from(
-    new Set(
-      payments
-        .map((p) => p.agentName)
-        .filter((name): name is string => typeof name === "string" && name.trim().length > 0)
-    )
-  ).sort();
+    new Set(rawPayments.map((p) => p.agentName).filter(Boolean)),
+  ) as string[];
 
-  const q = query.toLowerCase();
-  const filteredList = payments.filter((p) => {
-    // 1. Search Query Match
-    const matchesSearch =
-      !q ||
-      p.customerName.toLowerCase().includes(q) ||
-      (p.agentName && p.agentName.toLowerCase().includes(q)) ||
-      p.orderId.toLowerCase().includes(q) ||
-      p.society.toLowerCase().includes(q) ||
-      p.amount.toString().includes(q);
+  const list = rawPayments
+    .filter((p) => {
+      const q = query.toLowerCase().trim();
+      const matchesQuery =
+        !q ||
+        p.orderId.toLowerCase().includes(q) ||
+        p.customerName.toLowerCase().includes(q) ||
+        (p.agentName && p.agentName.toLowerCase().includes(q)) ||
+        (p.society && p.society.toLowerCase().includes(q));
 
-    // 2. Status Match
-    const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" || p.status === statusFilter;
 
-    // 3. Agent Match
-    const matchesAgent = agentFilter === "all" || p.agentName === agentFilter;
+      const matchesAgent =
+        agentFilter === "all" || p.agentName === agentFilter;
 
-    // 4. Date Range Match
-    let matchesDate = true;
-    if (dateFilter !== "all") {
-      if (dateFilter === "today") {
-        matchesDate = isToday(p.createdAt);
-      } else if (dateFilter === "yesterday") {
-        matchesDate = isYesterday(p.createdAt);
-      } else if (dateFilter === "7days") {
-        matchesDate = isWithinDays(p.createdAt, 7);
-      } else if (dateFilter === "30days") {
-        matchesDate = isWithinDays(p.createdAt, 30);
-      }
-    }
+      let matchesDate = true;
+      if (dateFilter === "today") matchesDate = isToday(p.createdAt);
+      else if (dateFilter === "yesterday") matchesDate = isYesterday(p.createdAt);
+      else if (dateFilter === "7days") matchesDate = isWithinDays(p.createdAt, 7);
+      else if (dateFilter === "30days") matchesDate = isWithinDays(p.createdAt, 30);
 
-    return matchesSearch && matchesStatus && matchesAgent && matchesDate;
-  });
+      return matchesQuery && matchesStatus && matchesAgent && matchesDate;
+    })
+    .sort((a, b) => {
+      if (sortBy === "date-desc")
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (sortBy === "date-asc")
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      if (sortBy === "amount-desc") return b.amount - a.amount;
+      if (sortBy === "amount-asc") return a.amount - b.amount;
+      return 0;
+    });
 
-  // Sorting
-  const list = [...filteredList].sort((a, b) => {
-    if (sortBy === "date-desc") {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }
-    if (sortBy === "date-asc") {
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    }
-    if (sortBy === "amount-desc") {
-      return b.amount - a.amount;
-    }
-    if (sortBy === "amount-asc") {
-      return a.amount - b.amount;
-    }
-    return 0;
-  });
+  const paginated = usePagination(list, 10);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-3xl text-ink">Payments</h1>
-          <p className="mt-1 text-muted">{payments.length} transactions · refunds and agent settlement.</p>
+      <div>
+        <h1 className="font-display text-3xl text-ink">Payments & Settlement</h1>
+        <p className="mt-1 text-muted">
+          Review transactions, agent payouts & process refunds.
+        </p>
+      </div>
+
+      {stats && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Gross collections"
+            value={formatMoney(stats.gross)}
+            icon={<IndianRupee className="size-5" />}
+          />
+          <StatCard
+            label="Refunds processed"
+            value={formatMoney(stats.refunded)}
+            icon={<Undo2 className="size-5" />}
+          />
+          <StatCard
+            label="Agent payouts settled"
+            value={formatMoney(stats.agentSettled)}
+            icon={<CheckCircle2 className="size-5 text-emerald-600" />}
+          />
+          <StatCard
+            label="Pending settlement"
+            value={formatMoney(stats.pendingSettlement)}
+            icon={<Wallet className="size-5 text-amber-500" />}
+          />
         </div>
-      </div>
+      )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={IndianRupee} label="Total collected" value={formatMoney(stats?.totalCollected ?? 0)} />
-        <StatCard icon={Undo2} label="Total refunded" value={formatMoney(stats?.totalRefunded ?? 0)} />
-        <StatCard icon={Wallet} label="Pending settlement" value={formatMoney(stats?.pendingSettlement ?? 0)} />
-        <StatCard icon={CheckCircle2} label="Settled to agents" value={formatMoney(stats?.settledAmount ?? 0)} />
-      </div>
-
-      {/* Filters and Sorting Controls */}
-      <GlassCard className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 bg-surface/50 border-line/50 shadow-sm">
-        <div className="flex flex-col gap-1.5">
+      {/* Filter Bar */}
+      <GlassCard className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-4 xl:col-span-1">
           <label className="text-[11px] font-semibold text-muted uppercase tracking-wider">Search</label>
           <Input
             name="search"
-            placeholder="Order, customer, agent, amount…"
+            placeholder="Order ID, Customer, Agent…"
             leading={<Search className="size-4" />}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -147,6 +148,7 @@ export function Payments() {
           >
             <option value="all">All Statuses</option>
             <option value="paid">Paid</option>
+            <option value="pending">Pending</option>
             <option value="refunded">Refunded</option>
             <option value="mock">Mock</option>
           </select>
@@ -181,7 +183,7 @@ export function Payments() {
           </select>
         </div>
 
-        <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-4 xl:col-span-1">
+        <div className="flex flex-col gap-1.5">
           <label className="text-[11px] font-semibold text-muted uppercase tracking-wider">Sort By</label>
           <select
             value={sortBy}
@@ -211,7 +213,7 @@ export function Payments() {
             </tr>
           </thead>
           <tbody>
-            {list.map((p) => (
+            {paginated.pageItems.map((p) => (
               <tr key={p.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
                   <p className="font-medium text-ink">{p.orderId}</p>
@@ -265,15 +267,13 @@ export function Payments() {
                 </td>
               </tr>
             ))}
-            {list.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-2 py-12 text-center text-muted">
-                  No payments match your search.
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
+        <Pagination
+          page={paginated.page}
+          totalPages={paginated.totalPages}
+          onPageChange={paginated.setPage}
+        />
       </GlassCard>
     </div>
   );

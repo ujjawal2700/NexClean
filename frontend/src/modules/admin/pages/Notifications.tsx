@@ -4,7 +4,9 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
+import { Pagination } from "@shared/ui/Pagination";
 import { formatDate } from "@shared/lib/format";
+import { usePagination } from "@shared/lib/usePagination";
 import { useCampaigns, useSendCampaign, useAudienceSizes } from "../api/admin.api";
 
 const AUDIENCES = ["All customers", "Active customers", "Lapsed customers", "Subscribers"];
@@ -17,6 +19,8 @@ export function Notifications() {
   const [body, setBody] = useState("");
   const [audience, setAudience] = useState(AUDIENCES[0]);
   const [sent, setSent] = useState<number | null>(null);
+
+  const paginatedCampaigns = usePagination(campaigns, 5);
 
   const send = async () => {
     if (!title.trim() || !body.trim()) return;
@@ -116,9 +120,15 @@ export function Notifications() {
 
       {/* history */}
       <GlassCard>
-        <p className="font-display text-lg font-semibold text-ink">Campaign history</p>
+        <div className="flex items-center justify-between">
+          <p className="font-display text-lg font-semibold text-ink">Campaign history</p>
+          <span className="text-xs text-muted">
+            {campaigns.length} campaign{campaigns.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
         <div className="mt-4 space-y-3">
-          {campaigns.map((c) => (
+          {paginatedCampaigns.pageItems.map((c) => (
             <div key={c.id} className="flex items-start gap-3 rounded-2xl border border-line bg-surface/60 p-4">
               <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
                 <Megaphone className="size-4" />
@@ -141,7 +151,16 @@ export function Notifications() {
               </span>
             </div>
           ))}
+          {campaigns.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted">No campaigns sent yet.</p>
+          )}
         </div>
+
+        <Pagination
+          page={paginatedCampaigns.page}
+          totalPages={paginatedCampaigns.totalPages}
+          onPageChange={paginatedCampaigns.setPage}
+        />
       </GlassCard>
     </div>
   );

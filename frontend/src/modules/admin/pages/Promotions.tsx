@@ -3,8 +3,10 @@ import { Plus, Trash2, Percent, Image as ImageIcon, Loader2 } from "lucide-react
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
+import { Pagination } from "@shared/ui/Pagination";
 import { formatMoney } from "@shared/lib/format";
 import { ApiError } from "@shared/lib/api";
+import { usePagination } from "@shared/lib/usePagination";
 import {
   useDiscountCodes,
   useCreateDiscountCode,
@@ -31,6 +33,8 @@ function DiscountCodesSection() {
   const [minOrderValue, setMinOrderValue] = useState("");
   const [validTill, setValidTill] = useState("");
   const [error, setError] = useState("");
+
+  const paginated = usePagination(codes, 5);
 
   const submit = () => {
     if (!code.trim() || !value) return;
@@ -100,7 +104,7 @@ function DiscountCodesSection() {
       </Button>
 
       <div className="space-y-2">
-        {codes.map((c) => (
+        {paginated.pageItems.map((c) => (
           <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface/60 p-3">
             <div className="min-w-0">
               <p className={`font-mono text-sm font-semibold ${c.active ? "text-ink" : "text-muted line-through"}`}>{c.code}</p>
@@ -127,6 +131,11 @@ function DiscountCodesSection() {
           </div>
         ))}
         {codes.length === 0 && <p className="text-sm text-muted">No discount codes yet. Add one above.</p>}
+        <Pagination
+          page={paginated.page}
+          totalPages={paginated.totalPages}
+          onPageChange={paginated.setPage}
+        />
       </div>
     </GlassCard>
   );

@@ -4,7 +4,9 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Badge } from "@shared/ui/Badge";
+import { Pagination } from "@shared/ui/Pagination";
 import { formatMoney } from "@shared/lib/format";
+import { usePagination } from "@shared/lib/usePagination";
 import {
   useSpecialCoupons,
   useGenerateSpecialCoupons,
@@ -286,12 +288,14 @@ function CouponBatches() {
     return Array.from(map.entries());
   }, [coupons]);
 
+  const paginated = usePagination(batches, 5);
+
   if (isLoading) return <p className="text-sm text-muted">Loading coupons…</p>;
   if (batches.length === 0) return <p className="text-sm text-muted">No special coupons yet. Generate a batch above.</p>;
 
   return (
     <div className="space-y-5">
-      {batches.map(([batchId, batch]) => (
+      {paginated.pageItems.map(([batchId, batch]) => (
         <GlassCard key={batchId} className="space-y-3">
           <p className="text-sm font-semibold text-ink">
             Batch of {batch.length} · generated {new Date(batch[0].createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
@@ -303,6 +307,11 @@ function CouponBatches() {
           </div>
         </GlassCard>
       ))}
+      <Pagination
+        page={paginated.page}
+        totalPages={paginated.totalPages}
+        onPageChange={paginated.setPage}
+      />
     </div>
   );
 }

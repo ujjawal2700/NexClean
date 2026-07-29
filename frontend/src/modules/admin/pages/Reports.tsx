@@ -1,11 +1,50 @@
 import { IndianRupee, CheckCircle2, XCircle, Star, Users, Repeat, AlertTriangle, RefreshCw } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
+import { Pagination } from "@shared/ui/Pagination";
 import { Skeleton, SkeletonStatCards } from "@shared/ui/Skeleton";
 import { formatMoney } from "@shared/lib/format";
+import { usePagination } from "@shared/lib/usePagination";
 import { useBookings, useAgents, useReports, useCategoryLabel } from "../api/admin.api";
 import { StatCard } from "../components/StatCard";
 import { BarChart } from "../components/BarChart";
+
+function AgentPerformanceTable({ agents = [] }: { agents: Array<{ id: string; name: string; rating: number; jobsCompleted: number; completionRate: number; revenue: number }> }) {
+  const paginated = usePagination(agents, 5);
+
+  return (
+    <div className="mt-5 -mx-2 overflow-x-auto">
+      <table className="w-full min-w-[480px] text-sm">
+        <thead>
+          <tr className="text-left text-xs uppercase tracking-wide text-muted">
+            <th className="px-2 py-2 font-medium">Agent</th>
+            <th className="px-2 py-2 font-medium">Rating</th>
+            <th className="px-2 py-2 font-medium">Completed</th>
+            <th className="px-2 py-2 font-medium">Completion rate</th>
+            <th className="px-2 py-2 text-right font-medium">Revenue</th>
+          </tr>
+        </thead>
+        <tbody>
+          {paginated.pageItems.map((a) => (
+            <tr key={a.id} className="border-t border-line/70">
+              <td className="px-2 py-3 font-medium text-ink">{a.name}</td>
+              <td className="px-2 py-3 text-ink-soft">{a.rating}★</td>
+              <td className="px-2 py-3 text-ink-soft">{a.jobsCompleted}</td>
+              <td className="px-2 py-3 text-ink-soft">{a.completionRate}%</td>
+              <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(a.revenue)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {agents.length === 0 && <p className="px-2 py-3 text-sm text-muted">No agents yet.</p>}
+      <Pagination
+        page={paginated.page}
+        totalPages={paginated.totalPages}
+        onPageChange={paginated.setPage}
+      />
+    </div>
+  );
+}
 
 function dayLabel(iso: string, everyNth: number, index: number, total: number) {
   if (index !== 0 && index !== total - 1 && index % everyNth !== 0) return "";
@@ -134,31 +173,7 @@ export function Reports() {
         <GlassCard>
           <p className="font-display text-lg font-semibold text-ink">Agent performance</p>
           <p className="text-sm text-muted">Revenue generated and completion rate</p>
-          <div className="mt-5 -mx-2 overflow-x-auto">
-            <table className="w-full min-w-[480px] text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted">
-                  <th className="px-2 py-2 font-medium">Agent</th>
-                  <th className="px-2 py-2 font-medium">Rating</th>
-                  <th className="px-2 py-2 font-medium">Completed</th>
-                  <th className="px-2 py-2 font-medium">Completion rate</th>
-                  <th className="px-2 py-2 text-right font-medium">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reports.agentPerformance.map((a) => (
-                  <tr key={a.id} className="border-t border-line/70">
-                    <td className="px-2 py-3 font-medium text-ink">{a.name}</td>
-                    <td className="px-2 py-3 text-ink-soft">{a.rating}★</td>
-                    <td className="px-2 py-3 text-ink-soft">{a.jobsCompleted}</td>
-                    <td className="px-2 py-3 text-ink-soft">{a.completionRate}%</td>
-                    <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(a.revenue)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {reports.agentPerformance.length === 0 && <p className="px-2 py-3 text-sm text-muted">No agents yet.</p>}
-          </div>
+          <AgentPerformanceTable agents={reports.agentPerformance} />
         </GlassCard>
 
         <GlassCard>

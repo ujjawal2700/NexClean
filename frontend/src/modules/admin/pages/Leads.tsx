@@ -19,6 +19,8 @@ import {
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
+import { Pagination } from "@shared/ui/Pagination";
+import { usePagination } from "@shared/lib/usePagination";
 import { useLeads, useDeleteLead, useUpdateLeadStatus } from "../api/admin.api";
 import type { Lead } from "../types";
 
@@ -143,14 +145,9 @@ function LeadCard({
               </span>
             )}
             <span className="flex items-center gap-1">
-              <MapPin className="size-3 text-amber-500" />
-              <strong className="text-ink">{lead.city}</strong>
+              <MapPin className="size-3 text-amber-500" /> {lead.city}
+              {lead.location && ` (${lead.location})`}
             </span>
-            {lead.location && (
-              <span className="flex items-center gap-1">
-                <Building2 className="size-3" /> {lead.location}
-              </span>
-            )}
             <span className="flex items-center gap-1">
               <Calendar className="size-3" /> {formatDate(lead.createdAt)}
             </span>
@@ -158,18 +155,18 @@ function LeadCard({
         </div>
       </div>
 
-      {/* Action options */}
-      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-        <div className="relative inline-block">
+      <div className="flex items-center gap-2 border-t border-line/60 pt-3 sm:border-0 sm:pt-0">
+        {/* Status Dropdown */}
+        <div className="relative">
           <select
             value={status}
-            disabled={updating}
             onChange={(e) =>
               handleStatusChange(
                 e.target.value as "new" | "contacted" | "converted",
               )
             }
-            className={`appearance-none rounded-xl border px-3 py-1.5 pr-8 text-xs font-semibold cursor-pointer transition-colors focus:outline-none ${
+            disabled={updating}
+            className={`appearance-none rounded-xl border px-3 py-1.5 pr-8 text-xs font-semibold outline-none cursor-pointer transition-colors ${
               status === "converted"
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
                 : status === "contacted"
@@ -177,22 +174,20 @@ function LeadCard({
                 : "border-amber-500/30 bg-amber-500/10 text-amber-700"
             }`}
           >
-            <option value="new">Mark New</option>
-            <option value="contacted">Mark Contacted</option>
-            <option value="converted">Mark Converted</option>
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="converted">Converted</option>
           </select>
-          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 opacity-60" />
         </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          title="Delete Lead"
-          className="shrink-0 text-red-500 hover:bg-red-500/10 hover:text-red-600"
+        <button
           onClick={onDelete}
+          title="Delete lead"
+          className="flex size-8 items-center justify-center rounded-xl border border-line text-muted transition-colors hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-500 cursor-pointer"
         >
           <Trash2 className="size-4" />
-        </Button>
+        </button>
       </div>
     </div>
   );
@@ -206,13 +201,14 @@ export function Leads() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "new" | "contacted" | "converted">("all");
 
-  const newLeadsCount = leads.filter((l) => (l.status ?? "new") === "new").length;
+  const newLeadsCount = leads.filter((l) => !l.status || l.status === "new").length;
   const contactedLeadsCount = leads.filter((l) => l.status === "contacted").length;
   const convertedLeadsCount = leads.filter((l) => l.status === "converted").length;
 
   const filtered = leads.filter((l) => {
-    const q = search.toLowerCase();
+    const q = search.toLowerCase().trim();
     const matchesSearch =
+      !q ||
       l.name.toLowerCase().includes(q) ||
       l.phone.includes(q) ||
       l.city.toLowerCase().includes(q) ||
@@ -228,9 +224,11 @@ export function Leads() {
     return true;
   });
 
-  // Group by city
+  const paginated = usePagination(filtered, 10);
+
+  // Group by city from paginated items
   const byCityMap = new Map<string, Lead[]>();
-  for (const lead of filtered) {
+  for (const lead of paginated.pageItems) {
     const existing = byCityMap.get(lead.city) ?? [];
     existing.push(lead);
     byCityMap.set(lead.city, existing);
@@ -391,6 +389,11 @@ export function Leads() {
               </div>
             </div>
           ))}
+          <Pagination
+            page={paginated.page}
+            totalPages={paginated.totalPages}
+            onPageChange={paginated.setPage}
+          />
         </div>
       )}
     </div>

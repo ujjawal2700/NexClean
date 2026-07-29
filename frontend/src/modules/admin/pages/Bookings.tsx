@@ -4,8 +4,10 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
+import { Pagination } from "@shared/ui/Pagination";
 import { SkeletonTableRows } from "@shared/ui/Skeleton";
 import { formatMoney, formatDate } from "@shared/lib/format";
+import { usePagination } from "@shared/lib/usePagination";
 import {
   useBookings,
   useCancelBooking,
@@ -202,6 +204,8 @@ export function Bookings() {
     return matchesStatus && matchesQuery;
   });
 
+  const paginated = usePagination(list, 10);
+
   return (
     <div className="space-y-6">
       {rescheduleBookingTarget && (
@@ -258,7 +262,7 @@ export function Bookings() {
           </thead>
           <tbody>
             {isLoading && <SkeletonTableRows rows={6} cols={8} />}
-            {!isLoading && list.map((b) => (
+            {!isLoading && paginated.pageItems.map((b) => (
               <tr key={b.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
                   <p className="font-medium text-ink">{b.vehicleName}</p>
@@ -309,6 +313,11 @@ export function Bookings() {
             )}
           </tbody>
         </table>
+        <Pagination
+          page={paginated.page}
+          totalPages={paginated.totalPages}
+          onPageChange={paginated.setPage}
+        />
       </GlassCard>
     </div>
   );

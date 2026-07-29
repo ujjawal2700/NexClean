@@ -5,6 +5,8 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
+import { Pagination } from "@shared/ui/Pagination";
+import { usePagination } from "@shared/lib/usePagination";
 import { useAgents, useSetAgentStatus } from "../api/admin.api";
 import { AGENT_STATUS_STYLE } from "../lib/status";
 
@@ -26,6 +28,8 @@ export function AgentVerification() {
       a.id.toLowerCase().includes(q);
     return matchesQuery;
   });
+
+  const paginated = usePagination(list, 6);
 
   return (
     <div className="space-y-6">
@@ -49,7 +53,7 @@ export function AgentVerification() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {list.map((a) => {
+        {paginated.pageItems.map((a) => {
           return (
             <GlassCard key={a.id} className="flex flex-col">
               <div className="flex items-start gap-3">
@@ -125,6 +129,12 @@ export function AgentVerification() {
           <p className="col-span-full py-12 text-center text-muted">No agents pending verification match your search.</p>
         )}
       </div>
+
+      <Pagination
+        page={paginated.page}
+        totalPages={paginated.totalPages}
+        onPageChange={paginated.setPage}
+      />
     </div>
   );
 }

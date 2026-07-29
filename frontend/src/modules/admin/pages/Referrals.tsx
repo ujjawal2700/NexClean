@@ -161,40 +161,37 @@ function ReferralSettingsSection() {
   );
 }
 
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 export function Referrals() {
   const { data: logs = [], isLoading } = useReferralLogs();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const filtered = logs.filter((log) => {
-    const q = search.toLowerCase();
-    const matchesSearch =
-      log.referrerName.toLowerCase().includes(q) ||
-      log.referrerPhone.includes(q) ||
-      log.referrerCode.toLowerCase().includes(q) ||
-      log.refereeName.toLowerCase().includes(q) ||
-      log.refereePhone.includes(q);
+  const cleansDoneCount = logs.filter(
+    (l) => l.status === "First Clean Done" || l.status === "Subscribed",
+  ).length;
+  const subscribedCount = logs.filter((l) => l.status === "Subscribed").length;
 
-    const matchesStatus = statusFilter === "all" || log.status === statusFilter;
+  const filtered = logs.filter((l) => {
+    const q = search.toLowerCase().trim();
+    const matchesSearch =
+      !q ||
+      l.referrerName.toLowerCase().includes(q) ||
+      l.referrerPhone.includes(q) ||
+      l.referrerCode.toLowerCase().includes(q) ||
+      l.refereeName.toLowerCase().includes(q) ||
+      l.refereePhone.includes(q);
+
+    const matchesStatus =
+      statusFilter === "all" || l.status === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
 
-  const subscribedCount = logs.filter((l) => l.status === "Subscribed").length;
-  const cleansDoneCount = logs.filter((l) => l.status === "First Clean Done").length;
+  const paginated = usePagination(filtered, 10);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Top title */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-ink">Referrals</h1>
@@ -210,7 +207,6 @@ export function Referrals() {
         </div>
       </div>
 
-      {/* Program settings */}
       <ReferralSettingsSection />
 
       {/* Stats Cards */}
@@ -244,7 +240,6 @@ export function Referrals() {
         </GlassCard>
       </div>
 
-      {/* Filter and Search Bar */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="flex-1">
           <Input
@@ -270,7 +265,6 @@ export function Referrals() {
         </div>
       </div>
 
-      {/* Referral Table / Content */}
       {isLoading ? (
         <div className="flex items-center justify-center gap-2 py-12 text-muted">
           <Loader2 className="size-5 animate-spin" /> Loading referral logs…
@@ -301,7 +295,7 @@ export function Referrals() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {filtered.map((log) => (
+                {paginated.pageItems.map((log) => (
                   <tr key={log.id} className="transition-colors hover:bg-surface-muted/20">
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="font-medium text-ink">{log.referrerName}</div>
@@ -345,6 +339,13 @@ export function Referrals() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="p-4">
+            <Pagination
+              page={paginated.page}
+              totalPages={paginated.totalPages}
+              onPageChange={paginated.setPage}
+            />
           </div>
         </GlassCard>
       )}
