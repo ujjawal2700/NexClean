@@ -82,6 +82,14 @@ export function useAgentDispatch(): AgentDispatch {
       qc.invalidateQueries({ queryKey: jobsKey });
       qc.invalidateQueries({ queryKey: summaryKey });
     });
+    socket.on("notification", () => {
+      qc.invalidateQueries({ queryKey: jobsKey });
+      qc.invalidateQueries({ queryKey: summaryKey });
+    });
+    socket.on("push_notification", () => {
+      qc.invalidateQueries({ queryKey: jobsKey });
+      qc.invalidateQueries({ queryKey: summaryKey });
+    });
 
     return () => {
       socket.disconnect();

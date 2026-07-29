@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -23,8 +23,9 @@ import { BrandModelSelect, type VehicleSelection } from "../../components/BrandM
 import { ApiError } from "@shared/lib/api";
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import { useMe, useVehicleCategories, useCategoryLabel, useWallet } from "../../api/queries";
-import { useCreateOrder, useVerifyPayment, usePreviewDiscount } from "../../api/mutations";
+import { useCreateOrder, useVerifyPayment, usePreviewDiscount, useAddAddress } from "../../api/mutations";
 import type { PreviewAmountResponse } from "../../api/mutations";
+import { usePlacesAutocomplete, type PlaceCoords } from "@shared/hooks/usePlacesAutocomplete";
 import { PACKAGES, availableSlotsForDate, upcomingDates, priceFor } from "../../data/catalog";
 import type { CarType, Booking, Vehicle, Address, VehicleCategory } from "../../types";
 import { formatMoney } from "@shared/lib/format";
@@ -48,6 +49,24 @@ const EMPTY: Draft = {
   addressId: null,
 };
 
+const DRAFT_STORAGE_KEY = "nexclean-booking-draft";
+
+function getInitialBookingState(): { step: number; draft: Draft } {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.step === "number" && parsed.step < 2 && parsed.draft) {
+        return { step: parsed.step, draft: { ...EMPTY, ...parsed.draft } };
+      }
+    }
+  } catch {
+    /* ignore storage errors */
+  }
+  sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+  return { step: 0, draft: EMPTY };
+}
+
 export function BookingFlow() {
   const navigate = useNavigate();
   const { data: me } = useMe();
@@ -60,11 +79,20 @@ export function BookingFlow() {
   const previewDiscount = usePreviewDiscount();
   const { data: wallet } = useWallet();
 
-  const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<Draft>(EMPTY);
+  const [initialState] = useState(getInitialBookingState);
+  const [step, setStep] = useState(initialState.step);
+  const [draft, setDraft] = useState<Draft>(initialState.draft);
   const [payError, setPayError] = useState("");
   const [processing, setProcessing] = useState(false);
   const [confirmed, setConfirmed] = useState<Booking | null>(null);
+
+  useEffect(() => {
+    if (step < 2) {
+      sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ step, draft }));
+    } else {
+      sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+    }
+  }, [step, draft]);
 
   const [discountInput, setDiscountInput] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<PreviewAmountResponse | null>(null);
@@ -524,40 +552,135 @@ function AddressStep({
   set: (p: Partial<Draft>) => void;
   addresses: Address[];
 }) {
+  const [showForm, setShowForm] = useState(addresses.length === 0);
+  const [aLabel, setALabel] = useState("");
+  const [aLine, setALine] = useState("");
+  const [aCoords, setACoords] = useState<PlaceCoords | null>(null);
+  const [aPlaceId, setAPlaceId] = useState("");
+  const lineRef = useRef<HTMLInputElement>(null);
+
+  const addAddress = useAddAddress();
+
+  usePlacesAutocomplete({
+    inputRef: lineRef,
+    types: ["geocode", "establishment"],
+    onSelect: (placeName, placeId, coords) => {
+      setALine(placeName);
+      setAPlaceId(placeId);
+      setACoords(coords ?? null);
+    },
+  });
+
+  const saveAddress = () => {
+    if (!aLabel.trim() || !aLine.trim()) return;
+    addAddress.mutate(
+      {
+        label: aLabel.trim(),
+        line: aLine.trim(),
+        society: aLine.trim(),
+        lat: aCoords?.lat,
+        lng: aCoords?.lng,
+        placeId: aPlaceId || undefined,
+      },
+      {
+        onSuccess: (updatedUser) => {
+          setALabel("");
+          setALine("");
+          setACoords(null);
+          setAPlaceId("");
+          setShowForm(false);
+          const newAddr = updatedUser.addresses?.[updatedUser.addresses.length - 1];
+          if (newAddr) {
+            set({ addressId: newAddr.id });
+          }
+        },
+      },
+    );
+  };
+
   return (
     <div>
-      <StepHeading title="Where should we come?" subtitle="Select a saved address." />
-      <div className="space-y-3">
-        {addresses.map((a) => {
-          const selected = draft.addressId === a.id;
-          return (
-            <button
-              key={a.id}
-              onClick={() => set({ addressId: a.id })}
-              className={cn(
-                "flex w-full items-center gap-4 rounded-card border p-4 text-left transition-all",
-                selected
-                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                  : "border-line bg-surface hover:border-primary/40",
+      <StepHeading title="Where should we come?" subtitle="Select a saved address or add a new one." />
+
+      {addresses.length > 0 && (
+        <div className="space-y-3">
+          {addresses.map((a) => {
+            const selected = draft.addressId === a.id;
+            return (
+              <button
+                key={a.id}
+                onClick={() => set({ addressId: a.id })}
+                className={cn(
+                  "flex w-full items-center gap-4 rounded-card border p-4 text-left transition-all",
+                  selected
+                    ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                    : "border-line bg-surface hover:border-primary/40",
+                )}
+              >
+                <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+                  <MapPin className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-display font-semibold text-ink">{a.label}</p>
+                  <p className="truncate text-sm text-muted">{a.line}</p>
+                </div>
+                {selected && <Check className="ml-auto size-5 text-primary" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {showForm ? (
+        <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
+          <p className="sm:col-span-2 font-display text-sm font-semibold text-ink">Add new address</p>
+          <Input
+            name="alabel"
+            label="Label"
+            placeholder="Home / Office"
+            value={aLabel}
+            onChange={(e) => setALabel(e.target.value)}
+          />
+          <Input
+            ref={lineRef}
+            name="aline"
+            label="Address"
+            placeholder="Search your address"
+            value={aLine}
+            onChange={(e) => {
+              setALine(e.target.value);
+              setACoords(null);
+              setAPlaceId("");
+            }}
+            hint={aCoords ? "📍 Location pinned" : "Pick a suggestion to pin the exact location"}
+          />
+          <div className="sm:col-span-2 flex items-center gap-2">
+            <Button size="sm" onClick={saveAddress} disabled={addAddress.isPending || !aLabel.trim() || !aLine.trim()}>
+              {addAddress.isPending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Saving...
+                </>
+              ) : (
+                "Save & select address"
               )}
-            >
-              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <MapPin className="size-5" />
-              </span>
-              <div className="min-w-0">
-                <p className="font-display font-semibold text-ink">{a.label}</p>
-                <p className="truncate text-sm text-muted">{a.line}</p>
-              </div>
-              {selected && <Check className="ml-auto size-5 text-primary" />}
-            </button>
-          );
-        })}
-      </div>
-      <Button asChild variant="outline" className="mt-4">
-        <Link to="/app/profile">
-          <Plus className="size-4" /> Add a new address
-        </Link>
-      </Button>
+            </Button>
+            {addresses.length > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>
+                Cancel
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <Button variant="outline" onClick={() => setShowForm(true)}>
+            <Plus className="size-4" /> Add a new address
+          </Button>
+          <Link to="/app/profile/addresses?add=true" className="text-xs text-muted hover:text-primary transition-colors">
+            Manage all saved addresses
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

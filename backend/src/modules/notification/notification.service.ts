@@ -1,6 +1,7 @@
 import { Notification } from "./notification.model";
 import { User } from "../user/user.model";
 import { sendPush, type PushPayload } from "../../shared/services/fcm";
+import { emitToUser } from "../../shared/services/socket";
 
 type NotifyInput = PushPayload & { type?: "booking" | "area_alert" | "system" | "coupon" };
 
@@ -9,13 +10,16 @@ export async function notifyUser(userId: string, input: NotifyInput): Promise<vo
   const user = await User.findById(userId);
   if (!user) return;
 
-  await Notification.create({
+  const notif = await Notification.create({
     user: userId,
     type: input.type ?? "system",
     title: input.title,
     body: input.body,
     data: input.data ?? {},
   });
+
+  // Emit real-time notification over WebSockets to all active user connections
+  emitToUser(userId, "notification", notif);
 
   await sendPush(user.deviceTokens, input);
 }
@@ -27,6 +31,10 @@ export async function notifyUser(userId: string, input: NotifyInput): Promise<vo
 export async function pushToUser(userId: string, input: PushPayload): Promise<void> {
   const user = await User.findById(userId).select("deviceTokens");
   if (!user) return;
+
+  // Emit real-time event via WebSockets
+  emitToUser(userId, "push_notification", input);
+
   await sendPush(user.deviceTokens, input);
 }
 

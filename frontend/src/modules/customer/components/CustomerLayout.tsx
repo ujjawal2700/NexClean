@@ -46,12 +46,19 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   }, []);
 
 
-  // Live: refresh bookings/notifications the moment a cleaner is assigned.
+  // Live: refresh bookings/notifications the moment an update or notification occurs.
   useEffect(() => {
     if (!token) return;
     const socket: Socket = io(SOCKET_URL, { auth: { token }, transports: ["websocket"] });
     socket.on("booking_assigned", () => {
       qc.invalidateQueries({ queryKey: bookingsKey });
+      qc.invalidateQueries({ queryKey: notificationsKey });
+    });
+    socket.on("notification", () => {
+      qc.invalidateQueries({ queryKey: notificationsKey });
+      qc.invalidateQueries({ queryKey: bookingsKey });
+    });
+    socket.on("push_notification", () => {
       qc.invalidateQueries({ queryKey: notificationsKey });
     });
     return () => {

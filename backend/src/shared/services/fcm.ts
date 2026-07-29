@@ -41,43 +41,63 @@ async function getMessaging() {
  * so the whole Smart Area Alert flow is testable without external services.
  */
 export async function sendPush(tokens: string[], payload: PushPayload): Promise<{ sent: number; mocked: boolean }> {
-  // Deduplicate tokens array to prevent sending duplicate notifications to the same device
+  // Deduplicate tokens array
   const valid = Array.from(new Set(tokens.filter(Boolean)));
+  
+  // Separate real FCM tokens from synthetic/web fallback tokens
+  const realFcmTokens = valid.filter((t) => !t.startsWith("web-"));
+  const syntheticTokens = valid.filter((t) => t.startsWith("web-"));
+
   const m = await getMessaging();
 
-  if (!m || valid.length === 0) {
-    console.log(`📣 [push:mock] "${payload.title}" → ${valid.length} device(s): ${payload.body}`);
+  if (!m || realFcmTokens.length === 0) {
+    console.log(`📣 [push:mock] "${payload.title}" → ${valid.length} device(s) (${syntheticTokens.length} synthetic): ${payload.body}`);
     return { sent: valid.length, mocked: true };
   }
 
-  const res = await m.sendEachForMulticast({
-    tokens: valid,
-    notification: { title: payload.title, body: payload.body },
-    data: payload.data ?? {},
-  });
-
-  // Clean up invalid or unregistered tokens from DB
-  if (res.responses && res.responses.length > 0) {
-    const invalidTokens: string[] = [];
-    res.responses.forEach((resp, idx) => {
-      if (!resp.success && resp.error) {
-        const code = resp.error.code;
-        if (
-          code === "messaging/invalid-registration-token" ||
-          code === "messaging/registration-token-not-registered"
-        ) {
-          invalidTokens.push(valid[idx]);
-        }
+  // Ensure all values in data payload are strings as required by Firebase Admin SDK
+  const stringifiedData: Record<string, string> = {};
+  if (payload.data) {
+    for (const [key, val] of Object.entries(payload.data)) {
+      if (val !== undefined && val !== null) {
+        stringifiedData[key] = typeof val === "string" ? val : String(val);
       }
-    });
-
-    if (invalidTokens.length > 0) {
-      User.updateMany({ deviceTokens: { $in: invalidTokens } }, { $pullAll: { deviceTokens: invalidTokens } }).catch(
-        (err) => console.error("Failed to clean up invalid FCM tokens:", err)
-      );
     }
   }
 
-  return { sent: res.successCount, mocked: false };
+  try {
+    const res = await m.sendEachForMulticast({
+      tokens: realFcmTokens,
+      notification: { title: payload.title, body: payload.body },
+      data: stringifiedData,
+    });
+
+    // Clean up ONLY truly dead FCM tokens (do NOT delete synthetic tokens)
+    if (res.responses && res.responses.length > 0) {
+      const invalidTokens: string[] = [];
+      res.responses.forEach((resp, idx) => {
+        if (!resp.success && resp.error) {
+          const code = resp.error.code;
+          if (
+            code === "messaging/invalid-registration-token" ||
+            code === "messaging/registration-token-not-registered"
+          ) {
+            invalidTokens.push(realFcmTokens[idx]);
+          }
+        }
+      });
+
+      if (invalidTokens.length > 0) {
+        User.updateMany({ deviceTokens: { $in: invalidTokens } }, { $pullAll: { deviceTokens: invalidTokens } }).catch(
+          (err) => console.error("Failed to clean up invalid FCM tokens:", err)
+        );
+      }
+    }
+
+    return { sent: res.successCount + syntheticTokens.length, mocked: false };
+  } catch (err: any) {
+    console.error("✗ Firebase sendEachForMulticast failed:", err?.message || err);
+    return { sent: 0, mocked: false };
+  }
 }
 

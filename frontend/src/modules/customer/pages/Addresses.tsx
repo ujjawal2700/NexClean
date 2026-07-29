@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, MapPin, Plus, Trash2 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -10,13 +10,14 @@ import { useAddAddress, useRemoveAddress } from "../api/mutations";
 
 export function Addresses() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: me } = useMe();
   const addresses = me?.addresses ?? [];
 
   const addAddress = useAddAddress();
   const removeAddress = useRemoveAddress();
 
-  const [showAddr, setShowAddr] = useState(false);
+  const [showAddr, setShowAddr] = useState(() => searchParams.get("add") === "true");
   const [aLabel, setALabel] = useState("");
   const [aLine, setALine] = useState("");
   const [aCoords, setACoords] = useState<PlaceCoords | null>(null);
