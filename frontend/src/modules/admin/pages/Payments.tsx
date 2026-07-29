@@ -106,22 +106,22 @@ export function Payments() {
           <StatCard
             label="Gross collections"
             value={formatMoney(stats.gross)}
-            icon={<IndianRupee className="size-5" />}
+            icon={IndianRupee}
           />
           <StatCard
             label="Refunds processed"
             value={formatMoney(stats.refunded)}
-            icon={<Undo2 className="size-5" />}
+            icon={Undo2}
           />
           <StatCard
             label="Agent payouts settled"
             value={formatMoney(stats.agentSettled)}
-            icon={<CheckCircle2 className="size-5 text-emerald-600" />}
+            icon={CheckCircle2}
           />
           <StatCard
             label="Pending settlement"
             value={formatMoney(stats.pendingSettlement)}
-            icon={<Wallet className="size-5 text-amber-500" />}
+            icon={Wallet}
           />
         </div>
       )}
