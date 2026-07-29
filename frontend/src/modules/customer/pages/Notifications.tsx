@@ -1,11 +1,13 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, CalendarCheck, Radar, Info, ArrowLeft } from "lucide-react";
+import { Bell, CalendarCheck, Radar, Info, ArrowLeft, BellRing, CheckCircle2 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
+import { Button } from "@shared/ui/Button";
 import { Skeleton } from "@shared/ui/Skeleton";
 import { cn } from "@shared/lib/utils";
+import { getPushToken, getNotificationPermission, saveDeviceToken } from "@shared/lib/push";
 import { useNotifications } from "../api/queries";
-import { useMarkNotificationsRead } from "../api/mutations";
+import { useMarkNotificationsRead, useRegisterToken } from "../api/mutations";
 import type { AppNotification } from "../types";
 
 const ICON: Record<AppNotification["type"], typeof Bell> = {
@@ -28,6 +30,9 @@ export function Notifications() {
   const navigate = useNavigate();
   const { data: items = [], isLoading } = useNotifications();
   const markRead = useMarkNotificationsRead();
+  const registerToken = useRegisterToken();
+  const [permission, setPermission] = useState(() => getNotificationPermission());
+  const [enabling, setEnabling] = useState(false);
 
   // Mark everything read once when the inbox is opened.
   useEffect(() => {
@@ -35,18 +40,59 @@ export function Notifications() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const enablePush = async () => {
+    setEnabling(true);
+    try {
+      const token = await getPushToken();
+      saveDeviceToken(token);
+      await registerToken.mutateAsync(token);
+      setPermission(getNotificationPermission());
+    } catch {
+      /* ignore */
+    } finally {
+      setEnabling(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="mb-6 flex items-center gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer shrink-0"
-          aria-label="Back"
-        >
-          <ArrowLeft className="size-4" />
-        </button>
-        <h1 className="font-display text-2xl text-ink sm:text-3xl">Notifications</h1>
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer shrink-0"
+            aria-label="Back"
+          >
+            <ArrowLeft className="size-4" />
+          </button>
+          <h1 className="font-display text-2xl text-ink sm:text-3xl">Notifications</h1>
+        </div>
       </div>
+
+      {permission !== "granted" && permission !== "unsupported" && (
+        <GlassCard className="mb-6 border-primary/30 bg-primary/5">
+          <div className="flex items-start gap-4">
+            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+              <BellRing className="size-5" />
+            </span>
+            <div className="flex-1">
+              <p className="font-display font-semibold text-ink">Enable OS Push Notifications</p>
+              <p className="mt-1 text-xs text-muted">
+                Receive instant alerts for cleaner assignments, arrival updates, and exclusive offers even when your app is backgrounded.
+              </p>
+              <Button size="sm" className="mt-3" onClick={enablePush} disabled={enabling}>
+                {enabling ? "Enabling..." : "Enable Push Notifications"}
+              </Button>
+            </div>
+          </div>
+        </GlassCard>
+      )}
+
+      {permission === "granted" && (
+        <div className="mb-4 flex items-center gap-2 text-xs font-medium text-emerald-600">
+          <CheckCircle2 className="size-4" /> OS Push notifications active
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">

@@ -154,4 +154,21 @@ export function clearStoredDeviceToken(): void {
   localStorage.removeItem(KEY);
 }
 
+export function isFirebaseConfigured(): boolean {
+  return !!(firebaseConfig() && import.meta.env.VITE_FIREBASE_VAPID_KEY);
+}
+
+export function isPushSupported(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    typeof Notification !== "undefined"
+  );
+}
+
+export function getNotificationPermission(): NotificationPermission | "unsupported" {
+  if (!isPushSupported()) return "unsupported";
+  return Notification.permission;
+}
+
 
