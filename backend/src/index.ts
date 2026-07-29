@@ -3,9 +3,13 @@ import { connectDb } from "./config/db";
 import { seedDemoData } from "./config/seed";
 import { env } from "./config/env";
 import { initSocket } from "./shared/services/socket";
+import { initFcm } from "./shared/services/fcm";
 import { startDispatchWorker, resumeDispatch, stopDispatchWorker } from "./modules/dispatch/dispatch.service";
 
 const app = createApp();
+
+// Eagerly initialize Firebase Cloud Messaging if configured
+void initFcm();
 
 // Under PM2 cluster mode, every worker imports this module and would
 // otherwise run the dispatch sweep/subscription-scheduler loop in parallel —

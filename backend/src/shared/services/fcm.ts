@@ -62,6 +62,10 @@ async function getMessaging() {
   return messaging;
 }
 
+export async function initFcm() {
+  return getMessaging();
+}
+
 /**
  * Send a push to a set of device tokens.
  * In mock mode (no Firebase creds) it logs the message and reports success,
