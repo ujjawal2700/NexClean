@@ -21,9 +21,8 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { BrandModelSelect, type VehicleSelection } from "../../components/BrandModelSelect";
 import { ApiError } from "@shared/lib/api";
-import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import { useMe, useVehicleCategories, useCategoryLabel, useWallet } from "../../api/queries";
-import { useCreateOrder, useVerifyPayment, usePreviewDiscount, useAddAddress } from "../../api/mutations";
+import { useVerifyPayment, usePreviewDiscount, useAddAddress } from "../../api/mutations";
 import type { PreviewAmountResponse } from "../../api/mutations";
 import { usePlacesAutocomplete, type PlaceCoords } from "@shared/hooks/usePlacesAutocomplete";
 import { PACKAGES, availableSlotsForDate, upcomingDates, priceFor } from "../../data/catalog";
@@ -74,7 +73,6 @@ export function BookingFlow() {
   const categoryLabel = useCategoryLabel();
   const vehicles = me?.vehicles ?? [];
   const addresses = me?.addresses ?? [];
-  const createOrder = useCreateOrder();
   const verifyPayment = useVerifyPayment();
   const previewDiscount = usePreviewDiscount();
   const { data: wallet } = useWallet();
@@ -181,9 +179,15 @@ export function BookingFlow() {
     };
 
     try {
+      // Direct demo confirm — Razorpay disabled per demo requirement
+      const booking = await verifyPayment.mutateAsync({ booking: bookingInput });
+      setConfirmed(booking);
+      setProcessing(false);
+      return;
+
+      /* Razorpay disabled for demo
       const order = await createOrder.mutateAsync(bookingInput);
 
-      // Mock mode (no Razorpay keys): confirm + book without the checkout modal.
       if (order.mock) {
         const booking = await verifyPayment.mutateAsync({ booking: bookingInput });
         setConfirmed(booking);
@@ -191,7 +195,6 @@ export function BookingFlow() {
         return;
       }
 
-      // Live mode: open Razorpay Checkout, then verify the signature server-side.
       const loaded = await loadRazorpay();
       if (!loaded) throw new Error("Couldn't load the payment gateway");
 
@@ -216,6 +219,7 @@ export function BookingFlow() {
         },
         modal: { ondismiss: () => setProcessing(false) },
       });
+      */
     } catch (e) {
       setPayError(e instanceof ApiError ? e.message : "Payment failed. Please try again.");
       setProcessing(false);
@@ -306,7 +310,7 @@ export function BookingFlow() {
                     <Loader2 className="size-4 animate-spin" /> Processing…
                   </>
                 ) : (
-                  <>Pay {formatMoney(payable)}</>
+                  <>Pay to cleaner {formatMoney(payable)}</>
                 )}
               </Button>
             )}
@@ -825,9 +829,7 @@ function PaymentSummary({
       )}
 
       <div className="mt-5 rounded-2xl border border-line bg-surface-muted/50 p-4 text-sm text-muted">
-        Secured by <span className="font-medium text-ink">Razorpay</span>. {formatMoney(total)} will
-        be collected on confirmation. Without test keys configured, payment is simulated and the
-        booking is still created.
+        Pay to cleaner: <span className="font-medium text-ink">{formatMoney(total)}</span> will be collected directly after service completion.
       </div>
       {draft.vehicleType && (
         <p className="mt-4 text-xs text-muted">

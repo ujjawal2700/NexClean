@@ -88,7 +88,7 @@ export function saveDeviceToken(token: string): void {
  * falls back to the synthetic token if Firebase isn't configured, permission is
  * denied, or anything goes wrong.
  */
-export async function getPushToken(): Promise<string> {
+export async function getPushToken(options?: { requestPermission?: boolean }): Promise<string> {
   const fallback = getOrCreateDeviceToken();
   const config = firebaseConfig();
   const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
@@ -104,8 +104,21 @@ export async function getPushToken(): Promise<string> {
     return fallback;
   }
 
+  if (Notification.permission === "denied") {
+    saveDeviceToken(fallback);
+    return fallback;
+  }
+
+  if (Notification.permission !== "granted" && !options?.requestPermission) {
+    saveDeviceToken(fallback);
+    return fallback;
+  }
+
   try {
-    const permission = await Notification.requestPermission();
+    let permission: NotificationPermission = Notification.permission;
+    if (permission !== "granted" && options?.requestPermission) {
+      permission = await Notification.requestPermission();
+    }
     if (permission !== "granted") {
       saveDeviceToken(fallback);
       return fallback;
@@ -138,7 +151,7 @@ export async function getPushToken(): Promise<string> {
 
     return finalToken;
   } catch (err) {
-    console.warn("FCM token retrieval failed; using fallback token:", err);
+    console.info("FCM token retrieval note:", err);
     saveDeviceToken(fallback);
     return fallback;
   }

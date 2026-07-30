@@ -102,7 +102,7 @@ export function useAdminLogin() {
   });
 }
 
-export const useAdminMe = () => useAuthedQuery<{ name: string; permissions: string[] }>(["admin", "me"], "/auth/me");
+export const useAdminMe = () => useAuthedQuery<{ id?: string; name: string; email?: string; phone?: string; permissions: string[] }>(["admin", "me"], "/auth/me");
 
 /* ------------------------------- Queries --------------------------------- */
 

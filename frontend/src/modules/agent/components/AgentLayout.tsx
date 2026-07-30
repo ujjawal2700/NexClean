@@ -57,7 +57,7 @@ export function OnlineToggle() {
   const { data: me } = useAgentMe();
   const toggle = useToggleOnline();
   const online = me?.online ?? false;
-  const isUnverified = me?.agentStatus === "unverified";
+  const isUnverified = me?.agentStatus === "pending";
   return (
     <button
       onClick={() => toggle.mutate(!online)}

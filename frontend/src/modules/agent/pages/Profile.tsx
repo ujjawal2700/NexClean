@@ -54,7 +54,7 @@ export function Profile() {
   };
 
   const verified = me?.agentStatus === "verified";
-  const isUnverified = me?.agentStatus === "unverified";
+  const isUnverified = me?.agentStatus === "pending";
 
   // Get user initials for avatar
   const getInitials = () => {

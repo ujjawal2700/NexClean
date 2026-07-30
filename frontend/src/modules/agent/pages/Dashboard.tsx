@@ -25,7 +25,7 @@ export function Dashboard() {
     { icon: TrendingUp, label: "Potential", value: formatMoney(summary?.potentialToday ?? 0) },
   ];
 
-  const isUnverified = me?.agentStatus === "unverified";
+  const isUnverified = me?.agentStatus === "pending";
 
   return (
     <div className="space-y-8">

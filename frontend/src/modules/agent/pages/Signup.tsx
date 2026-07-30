@@ -22,7 +22,6 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Badge } from "@shared/ui/Badge";
 import { Stepper } from "@shared/ui/Stepper";
-import { ApiError } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
 import { useAgentSignup, useSendSignupOtp, useVerifyOtpCodeOnly, meKey, useAgentSignupBasic, useAgentMe } from "../api/agent.api";
 
@@ -94,7 +93,7 @@ export function Signup() {
   }, [step, resendTimer]);
 
   useEffect(() => {
-    if (token && me && me.agentStatus === "unverified") {
+    if (token && me && me.agentStatus === "pending") {
       setStep("kyc");
       setName(me.name || "");
       setPhone(me.phone || "");
@@ -111,7 +110,7 @@ export function Signup() {
     );
   }
 
-  if (token && me && me.agentStatus !== "unverified") {
+  if (token && me && me.agentStatus !== "pending") {
     return <Navigate to="/agent" replace />;
   }
 

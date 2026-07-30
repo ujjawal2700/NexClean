@@ -29,7 +29,6 @@ import {
   useCancelBooking,
 } from "../api/mutations";
 import type { SubscriptionPreview } from "../api/mutations";
-import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import { TIME_SLOTS } from "../data/catalog";
 import type { CarType, CatalogPlan, Booking } from "../types";
 
@@ -162,16 +161,20 @@ export function Subscriptions() {
     };
 
     try {
+      // Direct demo confirm — Razorpay disabled per demo requirement
+      await verifySub.mutateAsync(checkoutVars);
+      finish();
+      return;
+
+      /* Razorpay disabled for demo
       const order = await createSubOrder.mutateAsync(checkoutVars);
 
-      // Mock/free (no Razorpay keys, or coins cover the full amount): activate directly.
       if (order.mock) {
         await verifySub.mutateAsync(checkoutVars);
         finish();
         return;
       }
 
-      // Live mode: open Razorpay Checkout, then verify the signature server-side.
       const loaded = await loadRazorpay();
       if (!loaded) throw new Error("Couldn't load the payment gateway");
 
@@ -195,6 +198,7 @@ export function Subscriptions() {
         },
         modal: { ondismiss: () => setSubProcessing(false) },
       });
+      */
     } catch (err: any) {
       setCheckoutError(err?.message || "Failed to subscribe. Please try again.");
       setSubProcessing(false);
@@ -949,7 +953,7 @@ export function Subscriptions() {
 
             <div className="flex gap-3 border-t border-line/50 pt-4">
               <Button className="flex-1" onClick={confirmSubscribe} disabled={busy}>
-                {subProcessing ? "Processing…" : `Pay ${formatMoney(payableSub)}`}
+                {subProcessing ? "Processing…" : `Pay to cleaner ${formatMoney(payableSub)}`}
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => setCheckoutPlan(null)} disabled={busy}>
                 Cancel

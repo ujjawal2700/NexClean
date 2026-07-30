@@ -19,7 +19,9 @@ const getApiUrl = (): string => {
   if (envUrl) {
     return envUrl.replace(/\/$/, "");
   }
-
+  if (typeof window !== "undefined" && window.location.origin && !window.location.origin.includes("localhost")) {
+    return `${window.location.origin}/api`;
+  }
   return "http://localhost:4000/api";
 };
 
@@ -47,7 +49,15 @@ export function registerAuthToken(prefix: string, get: () => string | null) {
 function currentToken(): string | null {
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   const match = tokenSources.find((s) => path.startsWith(s.prefix));
-  return match ? match.get() : null;
+  if (match) {
+    const t = match.get();
+    if (t) return t;
+  }
+  for (const s of tokenSources) {
+    const t = s.get();
+    if (t) return t;
+  }
+  return null;
 }
 
 type ApiOptions = Omit<RequestInit, "body"> & { body?: unknown };

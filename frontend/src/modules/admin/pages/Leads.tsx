@@ -3,7 +3,6 @@ import {
   MapPin,
   Phone,
   Mail,
-  Building2,
   Calendar,
   Trash2,
   Search,

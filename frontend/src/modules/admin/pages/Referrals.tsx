@@ -7,6 +7,7 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Input } from "@shared/ui/Input";
 import { Button } from "@shared/ui/Button";
 import { Pagination } from "@shared/ui/Pagination";
+import { formatDate } from "@shared/lib/format";
 import { usePagination } from "@shared/lib/usePagination";
 import { useReferralLogs, useReferralConfig, useUpdateReferralConfig } from "../api/admin.api";
 import { cn } from "@shared/lib/utils";

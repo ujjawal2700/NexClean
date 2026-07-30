@@ -1,5 +1,12 @@
 import { useEffect, useRef, useCallback } from "react";
 
+declare global {
+  interface Window {
+    google?: any;
+  }
+}
+declare const google: any;
+
 export type PlaceCoords = { lat: number; lng: number };
 
 type AutocompleteOptions = {
@@ -26,7 +33,7 @@ export function usePlacesAutocomplete({
   onSelect,
   cityName,
 }: AutocompleteOptions) {
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const autocompleteRef = useRef<any>(null);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
@@ -85,7 +92,7 @@ export function usePlacesAutocomplete({
     if (typeof window === "undefined" || !window.google?.maps?.Geocoder) return;
 
     const geocoder = new window.google.maps.Geocoder();
-    geocoder.geocode({ address: `${cityName}, India` }, (results, status) => {
+    geocoder.geocode({ address: `${cityName}, India` }, (results: any, status: any) => {
       if (status === "OK" && results && results[0]) {
         const bounds = results[0].geometry.bounds || results[0].geometry.viewport;
         if (bounds) {

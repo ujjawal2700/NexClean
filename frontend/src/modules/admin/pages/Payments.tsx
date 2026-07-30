@@ -105,17 +105,17 @@ export function Payments() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             label="Gross collections"
-            value={formatMoney(stats.gross)}
+            value={formatMoney(stats.totalCollected)}
             icon={IndianRupee}
           />
           <StatCard
             label="Refunds processed"
-            value={formatMoney(stats.refunded)}
+            value={formatMoney(stats.totalRefunded)}
             icon={Undo2}
           />
           <StatCard
             label="Agent payouts settled"
-            value={formatMoney(stats.agentSettled)}
+            value={formatMoney(stats.settledAmount)}
             icon={CheckCircle2}
           />
           <StatCard
