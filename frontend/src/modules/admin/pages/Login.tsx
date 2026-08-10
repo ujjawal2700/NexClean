@@ -12,7 +12,7 @@ import { useAdminLogin } from "../api/admin.api";
 
 export function Login() {
   const navigate = useNavigate();
-  const token = useAdminSession((s) => s.token);
+  const authenticated = useAdminSession((s) => s.authenticated);
   const setSession = useAdminSession((s) => s.setSession);
   const login = useAdminLogin();
 
@@ -25,7 +25,7 @@ export function Login() {
   // hook call above (Rules of Hooks): this becomes true mid-session right
   // after a successful login, and an earlier return here would make this
   // component render fewer hooks than its previous pass.
-  if (token) return <Navigate to="/admin" replace />;
+  if (authenticated) return <Navigate to="/admin" replace />;
 
   const submit = async () => {
     if (!/^\S+@\S+\.\S+$/.test(email)) return setError("Enter a valid email");

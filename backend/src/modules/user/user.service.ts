@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { Types } from "mongoose";
 import { User } from "./user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { normalize, sendOtp, verifyOtpCode } from "../auth/auth.service";
@@ -56,6 +57,9 @@ export async function updatePasswordWithOtp(userId: string, input: { newPassword
   }
   await verifyOtpCode(user.phone, input.code);
   user.password = hashPassword(input.newPassword);
+  // Changing a password must end every other session — that is the whole point
+  // of changing it after a suspected compromise.
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
   await user.save();
   return { success: true, message: "Password updated successfully" };
 }
@@ -65,8 +69,21 @@ export async function deactivateUser(userId: string) {
   const user = await getUser(userId);
   user.status = "suspended";
   user.deviceTokens = [];
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
   await user.save();
   return { deactivated: true };
+}
+
+/**
+ * Sign the account out on every device by invalidating all issued tokens.
+ * Clearing the client's own storage only ends the session it can reach.
+ */
+export async function logoutEverywhere(userId: string) {
+  const user = await getUser(userId);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  user.deviceTokens = [];
+  await user.save();
+  return { loggedOut: true };
 }
 
 
@@ -97,21 +114,49 @@ export async function confirmPhoneChange(userId: string, rawPhone: string, code:
   return user;
 }
 
+/** Per-account caps on the arrays embedded in the user document. */
+const MAX_VEHICLES = 15;
+const MAX_ADDRESSES = 15;
+
+/**
+ * Append to a capped embedded array in one atomic write.
+ *
+ * Reading the length, checking it, then saving the whole document is a
+ * lost-update waiting to happen: 20 parallel adds each saw a length under the
+ * cap and 17 of them landed. The filter `{ "<field>.<cap-1>": { $exists: false } }`
+ * means "this array currently has fewer than <cap> entries", evaluated by the
+ * server as part of the same update — so exactly the right number get through.
+ */
+async function pushCapped(
+  userId: string,
+  field: "vehicles" | "addresses",
+  cap: number,
+  doc: Record<string, unknown>,
+): Promise<boolean> {
+  const res = await User.updateOne(
+    { _id: userId, [`${field}.${cap - 1}`]: { $exists: false } },
+    { $push: { [field]: { _id: new Types.ObjectId(), ...doc } } },
+  );
+  return res.modifiedCount > 0;
+}
+
 export async function addVehicle(
   userId: string,
   vehicle: { type: string; name: string; brand?: string; model?: string; plate?: string },
 ) {
   if (!(await isValidCategoryKey(vehicle.type))) throw ApiError.badRequest("Unknown vehicle category");
-  const user = await getUser(userId);
-  user.vehicles.push({
+  // Vehicles and addresses are embedded in the user document, which is loaded
+  // on most authenticated requests — an uncapped list is a slow leak on every
+  // one of them.
+  const added = await pushCapped(userId, "vehicles", MAX_VEHICLES, {
     type: vehicle.type,
     name: vehicle.name,
     brand: vehicle.brand || "",
     model: vehicle.model || "",
     plate: vehicle.plate || "—",
   });
-  await user.save();
-  return user;
+  if (!added) throw ApiError.badRequest(`You can save up to ${MAX_VEHICLES} vehicles`);
+  return getUser(userId);
 }
 
 export async function removeVehicle(userId: string, vehicleId: string) {
@@ -125,20 +170,19 @@ export async function addAddress(
   userId: string,
   address: { label: string; line: string; society?: string; lat?: number; lng?: number; placeId?: string },
 ) {
-  const user = await getUser(userId);
   const coordinates =
     typeof address.lat === "number" && typeof address.lng === "number"
       ? [address.lng, address.lat] // GeoJSON order
       : undefined;
-  user.addresses.push({
+  const added = await pushCapped(userId, "addresses", MAX_ADDRESSES, {
     label: address.label,
     line: address.line,
     society: address.society || "",
-    coordinates,
+    ...(coordinates ? { coordinates } : {}),
     placeId: address.placeId || "",
   });
-  await user.save();
-  return user;
+  if (!added) throw ApiError.badRequest(`You can save up to ${MAX_ADDRESSES} addresses`);
+  return getUser(userId);
 }
 
 export async function removeAddress(userId: string, addressId: string) {

@@ -30,19 +30,19 @@ export async function createTicketCtl(req: Request, res: Response): Promise<Resp
 
 export async function closeTicketCtl(req: Request, res: Response): Promise<Response> {
   const { ticketId } = req.params;
-  const ticket = await chatService.closeTicket(String(ticketId || ""));
+  const ticket = await chatService.closeTicket(String(ticketId || ""), req.userId!, req.userRole);
   return ok(res, ticket, "Ticket closed successfully");
 }
 
 export async function reopenTicketCtl(req: Request, res: Response): Promise<Response> {
   const { ticketId } = req.params;
-  const ticket = await chatService.reopenTicket(String(ticketId || ""));
+  const ticket = await chatService.reopenTicket(String(ticketId || ""), req.userId!, req.userRole);
   return ok(res, ticket, "Ticket reopened successfully");
 }
 
 export async function listMessagesCtl(req: Request, res: Response): Promise<Response> {
   const { ticketId } = req.params;
-  const messages = await chatService.listMessages(String(ticketId || ""));
+  const messages = await chatService.listMessages(String(ticketId || ""), req.userId!, req.userRole);
   return ok(res, messages);
 }
 
@@ -54,6 +54,12 @@ export async function createMessageCtl(req: Request, res: Response): Promise<Res
   }
   
   const senderType = req.userRole === "admin" ? "staff" : "customer";
-  const message = await chatService.saveMessage(String(ticketId || ""), req.userId!, senderType, text.trim());
+  const message = await chatService.saveMessage(
+    String(ticketId || ""),
+    req.userId!,
+    senderType,
+    text.trim(),
+    req.userRole,
+  );
   return ok(res, message, "Message sent successfully");
 }

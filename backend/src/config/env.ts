@@ -37,10 +37,17 @@ export const env = {
   // Base64-encoded Firebase service-account JSON. When empty, push runs in
   // mock mode (logs instead of sending) so the engine is fully testable offline.
   firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ?? "",
-  // Razorpay test/live keys. When empty, payments run in mock mode (no real
-  // charge) so the booking-payment flow is testable without an account.
+  // Razorpay keys. Only consulted when PAYMENTS_ONLINE is explicitly enabled.
   razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? "",
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? "",
+  // Collection mode. The product today is pay-to-cleaner: the customer confirms
+  // a booking in the app and hands cash to the cleaner after the service (see
+  // the "Pay to cleaner …" button in BookingFlow). Online checkout stays behind
+  // this opt-in flag. It is a DELIBERATE flag rather than "are Razorpay keys
+  // present?" — inferring it from key presence silently switched the server
+  // into online mode while the client still sent no payment fields, and every
+  // booking failed with "Missing payment confirmation fields".
+  paymentsOnline: (process.env.PAYMENTS_ONLINE ?? "").toLowerCase() === "true",
   // Demo admin credentials (seeded on startup). Change for production.
   adminEmail: process.env.ADMIN_EMAIL ?? "superadmin@gmail.com",
   adminPassword: process.env.ADMIN_PASSWORD ?? "password123",
@@ -60,7 +67,9 @@ export const env = {
 };
 
 export const pushEnabled = env.firebaseServiceAccount.length > 0;
-export const paymentsLive = env.razorpayKeyId.length > 0 && env.razorpayKeySecret.length > 0;
+/** True only when online checkout is explicitly switched on AND keys exist. */
+export const paymentsLive =
+  env.paymentsOnline && env.razorpayKeyId.length > 0 && env.razorpayKeySecret.length > 0;
 export const cloudinaryEnabled =
   env.cloudinaryCloudName.length > 0 &&
   env.cloudinaryApiKey.length > 0 &&
@@ -71,4 +80,47 @@ export const smsEnabled =
     (env.smsIndiaHubUser.length > 0 && env.smsIndiaHubPassword.length > 0));
 
 export const isProd = env.nodeEnv === "production";
+
+/**
+ * Include stack traces in API error responses. Opt-in and never on in
+ * production, so the setting can't be inherited by accident from a NODE_ENV
+ * that was left at "development" on a live host.
+ */
+export const debugErrors = !isProd && (process.env.DEBUG_ERRORS ?? "").toLowerCase() === "true";
+
+/** Values that must never reach production still carrying their dev fallback. */
+const INSECURE_DEFAULTS: Array<[label: string, value: string, bad: string]> = [
+  ["JWT_SECRET", env.jwtSecret, "dev-secret-change-me"],
+  ["ADMIN_PASSWORD", env.adminPassword, "password123"],
+];
+
+/**
+ * Refuse to boot a production server that is still using development
+ * fallbacks. Previously a missing JWT_SECRET silently resolved to
+ * "dev-secret-change-me", which makes every token in the system forgeable by
+ * anyone who has read this repository — a startup crash is far safer than a
+ * server that looks healthy while accepting counterfeit tokens.
+ */
+export function assertProductionConfig(): void {
+  if (!isProd) return;
+
+  const problems: string[] = [];
+  for (const [label, value, bad] of INSECURE_DEFAULTS) {
+    if (!value || value === bad) problems.push(`${label} is unset or still the development default`);
+  }
+  // A demo code that bypasses OTP for EVERY phone number must never ship.
+  if (env.demoOtp) problems.push("DEMO_OTP is set — it accepts any phone number and must be empty in production");
+  if (env.paymentsOnline && (!env.razorpayKeyId || !env.razorpayKeySecret)) {
+    problems.push("PAYMENTS_ONLINE=true but RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET are missing");
+  }
+  if (env.paymentsOnline && env.razorpayKeyId.startsWith("rzp_test_")) {
+    problems.push("RAZORPAY_KEY_ID is a TEST key — live payments would never be captured");
+  }
+
+  if (problems.length) {
+    throw new Error(
+      `Refusing to start in production with an unsafe configuration:\n  - ${problems.join("\n  - ")}`,
+    );
+  }
+}
 

@@ -63,9 +63,28 @@ export async function initSocket(server: any) {
     console.log("🔌 Socket.IO using Redis adapter for cross-worker broadcast");
   }
 
+  /** Pull whichever role session cookie is present off the handshake headers. */
+  const readTokenFromCookieHeader = (header?: string): string | null => {
+    if (!header) return null;
+    for (const part of header.split(";")) {
+      const eq = part.indexOf("=");
+      if (eq < 0) continue;
+      const name = part.slice(0, eq).trim();
+      if (name.startsWith("nc_session_")) return decodeURIComponent(part.slice(eq + 1).trim());
+    }
+    return null;
+  };
+
   // Authentication Middleware
   io.use((socket: AuthenticatedSocket, next) => {
-    const token = socket.handshake.auth.token || socket.handshake.query.token;
+    // Browser clients authenticate with the httpOnly session cookie, which the
+    // handshake carries when the client sets withCredentials — they can no
+    // longer read a token to pass explicitly. auth/query are kept for
+    // non-browser clients and pre-migration sessions.
+    const token =
+      socket.handshake.auth.token ||
+      socket.handshake.query.token ||
+      readTokenFromCookieHeader(socket.handshake.headers.cookie);
     if (!token) {
       return next(new Error("Authentication error: No token provided"));
     }

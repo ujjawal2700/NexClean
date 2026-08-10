@@ -13,7 +13,7 @@ function bookingDraft(packageId: string) {
     vehicleName: "Test Car",
     packageId,
     date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    slot: "10:00 AM",
+    slot: "11:00 AM",
     addressLabel: "Home",
     addressLine: "123 Test Street",
   };

@@ -42,6 +42,11 @@ async function dropStaleIndexes(): Promise<void> {
   } catch {
     // already dropped, or never existed — nothing to do
   }
+  // users.referralCode was a `sparse` unique index, which still indexes the
+  // explicit nulls written by the field's `default: null` — so a second
+  // code-less user hit a duplicate-key error. It is replaced by the partial
+  // index `referralCode_unique` declared on the schema; drop the old name so
+  // existing deployments migrate on the next boot.
   try {
     await mongoose.connection.db?.collection("users").dropIndex("referralCode_1");
   } catch {

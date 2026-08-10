@@ -26,7 +26,7 @@ export function Signup() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const qc = useQueryClient();
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
   const setToken = useSessionStore((s) => s.setToken);
   const signup = useCustomerSignup();
   const verifyOtp = useVerifyOtp();
@@ -61,7 +61,7 @@ export function Signup() {
   // call above (Rules of Hooks): this becomes true mid-session right after a
   // successful signup (see the otp step below), and an earlier return here
   // would make this component render fewer hooks than its previous pass.
-  if (token) return <Navigate to="/app" replace />;
+  if (authenticated) return <Navigate to="/app" replace />;
 
   const stepIndex: Record<Step, number> = { details: 0, location: 1, otp: 2 };
 

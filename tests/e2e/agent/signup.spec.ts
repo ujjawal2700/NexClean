@@ -8,8 +8,26 @@ async function fillDetails(page: import("@playwright/test").Page, opts: { name: 
   await page.locator('input[name="area"]').fill(opts.area);
 }
 
+/**
+ * Click Continue on the details step and wait for the OTP actually to be sent.
+ *
+ * The step only advances after `sendSignupOtp` resolves, so asserting the next
+ * heading on the default 5s timeout races the request — that made the two
+ * signup tests intermittently fail with the page still on "Join as a cleaner"
+ * and no error shown. Waiting on the response removes the guesswork.
+ */
+async function continueToOtp(page: import("@playwright/test").Page) {
+  const sent = page.waitForResponse(
+    (r) => r.url().includes("/auth/send-signup-otp") && r.request().method() === "POST",
+    { timeout: 20_000 },
+  );
+  await page.getByRole("button", { name: "Continue" }).click();
+  await sent;
+  await expect(page.locator("h1")).toHaveText("Verify your number", { timeout: 15_000 });
+}
+
 async function passOtpStep(page: import("@playwright/test").Page) {
-  await expect(page.locator("h1")).toHaveText("Verify your number");
+  await expect(page.locator("h1")).toHaveText("Verify your number", { timeout: 15_000 });
   await page.locator('input[name="otp"]').fill(DEMO_OTP);
   await page.getByRole("button", { name: "Verify & continue" }).click();
 }
@@ -54,8 +72,7 @@ test.describe("Agent signup", () => {
     const phone = freshPhone();
     await page.goto("/agent/signup");
     await fillDetails(page, { name: "Test Cleaner", phone, area: "Green Valley Society" });
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.locator("h1")).toHaveText("Verify your number");
+    await continueToOtp(page);
 
     // Wrong OTP code
     await page.locator('input[name="otp"]').fill("000000");
@@ -72,7 +89,7 @@ test.describe("Agent signup", () => {
     const phone = freshPhone();
     await page.goto("/agent/signup");
     await fillDetails(page, { name: "Test Cleaner", phone, area: "Green Valley Society" });
-    await page.getByRole("button", { name: "Continue" }).click();
+    await continueToOtp(page);
     await passOtpStep(page);
     await expect(page.locator("h1")).toHaveText("Identity verification");
 
@@ -96,8 +113,8 @@ test.describe("Agent signup", () => {
     // 1. Start signup details
     await page.goto("/agent/signup");
     await fillDetails(page, { name: "KYC Agent", phone, area: "KYC Society" });
-    await page.getByRole("button", { name: "Continue" }).click();
-    
+    await continueToOtp(page);
+
     // 2. Verify OTP (which creates unverified agent & logs them in)
     await passOtpStep(page);
     await expect(page.locator("h1")).toHaveText("Identity verification");
@@ -129,7 +146,7 @@ test.describe("Agent signup", () => {
     const phone = freshPhone();
     await page.goto("/agent/signup");
     await fillDetails(page, { name: "Test Cleaner", phone, area: "Green Valley Society" });
-    await page.getByRole("button", { name: "Continue" }).click();
+    await continueToOtp(page);
 
     await passOtpStep(page);
     await expect(page.locator("h1")).toHaveText("Identity verification");

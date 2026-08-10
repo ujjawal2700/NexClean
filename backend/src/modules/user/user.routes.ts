@@ -19,6 +19,7 @@ userRouter.use(requireAuth);
 
 userRouter.patch("/me", validateBody(updateProfileSchema), asyncHandler(userController.updateProfile));
 userRouter.patch("/me/password", validateBody(changePasswordSchema), asyncHandler(userController.updatePasswordWithOtp));
+userRouter.post("/me/logout-all", asyncHandler(userController.logoutEverywhere));
 userRouter.post("/me/deactivate", asyncHandler(userController.deactivateAccount));
 
 

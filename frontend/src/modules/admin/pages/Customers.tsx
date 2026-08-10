@@ -1,16 +1,24 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search, Plus, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Input } from "@shared/ui/Input";
+import { Button } from "@shared/ui/Button";
 import { Pagination } from "@shared/ui/Pagination";
 import { SkeletonTableRows } from "@shared/ui/Skeleton";
 import { formatMoney, formatDate } from "@shared/lib/format";
 import { usePagination } from "@shared/lib/usePagination";
-import { useCustomers, usePlans } from "../api/admin.api";
+import {
+  useCustomers,
+  usePlans,
+  useCreateCustomer,
+  useUpdateCustomer,
+  useDeleteCustomer,
+} from "../api/admin.api";
+import { PersonFormModal, ConfirmDeleteModal } from "../components/PersonFormModal";
 import { CUSTOMER_STATUS_STYLE } from "../lib/status";
-import type { CustomerStatus } from "../types";
+import type { CustomerStatus, AdminCustomer } from "../types";
 
 const STATUS_FILTERS: { id: CustomerStatus | "all"; label: string }[] = [
   { id: "all", label: "All" },
@@ -25,6 +33,17 @@ export function Customers() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | "all">("all");
   const [planFilter, setPlanFilter] = useState<string>("all");
+  const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
+  const deleteCustomer = useDeleteCustomer();
+
+  // null = closed, "new" = create, otherwise the customer being edited.
+  const [editing, setEditing] = useState<AdminCustomer | "new" | null>(null);
+  const [deleting, setDeleting] = useState<AdminCustomer | null>(null);
+  const [formError, setFormError] = useState("");
+
+  const closeForm = () => { setEditing(null); setFormError(""); };
+  const closeDelete = () => { setDeleting(null); setFormError(""); };
 
   const planLabel = (planId: string | null) => {
     if (!planId) return "—";
@@ -49,9 +68,14 @@ export function Customers() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-ink">Customers</h1>
-        <p className="mt-1 text-muted">{customers.length} registered · manage and review activity.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl text-ink">Customers</h1>
+          <p className="mt-1 text-muted">{customers.length} registered · manage and review activity.</p>
+        </div>
+        <Button onClick={() => { setFormError(""); setEditing("new"); }}>
+          <Plus className="size-4" /> Add customer
+        </Button>
       </div>
 
       <GlassCard className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -113,10 +137,11 @@ export function Customers() {
               <th className="px-2 py-2 font-medium">Plan</th>
               <th className="px-2 py-2 text-right font-medium">Bookings</th>
               <th className="px-2 py-2 text-right font-medium">Total spend</th>
+              <th className="px-2 py-2 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {isLoading && <SkeletonTableRows rows={6} cols={7} />}
+            {isLoading && <SkeletonTableRows rows={6} cols={8} />}
             {!isLoading && paginated.pageItems.map((c) => (
               <tr
                 key={c.id}
@@ -137,11 +162,33 @@ export function Customers() {
                 <td className="px-2 py-3 text-ink-soft">{planLabel(c.activePlan)}</td>
                 <td className="px-2 py-3 text-right text-ink-soft">{c.totalBookings}</td>
                 <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(c.totalSpend)}</td>
+                {/* Stop propagation so acting on a row doesn't also open its detail page. */}
+                <td className="px-2 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-end gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={`Edit ${c.name}`}
+                      onClick={() => { setFormError(""); setEditing(c); }}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-label={`Delete ${c.name}`}
+                      onClick={() => { setFormError(""); setDeleting(c); }}
+                      className="text-red-600 hover:border-red-500/40 hover:bg-red-500/10"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                </td>
               </tr>
             ))}
             {!isLoading && list.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-2 py-12 text-center text-muted">
+                <td colSpan={8} className="px-2 py-12 text-center text-muted">
                   No customers match your filters.
                 </td>
               </tr>
@@ -154,6 +201,39 @@ export function Customers() {
           onPageChange={paginated.setPage}
         />
       </GlassCard>
+
+      <PersonFormModal
+        open={editing !== null}
+        title={editing === "new" ? "Add customer" : "Edit customer"}
+        submitLabel={editing === "new" ? "Create customer" : "Save changes"}
+        initial={editing && editing !== "new" ? editing : undefined}
+        pending={createCustomer.isPending || updateCustomer.isPending}
+        error={formError}
+        onClose={closeForm}
+        onSubmit={(v) => {
+          setFormError("");
+          const done = { onSuccess: closeForm, onError: (e: unknown) => setFormError((e as Error)?.message ?? "Something went wrong") };
+          if (editing === "new") createCustomer.mutate(v, done);
+          else if (editing) updateCustomer.mutate({ id: editing.id, ...v }, done);
+        }}
+      />
+
+      <ConfirmDeleteModal
+        open={deleting !== null}
+        kind="customer"
+        name={deleting?.name ?? ""}
+        pending={deleteCustomer.isPending}
+        error={formError}
+        onClose={closeDelete}
+        onConfirm={() => {
+          if (!deleting) return;
+          setFormError("");
+          deleteCustomer.mutate(deleting.id, {
+            onSuccess: closeDelete,
+            onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this customer"),
+          });
+        }}
+      />
     </div>
   );
 }

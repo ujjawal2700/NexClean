@@ -20,6 +20,23 @@ export function freshPhone(): string {
   return "9" + Math.floor(100000000 + Math.random() * 899999999).toString();
 }
 
+/**
+ * A unique person-name for seeding test users.
+ *
+ * Names are validated as letters only (`/^[\p{L}\p{M}\s.'-]+$/u`), so the old
+ * `Name ${Date.now()}` trick is rejected by the API. This encodes the same
+ * timestamp entropy as letters instead of digits.
+ */
+export function uniqueName(prefix = "Test Customer"): string {
+  let n = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+  let suffix = "";
+  while (n > 0) {
+    suffix = String.fromCharCode(97 + (n % 26)) + suffix;
+    n = Math.floor(n / 26);
+  }
+  return `${prefix} ${suffix}`;
+}
+
 async function unwrap<T>(res: { ok: () => boolean; json: () => Promise<unknown> }, label: string): Promise<T> {
   const body = (await res.json()) as { success?: boolean; data?: T; message?: string };
   if (!res.ok() || body.success === false) {

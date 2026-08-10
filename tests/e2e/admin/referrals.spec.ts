@@ -11,8 +11,11 @@ test.describe("Admin referrals", () => {
   test("changing referral settings and saving persists across reload", async ({ page }) => {
     const newReferrerReward = String(50 + Math.floor(Math.random() * 100));
 
+    // The settings inputs render read-only until "Edit settings" is clicked.
+    await page.getByRole("button", { name: "Edit settings" }).click();
+
     const referrerInput = page.locator('input[name="referrerReward"]');
-    await expect(referrerInput).toBeVisible();
+    await expect(referrerInput).toBeEnabled();
     await referrerInput.fill(newReferrerReward);
 
     const saveResponse = page.waitForResponse(

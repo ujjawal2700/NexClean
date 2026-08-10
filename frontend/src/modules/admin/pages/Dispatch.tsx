@@ -62,20 +62,20 @@ const STATUS_RANK: Record<DispatchStatus, number> = {
 export function Dispatch() {
   const { data: queue = [], isLoading } = useDispatchQueue();
   const autoAssignAll = useAutoAssignAll();
-  const token = useAdminSession((s) => s.token);
+  const authenticated = useAdminSession((s) => s.authenticated);
   const qc = useQueryClient();
 
   // Live refresh: the backend emits on every dispatch state change.
   useEffect(() => {
-    if (!token) return;
-    const socket: Socket = io(SOCKET_URL, { auth: { token }, transports: ["websocket"] });
+    if (!authenticated) return;
+    const socket: Socket = io(SOCKET_URL, { withCredentials: true, transports: ["websocket"] });
     const refresh = () => qc.invalidateQueries({ queryKey: ["admin", "dispatch"] });
     socket.on("dispatch_update", refresh);
     socket.on("dispatch_pending", refresh);
     return () => {
       socket.disconnect();
     };
-  }, [token, qc]);
+  }, [authenticated, qc]);
 
   const sorted = useMemo(
     () =>

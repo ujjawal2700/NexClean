@@ -62,31 +62,57 @@ test.describe("Agent profile", () => {
 });
 
 test.describe("Edit profile", () => {
-  test("name is editable, phone is read-only, and saving flips the button to 'Saved'", async ({ page }) => {
+  // Shares the <UserProfileEdit> component with the customer app: a single
+  // "Save Profile Changes" submit with an inline success message, not a
+  // button that flips to "Saved".
+
+  test("name is editable and saving confirms with a success message", async ({ page }) => {
     await loginAgentUI(page, SEED_AGENT_PHONE);
     await page.goto("/agent/profile/edit");
     await expect(page.locator("h1")).toHaveText("Edit Profile");
 
-    const phoneInput = page.locator('input[name="phone"]');
-    await expect(phoneInput).toBeDisabled();
-    await expect(phoneInput).toHaveValue(SEED_AGENT_PHONE);
+    await expect(page.locator('input[name="phone"]')).toHaveValue(SEED_AGENT_PHONE);
 
     const nameInput = page.locator('input[name="name"]');
     const originalName = await nameInput.inputValue();
-    await nameInput.fill("Rohit Kumar QA");
-    await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
 
-    // Restore original name so other specs relying on "Rohit Kumar 👋" keep passing.
-    await nameInput.fill(originalName);
-    await page.getByRole("button", { name: /Save changes|Saved/ }).click();
-    await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
+    /**
+     * Save and wait for the request itself to land.
+     *
+     * The success banner lingers for ~3s, so asserting on its text a second
+     * time passes instantly against the *previous* save's banner — the test
+     * then ends and tears the page down mid-request, leaving this shared
+     * seeded cleaner renamed and breaking the admin agent-detail spec that
+     * expects "Rohit Kumar".
+     */
+    const save = async () => {
+      const patched = page.waitForResponse(
+        (r) => r.url().includes("/users/me") && r.request().method() === "PATCH" && r.status() === 200,
+        { timeout: 15_000 },
+      );
+      await page.getByRole("button", { name: "Save Profile Changes" }).click();
+      await patched;
+    };
+
+    try {
+      await nameInput.fill("Rohit Kumar QA");
+      await save();
+      await expect(page.getByText("Profile details saved successfully")).toBeVisible();
+      await expect(nameInput).toHaveValue("Rohit Kumar QA");
+    } finally {
+      // Always put the seeded name back, even if an assertion above failed.
+      await nameInput.fill(originalName);
+      await save();
+    }
+    await expect(nameInput).toHaveValue(originalName);
   });
 
-  test("'Cancel' navigates back to the profile page", async ({ page }) => {
+  test("Back navigates to the profile page", async ({ page }) => {
     await loginAgentUI(page, SEED_AGENT_PHONE);
+    // Back calls navigate(-1); give it a real previous history entry.
+    await page.goto("/agent/profile");
     await page.goto("/agent/profile/edit");
-    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: "Back" }).click();
     await expect(page).toHaveURL(/\/agent\/profile$/);
   });
 });

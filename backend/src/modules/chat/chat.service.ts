@@ -75,9 +75,26 @@ export async function createTicket(userId: string, subject = "Live Chat Support"
   return ticket;
 }
 
-export async function closeTicket(ticketId: string) {
+/**
+ * Load a ticket the caller is actually entitled to see.
+ *
+ * Support staff work every ticket; a customer or cleaner only ever gets their
+ * own. Everything below goes through here — previously these functions took a
+ * bare ticketId, so anyone who guessed an ObjectId could read, post into, and
+ * close another customer's conversation (including their payment complaints).
+ * A stranger gets "Ticket not found", not "forbidden", so ids stay unprobeable.
+ */
+async function getAccessibleTicket(ticketId: string, userId: string, role?: string) {
   const ticket = await SupportTicket.findById(ticketId);
   if (!ticket) throw ApiError.notFound("Ticket not found");
+  if (role !== "admin" && String(ticket.user) !== String(userId)) {
+    throw ApiError.notFound("Ticket not found");
+  }
+  return ticket;
+}
+
+export async function closeTicket(ticketId: string, userId: string, role?: string) {
+  const ticket = await getAccessibleTicket(ticketId, userId, role);
   ticket.status = "closed";
   await ticket.save();
 
@@ -87,9 +104,8 @@ export async function closeTicket(ticketId: string) {
   return ticket;
 }
 
-export async function reopenTicket(ticketId: string) {
-  const ticket = await SupportTicket.findById(ticketId);
-  if (!ticket) throw ApiError.notFound("Ticket not found");
+export async function reopenTicket(ticketId: string, userId: string, role?: string) {
+  const ticket = await getAccessibleTicket(ticketId, userId, role);
   ticket.status = "open";
   await ticket.save();
 
@@ -99,13 +115,19 @@ export async function reopenTicket(ticketId: string) {
   return ticket;
 }
 
-export async function listMessages(ticketId: string) {
+export async function listMessages(ticketId: string, userId: string, role?: string) {
+  await getAccessibleTicket(ticketId, userId, role);
   return ChatMessage.find({ ticket: ticketId }).sort({ createdAt: 1 });
 }
 
-export async function saveMessage(ticketId: string, senderId: string, senderType: "customer" | "staff", text: string) {
-  const ticket = await SupportTicket.findById(ticketId);
-  if (!ticket) throw ApiError.notFound("Ticket not found");
+export async function saveMessage(
+  ticketId: string,
+  senderId: string,
+  senderType: "customer" | "staff",
+  text: string,
+  role?: string,
+) {
+  const ticket = await getAccessibleTicket(ticketId, senderId, role);
 
   const message = await ChatMessage.create({
     ticket: ticketId,

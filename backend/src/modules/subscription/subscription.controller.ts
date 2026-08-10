@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { ok } from "../../shared/utils/apiResponse";
 import { ApiError } from "../../shared/utils/ApiError";
 import * as subService from "./subscription.service";
+import { isValidSlot, SLOT_LIST } from "../../shared/slots";
 
 export async function previewSubscription(req: Request, res: Response): Promise<Response> {
   const { planId, vehicleType, coinsToRedeem } = req.body;
@@ -45,6 +46,7 @@ export async function scheduleSubscriptionWash(req: Request, res: Response): Pro
   if (!vehicleId || !addressId || !date || !slot) {
     throw ApiError.badRequest("vehicleId, addressId, date, and slot are required");
   }
+  if (!isValidSlot(slot)) throw ApiError.badRequest(`slot must be one of: ${SLOT_LIST}`);
   const booking = await subService.scheduleSubscriptionWash(req.userId!, { vehicleId, addressId, date, slot });
   return ok(res, booking, "Wash scheduled successfully");
 }
@@ -55,6 +57,7 @@ export async function rescheduleSubscriptionWash(req: Request, res: Response): P
   if (!date || !slot) {
     throw ApiError.badRequest("date and slot are required");
   }
+  if (!isValidSlot(slot)) throw ApiError.badRequest(`slot must be one of: ${SLOT_LIST}`);
   const booking = await subService.rescheduleSubscriptionWash(req.userId!, bookingId, { date, slot });
   return ok(res, booking, "Wash rescheduled successfully");
 }

@@ -27,6 +27,16 @@ import {
 } from "../types";
 import { AreaAlertCard } from "../components/AreaAlertCard";
 
+/** Read a picked file into a base64 data URL for the upload endpoint. */
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -52,10 +62,13 @@ export function JobDetail() {
   const needsPhotos = job.status === "in_progress" && !(job.hasBefore && job.hasAfter);
   const action = NEXT_ACTION[job.status];
 
-  const onPhoto = (kind: "before" | "after", file?: File) => {
+  const onPhoto = async (kind: "before" | "after", file?: File) => {
     if (!file) return;
     setPreviews((p) => ({ ...p, [kind]: URL.createObjectURL(file) }));
-    jobPhoto.mutate({ id: job.id, kind });
+    // Upload the actual image, not just the "a photo exists" flag — it's the
+    // only evidence available if the customer later disputes the work.
+    const image = await readAsDataUrl(file);
+    jobPhoto.mutate({ id: job.id, kind, image });
   };
 
   return (

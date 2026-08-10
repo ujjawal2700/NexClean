@@ -1,10 +1,14 @@
 import { createApp } from "./app";
 import { connectDb } from "./config/db";
 import { seedDemoData } from "./config/seed";
-import { env } from "./config/env";
+import { env, assertProductionConfig } from "./config/env";
 import { initSocket } from "./shared/services/socket";
 import { initFcm } from "./shared/services/fcm";
 import { startDispatchWorker, resumeDispatch, stopDispatchWorker } from "./modules/dispatch/dispatch.service";
+
+// Fail fast before binding a port: a production server running on development
+// secrets is worse than one that never starts.
+assertProductionConfig();
 
 const app = createApp();
 

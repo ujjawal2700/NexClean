@@ -6,66 +6,80 @@ test.describe("Edit profile", () => {
     await loginCustomerUI(page);
     await page.goto("/app/profile/edit");
     await expect(page.locator("h1")).toHaveText("Edit Profile");
+    // The form seeds its fields from the `me` query in an effect, which would
+    // otherwise overwrite whatever a test typed first.
+    await expect(page.locator('input[name="name"]')).not.toHaveValue("");
   });
 
-  test("Save changes with empty name/email is a no-op (doesn't show Saved)", async ({ page }) => {
-    // Note: the Save changes button itself is not visually disabled by empty
-    // fields (only `updateProfile.isPending` disables it) — EditProfile.tsx's
-    // saveDetails() guards on `!name.trim() || !email.trim()` internally and
-    // simply returns without calling the API. Assert that no-op behavior
-    // directly rather than a disabled state that doesn't exist.
-    await page.locator('input[name="name"]').fill("");
-    await page.locator('input[name="email"]').fill("");
-    await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByRole("button", { name: "Saved" })).not.toBeVisible();
+  // The page renders the shared <UserProfileEdit> component: one form for
+  // name/email/phone saved by "Save Profile Changes", plus an OTP-gated
+  // password section. There is no "Saved" button state and no phone-change
+  // sub-flow — validation failures surface as inline messages instead.
 
-    await page.locator('input[name="name"]').fill("Only Name");
-    await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByRole("button", { name: "Saved" })).not.toBeVisible();
+  test("digits cannot be entered into the name field", async ({ page }) => {
+    const name = page.locator('input[name="name"]');
+    await name.fill("Agent 007");
+    // The field filters disallowed characters on every change, so the digits
+    // never survive typing — the submit-time guard is the second line only.
+    await expect(name).toHaveValue("Agent ");
   });
 
-  test("saves name and email, flipping the button label to Saved", async ({ page }) => {
+  test("a malformed email never reaches the API", async ({ page }) => {
+    let patched = false;
+    page.on("request", (r) => {
+      if (r.method() === "PATCH" && r.url().includes("/users/me")) patched = true;
+    });
+
+    await page.locator('input[name="name"]').fill("Valid Name");
+    await page.locator('input[name="email"]').fill("not-an-email");
+    await page.getByRole("button", { name: "Save Profile Changes" }).click();
+
+    // type="email" inside a real <form>, so the browser blocks submission
+    // before the handler runs — no request, and no success message.
+    await expect(page.getByText("Profile details saved successfully")).not.toBeVisible();
+    expect(patched).toBe(false);
+  });
+
+  test("rejects a mobile number that isn't 10 digits", async ({ page }) => {
+    await page.locator('input[name="name"]').fill("Valid Name");
+    await page.locator('input[name="phone"]').fill("12345");
+    await page.getByRole("button", { name: "Save Profile Changes" }).click();
+    await expect(page.getByText(/Mobile number must be exactly 10 digits/)).toBeVisible();
+  });
+
+  test("saves name and email and confirms with a success message", async ({ page }) => {
     await page.locator('input[name="name"]').fill("Updated Name");
     await page.locator('input[name="email"]').fill("updated@example.com");
-    await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByRole("button", { name: "Saved" })).toBeVisible();
-    // Reverts back to "Save changes" after ~2s.
-    await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible({ timeout: 4000 });
+    await page.getByRole("button", { name: "Save Profile Changes" }).click();
+    await expect(page.getByText("Profile details saved successfully")).toBeVisible();
+
+    // Survives a reload — i.e. it really persisted.
+    await page.reload();
+    await expect(page.locator('input[name="name"]')).toHaveValue("Updated Name");
+    await expect(page.locator('input[name="email"]')).toHaveValue("updated@example.com");
   });
 
-  test("phone-change sub-flow validates a too-short new number", async ({ page }) => {
-    await page.getByRole("button", { name: "Change number" }).click();
-    await page.locator('input[name="newPhone"]').fill("123");
-    await page.getByRole("button", { name: "Send OTP" }).click();
-    await expect(page.getByText("Please enter a valid 10-digit number.")).toBeVisible();
+  test("accepts a name written in a non-Latin script", async ({ page }) => {
+    // Regression guard: name validation used to be ASCII-only on both the
+    // client and the server, so an Indian customer couldn't save their own
+    // name in Devanagari.
+    await page.locator('input[name="name"]').fill("जॉन कुमार");
+    await page.getByRole("button", { name: "Save Profile Changes" }).click();
+    await expect(page.getByText("Profile details saved successfully")).toBeVisible();
   });
 
-  test("phone-change sub-flow can be cancelled back to idle", async ({ page }) => {
-    await page.getByRole("button", { name: "Change number" }).click();
-    await page.locator('input[name="newPhone"]').fill("9876543210");
-    // Two "Cancel" buttons exist on this page once the phone-change panel is
-    // open (Personal Details card's Cancel, and this panel's own Cancel,
-    // which renders later in the DOM) — scope to the last one.
-    await page.getByRole("button", { name: "Cancel" }).last().click();
-    await expect(page.getByRole("button", { name: "Change number" })).toBeVisible();
+  test("password change is OTP-gated: requesting a code reveals the OTP step", async ({ page }) => {
+    await page.getByRole("button", { name: "Request OTP to Change Password" }).click();
+    await expect(page.locator('input[name="otpCode"]')).toBeVisible();
+    await expect(page.getByRole("button", { name: "Verify OTP" })).toBeVisible();
   });
 
-  test("phone-change OTP step rejects a too-short OTP", async ({ page }) => {
-    const newPhone = "9" + Math.floor(100000000 + Math.random() * 899999999).toString();
-    await page.getByRole("button", { name: "Change number" }).click();
-    await page.locator('input[name="newPhone"]').fill(newPhone);
-    await page.getByRole("button", { name: "Send OTP" }).click();
-    await expect(page.locator('input[name="phoneOtp"]')).toBeVisible();
-    // Client only checks otp.length !== 6 for the Verify button being a no-op —
-    // the mutation itself is guarded, so a short code simply doesn't submit.
-    await page.locator('input[name="phoneOtp"]').fill("123");
-    await page.getByRole("button", { name: "Verify & Save" }).click();
-    // Still on the OTP step (no navigation, no crash).
-    await expect(page.locator('input[name="phoneOtp"]')).toBeVisible();
-  });
-
-  test("Cancel returns to the profile page", async ({ page }) => {
-    await page.getByRole("button", { name: "Cancel" }).click();
+  test("Back returns to the profile page", async ({ page }) => {
+    // The Back control calls navigate(-1), so it needs a real previous entry —
+    // land on /app/profile first, then walk into the editor.
+    await page.goto("/app/profile");
+    await page.goto("/app/profile/edit");
+    await page.getByRole("button", { name: "Back" }).click();
     await page.waitForURL(/\/app\/profile$/);
   });
 });

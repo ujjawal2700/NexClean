@@ -20,6 +20,12 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { apiFetch } from "@shared/lib/api";
 
+// Letters from any script (\p{L}) plus the combining marks Indic vowel signs
+// need (\p{M}), so names like "जॉन कुमार" and "José" are typeable. Must stay in
+// step with the same rule in backend user.validation.ts.
+const NAME_PATTERN = /^[\p{L}\p{M}\s.'-]+$/u;
+const NON_NAME_CHARS = /[^\p{L}\p{M}\s.'-]/gu;
+
 type UserProfileData = {
   id: string;
   name: string;
@@ -64,7 +70,7 @@ export function UserProfileEdit({
   useEffect(() => {
     if (user) {
       // Strip numbers if legacy name had numbers or clean up phone
-      setName((user.name || "").replace(/[^a-zA-Z\s.'-]/g, ""));
+      setName((user.name || "").replace(NON_NAME_CHARS, ""));
       setEmail(user.email || "");
       const digits = (user.phone || "").replace(/\D/g, "").slice(0, 10);
       setPhone(digits);
@@ -91,7 +97,7 @@ export function UserProfileEdit({
     const trimmedEmail = email.trim();
     const trimmedPhone = phone.trim();
 
-    if (!trimmedName || !/^[a-zA-Z\s.'-]+$/.test(trimmedName)) {
+    if (!trimmedName || !NAME_PATTERN.test(trimmedName)) {
       setProfileError("Full Name must contain letters only (no numbers or special characters).");
       return;
     }
@@ -257,7 +263,7 @@ export function UserProfileEdit({
               label="Full Name"
               leading={<UserIcon className="size-4" />}
               value={name}
-              onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z\s.'-]/g, ""))}
+              onChange={(e) => setName(e.target.value.replace(NON_NAME_CHARS, ""))}
               placeholder="Full name (letters only)"
               required
             />

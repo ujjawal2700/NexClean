@@ -1,11 +1,12 @@
 import { Booking, type BookingDocument } from "../booking/booking.model.js";
 import { User } from "../user/user.model.js";
 import { ApiError } from "../../shared/utils/ApiError.js";
-import { trigger as triggerAreaAlert } from "../area-alert/areaAlert.service.js";
+import { trigger as triggerAreaAlert, assertAgentMayAlert } from "../area-alert/areaAlert.service.js";
 import { maybeCreditReferrer } from "../promotions/referral.service.js";
 import { toPoint, haversineMeters, type LngLat } from "../../shared/geo.js";
 import { emitToUser, emitToAdmins } from "../../shared/services/socket.js";
 import { notifyUser } from "../notification/notification.service.js";
+import { uploadImage } from "../../shared/utils/cloudinary.js";
 
 const JOB_FLOW = ["assigned", "enroute", "arrived", "in_progress", "completed"] as const;
 type JobStatus = (typeof JOB_FLOW)[number];
@@ -66,6 +67,13 @@ export async function advanceStatus(agentId: string, bookingId: string) {
   const current = booking.jobStatus as JobStatus;
   const idx = JOB_FLOW.indexOf(current);
 
+  // Already at the terminal state. Without this, the Math.min() clamp below
+  // re-entered the "completed" branch on every extra call and incremented
+  // jobsDone again each time, letting an agent inflate their own stats.
+  if (idx === JOB_FLOW.length - 1) {
+    throw ApiError.badRequest("This job is already completed");
+  }
+
   if (current === "in_progress" && !(booking.hasBefore && booking.hasAfter)) {
     throw ApiError.badRequest("Add before & after photos before completing");
   }
@@ -90,10 +98,25 @@ export async function advanceStatus(agentId: string, bookingId: string) {
   return mapJob(booking, await getAgentPoint(agentId));
 }
 
-export async function setPhoto(agentId: string, bookingId: string, kind: "before" | "after") {
+export async function setPhoto(
+  agentId: string,
+  bookingId: string,
+  kind: "before" | "after",
+  image?: string,
+) {
   const booking = await getOwnedJob(agentId, bookingId);
-  if (kind === "before") booking.hasBefore = true;
-  else booking.hasAfter = true;
+
+  // Store the image when one is supplied. `image` stays optional so older
+  // agent clients keep working, but the URL is what makes the flag meaningful.
+  const url = image ? await uploadImage(image) : "";
+
+  if (kind === "before") {
+    booking.hasBefore = true;
+    if (url) booking.beforePhotoUrl = url;
+  } else {
+    booking.hasAfter = true;
+    if (url) booking.afterPhotoUrl = url;
+  }
   await booking.save();
   return mapJob(booking, await getAgentPoint(agentId));
 }
@@ -199,12 +222,14 @@ export async function updateAgentLocation(agentId: string, lat: number, lng: num
 }
 
 /** Agent notifies nearby customers (Smart Area Alert) for a society. */
+/**
+ * Send a "cleaner is nearby" alert to customers in a society.
+ * Authorization lives in areaAlert.service so both entry points share it.
+ */
 export async function notifyArea(agentId: string, society: string) {
-  const agent = await User.findById(agentId);
-  if (!agent || agent.agentStatus !== "verified") {
-    throw ApiError.badRequest("Agent is not verified");
-  }
-  return triggerAreaAlert(society, agent.name);
+  const agent = await User.findById(agentId).select("name");
+  await assertAgentMayAlert(agentId, society);
+  return triggerAreaAlert(society.trim(), agent?.name);
 }
 
 /**

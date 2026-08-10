@@ -80,11 +80,11 @@ const keys = {
 
 
 function useAuthedQuery<T>(key: readonly unknown[], path: string, opts?: { refetchInterval?: number; staleTime?: number }) {
-  const token = useAdminSession((s) => s.token);
+  const authenticated = useAdminSession((s) => s.authenticated);
   return useQuery({
     queryKey: key,
     queryFn: () => apiFetch<T>(path),
-    enabled: !!token,
+    enabled: authenticated,
     staleTime: opts?.staleTime ?? 30_000,
     refetchInterval: opts?.refetchInterval,
   });
@@ -117,6 +117,69 @@ export const usePlans = () => useAuthedQuery<AdminPlan[]>(keys.plans, "/admin/pl
 export const useCampaigns = () => useAuthedQuery<Campaign[]>(keys.campaigns, "/admin/campaigns");
 export const useAlertSettings = () => useAuthedQuery<AlertSettings>(keys.settings, "/area-alerts/settings");
 export const useTriggered = () => useAuthedQuery<TriggeredAlert[]>(keys.triggered, "/area-alerts/triggered");
+export type AgentInput = { name: string; phone: string; email?: string; area?: string };
+export type CustomerInput = { name: string; phone: string; email?: string };
+
+export function useCreateAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AgentInput) => apiFetch<AdminAgent>("/admin/agents", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.agents }),
+  });
+}
+
+export function useUpdateAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string } & Partial<AgentInput>) => {
+      const { id, ...body } = vars;
+      return apiFetch<AdminAgent>(`/admin/agents/${id}`, { method: "PATCH", body });
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: keys.agents });
+      qc.invalidateQueries({ queryKey: keys.agent(vars.id) });
+    },
+  });
+}
+
+export function useDeleteAgent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<{ deleted: boolean }>(`/admin/agents/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.agents }),
+  });
+}
+
+export function useCreateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CustomerInput) => apiFetch<AdminCustomer>("/admin/customers", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.customers }),
+  });
+}
+
+export function useUpdateCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string } & Partial<CustomerInput>) => {
+      const { id, ...body } = vars;
+      return apiFetch<AdminCustomer>(`/admin/customers/${id}`, { method: "PATCH", body });
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: keys.customers });
+      qc.invalidateQueries({ queryKey: keys.customer(vars.id) });
+    },
+  });
+}
+
+export function useDeleteCustomer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<{ deleted: boolean }>(`/admin/customers/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.customers }),
+  });
+}
+
 export const useCustomers = () => useAuthedQuery<AdminCustomer[]>(keys.customers, "/admin/customers");
 export const useCustomer = (id: string) =>
   useAuthedQuery<AdminCustomerDetail>(keys.customer(id), `/admin/customers/${id}`);
@@ -279,11 +342,11 @@ export const useDispatchQueue = () =>
 
 /** Cleaners assignable to a booking, ranked by distance. Fetched lazily when a picker opens. */
 export function useAssignableAgents(bookingId: string | null) {
-  const token = useAdminSession((s) => s.token);
+  const authenticated = useAdminSession((s) => s.authenticated);
   return useQuery({
     queryKey: bookingId ? keys.assignable(bookingId) : ["admin", "assignable", "none"],
     queryFn: () => apiFetch<AssignableAgent[]>(`/admin/bookings/${bookingId}/assignable-agents`),
-    enabled: !!token && !!bookingId,
+    enabled: authenticated && !!bookingId,
   });
 }
 

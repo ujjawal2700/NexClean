@@ -262,6 +262,7 @@ export function BookingFlow() {
                 <PaymentSummary
                   draft={draft}
                   categoryLabel={categoryLabel}
+                  subtotal={total}
                   total={payable}
                   discountInput={discountInput}
                   setDiscountInput={setDiscountInput}
@@ -279,8 +280,9 @@ export function BookingFlow() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Sticky mobile total strip */}
-          {step > 0 && total > 0 && (
+          {/* Mobile total strip — earlier steps only; the payment step shows a
+              full breakdown of its own, so repeating it there just duplicates. */}
+          {step > 0 && step < 4 && total > 0 && (
             <div className="mt-6 flex items-center justify-between rounded-2xl border border-line bg-surface-muted/60 px-4 py-3 lg:hidden">
               <span className="text-sm text-muted">Estimated total</span>
               <span className="font-display text-lg font-semibold text-ink">
@@ -692,6 +694,7 @@ function AddressStep({
 function PaymentSummary({
   draft,
   categoryLabel,
+  subtotal,
   total,
   discountInput,
   setDiscountInput,
@@ -707,6 +710,7 @@ function PaymentSummary({
 }: {
   draft: Draft;
   categoryLabel: (key: string) => string;
+  subtotal: number;
   total: number;
   discountInput: string;
   setDiscountInput: (v: string) => void;
@@ -720,34 +724,14 @@ function PaymentSummary({
   coinDiscount: number;
   toggleCoins: () => void;
 }) {
-  const [method, setMethod] = useState("upi");
-  const methods = [
-    { id: "upi", label: "UPI" },
-    { id: "card", label: "Card" },
-    { id: "wallet", label: "Wallet" },
-    { id: "cod", label: "Pay after service" },
-  ];
+  // No payment-method picker: NexClean is pay-to-cleaner, so the money is
+  // always collected in cash on completion. Offering UPI/Card/Wallet implied a
+  // choice that doesn't exist and that nothing downstream acted on.
   return (
     <div>
-      <StepHeading title="Payment" subtitle="Choose how you'd like to pay." />
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        {methods.map((m) => (
-          <button
-            key={m.id}
-            onClick={() => setMethod(m.id)}
-            className={cn(
-              "rounded-xl border py-3 text-sm font-medium transition-all",
-              method === m.id
-                ? "border-primary bg-primary/5 text-primary ring-2 ring-primary/20"
-                : "border-line bg-surface text-ink-soft hover:border-primary/40",
-            )}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+      <StepHeading title="Payment" subtitle="Review your total and confirm the booking." />
 
-      <div className="mt-5">
+      <div>
         <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-ink">
           <Tag className="size-4 text-muted" /> Have a discount code?
         </p>
@@ -828,8 +812,39 @@ function PaymentSummary({
         </div>
       )}
 
-      <div className="mt-5 rounded-2xl border border-line bg-surface-muted/50 p-4 text-sm text-muted">
-        Pay to cleaner: <span className="font-medium text-ink">{formatMoney(total)}</span> will be collected directly after service completion.
+      {/* The order summary alongside is desktop-only, so without this the
+          payment step showed no total at all on a phone. */}
+      <div className="mt-6 rounded-2xl border border-line bg-surface-muted/50 p-4">
+        <dl className="space-y-2 text-sm">
+          {(!!appliedDiscount?.discountAmount || coinDiscount > 0) && (
+            <div className="flex items-center justify-between">
+              <dt className="text-muted">Service total</dt>
+              <dd className="text-ink">{formatMoney(subtotal)}</dd>
+            </div>
+          )}
+          {!!appliedDiscount?.discountAmount && (
+            <div className="flex items-center justify-between">
+              <dt className="text-muted">Discount ({appliedDiscount.discountCode})</dt>
+              <dd className="text-emerald-600">−{formatMoney(appliedDiscount.discountAmount)}</dd>
+            </div>
+          )}
+          {coinDiscount > 0 && (
+            <div className="flex items-center justify-between">
+              <dt className="text-muted">Coins ({coinsUsed.toLocaleString("en-IN")})</dt>
+              <dd className="text-emerald-600">−{formatMoney(coinDiscount)}</dd>
+            </div>
+          )}
+          <div className={cn(
+            "flex items-center justify-between",
+            (!!appliedDiscount?.discountAmount || coinDiscount > 0) && "border-t border-line pt-2.5",
+          )}>
+            <dt className="font-medium text-ink">Amount to pay</dt>
+            <dd className="font-display text-lg font-semibold text-ink">{formatMoney(total)}</dd>
+          </div>
+        </dl>
+        <p className="mt-3 border-t border-line pt-3 text-xs text-muted">
+          Payable in cash to your cleaner after the service is finished — nothing is charged now.
+        </p>
       </div>
       {draft.vehicleType && (
         <p className="mt-4 text-xs text-muted">

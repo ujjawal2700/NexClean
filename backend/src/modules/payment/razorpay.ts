@@ -21,6 +21,16 @@ export async function createRazorpayOrder(amountRupees: number, receipt: string)
   return rzp.orders.create({ amount: amountRupees * 100, currency: "INR", receipt });
 }
 
+/**
+ * Refund `amountRupees` against a captured payment (converted to paise).
+ * Throws if Razorpay rejects it, so the caller can avoid marking a refund that
+ * never actually left the account.
+ */
+export async function createRazorpayRefund(paymentId: string, amountRupees: number) {
+  const rzp = await getRazorpayClient();
+  return rzp.payments.refund(paymentId, { amount: Math.round(amountRupees * 100) });
+}
+
 /** HMAC-SHA256 verification of a Razorpay checkout signature. */
 export function verifyRazorpaySignature(orderId: string, paymentId: string, signature: string): boolean {
   const expected = crypto

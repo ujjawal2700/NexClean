@@ -17,11 +17,17 @@ export async function advance(req: Request, res: Response): Promise<Response> {
   return ok(res, await service.advanceStatus(req.userId!, String(req.params.id)), "Status updated");
 }
 
-const photoSchema = z.object({ kind: z.enum(["before", "after"]) });
+const photoSchema = z.object({
+  kind: z.enum(["before", "after"]),
+  // Base64 data URL captured on the cleaner's device. Optional so older clients
+  // that only flip the flag keep working.
+  image: z.string().min(1).optional(),
+});
 export async function photo(req: Request, res: Response): Promise<Response> {
   const parsed = photoSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("kind must be 'before' or 'after'");
-  return ok(res, await service.setPhoto(req.userId!, String(req.params.id), parsed.data.kind), "Photo added");
+  const job = await service.setPhoto(req.userId!, String(req.params.id), parsed.data.kind, parsed.data.image);
+  return ok(res, job, "Photo added");
 }
 
 const coordsSchema = z.object({ lat: z.number(), lng: z.number() }).partial();

@@ -33,8 +33,17 @@ test.describe("KYC gate (pending agent)", () => {
     await page.getByRole("button", { name: "Log out" }).click();
     await expect(page).toHaveURL(/\/agent\/login$/);
 
-    const session = await page.evaluate(() => localStorage.getItem("nexclean-agent-session"));
-    expect(session ? JSON.parse(session).state.token : null).toBeNull();
+    // The JWT now lives in an httpOnly cookie, so the stronger guarantee is that
+    // localStorage holds no credential at all — only the `authenticated` flag,
+    // which logging out must clear.
+    const persisted = await page.evaluate(() => localStorage.getItem("nexclean-agent-session"));
+    const state = persisted ? JSON.parse(persisted).state : {};
+    expect(state.token).toBeUndefined();
+    expect(state.authenticated ?? false).toBe(false);
+
+    // And the session cookie itself is gone, not just the local flag.
+    const cookies = await page.context().cookies();
+    expect(cookies.find((c) => c.name === "nc_session_agent")?.value || "").toBe("");
 
     // And the gate/dashboard is no longer reachable without logging back in.
     await page.goto("/agent");

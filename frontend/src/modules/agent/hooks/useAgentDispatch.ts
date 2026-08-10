@@ -53,7 +53,7 @@ export type AgentDispatch = {
  * Mounted once in AgentLayout so the popup shows over any page.
  */
 export function useAgentDispatch(): AgentDispatch {
-  const token = useAgentSession((s) => s.token);
+  const authenticated = useAgentSession((s) => s.authenticated);
   const { data: me } = useAgentMe();
   const online = me?.online ?? false;
   const qc = useQueryClient();
@@ -66,8 +66,8 @@ export function useAgentDispatch(): AgentDispatch {
 
   // Socket connection + offer events.
   useEffect(() => {
-    if (!token) return;
-    const socket = io(SOCKET_URL, { auth: { token }, transports: ["websocket"] });
+    if (!authenticated) return;
+    const socket = io(SOCKET_URL, { withCredentials: true, transports: ["websocket"] });
     socketRef.current = socket;
 
     socket.on("job_offer", (o: JobOffer) => {
@@ -95,17 +95,17 @@ export function useAgentDispatch(): AgentDispatch {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [token, qc]);
+  }, [authenticated, qc]);
 
   // Restore a live offer that arrived while the app was closed/reconnecting.
   useEffect(() => {
-    if (!token) return;
+    if (!authenticated) return;
     fetchCurrentOffer()
       .then((o) => {
         if (o) setOffer(o);
       })
       .catch(() => {});
-  }, [token]);
+  }, [authenticated]);
 
   // Stream GPS while online so dispatch can rank by real distance.
   useEffect(() => {

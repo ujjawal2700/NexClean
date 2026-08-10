@@ -12,11 +12,13 @@ test.describe("Admin reports & analytics", () => {
     await page.goto("/admin/reports");
     await expect(page.locator("h1")).toHaveText("Reports & Analytics");
 
-    await expect(page.getByText("Revenue trend")).toBeVisible();
-    await expect(page.getByText("Revenue by vehicle type")).toBeVisible();
-    await expect(page.getByText("Top societies")).toBeVisible();
-    await expect(page.getByText("Agent performance")).toBeVisible();
-    await expect(page.getByText("Customer retention")).toBeVisible();
+    // Exact matches throughout: the empty-state copy ("Revenue trends appear
+    // here automatically…") also contains these headings as substrings.
+    await expect(page.getByText("Revenue trend", { exact: true })).toBeVisible();
+    await expect(page.getByText("Revenue by vehicle type", { exact: true })).toBeVisible();
+    await expect(page.getByText("Top societies", { exact: true })).toBeVisible();
+    await expect(page.getByText("Agent performance", { exact: true })).toBeVisible();
+    await expect(page.getByText("Customer retention", { exact: true })).toBeVisible();
 
     expect(consoleErrors).toEqual([]);
   });

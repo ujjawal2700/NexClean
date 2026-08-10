@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { loginAdminUI } from "../../fixtures/ui-helpers";
-import { authHeader } from "../../fixtures/api-client";
+import { authHeader, uniqueName } from "../../fixtures/api-client";
 import { apiContext, loginAsFreshCustomer, setCustomerName } from "../../fixtures/admin-e2e-config-helpers";
 import { API_BASE_URL } from "../../playwright.config";
 
@@ -18,7 +18,7 @@ test.describe("Admin live chat support", () => {
     // absolute URL, not a relative path).
     const api = await apiContext();
     const { token: customerToken } = await loginAsFreshCustomer(api);
-    const customerName = `ChatCustomer${Date.now()}`;
+    const customerName = uniqueName("Chat Customer");
     await setCustomerName(api, customerToken, customerName);
 
     const ticketRes = await api.post(`${API_BASE_URL}/chat/tickets`, {

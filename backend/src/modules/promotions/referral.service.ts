@@ -30,8 +30,11 @@ export async function maybeCreditReferrer(refereeId: string) {
 
   // Atomically claim the one-time reward: only the update that actually flips
   // the flag proceeds to credit the referrer.
+  // `referralFlagged` accounts were caught at signup as likely farming (several
+  // referred signups from one device/IP). They keep the account; the payout is
+  // withheld at both ends.
   const referee = await User.findOneAndUpdate(
-    { _id: refereeId, referredBy: { $ne: null }, referralRewarded: { $ne: true } },
+    { _id: refereeId, referredBy: { $ne: null }, referralRewarded: { $ne: true }, referralFlagged: { $ne: true } },
     { $set: { referralRewarded: true } },
     { new: true },
   );

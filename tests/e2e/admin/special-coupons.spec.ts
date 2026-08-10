@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { loginAdminUI } from "../../fixtures/ui-helpers";
+import { uniqueName } from "../../fixtures/api-client";
 import { apiContext, loginAsFreshCustomer, setCustomerName } from "../../fixtures/admin-e2e-config-helpers";
 
 test.describe("Admin special coupons", () => {
@@ -16,7 +17,7 @@ test.describe("Admin special coupons", () => {
     // customer list is ever fetched, so it isn't served stale data.
     const api = await apiContext();
     const { token: customerToken } = await loginAsFreshCustomer(api);
-    const customerName = `CouponCustomer${Date.now()}`;
+    const customerName = uniqueName("Coupon Customer");
     await setCustomerName(api, customerToken, customerName);
     await api.dispose();
 

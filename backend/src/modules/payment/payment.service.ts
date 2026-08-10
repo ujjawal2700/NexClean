@@ -25,42 +25,83 @@ export async function previewAmount(
   return { basePrice, price, discountAmount, discountCode: discountCodeLabel, coinsRedeemed, coinDiscount };
 }
 
-/** Create a payment order. In mock mode (no keys configured) returns a synthetic order id. */
+/** Create a payment order. In cash/mock mode returns a synthetic order id. */
 export async function createOrder(userId: string, input: CreateOrderInput) {
   const amount = await amountFor(userId, input.booking);
 
   if (!paymentsLive) {
     const orderId = mockOrderId();
-    await Payment.create({ user: userId, orderId, amount, status: "mock" });
+    await Payment.create({ user: userId, orderId, amount, status: "mock", bookingDraft: input.booking });
     return { orderId, amount, currency: "INR", keyId: "", mock: true };
   }
 
   const order = await createRazorpayOrder(amount, `bk_${Date.now()}`);
-  await Payment.create({ user: userId, orderId: order.id, amount, status: "created" });
+  // The priced draft is stored with the order so the booking that gets created
+  // on verify is the one the customer was actually charged for.
+  await Payment.create({
+    user: userId,
+    orderId: order.id,
+    amount,
+    status: "created",
+    bookingDraft: input.booking,
+  });
   return { orderId: order.id, amount, currency: "INR", keyId: razorpayKeyId, mock: false };
 }
 
-/** Verify the Razorpay signature (live) then create the booking. */
+/**
+ * Confirm a booking.
+ *
+ * In pay-to-cleaner mode (the default) there is no gateway step — the customer
+ * confirms in the app and pays the cleaner on completion.
+ *
+ * With online payments enabled, the Razorpay signature is verified and the
+ * order is consumed atomically. Two things matter here and both were previously
+ * missing: the signature only covers `order_id|payment_id`, so it stays valid
+ * on replay and says nothing about *what* was bought. Hence (a) the order is
+ * claimed with a conditional update so it can only ever produce one booking,
+ * and (b) the booking is built from the draft priced at order time, never from
+ * the payload sent alongside the signature.
+ */
 export async function verifyAndBook(userId: string, input: VerifyPaymentInput) {
-  if (paymentsLive) {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = input;
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      throw ApiError.badRequest("Missing payment confirmation fields");
+  if (!paymentsLive) {
+    const booking = await createBooking(userId, input.booking);
+    // Link the order record to the booking it produced, so the admin payments
+    // list can still show which booking a (cash/mock) payment belongs to.
+    if (input.razorpay_order_id) {
+      await Payment.updateOne(
+        { orderId: input.razorpay_order_id, user: userId },
+        { booking: booking.id },
+      );
     }
-    if (!verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
-      throw ApiError.badRequest("Payment signature verification failed");
-    }
-    await Payment.findOneAndUpdate(
-      { orderId: razorpay_order_id },
-      { paymentId: razorpay_payment_id, status: "paid" },
-    );
+    return booking;
   }
 
-  const booking = await createBooking(userId, input.booking);
-
-  if (input.razorpay_order_id) {
-    await Payment.findOneAndUpdate({ orderId: input.razorpay_order_id }, { booking: booking.id });
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = input;
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    throw ApiError.badRequest("Missing payment confirmation fields");
+  }
+  if (!verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+    throw ApiError.badRequest("Payment signature verification failed");
   }
 
+  // Claim the order. The `status: { $ne: "paid" }` guard is what makes a
+  // payment single-use: a replayed (still perfectly valid) signature finds
+  // nothing left to claim and is rejected instead of minting another booking.
+  const payment = await Payment.findOneAndUpdate(
+    { orderId: razorpay_order_id, user: userId, status: { $ne: "paid" }, booking: null },
+    { paymentId: razorpay_payment_id, status: "paid" },
+    { new: true },
+  );
+  if (!payment) {
+    throw ApiError.badRequest("This payment has already been used or does not belong to you");
+  }
+
+  const draft = payment.bookingDraft as CreateOrderInput["booking"] | undefined;
+  if (!draft) {
+    throw ApiError.badRequest("Payment order is missing its booking details");
+  }
+
+  const booking = await createBooking(userId, draft);
+  await Payment.updateOne({ _id: payment._id }, { booking: booking.id });
   return booking;
 }

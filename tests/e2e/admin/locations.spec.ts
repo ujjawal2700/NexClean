@@ -13,7 +13,7 @@ test.describe("Admin locations (cities & zones)", () => {
     const zoneName = `TestZone${Date.now()}`;
 
     // --- Create city ---
-    await page.locator('input[name="cityName"]').fill(cityName);
+    await page.getByPlaceholder("Type city name (e.g. Bengaluru)").fill(cityName);
     const createCityResponse = page.waitForResponse(
       (res) => res.url().includes("/admin/cities") && res.request().method() === "POST",
     );
@@ -48,7 +48,7 @@ test.describe("Admin locations (cities & zones)", () => {
     // --- Select the new city in the zones panel and add a zone ---
     const citySelect = page.locator("select");
     await citySelect.selectOption({ label: cityName });
-    const zoneNameInput = page.locator('input[name="zoneName"]');
+    const zoneNameInput = page.getByPlaceholder("Type zone / society name");
     await expect(zoneNameInput).toBeEnabled();
     await zoneNameInput.fill(zoneName);
 

@@ -1,13 +1,21 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Star, MapPin, BadgeCheck, Ban, RotateCcw, CreditCard, Pencil, Check, X } from "lucide-react";
+import { Search, Star, MapPin, BadgeCheck, Ban, RotateCcw, CreditCard, Pencil, Check, X, Plus, Trash2 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Pagination } from "@shared/ui/Pagination";
 import { usePagination } from "@shared/lib/usePagination";
-import { useAgents, useSetAgentStatus, useUpdateAgentArea } from "../api/admin.api";
+import {
+  useAgents,
+  useSetAgentStatus,
+  useUpdateAgentArea,
+  useCreateAgent,
+  useUpdateAgent,
+  useDeleteAgent,
+} from "../api/admin.api";
+import { PersonFormModal, ConfirmDeleteModal } from "../components/PersonFormModal";
 import { AGENT_STATUS_STYLE } from "../lib/status";
 import type { AdminAgent } from "../types";
 
@@ -66,8 +74,19 @@ function AreaEditor({ agent }: { agent: AdminAgent }) {
 export function Agents() {
   const { data: agents = [] } = useAgents();
   const setAgentStatus = useSetAgentStatus();
+  const createAgent = useCreateAgent();
+  const updateAgent = useUpdateAgent();
+  const deleteAgent = useDeleteAgent();
   const [filter, setFilter] = useState<"verified" | "suspended" | "all">("all");
   const [query, setQuery] = useState("");
+
+  // null = closed, "new" = create, otherwise the agent being edited.
+  const [editing, setEditing] = useState<AdminAgent | "new" | null>(null);
+  const [deleting, setDeleting] = useState<AdminAgent | null>(null);
+  const [formError, setFormError] = useState("");
+
+  const closeForm = () => { setEditing(null); setFormError(""); };
+  const closeDelete = () => { setDeleting(null); setFormError(""); };
 
   const verifiedAgents = agents.filter((a) => a.status !== "pending");
   const online = verifiedAgents.filter((a) => a.online).length;
@@ -88,11 +107,16 @@ export function Agents() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-ink">Agents</h1>
-        <p className="mt-1 text-muted">
-          {verifiedAgents.length} specialists · {online} online.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl text-ink">Agents</h1>
+          <p className="mt-1 text-muted">
+            {verifiedAgents.length} specialists · {online} online.
+          </p>
+        </div>
+        <Button onClick={() => { setFormError(""); setEditing("new"); }}>
+          <Plus className="size-4" /> Add agent
+        </Button>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -190,7 +214,21 @@ export function Agents() {
               </div>
             )}
 
-            <div className="mt-4 flex gap-2 border-t border-line/70 pt-4">
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-line/70 pt-4">
+              {/* Names include the agent so they stay unambiguous next to the card's
+                  "Edit area" control and across the other cards in the grid. */}
+              <Button size="sm" variant="outline" aria-label={`Edit ${a.name}`} onClick={() => { setFormError(""); setEditing(a); }}>
+                <Pencil className="size-4" /> Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label={`Delete ${a.name}`}
+                onClick={() => { setFormError(""); setDeleting(a); }}
+                className="text-red-600 hover:border-red-500/40 hover:bg-red-500/10"
+              >
+                <Trash2 className="size-4" /> Delete
+              </Button>
               {a.status === "verified" && (
                 <Button size="sm" variant="outline" className="flex-1" onClick={() => setAgentStatus.mutate({ id: a.id, status: "suspended" })}>
                   <Ban className="size-4" /> Suspend
@@ -213,6 +251,40 @@ export function Agents() {
         page={paginated.page}
         totalPages={paginated.totalPages}
         onPageChange={paginated.setPage}
+      />
+
+      <PersonFormModal
+        open={editing !== null}
+        title={editing === "new" ? "Add agent" : "Edit agent"}
+        submitLabel={editing === "new" ? "Create agent" : "Save changes"}
+        withArea
+        initial={editing && editing !== "new" ? editing : undefined}
+        pending={createAgent.isPending || updateAgent.isPending}
+        error={formError}
+        onClose={closeForm}
+        onSubmit={(v) => {
+          setFormError("");
+          const done = { onSuccess: closeForm, onError: (e: unknown) => setFormError((e as Error)?.message ?? "Something went wrong") };
+          if (editing === "new") createAgent.mutate(v, done);
+          else if (editing) updateAgent.mutate({ id: editing.id, ...v }, done);
+        }}
+      />
+
+      <ConfirmDeleteModal
+        open={deleting !== null}
+        kind="agent"
+        name={deleting?.name ?? ""}
+        pending={deleteAgent.isPending}
+        error={formError}
+        onClose={closeDelete}
+        onConfirm={() => {
+          if (!deleting) return;
+          setFormError("");
+          deleteAgent.mutate(deleting.id, {
+            onSuccess: closeDelete,
+            onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent"),
+          });
+        }}
       />
     </div>
   );

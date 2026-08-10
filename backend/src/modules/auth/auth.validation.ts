@@ -19,6 +19,9 @@ export const customerSignupSchema = z.object({
   phone: z.string().regex(/^\+?[\d\s]{10,15}$/, "Enter a valid phone number"),
   email: z.string().trim().email("Enter a valid email").optional().or(z.literal("")),
   referralCode: z.string().trim().min(1).optional().or(z.literal("")),
+  // Stable per-install id from the client, paired with the request IP to spot
+  // referral farming. Optional so older clients keep working.
+  deviceId: z.string().trim().max(128).optional(),
 });
 
 const dataUri = z.string().regex(/^data:image\/[a-zA-Z+]+;base64,/, "Upload a valid image");
