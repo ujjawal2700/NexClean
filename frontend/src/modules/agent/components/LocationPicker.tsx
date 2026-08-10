@@ -1,14 +1,20 @@
-import { MapPin, Building2, Loader2 } from "lucide-react";
+import { MapPin, Building2, ChevronDown, Loader2 } from "lucide-react";
+import { cn } from "@shared/lib/utils";
 import { Input } from "@shared/ui/Input";
 import type { PublicCity, PublicZone } from "@modules/customer/api/public";
 
 /**
- * City → area picker for agent signup.
+ * City → area dropdowns for agent signup.
  *
  * Replaces a free-text "area / society" box. That field was typed by hand, so
  * the same society arrived as half a dozen spellings, and everything that reads
  * it — area alerts, the admin's agent filters — compares on the string. Picking
  * from the admin's Locations list makes those comparisons actually work.
+ *
+ * Dropdowns rather than a row of pills: the list is admin-managed and grows, and
+ * a wrapping pill grid gets unusable at a dozen societies on a phone. A native
+ * <select> also gets the platform's own picker, search-by-typing and screen
+ * reader handling for free.
  *
  * Values are the city and area NAMES, not ids, matching what the rest of the
  * app already stores and displays.
@@ -57,63 +63,93 @@ export function LocationPicker({
     );
   }
 
-  return (
-    <div className="space-y-3">
-      <div>
-        <p className="mb-2 text-sm font-medium text-ink">City you'll work in</p>
-        <div className="flex flex-wrap gap-2">
-          {cities.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              aria-pressed={city === c.name}
-              onClick={() => onCity(c.name)}
-              className={cn(city === c.name)}
-            >
-              <MapPin className="size-3.5" /> {c.name}
-            </button>
-          ))}
-        </div>
-      </div>
+  const noAreasYet = Boolean(city) && !zonesLoading && zones.length === 0;
 
-      {city && (
-        <div>
-          <p className="mb-2 text-sm font-medium text-ink">Area you'll operate in</p>
-          {zonesLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted">
-              <Loader2 className="size-4 animate-spin" /> Loading areas…
-            </div>
-          ) : zones.length === 0 ? (
-            <p className="text-xs text-muted">
-              No areas listed for {city} yet — you can continue, and an admin will assign yours.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {zones.map((z) => (
-                <button
-                  key={z.id}
-                  type="button"
-                  aria-pressed={area === z.name}
-                  onClick={() => onArea(z.name)}
-                  className={cn(area === z.name)}
-                >
-                  <Building2 className="size-3.5" /> {z.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+  return (
+    <div className="space-y-4">
+      <Select
+        name="city"
+        label="City you'll work in"
+        icon={<MapPin className="size-4" />}
+        value={city}
+        placeholder="Select your city"
+        onChange={onCity}
+        options={cities.map((c) => c.name)}
+      />
+
+      <Select
+        name="area"
+        label="Area you'll operate in"
+        icon={<Building2 className="size-4" />}
+        value={area}
+        placeholder={city ? (zonesLoading ? "Loading areas…" : "Select your area") : "Choose a city first"}
+        disabled={!city || zonesLoading || zones.length === 0}
+        onChange={onArea}
+        options={zones.map((z) => z.name)}
+        hint={noAreasYet ? `No areas listed for ${city} yet — continue and an admin will assign yours.` : undefined}
+      />
     </div>
   );
 }
 
-/** Shared pill styling — selected pills read as chosen, not merely hovered. */
-function cn(selected: boolean): string {
-  return [
-    "flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-medium transition-all",
-    selected
-      ? "border-primary bg-primary/10 text-primary"
-      : "border-line bg-surface/60 text-ink hover:border-primary/50",
-  ].join(" ");
+/** Native select dressed to match the Input control used elsewhere on this form. */
+function Select({
+  name,
+  label,
+  icon,
+  value,
+  placeholder,
+  options,
+  onChange,
+  disabled = false,
+  hint,
+}: {
+  name: string;
+  label: string;
+  icon: React.ReactNode;
+  value: string;
+  placeholder: string;
+  options: string[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  hint?: string;
+}) {
+  return (
+    <div className="w-full">
+      <label htmlFor={name} className="mb-1.5 block text-sm font-medium text-ink">
+        {label}
+      </label>
+      <div
+        className={cn(
+          "flex items-center gap-2.5 rounded-2xl border border-line bg-surface px-4 transition-colors",
+          "focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15",
+          disabled && "opacity-60",
+        )}
+      >
+        <span className="flex-shrink-0 text-muted">{icon}</span>
+        <select
+          id={name}
+          name={name}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(
+            "h-12 w-full appearance-none bg-transparent text-ink outline-none",
+            // A native select shows its first option as the value, so an unset
+            // control must look like the Input placeholder rather than real text.
+            !value && "text-muted/70",
+          )}
+        >
+          <option value="">{placeholder}</option>
+          {options.map((o) => (
+            <option key={o} value={o} className="text-ink">
+              {o}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="size-4 flex-shrink-0 text-muted" />
+      </div>
+      {hint && <p className="mt-1.5 text-xs text-muted">{hint}</p>}
+    </div>
+  );
 }

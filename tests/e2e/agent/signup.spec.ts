@@ -37,8 +37,8 @@ async function seedLocation(request: APIRequestContext) {
 async function fillDetails(page: import("@playwright/test").Page, opts: { name: string; phone: string; area: string }) {
   await page.locator('input[name="name"]').fill(opts.name);
   await page.locator('input[name="phone"]').fill(opts.phone);
-  await page.getByRole("button", { name: TEST_CITY, exact: true }).click();
-  await page.getByRole("button", { name: opts.area, exact: true }).click();
+  await page.locator('select[name="city"]').selectOption(TEST_CITY);
+  await page.locator('select[name="area"]').selectOption(opts.area);
 }
 
 /**
@@ -89,9 +89,12 @@ test.describe("Agent signup", () => {
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Choose the city you'll work in")).toBeVisible();
 
-    // City chosen but no area -> area error. Areas only appear after a city.
-    await page.getByRole("button", { name: TEST_CITY, exact: true }).click();
-    await expect(page.getByRole("button", { name: TEST_AREA, exact: true })).toBeVisible();
+    // The area dropdown stays locked until a city is chosen.
+    const areaSelect = page.locator('select[name="area"]');
+    await expect(areaSelect).toBeDisabled();
+
+    await page.locator('select[name="city"]').selectOption(TEST_CITY);
+    await expect(areaSelect).toBeEnabled();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Choose the area you'll operate in")).toBeVisible();
 
