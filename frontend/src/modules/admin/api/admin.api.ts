@@ -119,8 +119,17 @@ export const usePlans = () => useAuthedQuery<AdminPlan[]>(keys.plans, "/admin/pl
 export const useCampaigns = () => useAuthedQuery<Campaign[]>(keys.campaigns, "/admin/campaigns");
 export const useAlertSettings = () => useAuthedQuery<AlertSettings>(keys.settings, "/area-alerts/settings");
 export const useTriggered = () => useAuthedQuery<TriggeredAlert[]>(keys.triggered, "/area-alerts/triggered");
-export type AgentInput = { name: string; phone: string; email?: string; area?: string };
-export type CustomerInput = { name: string; phone: string; email?: string };
+export type AgentInput = {
+  name: string; phone: string; email?: string;
+  city?: string; area?: string;
+  agentStatus?: string; aadharNumber?: string;
+};
+export type CustomerInput = {
+  name: string; phone: string; email?: string;
+  status?: "active" | "suspended";
+  address?: { label?: string; line?: string; society?: string };
+  vehicle?: { type?: string; name?: string; plate?: string };
+};
 
 export function useCreateAgent() {
   const qc = useQueryClient();

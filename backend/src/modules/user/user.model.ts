@@ -73,6 +73,11 @@ const userSchema = new Schema(
     coins: { type: Number, default: 0, min: 0 },
 
     // Agent profile (only meaningful when role === "agent")
+    // City and area are picked from the admin-managed Locations list at signup,
+    // stored as names rather than ids: everything downstream (area alerts,
+    // the admin agent list, dispatch copy) already matches on the society name,
+    // and a rename in Locations shouldn't silently re-home existing cleaners.
+    city: { type: String, default: "" },
     area: { type: String, default: "" },
     rating: { type: Number, default: 4.8 },
     jobsDone: { type: Number, default: 0 },

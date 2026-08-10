@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   User,
   Phone,
-  MapPin,
   CreditCard,
   Camera,
   Check,
@@ -24,6 +23,8 @@ import { Badge } from "@shared/ui/Badge";
 import { Stepper } from "@shared/ui/Stepper";
 import { useAgentSession } from "../store/sessionStore";
 import { useAgentSignup, useSendSignupOtp, useVerifyOtpCodeOnly, meKey, useAgentSignupBasic, useAgentMe } from "../api/agent.api";
+import { usePublicCities, usePublicZones } from "@modules/customer/api/public";
+import { LocationPicker } from "../components/LocationPicker";
 
 function fileToDataUri(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -69,10 +70,15 @@ export function Signup() {
   const sendSignupOtp = useSendSignupOtp();
   const verifyOtpCodeOnly = useVerifyOtpCodeOnly();
   const { data: me, isLoading: isLoadingMe } = useAgentMe();
+  const { data: cities = [], isLoading: citiesLoading } = usePublicCities();
 
   const [step, setStep] = useState<Step>("details");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  // City and area come from the admin-managed Locations list. This used to be a
+  // free-text "area / society" box, which produced spellings that matched
+  // nothing — area alerts and the admin's own filters compare on this string.
+  const [city, setCity] = useState("");
   const [area, setArea] = useState("");
   const [aadharNumber, setAadharNumber] = useState("");
   const [aadharFront, setAadharFront] = useState("");
@@ -83,6 +89,11 @@ export function Signup() {
   const [resendTimer, setResendTimer] = useState(30);
   const [resendSuccess, setResendSuccess] = useState("");
   const phoneRef = useRef(phone);
+
+  // The zone endpoint is keyed by city id, but the name is what gets stored on
+  // the account, so resolve one from the other.
+  const selectedCityId = cities.find((c) => c.name === city)?.id ?? null;
+  const { data: zones = [], isLoading: zonesLoading } = usePublicZones(selectedCityId);
 
   useEffect(() => {
     if (step !== "otp" || resendTimer <= 0) return;
@@ -103,6 +114,7 @@ export function Signup() {
       setStep("kyc");
       setName(me.name || "");
       setPhone(me.phone || "");
+      setCity(me.city || "");
       setArea(me.area || "");
       phoneRef.current = me.phone || "";
     }
@@ -123,7 +135,10 @@ export function Signup() {
   const submitDetails = async () => {
     if (name.trim().length < 2) return setError("Enter your full name");
     if (!/^\d{10}$/.test(phone)) return setError("Enter a valid 10-digit number");
-    if (area.trim().length < 2) return setError("Enter the area / society you'll operate in");
+    if (!city.trim()) return setError("Choose the city you'll work in");
+    // Only insist on an area when the admin has actually listed some for that
+    // city — otherwise a newly added city would block signups entirely.
+    if (zones.length > 0 && !area.trim()) return setError("Choose the area you'll operate in");
     setError("");
     setToast("");
     phoneRef.current = phone;
@@ -162,6 +177,7 @@ export function Signup() {
       const res = await signupBasic.mutateAsync({
         name: name.trim(),
         phone: phoneRef.current,
+        city: city.trim(),
         area: area.trim(),
         code: otp,
       });
@@ -183,6 +199,7 @@ export function Signup() {
       const res = await signup.mutateAsync({
         name: name.trim(),
         phone: phoneRef.current,
+        city: city.trim(),
         area: area.trim(),
         aadharNumber,
         aadharFront,
@@ -252,15 +269,18 @@ export function Signup() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                 />
-                <Input
-                  name="area"
-                  autoComplete="address-level2"
-                  label="Area / society you'll operate in"
-                  placeholder="Green Valley Society"
-                  leading={<MapPin className="size-4" />}
-                  value={area}
-                  onChange={(e) => setArea(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && submitDetails()}
+                <LocationPicker
+                  cities={cities}
+                  zones={zones}
+                  citiesLoading={citiesLoading}
+                  zonesLoading={zonesLoading}
+                  city={city}
+                  area={area}
+                  onCity={(next) => {
+                    setCity(next);
+                    setArea(""); // the previous area belongs to the previous city
+                  }}
+                  onArea={setArea}
                 />
                 {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-500">{error}</p>}
                 <Button className="w-full" onClick={submitDetails} disabled={sendSignupOtp.isPending}>

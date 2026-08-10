@@ -218,13 +218,18 @@ export async function agentSignup(input: AgentSignupInput) {
     user.aadharFrontUrl = input.aadharFront;
     user.aadharBackUrl = input.aadharBack;
     user.agentStatus = "pending";
+    // The KYC step re-submits the details form, so a cleaner who corrected
+    // their location between the two steps gets the corrected value.
+    if (input.city) user.city = input.city;
+    if (input.area) user.area = input.area;
     await user.save();
   } else {
     user = await User.create({
       phone,
       name: input.name,
       role: "agent",
-      area: input.area,
+      city: input.city ?? "",
+      area: input.area ?? "",
       online: false,
       agentStatus: "pending",
       aadharNumber: input.aadharNumber,
@@ -251,7 +256,8 @@ export async function agentSignupBasic(input: AgentSignupBasicInput) {
     phone,
     name: input.name,
     role: "agent",
-    area: input.area,
+    city: input.city,
+    area: input.area ?? "",
     online: false,
     agentStatus: "unverified",
   });

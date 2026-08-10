@@ -88,6 +88,8 @@ export type AgentProfile = {
   phone: string;
   email?: string;
   role: string;
+  /** Chosen from the admin-managed Locations list at signup. */
+  city?: string;
   area: string;
   rating: number;
   jobsDone: number;

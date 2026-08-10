@@ -125,6 +125,7 @@ const aadharNumber = z
 
 const agentFields = {
   email: personEmail,
+  city: z.string().trim().max(80).optional(),
   area: z.string().trim().max(120).optional(),
   agentStatus: z.enum(AGENT_STATUSES).optional(),
   aadharNumber,

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Loader2, X } from "lucide-react";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
-import { useVehicleCategories } from "../api/admin.api";
+import { useVehicleCategories, useCities, useZones } from "../api/admin.api";
 
 export type AgentStatus = "verified" | "pending" | "unverified" | "suspended";
 
@@ -11,6 +11,7 @@ export type PersonValues = {
   phone: string;
   email: string;
   // Agent-only
+  city?: string;
   area?: string;
   agentStatus?: AgentStatus;
   aadharNumber?: string;
@@ -31,6 +32,7 @@ export type PersonInitial = {
   phone?: string;
   email?: string;
   area?: string;
+  city?: string;
   aadharNumber?: string;
   status?: string;
   agentStatus?: string;
@@ -106,6 +108,8 @@ export function PersonFormModal({
 }) {
   const isAgent = kind === "agent";
   const { data: categories = [] } = useVehicleCategories();
+  const { data: cities = [] } = useCities();
+  const { data: allZones = [] } = useZones();
 
   const [values, setValues] = useState<PersonValues>({ name: "", phone: "", email: "" });
   const [touched, setTouched] = useState(false);
@@ -122,6 +126,7 @@ export function PersonFormModal({
       name: initial?.name ?? "",
       phone: initial?.phone ?? "",
       email: initial?.email ?? "",
+      city: initial?.city ?? "",
       area: initial?.area ?? "",
       agentStatus: (initial?.agentStatus ?? initial?.status ?? "verified") as AgentStatus,
       aadharNumber: initial?.aadharNumber ?? "",
@@ -138,6 +143,9 @@ export function PersonFormModal({
   const set = <K extends keyof PersonValues>(key: K, value: PersonValues[K]) =>
     setValues((v) => ({ ...v, [key]: value }));
 
+  // Zones are stored against a city id; the form works in names.
+  const cityZones = allZones.filter((z) => z.cityName === values.city);
+
   const nameOk = /^[\p{L}\p{M}\s.'-]{2,60}$/u.test(values.name.trim());
   const phoneOk = /^\d{10}$/.test(values.phone.trim());
   const emailOk = !values.email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim());
@@ -150,7 +158,13 @@ export function PersonFormModal({
     const base = { name: values.name.trim(), phone: values.phone.trim(), email: values.email.trim() };
     onSubmit(
       isAgent
-        ? { ...base, area: values.area?.trim() ?? "", agentStatus: values.agentStatus, aadharNumber: values.aadharNumber?.trim() ?? "" }
+        ? {
+            ...base,
+            city: values.city?.trim() ?? "",
+            area: values.area?.trim() ?? "",
+            agentStatus: values.agentStatus,
+            aadharNumber: values.aadharNumber?.trim() ?? "",
+          }
         : { ...base, status: values.status, address: values.address, vehicle: values.vehicle },
     );
   };
@@ -197,12 +211,54 @@ export function PersonFormModal({
 
           {isAgent ? (
             <>
-              <Input
-                name="personArea"
-                label="Area / society (optional)"
-                value={values.area ?? ""}
-                onChange={(e) => set("area", e.target.value)}
-              />
+              {/* Picked from the admin's own Locations list rather than typed,
+                  so agent records match what area alerts and filters compare on.
+                  Falls back to a text box when no cities are configured yet. */}
+              {cities.length === 0 ? (
+                <Input
+                  name="personArea"
+                  label="Area / society (optional)"
+                  value={values.area ?? ""}
+                  onChange={(e) => set("area", e.target.value)}
+                />
+              ) : (
+                <>
+                  <Field label="City">
+                    <select
+                      name="personCity"
+                      className={selectClass}
+                      value={values.city ?? ""}
+                      onChange={(e) => setValues((v) => ({ ...v, city: e.target.value, area: "" }))}
+                    >
+                      <option value="">Select a city…</option>
+                      {cities.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field
+                    label="Area"
+                    hint={values.city && cityZones.length === 0 ? `No areas listed for ${values.city} yet.` : undefined}
+                  >
+                    <select
+                      name="personArea"
+                      className={selectClass}
+                      value={values.area ?? ""}
+                      disabled={!values.city}
+                      onChange={(e) => set("area", e.target.value)}
+                    >
+                      <option value="">{values.city ? "Select an area…" : "Choose a city first"}</option>
+                      {cityZones.map((z) => (
+                        <option key={z.id} value={z.name}>
+                          {z.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </>
+              )}
               <Field
                 label="Verification status"
                 hint={AGENT_STATUS_OPTIONS.find((o) => o.value === values.agentStatus)?.hint}

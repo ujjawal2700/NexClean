@@ -76,6 +76,7 @@ export type AdminAgent = {
   name: string;
   phone: string;
   email: string;
+  city: string;
   area: string;
   rating: number;
   jobsDone: number;

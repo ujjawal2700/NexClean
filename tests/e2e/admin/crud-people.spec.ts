@@ -19,7 +19,30 @@ async function fillPerson(page: Page, values: { name: string; phone?: string; em
   await page.locator('input[name="personName"]').fill(values.name);
   if (values.phone !== undefined) await page.locator('input[name="personPhone"]').fill(values.phone);
   if (values.email !== undefined) await page.locator('input[name="personEmail"]').fill(values.email);
-  if (values.area !== undefined) await page.locator('input[name="personArea"]').fill(values.area);
+  if (values.area !== undefined) await setArea(page, values.area);
+}
+
+/**
+ * Area is a free-text input only while no cities are configured; once the
+ * Locations specs have run it's a city → area pair of selects. The helper has
+ * to cope with both, because project ordering decides which one this test sees.
+ */
+async function setArea(page: Page, area: string) {
+  const textInput = page.locator('input[name="personArea"]');
+  if (await textInput.count()) {
+    await textInput.fill(area);
+    return;
+  }
+  const citySelect = page.locator('select[name="personCity"]');
+  const firstCity = await citySelect.locator("option").nth(1).getAttribute("value");
+  if (!firstCity) return; // no cities to choose from — area stays blank, which is allowed
+  await citySelect.selectOption(firstCity);
+
+  const areaSelect = page.locator('select[name="personArea"]');
+  const options = await areaSelect.locator("option").allTextContents();
+  const match = options.find((o) => o === area);
+  if (match) await areaSelect.selectOption({ label: match });
+  else if (options.length > 1) await areaSelect.selectOption({ index: 1 });
 }
 
 test.describe("Admin — agent CRUD", () => {
@@ -214,6 +237,16 @@ test.describe("Admin — richer forms and verification", () => {
       await expect(dialog.locator(`[name="${field}"]`)).toBeVisible();
     }
     await expect(dialog.locator('select[name="personAgentStatus"]')).toBeVisible();
+
+    // Area is a picker driven by Locations, and only unlocks after a city.
+    // (It falls back to a text input when no cities are configured at all.)
+    const cityPicker = dialog.locator('select[name="personCity"]');
+    if (await cityPicker.count()) {
+      await expect(dialog.locator('select[name="personArea"]')).toBeDisabled();
+      const firstCity = await cityPicker.locator("option").nth(1).getAttribute("value");
+      await cityPicker.selectOption(firstCity!);
+      await expect(dialog.locator('select[name="personArea"]')).toBeEnabled();
+    }
 
     // Aadhaar is validated client-side before any round trip.
     const phone = uniquePhone();

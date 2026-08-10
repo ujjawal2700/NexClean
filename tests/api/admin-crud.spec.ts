@@ -332,5 +332,31 @@ test.describe("Admin CRUD — extended fields", () => {
 
     await request.delete(apiUrl(`/admin/customers/${id}`), { headers: authHeader(token) });
   });
+
+  test("an agent's city and area round-trip through create, update and read", async ({ request }) => {
+    const { token } = await loginAsAdminApi(request);
+    const phone = freshPhone();
+
+    const created = await request.post(apiUrl("/admin/agents"), {
+      headers: authHeader(token),
+      data: { name: "Located Agent", phone, city: "Indore", area: "Vijay Nagar" },
+    });
+    expect(created.status()).toBe(201);
+    const agent = (await created.json()).data as { id: string; city: string; area: string };
+    expect(agent.city).toBe("Indore");
+    expect(agent.area).toBe("Vijay Nagar");
+
+    const detail = (await (await request.get(apiUrl(`/admin/agents/${agent.id}`), { headers: authHeader(token) })).json())
+      .data as { city: string; area: string };
+    expect(detail).toMatchObject({ city: "Indore", area: "Vijay Nagar" });
+
+    const updated = await request.patch(apiUrl(`/admin/agents/${agent.id}`), {
+      headers: authHeader(token),
+      data: { city: "Bhopal", area: "Arera Colony" },
+    });
+    expect((await updated.json()).data).toMatchObject({ city: "Bhopal", area: "Arera Colony" });
+
+    await request.delete(apiUrl(`/admin/agents/${agent.id}`), { headers: authHeader(token) });
+  });
 });
 

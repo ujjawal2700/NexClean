@@ -40,7 +40,8 @@ export function useVerifyOtp() {
 export type AgentSignupBasicInput = {
   name: string;
   phone: string;
-  area: string;
+  city: string;
+  area?: string;
   code: string;
 };
 
@@ -54,7 +55,8 @@ export function useAgentSignupBasic() {
 export type AgentSignupInput = {
   name: string;
   phone: string;
-  area: string;
+  city?: string;
+  area?: string;
   aadharNumber: string;
   aadharFront: string;
   aadharBack: string;

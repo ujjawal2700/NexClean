@@ -240,6 +240,7 @@ function mapAgent(a: UserDoc) {
     name: a.name,
     phone: a.phone,
     email: a.email ?? "",
+    city: a.city ?? "",
     area: a.area ?? "",
     rating: a.rating ?? 0,
     jobsDone: a.jobsDone ?? 0,
@@ -510,7 +511,7 @@ async function assertPhoneFree(phone: string, exceptUserId?: string) {
 
 export type AgentStatus = "verified" | "pending" | "suspended" | "unverified";
 export type AgentInput = {
-  name: string; phone: string; email?: string; area?: string;
+  name: string; phone: string; email?: string; city?: string; area?: string;
   agentStatus?: AgentStatus; aadharNumber?: string;
 };
 
@@ -523,6 +524,7 @@ export async function createAgent(input: AgentInput) {
     phone,
     email: input.email?.trim() ?? "",
     role: "agent",
+    city: input.city?.trim() ?? "",
     area: input.area?.trim() ?? "",
     // Admin-created cleaners are trusted by default — an admin adding someone
     // by hand has already vetted them, and "pending" would strand them behind
@@ -552,6 +554,7 @@ export async function updateAgent(id: string, input: Partial<AgentInput>) {
   }
   if (input.name !== undefined) agent.name = input.name.trim();
   if (input.email !== undefined) agent.email = input.email.trim();
+  if (input.city !== undefined) agent.city = input.city.trim();
   if (input.area !== undefined) agent.area = input.area.trim();
   if (input.aadharNumber !== undefined) agent.aadharNumber = input.aadharNumber.trim();
 

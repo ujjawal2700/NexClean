@@ -63,7 +63,8 @@ export function AgentDetail() {
               <Phone className="size-3.5" /> {agent.phone}
             </span>
             <span className="flex items-center gap-1.5">
-              <MapPin className="size-3.5" /> {agent.area || "No area set"}
+              <MapPin className="size-3.5" />
+              {[agent.city, agent.area].filter(Boolean).join(" · ") || "No location set"}
             </span>
             <span>Joined {formatDate(agent.joinedAt)}</span>
           </div>
