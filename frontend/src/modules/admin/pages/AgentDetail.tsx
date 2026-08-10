@@ -1,13 +1,21 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Phone, MapPin, Star, BadgeCheck, Ban, RotateCcw, CreditCard, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Phone, MapPin, Star, BadgeCheck, Ban, RotateCcw, CreditCard, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Pagination } from "@shared/ui/Pagination";
 import { formatMoney, formatDate } from "@shared/lib/format";
 import { usePagination } from "@shared/lib/usePagination";
-import { useAgent, useAgentActivity, useSetAgentStatus, useCategoryLabel } from "../api/admin.api";
+import {
+  useAgent,
+  useAgentActivity,
+  useSetAgentStatus,
+  useCategoryLabel,
+  useUpdateAgent,
+  useDeleteAgent,
+} from "../api/admin.api";
+import { PersonFormModal, ConfirmDeleteModal } from "../components/PersonFormModal";
 import { AGENT_STATUS_STYLE, BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
 
 export function AgentDetail() {
@@ -16,9 +24,14 @@ export function AgentDetail() {
   const { data: agent } = useAgent(id ?? "");
   const { data: activity } = useAgentActivity(id ?? "");
   const setAgentStatus = useSetAgentStatus();
+  const updateAgent = useUpdateAgent();
+  const deleteAgent = useDeleteAgent();
   const categoryLabel = useCategoryLabel();
   const bookings = usePagination(activity?.bookings ?? [], 5);
   const [showDocs, setShowDocs] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [formError, setFormError] = useState("");
 
   if (!agent) return null;
 
@@ -54,7 +67,18 @@ export function AgentDetail() {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => { setFormError(""); setEditing(true); }}>
+            <Pencil className="size-4" /> Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setFormError(""); setDeleting(true); }}
+            className="text-red-600 hover:border-red-500/40 hover:bg-red-500/10"
+          >
+            <Trash2 className="size-4" /> Delete
+          </Button>
           {agent.status === "pending" && (
             <Button size="sm" onClick={() => setAgentStatus.mutate({ id: agent.id, status: "verified" })}>
               <BadgeCheck className="size-4" /> Verify
@@ -188,6 +212,44 @@ export function AgentDetail() {
         </table>
         <Pagination page={bookings.page} totalPages={bookings.totalPages} onPageChange={bookings.setPage} />
       </GlassCard>
+      <PersonFormModal
+        open={editing}
+        title="Edit agent"
+        submitLabel="Save changes"
+        withArea
+        initial={agent}
+        pending={updateAgent.isPending}
+        error={formError}
+        onClose={() => { setEditing(false); setFormError(""); }}
+        onSubmit={(v) => {
+          setFormError("");
+          updateAgent.mutate(
+            { id: agent.id, ...v },
+            {
+              onSuccess: () => { setEditing(false); setFormError(""); },
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Something went wrong"),
+            },
+          );
+        }}
+      />
+
+      <ConfirmDeleteModal
+        open={deleting}
+        kind="agent"
+        name={agent.name}
+        pending={deleteAgent.isPending}
+        error={formError}
+        onClose={() => { setDeleting(false); setFormError(""); }}
+        onConfirm={() => {
+          setFormError("");
+          deleteAgent.mutate(agent.id, {
+            // The record this page is built on is gone, so go back to the list
+            // rather than leaving a detail view of something that no longer exists.
+            onSuccess: () => navigate("/admin/agents"),
+            onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent"),
+          });
+        }}
+      />
     </div>
   );
 }

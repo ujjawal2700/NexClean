@@ -134,3 +134,70 @@ test.describe("Admin — customer CRUD", () => {
     await expect(page.getByRole("dialog")).toBeHidden();
   });
 });
+
+test.describe("Admin — detail page actions", () => {
+  test("agent detail: edit, then delete and land back on the list", async ({ page }) => {
+    const phone = uniquePhone();
+    await loginAdminUI(page);
+    await page.goto("/admin/agents");
+    await page.getByRole("button", { name: "Add agent" }).click();
+    await fillPerson(page, { name: "Zeta Detail Agent", phone, area: "Vijay Nagar" });
+    await page.getByRole("button", { name: "Create agent" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+
+    await page.locator('input[name="search"]').fill(phone);
+    await page.getByRole("link", { name: /Zeta Detail Agent/ }).first().click();
+    await expect(page.getByRole("heading", { name: "Zeta Detail Agent" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Edit" }).click();
+    await fillPerson(page, { name: "Zeta Detail Renamed" });
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page.getByRole("heading", { name: "Zeta Detail Renamed" })).toBeVisible();
+
+    // Suspend / Reinstate still work alongside the new actions.
+    await page.getByRole("button", { name: "Suspend" }).click();
+    await expect(page.getByRole("button", { name: "Reinstate" })).toBeVisible();
+    await page.getByRole("button", { name: "Reinstate" }).click();
+    await expect(page.getByRole("button", { name: "Suspend" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/agents$/);
+    await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
+  });
+
+  test("customer detail: edit, then delete and land back on the list", async ({ page }) => {
+    const phone = uniquePhone();
+    await loginAdminUI(page);
+    await page.goto("/admin/customers");
+    await page.getByRole("button", { name: "Add customer" }).click();
+    await fillPerson(page, { name: "Zeta Detail Customer", phone });
+    await page.getByRole("button", { name: "Create customer" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+
+    await page.locator('input[name="search"]').fill(phone);
+    const row = page.locator("tbody tr").filter({ hasText: "Zeta Detail Customer" });
+    await expect(row).toBeVisible();
+    await row.getByRole("cell").first().click();
+    await expect(page).toHaveURL(/\/admin\/customers\/[a-f0-9]{24}$/);
+
+    await page.getByRole("button", { name: "Edit" }).click();
+    await fillPerson(page, { name: "Zeta Detail Renamed" });
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page.getByRole("heading", { name: "Zeta Detail Renamed" })).toBeVisible();
+
+    // Suspend / Reactivate still work alongside the new actions.
+    await page.getByRole("button", { name: "Suspend" }).click();
+    await expect(page.getByRole("button", { name: "Reactivate" })).toBeVisible();
+    await page.getByRole("button", { name: "Reactivate" }).click();
+    await expect(page.getByRole("button", { name: "Suspend" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/customers$/);
+    await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
+  });
+});
+
