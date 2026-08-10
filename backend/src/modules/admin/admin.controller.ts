@@ -101,6 +101,72 @@ export async function agents(_req: Request, res: Response): Promise<Response> {
   return ok(res, await service.listAgents());
 }
 
+/* ----------------------- Agent & customer CRUD ---------------------------- */
+
+// Same rules the customer-facing profile uses, so an admin can't create an
+// account the owner would then be unable to edit.
+const personName = z
+  .string()
+  .trim()
+  .min(2, "Name must be at least 2 characters")
+  .max(60)
+  .regex(/^[\p{L}\p{M}\s.'-]+$/u, "Name must contain letters only, no numbers or special symbols");
+const personPhone = z.string().trim().regex(/^\d{10}$/, "Mobile number must be exactly 10 digits");
+const personEmail = z.string().trim().email("Enter a valid email address").max(120).optional().or(z.literal(""));
+
+const createAgentSchema = z.object({
+  name: personName,
+  phone: personPhone,
+  email: personEmail,
+  area: z.string().trim().max(120).optional(),
+  agentStatus: z.enum(["verified", "pending", "suspended", "unverified"]).optional(),
+});
+const updateAgentSchema = z.object({
+  name: personName.optional(),
+  phone: personPhone.optional(),
+  email: personEmail,
+  area: z.string().trim().max(120).optional(),
+});
+
+export async function createAgent(req: Request, res: Response): Promise<Response> {
+  const parsed = createAgentSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest(parsed.error.errors[0]?.message ?? "Invalid agent details");
+  return created(res, await service.createAgent(parsed.data), "Agent created");
+}
+
+export async function updateAgent(req: Request, res: Response): Promise<Response> {
+  const parsed = updateAgentSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest(parsed.error.errors[0]?.message ?? "Invalid agent details");
+  return ok(res, await service.updateAgent(String(req.params.id), parsed.data), "Agent updated");
+}
+
+export async function deleteAgent(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.deleteAgent(String(req.params.id)), "Agent deleted");
+}
+
+const createCustomerSchema = z.object({ name: personName, phone: personPhone, email: personEmail });
+const updateCustomerSchema = z.object({
+  name: personName.optional(),
+  phone: personPhone.optional(),
+  email: personEmail,
+});
+
+export async function createCustomer(req: Request, res: Response): Promise<Response> {
+  const parsed = createCustomerSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest(parsed.error.errors[0]?.message ?? "Invalid customer details");
+  return created(res, await service.createCustomer(parsed.data), "Customer created");
+}
+
+export async function updateCustomer(req: Request, res: Response): Promise<Response> {
+  const parsed = updateCustomerSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest(parsed.error.errors[0]?.message ?? "Invalid customer details");
+  return ok(res, await service.updateCustomer(String(req.params.id), parsed.data), "Customer updated");
+}
+
+export async function deleteCustomer(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.deleteCustomer(String(req.params.id)), "Customer deleted");
+}
+
 const agentStatusSchema = z.object({ status: z.enum(["verified", "pending", "suspended"]) });
 export async function setAgentStatus(req: Request, res: Response): Promise<Response> {
   const parsed = agentStatusSchema.safeParse(req.body);

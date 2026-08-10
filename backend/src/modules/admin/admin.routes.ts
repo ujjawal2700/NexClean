@@ -25,12 +25,18 @@ adminRouter.get("/reschedule-config", requirePermission("bookings"), asyncHandle
 adminRouter.put("/reschedule-config", requirePermission("bookings"), asyncHandler(c.updateRescheduleConfigCtl));
 
 adminRouter.get("/agents", requirePermission("agents"), asyncHandler(c.agents));
+adminRouter.post("/agents", requirePermission("agents"), asyncHandler(c.createAgent));
+adminRouter.patch("/agents/:id", requirePermission("agents"), asyncHandler(c.updateAgent));
+adminRouter.delete("/agents/:id", requirePermission("agents"), asyncHandler(c.deleteAgent));
 adminRouter.get("/agents/:id", requirePermission("agents"), asyncHandler(c.agentDetail));
 adminRouter.get("/agents/:id/activity", requirePermission("agents"), asyncHandler(c.agentActivity));
 adminRouter.patch("/agents/:id/status", requirePermission("agents"), asyncHandler(c.setAgentStatus));
 adminRouter.patch("/agents/:id/area", requirePermission("agents"), asyncHandler(c.updateAgentArea));
 
 adminRouter.get("/customers", requirePermission("customers"), asyncHandler(c.customers));
+adminRouter.post("/customers", requirePermission("customers"), asyncHandler(c.createCustomer));
+adminRouter.patch("/customers/:id", requirePermission("customers"), asyncHandler(c.updateCustomer));
+adminRouter.delete("/customers/:id", requirePermission("customers"), asyncHandler(c.deleteCustomer));
 adminRouter.get("/customers/:id", requirePermission("customers"), asyncHandler(c.customerDetail));
 adminRouter.get("/customers/:id/activity", requirePermission("customers"), asyncHandler(c.customerActivity));
 adminRouter.patch("/customers/:id/status", requirePermission("customers"), asyncHandler(c.setCustomerStatus));

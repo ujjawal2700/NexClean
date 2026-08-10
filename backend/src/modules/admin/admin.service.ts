@@ -15,6 +15,8 @@ import type { PlanDoc } from "../catalog/plan.model";
 import type { PlanPrices } from "../catalog/catalog.data";
 import { listCategories } from "../catalog/category.service";
 import { ServiceZone } from "../location/location.model";
+import { normalize as normalizePhone } from "../auth/auth.service";
+import { generateUniqueReferralCode } from "../user/user.service";
 
 type BookingDoc = BookingDocument;
 type DisplayStatus = "upcoming" | "in_progress" | "completed" | "cancelled";
@@ -237,6 +239,7 @@ function mapAgent(a: UserDoc) {
     id: String(a.id),
     name: a.name,
     phone: a.phone,
+    email: a.email ?? "",
     area: a.area ?? "",
     rating: a.rating ?? 0,
     jobsDone: a.jobsDone ?? 0,
@@ -434,6 +437,134 @@ function mapCustomerSummary(u: UserDoc, agg?: { totalBookings: number; totalSpen
     totalBookings: agg?.totalBookings ?? 0,
     totalSpend: agg?.totalSpend ?? 0,
   };
+}
+
+/* ------------------------- Agent & customer CRUD -------------------------- */
+
+/**
+ * Refuse to delete an account that has any history.
+ *
+ * Bookings and payments reference the user by id and are not fully
+ * denormalized — a customer's name comes from a populate, so deleting them
+ * would quietly turn historical bookings and payment records into "Customer"
+ * and destroy the attribution behind real money. Delete is therefore for
+ * junk: duplicate, test or spam accounts that never did anything. Anyone with
+ * history should be suspended instead, which already blocks access completely.
+ */
+async function assertDeletable(userId: string, role: "agent" | "customer") {
+  const bookingFilter = role === "agent" ? { assignedAgent: userId } : { user: userId };
+  const [bookings, payments] = await Promise.all([
+    Booking.countDocuments(bookingFilter),
+    role === "customer" ? Payment.countDocuments({ user: userId }) : Promise.resolve(0),
+  ]);
+
+  if (bookings > 0 || payments > 0) {
+    const what = [
+      bookings > 0 ? `${bookings} booking${bookings === 1 ? "" : "s"}` : null,
+      payments > 0 ? `${payments} payment${payments === 1 ? "" : "s"}` : null,
+    ].filter(Boolean).join(" and ");
+    throw ApiError.badRequest(
+      `This ${role} has ${what} on record and can't be deleted without losing that history. Suspend them instead — it blocks all access and keeps the records intact.`,
+    );
+  }
+}
+
+/** Normalize + uniqueness-check a phone number for create/update. */
+async function assertPhoneFree(phone: string, exceptUserId?: string) {
+  const existing = await User.findOne({ phone, ...(exceptUserId ? { _id: { $ne: exceptUserId } } : {}) });
+  if (existing) throw ApiError.badRequest("Another account already uses this mobile number");
+}
+
+export async function createAgent(input: {
+  name: string; phone: string; email?: string; area?: string;
+  agentStatus?: "verified" | "pending" | "suspended" | "unverified";
+}) {
+  const phone = normalizePhone(input.phone);
+  await assertPhoneFree(phone);
+  const agent = await User.create({
+    name: input.name.trim(),
+    phone,
+    email: input.email?.trim() ?? "",
+    role: "agent",
+    area: input.area?.trim() ?? "",
+    // Admin-created cleaners are trusted by default — an admin adding someone
+    // by hand has already vetted them, and "pending" would strand them behind
+    // a KYC screen they never went through.
+    agentStatus: input.agentStatus ?? "verified",
+    online: false,
+  });
+  return mapAgent(agent);
+}
+
+export async function updateAgent(id: string, input: {
+  name?: string; phone?: string; email?: string; area?: string;
+}) {
+  const agent = await User.findOne({ _id: id, role: "agent" });
+  if (!agent) throw ApiError.notFound("Agent not found");
+
+  if (input.phone !== undefined && input.phone.trim()) {
+    const phone = normalizePhone(input.phone);
+    if (phone !== agent.phone) {
+      await assertPhoneFree(phone, id);
+      agent.phone = phone;
+      // Changing the login identity must not leave old sessions alive.
+      agent.tokenVersion = (agent.tokenVersion ?? 0) + 1;
+    }
+  }
+  if (input.name !== undefined) agent.name = input.name.trim();
+  if (input.email !== undefined) agent.email = input.email.trim();
+  if (input.area !== undefined) agent.area = input.area.trim();
+
+  await agent.save();
+  return mapAgent(agent);
+}
+
+export async function deleteAgent(id: string) {
+  const agent = await User.findOne({ _id: id, role: "agent" });
+  if (!agent) throw ApiError.notFound("Agent not found");
+  await assertDeletable(id, "agent");
+  await User.deleteOne({ _id: id });
+  return { deleted: true, id };
+}
+
+export async function createCustomer(input: { name: string; phone: string; email?: string }) {
+  const phone = normalizePhone(input.phone);
+  await assertPhoneFree(phone);
+  const customer = await User.create({
+    name: input.name.trim(),
+    phone,
+    email: input.email?.trim() ?? "",
+    role: "customer",
+    referralCode: await generateUniqueReferralCode(input.name),
+  });
+  return mapCustomerSummary(customer);
+}
+
+export async function updateCustomer(id: string, input: { name?: string; phone?: string; email?: string }) {
+  const customer = await User.findOne({ _id: id, role: "customer" });
+  if (!customer) throw ApiError.notFound("Customer not found");
+
+  if (input.phone !== undefined && input.phone.trim()) {
+    const phone = normalizePhone(input.phone);
+    if (phone !== customer.phone) {
+      await assertPhoneFree(phone, id);
+      customer.phone = phone;
+      customer.tokenVersion = (customer.tokenVersion ?? 0) + 1;
+    }
+  }
+  if (input.name !== undefined) customer.name = input.name.trim();
+  if (input.email !== undefined) customer.email = input.email.trim();
+
+  await customer.save();
+  return mapCustomerSummary(customer);
+}
+
+export async function deleteCustomer(id: string) {
+  const customer = await User.findOne({ _id: id, role: "customer" });
+  if (!customer) throw ApiError.notFound("Customer not found");
+  await assertDeletable(id, "customer");
+  await User.deleteOne({ _id: id });
+  return { deleted: true, id };
 }
 
 export async function listCustomers() {
