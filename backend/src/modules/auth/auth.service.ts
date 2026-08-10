@@ -27,9 +27,11 @@ export async function verifyOtpCode(rawPhone: string, code: string): Promise<voi
   const phone = normalize(rawPhone);
 
   // The demo code short-circuits OTP for ANY phone number, so it is a master
-  // password by definition. Never honour it in production — assertProductionConfig()
-  // additionally refuses to boot if DEMO_OTP is set there.
-  if (!isProd && env.demoOtp && code === env.demoOtp) {
+  // password by definition. Outside production it is a convenience; inside it
+  // requires ALLOW_DEMO_LOGIN, which assertProductionConfig() warns about on
+  // every boot. Without SMS credentials this is the only way anyone can log in,
+  // so a demo deployment needs it — a live one must not have it.
+  if ((!isProd || env.allowDemoLogin) && env.demoOtp && code === env.demoOtp) {
     await Otp.deleteOne({ phone });
     return;
   }

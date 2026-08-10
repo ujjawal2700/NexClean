@@ -51,6 +51,15 @@ export const env = {
   // Demo admin credentials (seeded on startup). Change for production.
   adminEmail: process.env.ADMIN_EMAIL ?? "superadmin@gmail.com",
   adminPassword: process.env.ADMIN_PASSWORD ?? "password123",
+  // Escape hatch for a production-flagged host that is still a demo: keeps the
+  // DEMO_OTP master code and the default admin password working. It exists
+  // because OTP is the only login path for customers and cleaners, so a
+  // deployment without a working SMS provider has no other way in.
+  //
+  // While this is on, ANYONE who knows the demo code can sign in as ANY phone
+  // number. It must be removed before real customers are onboarded — see
+  // assertProductionConfig(), which prints that warning on every boot.
+  allowDemoLogin: (process.env.ALLOW_DEMO_LOGIN ?? "").toLowerCase() === "true",
   // Cloudinary credentials for media upload
   cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME ?? "",
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY ?? "",
@@ -88,10 +97,16 @@ export const isProd = env.nodeEnv === "production";
  */
 export const debugErrors = !isProd && (process.env.DEBUG_ERRORS ?? "").toLowerCase() === "true";
 
-/** Values that must never reach production still carrying their dev fallback. */
-const INSECURE_DEFAULTS: Array<[label: string, value: string, bad: string]> = [
-  ["JWT_SECRET", env.jwtSecret, "dev-secret-change-me"],
-  ["ADMIN_PASSWORD", env.adminPassword, "password123"],
+/**
+ * Values that must never reach production still carrying their dev fallback.
+ *
+ * `demoWaivable` marks the ones ALLOW_DEMO_LOGIN may downgrade to a warning.
+ * JWT_SECRET is not among them: a known signing key lets anyone mint a token
+ * for any account, including admin, which no demo convenience justifies.
+ */
+const INSECURE_DEFAULTS: Array<[label: string, value: string, bad: string, demoWaivable: boolean]> = [
+  ["JWT_SECRET", env.jwtSecret, "dev-secret-change-me", false],
+  ["ADMIN_PASSWORD", env.adminPassword, "password123", true],
 ];
 
 /**
@@ -105,11 +120,21 @@ export function assertProductionConfig(): void {
   if (!isProd) return;
 
   const problems: string[] = [];
-  for (const [label, value, bad] of INSECURE_DEFAULTS) {
-    if (!value || value === bad) problems.push(`${label} is unset or still the development default`);
+  const waived: string[] = [];
+
+  for (const [label, value, bad, demoWaivable] of INSECURE_DEFAULTS) {
+    if (!value || value === bad) {
+      const msg = `${label} is unset or still the development default`;
+      if (demoWaivable && env.allowDemoLogin) waived.push(msg);
+      else problems.push(msg);
+    }
   }
   // A demo code that bypasses OTP for EVERY phone number must never ship.
-  if (env.demoOtp) problems.push("DEMO_OTP is set — it accepts any phone number and must be empty in production");
+  if (env.demoOtp) {
+    const msg = "DEMO_OTP is set — it accepts any phone number";
+    if (env.allowDemoLogin) waived.push(msg);
+    else problems.push(`${msg} and must be empty in production`);
+  }
   if (env.paymentsOnline && (!env.razorpayKeyId || !env.razorpayKeySecret)) {
     problems.push("PAYMENTS_ONLINE=true but RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET are missing");
   }
@@ -120,6 +145,16 @@ export function assertProductionConfig(): void {
   if (problems.length) {
     throw new Error(
       `Refusing to start in production with an unsafe configuration:\n  - ${problems.join("\n  - ")}`,
+    );
+  }
+
+  // Loud on every boot, deliberately. A demo bypass that runs quietly is one
+  // that survives into the real launch because nobody remembered it was there.
+  if (waived.length) {
+    console.warn(
+      `\n⚠️  ALLOW_DEMO_LOGIN=true — this production server is running with demo credentials:\n  - ${waived.join(
+        "\n  - ",
+      )}\n   Anyone who knows the demo code can sign in as any phone number.\n   Remove ALLOW_DEMO_LOGIN before onboarding real customers.\n`,
     );
   }
 }
