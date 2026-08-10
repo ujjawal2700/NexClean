@@ -267,6 +267,13 @@ export function Payments() {
                 </td>
               </tr>
             ))}
+            {paginated.pageItems.length === 0 && (
+              <tr className="border-t border-line/70">
+                <td colSpan={8} className="px-2 py-8 text-center text-sm text-muted">
+                  No payments match your search.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
         <Pagination

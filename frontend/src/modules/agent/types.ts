@@ -92,7 +92,10 @@ export type AgentProfile = {
   rating: number;
   jobsDone: number;
   online: boolean;
-  agentStatus: "verified" | "pending" | "suspended";
+  // "unverified" is the state every new signup starts in, between the details
+  // step and the KYC upload. Leaving it out of this union is what let a new
+  // cleaner fall through every status check straight onto the dashboard.
+  agentStatus: "verified" | "pending" | "suspended" | "unverified";
   aadharNumber?: string;
   aadharFrontUrl?: string;
   aadharBackUrl?: string;

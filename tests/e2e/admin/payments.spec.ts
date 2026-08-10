@@ -11,11 +11,11 @@ test.describe("Admin Payments", () => {
     await seedPayment(request);
 
     await page.goto("/admin/payments");
-    await expect(page.locator("h1")).toHaveText("Payments");
-    await expect(page.getByText("Total collected")).toBeVisible();
-    await expect(page.getByText("Total refunded")).toBeVisible();
+    await expect(page.locator("h1")).toHaveText("Payments & Settlement");
+    await expect(page.getByText("Gross collections")).toBeVisible();
+    await expect(page.getByText("Refunds processed")).toBeVisible();
+    await expect(page.getByText("Agent payouts settled")).toBeVisible();
     await expect(page.getByText("Pending settlement")).toBeVisible();
-    await expect(page.getByText("Settled to agents")).toBeVisible();
 
     const rows = page.locator("table tbody tr");
     await expect(rows.first()).toBeVisible();
@@ -103,7 +103,10 @@ test.describe("Admin Payments", () => {
     const resp = await respPromise;
     expect(resp.ok()).toBeTruthy();
 
-    // After a refund, the row's status badge should flip to "Refunded" and action buttons disappear.
-    await expect(page.getByText("Refunded").first()).toBeVisible();
+    // The list is still filtered to "paid", so the refunded row has dropped out
+    // of view. Switch the status filter to "refunded" and assert it shows up
+    // there — the previous assertion matched the filter's own hidden <option>.
+    await page.locator("select").first().selectOption("refunded");
+    await expect(page.locator("table tbody tr").first()).toContainText("Refunded");
   });
 });

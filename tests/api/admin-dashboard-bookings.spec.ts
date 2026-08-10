@@ -19,7 +19,7 @@ function validBookingPayload(packageId: string, extra: Record<string, unknown> =
     vehicleName: "Test Car",
     packageId,
     date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    slot: "10:00 AM",
+    slot: "11:00 AM",
     addressLabel: "Home",
     addressLine: "123 Test Street",
     ...extra,
@@ -38,22 +38,22 @@ async function createUnlocatedBooking(request: APIRequestContext, customerToken:
 }
 
 /**
- * KNOWN APP BUG (backend/src/shared/middleware/auth.ts): requireRole()'s
- * internal role-check throw gets swallowed by requireAuth's own try/catch,
- * so an authenticated-but-wrong-role caller gets 401 "Invalid or expired
- * token" instead of 403. Full repro + explanation in area-alert.spec.ts's
- * file header. Every "rejects a non-admin caller" test below documents this
- * by asserting the correct (403) behavior.
+ * Role-gating note (previously a documented app bug, now fixed):
+ * requireRole() used to run its 403 role check inside requireAuth()'s own
+ * try/catch, so a valid token with the wrong role surfaced as
+ * 401 "Invalid or expired token" instead of 403. The middleware now reads the
+ * token and checks the role as separate steps, so these assert the correct
+ * contract: missing/!invalid token → 401, valid token + wrong role → 403.
  */
 test.describe("Admin — dashboard & bookings", () => {
   test.describe("403 sample (non-admin callers)", () => {
-    test("GET /admin/stats rejects a customer [BUG: returns 401, see file header]", async ({ request }) => {
+    test("GET /admin/stats rejects a customer", async ({ request }) => {
       const { token } = await loginAsNewCustomerApi(request);
       const res = await request.get(apiUrl("/admin/stats"), { headers: authHeader(token) });
       expect(res.status()).toBe(403);
     });
 
-    test("GET /admin/bookings rejects an agent [BUG: returns 401, see file header]", async ({ request }) => {
+    test("GET /admin/bookings rejects an agent", async ({ request }) => {
       const { token } = await loginAsAgentApi(request);
       const res = await request.get(apiUrl("/admin/bookings"), { headers: authHeader(token) });
       expect(res.status()).toBe(403);

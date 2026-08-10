@@ -31,10 +31,17 @@ test.describe("Admin vehicle brands", () => {
     const createModelResponse = page.waitForResponse(
       (res) => /\/admin\/vehicle-brands\/.+\/models$/.test(res.url()) && res.request().method() === "POST",
     );
+    // The chip only appears after the list refetches, so wait for that GET too —
+    // asserting straight after the POST raced the refresh under load.
+    const brandsRefetch = page.waitForResponse(
+      (res) => /\/admin\/vehicle-brands(\?|$)/.test(res.url()) && res.request().method() === "GET",
+      { timeout: 20_000 },
+    );
     await card.getByRole("button", { name: "Add model" }).click();
     await createModelResponse;
+    await brandsRefetch.catch(() => {});
     const modelChip = card.locator("span").filter({ hasText: modelName });
-    await expect(modelChip).toBeVisible();
+    await expect(modelChip).toBeVisible({ timeout: 15_000 });
 
     // --- Toggle the model's active bullet (•/○) ---
     const toggleModelResponse = page.waitForResponse(

@@ -172,57 +172,15 @@ export async function offerNext(bookingId: string): Promise<void> {
     return;
   }
 
-  // ── NO-GEO FALLBACK: Booking has no coordinates (e.g. dev mode / no GPS) ──
-  // Dispatch to the most-recently-seen online verified agent who hasn't declined.
-  const liveSince = agentLiveSince();
-  const excludeIds = excluded.map((id) => new Types.ObjectId(id));
-
-  const baseQuery = {
-    role: "agent",
-    agentStatus: "verified",
-    online: true,
-    currentOfferBooking: null,
-    ...(excludeIds.length ? { _id: { $nin: excludeIds } } : {}),
-  };
-
-  // Try recently-heartbeating agents first, then fall back to any online agent.
-  let fallbackAgent = await User.findOne({ ...baseQuery, lastSeenAt: { $gte: liveSince } })
-    .sort({ lastSeenAt: -1 })
-    .select("_id name");
-
-  if (!fallbackAgent) {
-    // Second chance: agent is marked online but heartbeat is stale (e.g. dev/test).
-    fallbackAgent = await User.findOne(baseQuery).sort({ lastSeenAt: -1 }).select("_id name");
-  }
-
-  if (!fallbackAgent) {
-    // No live agents at all → admin queue
-    await moveToAdminQueue(b);
-    return;
-  }
-
-  const locked = await User.updateOne(
-    { _id: fallbackAgent._id, currentOfferBooking: null },
-    { currentOfferBooking: b._id },
-  );
-  if (locked.modifiedCount === 0) {
-    // Agent got grabbed by another booking simultaneously — try again
-    await offerNext(bookingId);
-    return;
-  }
-
-  b.set("currentOfferAgent", new Types.ObjectId(String(fallbackAgent._id)));
-  b.offerExpiresAt = new Date(Date.now() + OFFER_TTL_MS);
-  b.dispatchStatus = "offered";
-  b.dispatchAttempts = (b.dispatchAttempts ?? 0) + 1;
-  await b.save();
-
-  await sendOffer(b, {
-    id: String(fallbackAgent._id),
-    name: fallbackAgent.name ?? "Agent",
-    distanceM: 0,
-  });
-  emitDispatchUpdate();
+  // ── NO-GEO: booking has no coordinates → straight to the admin queue ──
+  // There is no meaningful "nearest" cleaner without a service location, and
+  // this used to hand the job to whichever verified agent had simply been seen
+  // most recently — possibly in another city — burning an offer TTL per agent
+  // before the job reached an admin anyway. Geocoding failing (missing or
+  // over-quota Maps key, manually typed address) is exactly when a human
+  // should place the job, which is the behaviour documented in
+  // frontend/.env.example.
+  await moveToAdminQueue(b);
 }
 
 /** A cleaner accepts the offer. First writer wins; everyone else gets "taken". */

@@ -80,11 +80,11 @@ const keys = {
 
 
 function useAuthedQuery<T>(key: readonly unknown[], path: string, opts?: { refetchInterval?: number; staleTime?: number }) {
-  const token = useAdminSession((s) => s.token);
+  const authenticated = useAdminSession((s) => s.authenticated);
   return useQuery({
     queryKey: key,
     queryFn: () => apiFetch<T>(path),
-    enabled: !!token,
+    enabled: authenticated,
     staleTime: opts?.staleTime ?? 30_000,
     refetchInterval: opts?.refetchInterval,
   });
@@ -279,11 +279,11 @@ export const useDispatchQueue = () =>
 
 /** Cleaners assignable to a booking, ranked by distance. Fetched lazily when a picker opens. */
 export function useAssignableAgents(bookingId: string | null) {
-  const token = useAdminSession((s) => s.token);
+  const authenticated = useAdminSession((s) => s.authenticated);
   return useQuery({
     queryKey: bookingId ? keys.assignable(bookingId) : ["admin", "assignable", "none"],
     queryFn: () => apiFetch<AssignableAgent[]>(`/admin/bookings/${bookingId}/assignable-agents`),
-    enabled: !!token && !!bookingId,
+    enabled: authenticated && !!bookingId,
   });
 }
 

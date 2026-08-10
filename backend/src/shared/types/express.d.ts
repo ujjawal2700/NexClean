@@ -6,6 +6,8 @@ declare global {
     interface Request {
       userId?: string;
       userRole?: Role;
+      /** Token version carried by the JWT, compared against the account's current one. */
+      tokenVersion?: number;
     }
   }
 }

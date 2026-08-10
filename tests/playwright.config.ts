@@ -30,6 +30,11 @@ export default defineConfig({
       use: { baseURL: API_BASE_URL },
     },
     {
+      name: "landing-e2e",
+      testDir: "./e2e/landing",
+      use: { viewport: { width: 1280, height: 720 }, baseURL: WEB_BASE_URL },
+    },
+    {
       name: "customer-e2e",
       testDir: "./e2e/customer",
       use: { viewport: { width: 1280, height: 720 }, baseURL: WEB_BASE_URL },

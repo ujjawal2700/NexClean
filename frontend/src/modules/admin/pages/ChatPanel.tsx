@@ -30,7 +30,7 @@ export function ChatPanel() {
   const sendMessageMutation = useSendMessage();
   const updateConfigMutation = useUpdateSupportConfig();
   
-  const token = useAdminSession((s) => s.token);
+  const authenticated = useAdminSession((s) => s.authenticated);
 
   const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<"all" | "customer" | "agent">("all");
@@ -78,10 +78,10 @@ export function ChatPanel() {
 
   // Handle Socket.io connection on mount
   useEffect(() => {
-    if (!token) return;
+    if (!authenticated) return;
 
     const socket = io(SOCKET_URL, {
-      auth: { token },
+      withCredentials: true,
       transports: ["websocket"],
     });
 
@@ -119,7 +119,7 @@ export function ChatPanel() {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [token]);
+  }, [authenticated]);
 
   // Join ticket room when active ticket changes
   useEffect(() => {

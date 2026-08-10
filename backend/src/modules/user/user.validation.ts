@@ -5,7 +5,11 @@ export const updateProfileSchema = z.object({
     .string()
     .min(2, "Name must be at least 2 characters")
     .max(60)
-    .regex(/^[a-zA-Z\s.'-]+$/, "Name must contain letters only, no numbers or special symbols")
+    // Unicode-aware: the ASCII-only version rejected "José" and any name typed
+    // in Devanagari or another Indian script, which real customers here do.
+    // \p{L} covers letters in every script, \p{M} the combining marks that
+    // Indic vowel signs rely on.
+    .regex(/^[\p{L}\p{M}\s.'-]+$/u, "Name must contain letters only, no numbers or special symbols")
     .optional(),
   email: z.string().trim().email("Enter a valid email address").max(120).optional().or(z.literal("")),
   phone: z

@@ -27,7 +27,7 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   const registerToken = useRegisterToken();
   const registered = useRef(false);
   const qc = useQueryClient();
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
 
   const unread = notifications.filter((n) => !n.read).length;
 
@@ -48,8 +48,8 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
 
   // Live: refresh bookings/notifications the moment an update or notification occurs.
   useEffect(() => {
-    if (!token) return;
-    const socket: Socket = io(SOCKET_URL, { auth: { token }, transports: ["websocket"] });
+    if (!authenticated) return;
+    const socket: Socket = io(SOCKET_URL, { withCredentials: true, transports: ["websocket"] });
     socket.on("booking_assigned", () => {
       qc.invalidateQueries({ queryKey: bookingsKey });
       qc.invalidateQueries({ queryKey: notificationsKey });
@@ -64,7 +64,7 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
     return () => {
       socket.disconnect();
     };
-  }, [token, qc]);
+  }, [authenticated, qc]);
 
   const isHomepage = location.pathname === "/app" || location.pathname === "/app/";
 

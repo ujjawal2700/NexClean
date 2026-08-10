@@ -36,9 +36,12 @@ test.describe("Booking flow", () => {
 
     // Step 2: date + slot.
     await expect(page.getByText("Pick a date & time")).toBeVisible();
-    await page.locator("button").filter({ hasText: /Mon|Tue|Wed|Thu|Fri|Sat|Sun/ }).first().click();
-    // Real TIME_SLOTS (frontend/src/modules/customer/data/catalog.ts) — "10:00 AM" isn't one of them.
-    await page.getByRole("button", { name: "09:30 AM" }).click();
+    // Pick TOMORROW, not today, and take whatever slot is offered. The app
+    // correctly hides slots that have already passed for the current day, so
+    // pinning a specific time on today's date made this pass in the morning
+    // and fail every afternoon.
+    await page.locator("button").filter({ hasText: /Mon|Tue|Wed|Thu|Fri|Sat|Sun/ }).nth(1).click();
+    await page.getByRole("button", { name: /^\d{2}:\d{2} (AM|PM)$/ }).first().click();
     await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
     await page.getByRole("button", { name: "Continue" }).click();
 
@@ -47,8 +50,10 @@ test.describe("Booking flow", () => {
     await page.getByRole("button", { name: /Home/ }).click();
     await page.getByRole("button", { name: "Continue" }).click();
 
-    // Step 4: payment.
-    await expect(page.getByText("Choose how you'd like to pay.")).toBeVisible();
+    // Step 4: payment. There is no payment-method picker — NexClean collects
+    // cash on completion — so the step is the discount code plus the total.
+    await expect(page.getByText("Review your total and confirm the booking.")).toBeVisible();
+    await expect(page.getByText("Amount to pay")).toBeVisible();
 
     // Invalid discount code shows an inline error next to the input.
     await page.locator('input[name="discountCode"]').fill("NOTAREALCODE");
@@ -57,7 +62,7 @@ test.describe("Booking flow", () => {
 
     // Pay — mock mode (no Razorpay keys configured) means this should go
     // straight to the confirmation screen without any checkout iframe.
-    const payButton = page.getByRole("button", { name: /^Pay ₹/ });
+    const payButton = page.getByRole("button", { name: /^Pay to cleaner ₹/ });
     await payButton.click();
 
     await expect(page.locator("h1")).toHaveText("Booking confirmed!", { timeout: 15000 });
@@ -101,11 +106,15 @@ test.describe("Booking flow", () => {
     await page.getByRole("button", { name: /Express Wash/ }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await page.locator("button").filter({ hasText: /Mon|Tue|Wed|Thu|Fri|Sat|Sun/ }).nth(1).click();
-    await page.getByRole("button", { name: "08:00 AM" }).click();
+    await page.getByRole("button", { name: /^\d{2}:\d{2} (AM|PM)$/ }).first().click();
     await page.getByRole("button", { name: "Continue" }).click();
 
     await expect(page.getByText("Where should we come?")).toBeVisible();
     await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
-    await expect(page.getByRole("link", { name: /Add a new address/ })).toBeVisible();
+    // With zero saved addresses the step opens straight into the inline
+    // add-address form (AddressStep seeds showForm from addresses.length === 0),
+    // so there is no "Add a new address" button to press first.
+    await expect(page.locator('input[name="alabel"]')).toBeVisible();
+    await expect(page.getByPlaceholder("Search your address")).toBeVisible();
   });
 });

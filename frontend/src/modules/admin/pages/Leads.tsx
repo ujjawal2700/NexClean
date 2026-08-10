@@ -31,6 +31,22 @@ function formatDate(iso: string) {
   });
 }
 
+/**
+ * Quote a value for CSV, neutralising spreadsheet formula injection.
+ *
+ * Leads come from a PUBLIC, unauthenticated endpoint with free-form name/city/
+ * location, and Excel and Sheets execute any cell whose text begins with
+ * =, +, -, @, tab or CR — quoting alone does not stop it. So a stranger could
+ * submit a "lead" called =HYPERLINK(...) (or worse) and have it run on an
+ * admin's machine the moment they exported and opened this file. Prefixing a
+ * single quote makes the spreadsheet treat it as literal text.
+ */
+function csvCell(value: unknown): string {
+  const text = value === null || value === undefined ? "" : String(value);
+  const dangerous = /^[=+\-@\t\r]/.test(text);
+  return `"${(dangerous ? `'${text}` : text).replace(/"/g, '""')}"`;
+}
+
 /** Function to trigger Excel (.csv) file download for leads */
 function exportLeadsToExcel(leadsList: Lead[]) {
   if (!leadsList || leadsList.length === 0) return;
@@ -47,14 +63,14 @@ function exportLeadsToExcel(leadsList: Lead[]) {
   ];
 
   const rows = leadsList.map((l, index) => [
-    index + 1,
-    `"${l.name.replace(/"/g, '""')}"`,
-    `"${l.phone}"`,
-    `"${l.email ? l.email.replace(/"/g, '""') : "-"}"`,
-    `"${l.city.replace(/"/g, '""')}"`,
-    `"${l.location ? l.location.replace(/"/g, '""') : "-"}"`,
-    `"${l.status === "contacted" ? "Contacted" : l.status === "converted" ? "Converted" : "New"}"`,
-    `"${formatDate(l.createdAt)}"`,
+    csvCell(index + 1),
+    csvCell(l.name),
+    csvCell(l.phone),
+    csvCell(l.email || "-"),
+    csvCell(l.city),
+    csvCell(l.location || "-"),
+    csvCell(l.status === "contacted" ? "Contacted" : l.status === "converted" ? "Converted" : "New"),
+    csvCell(formatDate(l.createdAt)),
   ]);
 
   const csvContent =

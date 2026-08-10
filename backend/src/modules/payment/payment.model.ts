@@ -8,6 +8,10 @@ const paymentSchema = new Schema(
     paymentId: { type: String, default: null },
     amount: { type: Number, required: true }, // in rupees
     currency: { type: String, default: "INR" },
+    // The booking payload exactly as priced when this order was created. The
+    // booking is rebuilt from this on verify, so a client cannot swap in a
+    // costlier package after paying for a cheaper one.
+    bookingDraft: { type: Schema.Types.Mixed, default: null },
     status: { type: String, enum: ["created", "paid", "mock", "refunded"], default: "created", index: true },
 
     // Refund handling

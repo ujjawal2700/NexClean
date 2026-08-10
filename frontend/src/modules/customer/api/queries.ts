@@ -37,11 +37,11 @@ export const ticketMessagesKey = (ticketId: string) => ["chat", "tickets", ticke
 
 /** Current authenticated customer (profile, vehicles, addresses, plan). */
 export function useMe() {
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
   return useQuery({
     queryKey: meKey,
     queryFn: () => apiFetch<User>("/auth/me"),
-    enabled: !!token,
+    enabled: authenticated,
   });
 }
 
@@ -55,21 +55,21 @@ export function usePlans() {
 
 /** The customer's bookings, newest first. */
 export function useBookings() {
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
   return useQuery({
     queryKey: bookingsKey,
     queryFn: () => apiFetch<Booking[]>("/bookings"),
-    enabled: !!token,
+    enabled: authenticated,
   });
 }
 
 /** The customer's notifications, polled so the bell stays fresh. */
 export function useNotifications() {
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
   return useQuery({
     queryKey: notificationsKey,
     queryFn: () => apiFetch<AppNotification[]>("/notifications"),
-    enabled: !!token,
+    enabled: authenticated,
     refetchInterval: 20_000,
   });
 }
@@ -84,21 +84,21 @@ export function usePromoBanners() {
 
 /** The customer's own referral code, earnings, and referred users. */
 export function useReferralSummary() {
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
   return useQuery({
     queryKey: referralsKey,
     queryFn: () => apiFetch<ReferralSummary>("/users/me/referrals"),
-    enabled: !!token,
+    enabled: authenticated,
   });
 }
 
 /** The customer's coin wallet: balance, its ₹ value, and recent transactions. */
 export function useWallet() {
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
   return useQuery({
     queryKey: walletKey,
     queryFn: () => apiFetch<Wallet>("/wallet"),
-    enabled: !!token,
+    enabled: authenticated,
   });
 }
 
@@ -135,49 +135,50 @@ export function useVehicleModels(brandId: string | null) {
 }
 
 export function useSubscriptionSchedule() {
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
   return useQuery({
     queryKey: subscriptionScheduleKey,
     queryFn: () => apiFetch<SubscriptionScheduleResponse>("/subscriptions/schedule"),
-    enabled: !!token,
+    enabled: authenticated,
   });
 }
 
-export function useActiveToken() {
+/** Whether the app matching the current route has an active session. */
+export function useActiveSession() {
   const path = typeof window !== "undefined" ? window.location.pathname : "";
-  const customerToken = useSessionStore((s) => s.token);
-  const adminToken = useAdminSession((s) => s.token);
-  const agentToken = useAgentSession((s) => s.token);
+  const customerAuthed = useSessionStore((s) => s.authenticated);
+  const adminAuthed = useAdminSession((s) => s.authenticated);
+  const agentAuthed = useAgentSession((s) => s.authenticated);
   
-  if (path.startsWith("/admin")) return adminToken;
-  if (path.startsWith("/agent")) return agentToken;
-  return customerToken;
+  if (path.startsWith("/admin")) return adminAuthed;
+  if (path.startsWith("/agent")) return agentAuthed;
+  return customerAuthed;
 }
 
 export function useSupportConfig() {
-  const token = useActiveToken();
+  const authenticated = useActiveSession();
   return useQuery({
     queryKey: supportConfigKey,
     queryFn: () => apiFetch<SupportConfig>("/chat/config"),
-    enabled: !!token,
+    enabled: authenticated,
   });
 }
 
 export function useSupportTickets() {
-  const token = useActiveToken();
+  const authenticated = useActiveSession();
   return useQuery({
     queryKey: supportTicketsKey,
     queryFn: () => apiFetch<SupportTicket[]>("/chat/tickets"),
-    enabled: !!token,
+    enabled: authenticated,
   });
 }
 
 export function useTicketMessages(ticketId: string | null) {
-  const token = useActiveToken();
+  const authenticated = useActiveSession();
   return useQuery({
     queryKey: ticketMessagesKey(ticketId ?? ""),
     queryFn: () => apiFetch<ChatMessage[]>(`/chat/tickets/${ticketId}/messages`),
-    enabled: !!token && !!ticketId,
+    enabled: authenticated && !!ticketId,
   });
 }
 

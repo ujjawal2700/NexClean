@@ -64,6 +64,14 @@
   html {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* `overflow-x: hidden` on body alone does NOT stop the viewport scrolling
+       sideways when a descendant escapes horizontally — on a 390px phone the
+       landing page could be dragged 19px right, because reveal animations park
+       their elements at translateX(40px) until scrolled into view.
+       `clip` is deliberate: unlike `hidden` it does not create a scroll
+       container, so the sticky headers in the customer/agent/admin layouts
+       keep working. */
+    overflow-x: clip;
   }
 
   body {
@@ -71,7 +79,7 @@
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-feature-settings: "ss01";
-    overflow-x: hidden;
+    overflow-x: clip;
   }
 
   input, textarea, [contenteditable="true"] {

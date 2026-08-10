@@ -34,16 +34,25 @@ export const API_URL = getApiUrl();
 // the connection.
 export const SOCKET_URL = API_URL.replace(/\/api\/?$/, "") || undefined;
 
-type TokenSource = { prefix: string; get: () => string | null };
+type TokenSource = { prefix: string; get: () => string | null; role: SessionRole };
 const tokenSources: TokenSource[] = [];
+
+export type SessionRole = "customer" | "agent" | "admin";
+
+/** Which app the current path belongs to, so the API picks the right session. */
+function currentRole(): SessionRole | null {
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const match = tokenSources.find((s) => path.startsWith(s.prefix));
+  return match?.role ?? null;
+}
 
 /**
  * Register a token getter for a route prefix (e.g. "/app", "/agent", "/admin").
  * Each role keeps its own session, and the client picks the token whose prefix
  * matches the current path — so all three apps can be open without clashing.
  */
-export function registerAuthToken(prefix: string, get: () => string | null) {
-  tokenSources.push({ prefix, get });
+export function registerAuthToken(prefix: string, get: () => string | null, role: SessionRole) {
+  tokenSources.push({ prefix, get, role });
 }
 
 function currentToken(): string | null {
@@ -60,17 +69,48 @@ function currentToken(): string | null {
   return null;
 }
 
+const DEVICE_ID_KEY = "nexclean-device-id";
+
+/** A stable id for this browser/install, created on first use. */
+function deviceId(): string {
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return ""; // private mode / storage blocked — degrade quietly
+  }
+}
+
 type ApiOptions = Omit<RequestInit, "body"> & { body?: unknown };
 
 export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options;
   const token = currentToken();
 
+  const role = currentRole();
+
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
+    // The session is an httpOnly cookie the browser attaches for us — it is
+    // deliberately unreadable from JavaScript, so an XSS can no longer steal a
+    // long-lived credential the way it could from localStorage.
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      // Tells the API which of the three role cookies to use, mirroring the
+      // route-prefix logic below so all three apps can be open at once.
+      ...(role ? { "X-Session-Role": role } : {}),
+      // Legacy fallback: only present for sessions established before the
+      // cookie migration, so existing logins survive the deploy.
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // Stable per-install id. The server pairs it with the request IP purely
+      // to spot one person farming referral bonuses across many phone numbers;
+      // it is not used for tracking or to block signups.
+      ...(deviceId() ? { "X-Device-Id": deviceId() } : {}),
       ...headers,
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,

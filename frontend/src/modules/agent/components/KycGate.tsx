@@ -9,9 +9,10 @@ import { useAgentSession } from "../store/sessionStore";
 import { useAgentMe } from "../api/agent.api";
 
 /**
- * Sits between auth and the full agent dashboard. New signups land in
- * "pending" until admin approves their KYC; suspended agents are locked out
- * of jobs entirely. Both get a status screen instead of the dashboard chrome.
+ * Sits between auth and the full agent dashboard. Agents awaiting KYC review
+ * ("pending") and suspended agents get a status screen instead of the dashboard
+ * chrome; agents who haven't submitted KYC yet ("unverified") reach the
+ * dashboard in a restricted state that links them to the KYC form.
  */
 export function KycGate({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -27,6 +28,10 @@ export function KycGate({ children }: { children: ReactNode }) {
 
   if (isLoading || !me) return null;
 
+  // "unverified" (signed up, KYC not submitted) deliberately falls through to
+  // the dashboard, which renders in a restricted state with a "Submit KYC"
+  // call to action. Only awaiting-review and suspended agents get the
+  // full-screen status card.
   if (me.agentStatus === "pending" || me.agentStatus === "suspended") {
     const pending = me.agentStatus === "pending";
     return (

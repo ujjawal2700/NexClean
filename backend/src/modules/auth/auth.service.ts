@@ -2,11 +2,14 @@ import { Otp } from "./otp.model";
 import { User } from "../user/user.model";
 import { creditRefereeWelcome } from "../promotions/referral.service";
 import { generateUniqueReferralCode } from "../user/user.service";
-import { env } from "../../config/env";
+import { env, isProd } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
 import { signToken, type Role } from "../../shared/utils/jwt";
 import { generateOtp } from "../../shared/utils/otp";
 import type { CustomerSignupInput, AgentSignupInput, AgentSignupBasicInput } from "./auth.validation";
+
+/** Where a signup came from, used purely for referral-abuse detection. */
+export type SignupOrigin = { ip?: string; deviceId?: string };
 import { verifyPassword, hashPassword } from "../../shared/utils/crypto";
 
 import { sendSmsOtp } from "../../shared/services/sms";
@@ -16,16 +19,39 @@ export function normalize(phone: string): string {
   return phone.replace(/\s+/g, "");
 }
 
+/** Wrong codes allowed against a single OTP before it is burned. */
+const MAX_OTP_ATTEMPTS = 5;
+
 /** Validate + consume an OTP for a phone, without touching the User collection. */
 export async function verifyOtpCode(rawPhone: string, code: string): Promise<void> {
   const phone = normalize(rawPhone);
-  const isDemo = code === env.demoOtp;
 
-  if (!isDemo) {
-    const record = await Otp.findOne({ phone });
-    if (!record) throw ApiError.badRequest("Request a new code");
-    if (record.expiresAt.getTime() < Date.now()) throw ApiError.badRequest("Code expired");
-    if (record.code !== code) throw ApiError.badRequest("Incorrect code");
+  // The demo code short-circuits OTP for ANY phone number, so it is a master
+  // password by definition. Never honour it in production — assertProductionConfig()
+  // additionally refuses to boot if DEMO_OTP is set there.
+  if (!isProd && env.demoOtp && code === env.demoOtp) {
+    await Otp.deleteOne({ phone });
+    return;
+  }
+
+  const record = await Otp.findOne({ phone });
+  if (!record) throw ApiError.badRequest("Request a new code");
+  if (record.expiresAt.getTime() < Date.now()) {
+    await Otp.deleteOne({ phone });
+    throw ApiError.badRequest("Code expired");
+  }
+
+  if (record.code !== code) {
+    // Count the miss and burn the code once the budget is gone, so a 6-digit
+    // secret can't be walked through exhaustively. `attempts` was already on
+    // the model but nothing ever incremented it.
+    const attempts = (record.attempts ?? 0) + 1;
+    if (attempts >= MAX_OTP_ATTEMPTS) {
+      await Otp.deleteOne({ phone });
+      throw ApiError.badRequest("Too many incorrect attempts. Request a new code.");
+    }
+    await Otp.updateOne({ _id: record._id }, { $set: { attempts } });
+    throw ApiError.badRequest("Incorrect code");
   }
 
   await Otp.deleteOne({ phone });
@@ -90,12 +116,45 @@ export async function verifyOtp(rawPhone: string, code: string) {
     await user.save();
   }
 
-  const token = signToken(user.id, user.role as Role);
+  const token = signToken(user.id, user.role as Role, user.tokenVersion ?? 0);
   return { token, user };
 }
 
+/**
+ * How many referral-bonus signups one device/IP may claim before further ones
+ * are treated as farming. Deliberately generous: a household or a society's
+ * shared WiFi legitimately produces a handful.
+ */
+const REFERRAL_SIGNUPS_PER_ORIGIN = 3;
+const REFERRAL_WINDOW_DAYS = 30;
+
+/**
+ * Has this device/IP already claimed its share of welcome bonuses?
+ *
+ * One person can always create several accounts — they only need more phone
+ * numbers, and nothing on the internet can truly prevent that. What this stops
+ * is doing it *profitably*: past the threshold the account is still created and
+ * fully usable, but the welcome coins are withheld and the signup is flagged
+ * for review. Blocking the signup itself would be wrong — Indian mobile
+ * carriers put thousands of real customers behind one NAT address.
+ */
+async function isLikelyReferralFarming(ip: string, deviceId: string): Promise<boolean> {
+  const since = new Date(Date.now() - REFERRAL_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const origins: Record<string, unknown>[] = [];
+  if (deviceId) origins.push({ signupDeviceId: deviceId });
+  if (ip) origins.push({ signupIp: ip });
+  if (!origins.length) return false;
+
+  const priorClaims = await User.countDocuments({
+    $or: origins,
+    referredBy: { $ne: null },
+    createdAt: { $gte: since },
+  });
+  return priorClaims >= REFERRAL_SIGNUPS_PER_ORIGIN;
+}
+
 /** Register a new customer account, then send the verification OTP. */
-export async function customerSignup(input: CustomerSignupInput) {
+export async function customerSignup(input: CustomerSignupInput, origin: SignupOrigin = {}) {
   const phone = normalize(input.phone);
   const existing = await User.findOne({ phone });
   if (existing) throw ApiError.badRequest("An account with this number already exists. Please log in.");
@@ -103,6 +162,16 @@ export async function customerSignup(input: CustomerSignupInput) {
   const referralCode = input.referralCode?.trim().toUpperCase();
   const referrer = referralCode ? await User.findOne({ referralCode }) : null;
   if (referralCode && !referrer) throw ApiError.badRequest("Invalid referral code");
+
+  const ip = (origin.ip ?? "").trim();
+  const deviceId = (input.deviceId ?? origin.deviceId ?? "").trim();
+
+  // You cannot refer yourself: the code must belong to someone else's account.
+  if (referrer && referrer.phone === phone) {
+    throw ApiError.badRequest("You can't use your own referral code");
+  }
+
+  const farming = referrer ? await isLikelyReferralFarming(ip, deviceId) : false;
 
   const ownReferralCode = await generateUniqueReferralCode(input.name);
 
@@ -113,12 +182,21 @@ export async function customerSignup(input: CustomerSignupInput) {
     role: "customer",
     referralCode: ownReferralCode,
     referredBy: referrer?.id ?? null,
+    signupIp: ip,
+    signupDeviceId: deviceId,
+    referralFlagged: farming,
   });
 
   // New user gets their welcome coins immediately. The referrer is credited
-  // later, once this user reaches their first qualifying milestone.
-  if (referrer) {
+  // later, once this user reaches their first qualifying milestone — and
+  // maybeCreditReferrer() skips flagged accounts, so a farmed signup pays out
+  // at neither end.
+  if (referrer && !farming) {
     await creditRefereeWelcome(user.id, referrer.id);
+  } else if (farming) {
+    console.warn(
+      `[referral] withheld welcome bonus for ${phone}: ${REFERRAL_SIGNUPS_PER_ORIGIN}+ referred signups already from device=${deviceId || "?"} ip=${ip || "?"}`,
+    );
   }
 
   return sendOtp(phone);
@@ -152,7 +230,7 @@ export async function agentSignup(input: AgentSignupInput) {
     });
   }
 
-  const token = signToken(user.id, "agent");
+  const token = signToken(user.id, "agent", user.tokenVersion ?? 0);
   return { token, user, sent: true };
 }
 
@@ -175,7 +253,7 @@ export async function agentSignupBasic(input: AgentSignupBasicInput) {
     agentStatus: "unverified",
   });
 
-  const token = signToken(user.id, "agent");
+  const token = signToken(user.id, "agent", user.tokenVersion ?? 0);
   return { token, user };
 }
 
@@ -227,7 +305,7 @@ export async function adminLogin(email: string, password: string) {
     throw ApiError.forbidden("This account has been suspended. Contact support for help.");
   }
 
-  const token = signToken(user.id, "admin");
+  const token = signToken(user.id, "admin", user.tokenVersion ?? 0);
   const isSuper = isSuperAdminEmail || user.phone === `admin:${env.adminEmail}` || !user.adminRoleId;
   const role = user.adminRoleId as any;
   const permissions = isSuper ? ["*"] : role ? role.permissions : [];

@@ -5,7 +5,7 @@ import { useAgentMe } from "../api/agent.api";
 
 /** Redirects to the agent login when there's no auth token, role is invalid, or token expired. */
 export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const token = useAgentSession((s) => s.token);
+  const authenticated = useAgentSession((s) => s.authenticated);
   const clear = useAgentSession((s) => s.clear);
   const location = useLocation();
   const { data: me, isError, error } = useAgentMe();
@@ -16,7 +16,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     }
   }, [me, isError, error, clear]);
 
-  if (!token || (me && me.role !== "agent" && me.role !== "cleaner") || (isError && (error as any)?.status === 401)) {
+  if (!authenticated || (me && me.role !== "agent" && me.role !== "cleaner") || (isError && (error as any)?.status === 401)) {
     return <Navigate to="/agent/login" replace state={{ from: location.pathname }} />;
   }
   return <>{children}</>;

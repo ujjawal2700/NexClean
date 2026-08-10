@@ -13,6 +13,11 @@ export async function updatePasswordWithOtp(req: Request, res: Response): Promis
 }
 
 
+export async function logoutEverywhere(req: Request, res: Response): Promise<Response> {
+  const result = await userService.logoutEverywhere(req.userId!);
+  return ok(res, result, "Signed out on all devices");
+}
+
 export async function deactivateAccount(req: Request, res: Response): Promise<Response> {
   const result = await userService.deactivateUser(req.userId!);
   return ok(res, result, "Account deactivated");

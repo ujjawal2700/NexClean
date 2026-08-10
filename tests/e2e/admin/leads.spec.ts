@@ -31,12 +31,14 @@ test.describe("Admin leads", () => {
     await page.locator('input[name="lead-search"]').fill(name);
     await expect(page.getByText(name)).toBeVisible();
 
-    // Delete fires immediately (no confirm dialog).
-    const leadRow = page.getByText(name).locator("xpath=../../..");
+    // Delete fires immediately (no confirm dialog). The search above has
+    // narrowed the list to this one lead, so the only delete control on screen
+    // is its own — target it by title rather than walking up the DOM, which
+    // broke when the lead card markup changed.
     const deleteResponse = page.waitForResponse(
       (res) => /\/admin\/leads\/[a-f0-9]+$/.test(res.url()) && res.request().method() === "DELETE",
     );
-    await leadRow.getByRole("button").click();
+    await page.getByTitle("Delete lead").first().click();
     await deleteResponse;
     await expect(page.getByText(name)).toHaveCount(0);
   });

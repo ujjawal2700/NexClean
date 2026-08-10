@@ -5,7 +5,7 @@ import { useMe } from "../api/queries";
 
 /** Redirects to the customer login when there's no auth token, role is invalid, or token expired. */
 export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
   const clear = useSessionStore((s) => s.clear);
   const location = useLocation();
   const { data: me, isError, error } = useMe();
@@ -16,7 +16,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     }
   }, [me, isError, error, clear]);
 
-  if (!token || (me && (me.role === "agent" || me.role === "cleaner")) || (isError && (error as any)?.status === 401)) {
+  if (!authenticated || (me && (me.role === "agent" || me.role === "cleaner")) || (isError && (error as any)?.status === 401)) {
     return <Navigate to="/app/login" replace state={{ from: location.pathname }} />;
   }
   return <>{children}</>;

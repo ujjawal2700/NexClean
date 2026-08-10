@@ -6,10 +6,18 @@ import { env, isProd } from "./config/env";
 import { isDbConnected } from "./config/db";
 import { apiRouter } from "./routes";
 import { notFound, errorHandler } from "./shared/middleware/error";
+import { csrfGuard } from "./shared/middleware/csrf";
 
 /** Build the configured Express application. */
 export function createApp(): Application {
   const app = express();
+
+  // Production runs behind a single nginx reverse proxy (see deploy.sh). Without
+  // this, req.ip is always nginx's own address — every request on the internet
+  // looks like one client, which silently defeats IP-based rate limiting and
+  // makes any per-IP signal useless. `1` means "trust exactly one proxy hop";
+  // `true` would trust a client-supplied X-Forwarded-For and be spoofable.
+  app.set("trust proxy", 1);
 
   app.use(helmet());
   app.use(
@@ -47,6 +55,9 @@ export function createApp(): Application {
     });
   });
 
+  // Cookie sessions are attached by the browser automatically, so writes need
+  // an origin check. Sits in front of every API route.
+  app.use("/api", csrfGuard);
   app.use("/api", apiRouter);
 
   app.use(notFound);

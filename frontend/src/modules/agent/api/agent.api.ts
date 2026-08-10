@@ -70,18 +70,18 @@ export function useAgentSignup() {
 /* ------------------------------- Queries --------------------------------- */
 
 export function useAgentMe() {
-  const token = useAgentSession((s) => s.token);
-  return useQuery({ queryKey: meKey, queryFn: () => apiFetch<AgentProfile>("/auth/me"), enabled: !!token });
+  const authenticated = useAgentSession((s) => s.authenticated);
+  return useQuery({ queryKey: meKey, queryFn: () => apiFetch<AgentProfile>("/auth/me"), enabled: authenticated });
 }
 
 export function useJobs() {
-  const token = useAgentSession((s) => s.token);
-  return useQuery({ queryKey: jobsKey, queryFn: () => apiFetch<Job[]>("/agent/jobs"), enabled: !!token });
+  const authenticated = useAgentSession((s) => s.authenticated);
+  return useQuery({ queryKey: jobsKey, queryFn: () => apiFetch<Job[]>("/agent/jobs"), enabled: authenticated });
 }
 
 export function useSummary() {
-  const token = useAgentSession((s) => s.token);
-  return useQuery({ queryKey: summaryKey, queryFn: () => apiFetch<AgentSummary>("/agent/summary"), enabled: !!token });
+  const authenticated = useAgentSession((s) => s.authenticated);
+  return useQuery({ queryKey: summaryKey, queryFn: () => apiFetch<AgentSummary>("/agent/summary"), enabled: authenticated });
 }
 
 /* ------------------------------ Mutations -------------------------------- */
@@ -102,8 +102,11 @@ export function useAdvanceJob() {
 }
 
 export function useJobPhoto() {
-  return useJobMutation((vars: { id: string; kind: "before" | "after" }) =>
-    apiFetch<Job>(`/agent/jobs/${vars.id}/photo`, { method: "POST", body: { kind: vars.kind } }),
+  return useJobMutation((vars: { id: string; kind: "before" | "after"; image?: string }) =>
+    apiFetch<Job>(`/agent/jobs/${vars.id}/photo`, {
+      method: "POST",
+      body: { kind: vars.kind, image: vars.image },
+    }),
   );
 }
 
@@ -178,11 +181,11 @@ export const availableJobsKey = ["agent", "available-jobs"] as const;
  * Polls every 30s so the list stays fresh without a manual refresh.
  */
 export function useAvailableJobs() {
-  const token = useAgentSession((s) => s.token);
+  const authenticated = useAgentSession((s) => s.authenticated);
   return useQuery({
     queryKey: availableJobsKey,
     queryFn: () => apiFetch<Job[]>("/agent/available-jobs"),
-    enabled: !!token,
+    enabled: authenticated,
     refetchInterval: 30_000,
     staleTime: 15_000,
   });

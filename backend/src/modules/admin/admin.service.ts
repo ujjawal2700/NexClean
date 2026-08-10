@@ -2,12 +2,13 @@ import { Types } from "mongoose";
 import { Booking, type BookingDocument } from "../booking/booking.model";
 import { User, type UserDoc } from "../user/user.model";
 import { Payment, type PaymentDocument } from "../payment/payment.model";
+import { createRazorpayRefund, paymentsLive } from "../payment/razorpay";
 import { Campaign } from "./campaign.model";
 import { TriggeredAlert } from "../area-alert/areaAlert.model";
 import { notifyUser, pushToUser } from "../notification/notification.service";
 import { maybeCreditReferrer } from "../promotions/referral.service";
 import { ApiError } from "../../shared/utils/ApiError";
-import { isAgentLive } from "../user/presence";
+import { isAgentLive, agentLiveSince } from "../user/presence";
 import * as dispatch from "../dispatch/dispatch.service";
 import * as planService from "../catalog/plan.service";
 import type { PlanDoc } from "../catalog/plan.model";
@@ -44,24 +45,50 @@ function mapBooking(b: BookingDoc) {
   };
 }
 
+/**
+ * Dashboard counters.
+ *
+ * This used to be `Booking.find()` — every booking in the database hydrated
+ * into full Mongoose documents and filtered in JavaScript, on every dashboard
+ * load. Under load testing that was 4 req/s with a p95 of 3.2 seconds at only
+ * ~5k bookings, and it degrades linearly: the first screen an admin opens
+ * would have become a timeout. Counting is now done by the database, which is
+ * both index-backed and constant memory.
+ */
 export async function stats() {
-  const bookings = await Booking.find();
-  const agents = await User.find({ role: "agent" });
-  const totalUsers = await User.countDocuments({ role: "customer" });
-  const revenue = bookings.filter((b) => b.status === "completed").reduce((s, b) => s + b.price, 0);
-  const active = bookings.filter((b) => b.status === "upcoming").length;
-  const activeServices = bookings.filter((b) => displayStatus(b) === "in_progress").length;
-  const alertsTriggered = await TriggeredAlert.countDocuments();
+  const liveSince = agentLiveSince();
+
+  const [revenueAgg, activeBookings, activeServices, totalUsers, agentsTotal, agentsOnline, alertsTriggered] =
+    await Promise.all([
+      Booking.aggregate<{ total: number }>([
+        { $match: { status: "completed" } },
+        { $group: { _id: null, total: { $sum: "$price" } } },
+      ]),
+      Booking.countDocuments({ status: "upcoming" }),
+      // Mirrors displayStatus(): in progress means not finished or cancelled,
+      // and the cleaner is somewhere between "on the way" and "washing".
+      Booking.countDocuments({
+        status: { $nin: ["cancelled", "completed"] },
+        jobStatus: { $in: ["enroute", "arrived", "in_progress"] },
+      }),
+      User.countDocuments({ role: "customer" }),
+      User.countDocuments({ role: "agent" }),
+      // Mirrors isAgentLive(): toggled online AND heartbeat within the window.
+      User.countDocuments({ role: "agent", online: true, lastSeenAt: { $gte: liveSince } }),
+      TriggeredAlert.countDocuments(),
+    ]);
+
   return {
-    revenue,
-    activeBookings: active,
+    revenue: revenueAgg[0]?.total ?? 0,
+    activeBookings,
     activeServices,
     totalUsers,
-    agentsOnline: agents.filter((a) => isAgentLive(a)).length,
-    agentsTotal: agents.length,
+    agentsOnline,
+    agentsTotal,
     alertsTriggered,
   };
 }
+
 
 export async function listBookings() {
   const bookings = await Booking.find().populate("user", "name").sort({ createdAt: -1 }).limit(200);
@@ -228,9 +255,12 @@ export async function listAgents() {
 
 export async function setAgentStatus(id: string, status: "verified" | "pending" | "suspended") {
   const userStatus = status === "suspended" ? "suspended" : "active";
+  // Suspending a cleaner ends their live sessions too — see setCustomerStatus.
   const agent = await User.findOneAndUpdate(
     { _id: id, role: "agent" },
-    { agentStatus: status, status: userStatus },
+    status === "suspended"
+      ? { agentStatus: status, status: userStatus, $inc: { tokenVersion: 1 } }
+      : { agentStatus: status, status: userStatus },
     { new: true },
   );
   if (!agent) throw ApiError.notFound("Agent not found");
@@ -470,7 +500,10 @@ export async function getCustomer(id: string) {
 
 
 export async function setCustomerStatus(id: string, status: "active" | "suspended") {
-  const customer = await User.findOneAndUpdate({ _id: id, role: "customer" }, { status }, { new: true });
+  // Suspending also bumps tokenVersion, so the customer's existing sessions die
+  // immediately rather than lingering until their 30-day token expires.
+  const update = status === "suspended" ? { status, $inc: { tokenVersion: 1 } } : { status };
+  const customer = await User.findOneAndUpdate({ _id: id, role: "customer" }, update, { new: true });
   if (!customer) throw ApiError.notFound("Customer not found");
   return mapCustomerSummary(customer);
 }
@@ -545,13 +578,51 @@ export async function paymentStats() {
   return { totalCollected, totalRefunded, pendingSettlement, settledAmount };
 }
 
+/**
+ * Turn a Razorpay SDK rejection into something an admin can act on.
+ *
+ * The SDK rejects with a plain object ({ statusCode, error: { description … } }),
+ * not an Error — so `String(err)` renders the useless "[object Object]", which
+ * is exactly what the admin saw the first time a refund was declined.
+ */
+function describeGatewayError(err: unknown): string {
+  if (typeof err === "object" && err !== null) {
+    const e = err as { error?: { description?: string; code?: string; reason?: string }; message?: string };
+    const d = e.error?.description;
+    const reason = e.error?.reason && e.error.reason !== "NA" ? ` (${e.error.reason})` : "";
+    if (d) return `${d}${reason}`;
+    if (e.message) return e.message;
+    try { return JSON.stringify(err); } catch { /* fall through */ }
+  }
+  return String(err);
+}
+
 export async function refundPayment(id: string, input: { amount?: number; reason?: string }) {
   const payment = await Payment.findById(id).populate("user", "name").populate("booking", "agentName society");
   if (!payment) throw ApiError.notFound("Payment not found");
   if (payment.status !== "paid") throw ApiError.badRequest("Only paid payments can be refunded");
 
+  // Never refund more than was actually collected.
+  const amount = input.amount ?? payment.amount;
+  if (amount <= 0 || amount > payment.amount) {
+    throw ApiError.badRequest(`Refund amount must be between ₹1 and ₹${payment.amount}`);
+  }
+
+  // Actually move the money. This used to only flip database fields, so the
+  // dashboard reported a refund and the customer was told (per the published
+  // refund policy) to expect it in 5–7 days while nothing was ever sent.
+  // Marking the record only after the gateway confirms keeps the two in sync;
+  // a failure surfaces to the admin instead of silently "succeeding".
+  if (paymentsLive && payment.paymentId) {
+    try {
+      await createRazorpayRefund(payment.paymentId, amount);
+    } catch (err) {
+      throw ApiError.badRequest(`Razorpay refused the refund: ${describeGatewayError(err)}`);
+    }
+  }
+
   payment.status = "refunded";
-  payment.refundAmount = input.amount ?? payment.amount;
+  payment.refundAmount = amount;
   payment.refundedAt = new Date();
   payment.refundReason = input.reason ?? "";
   await payment.save();

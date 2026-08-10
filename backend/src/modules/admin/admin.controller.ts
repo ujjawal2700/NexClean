@@ -17,6 +17,7 @@ import { AdminRole } from "./adminRole.model";
 import { User } from "../user/user.model";
 import { env } from "../../config/env";
 import { hashPassword } from "../../shared/utils/crypto";
+import { TIME_SLOTS, SLOT_LIST } from "../../shared/slots";
 
 /** A positive price per vehicle category key — keys are admin-managed, not a fixed set. */
 const pricesSchema = z.record(z.string(), z.number().positive());
@@ -59,11 +60,11 @@ export async function autoAssignBooking(req: Request, res: Response): Promise<Re
 
 const rescheduleSchema = z.object({
   date: z.string().min(1),
-  slot: z.string().min(1),
+  slot: z.enum(TIME_SLOTS),
 });
 export async function rescheduleBooking(req: Request, res: Response): Promise<Response> {
   const parsed = rescheduleSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest("Date and slot are required");
+  if (!parsed.success) throw ApiError.badRequest(`Date and a valid slot are required (one of: ${SLOT_LIST})`);
   return ok(res, await service.rescheduleBooking(String(req.params.id), parsed.data), "Booking rescheduled successfully");
 }
 
@@ -646,10 +647,46 @@ export async function listReferralLogs(_req: Request, res: Response): Promise<Re
 
 import { uploadImage } from "../../shared/utils/cloudinary";
 
+/** Image types we're willing to accept and hand to Cloudinary. */
+const ALLOWED_IMAGE_TYPES = ["png", "jpeg", "jpg", "webp", "gif", "avif"];
+/** Decoded ceiling, well under the 12 MB body cap that exists for KYC photos. */
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
 export async function uploadMedia(req: Request, res: Response): Promise<Response> {
   const { image } = req.body;
-  if (!image) throw ApiError.badRequest("Image base64 data is required");
-  const imageUrl = await uploadImage(String(image));
+  if (!image || typeof image !== "string") throw ApiError.badRequest("Image base64 data is required");
+
+  // This route is reachable by every admin role (it backs both the vehicle
+  // catalog and promotions screens, so it can't be scoped to one permission).
+  // Validate what's actually being uploaded instead: a base64 image data URL of
+  // a sane type and size, rather than any string the caller cares to send.
+  const match = /^data:image\/([a-z0-9.+-]+);base64,(.+)$/i.exec(image.trim());
+  if (!match) {
+    throw ApiError.badRequest("Image must be a base64 data URL, e.g. data:image/png;base64,…");
+  }
+
+  const [, subtype, payload] = match;
+  if (!ALLOWED_IMAGE_TYPES.includes(subtype.toLowerCase())) {
+    throw ApiError.badRequest(`Unsupported image type "${subtype}". Allowed: ${ALLOWED_IMAGE_TYPES.join(", ")}`);
+  }
+
+  // base64 encodes 3 bytes as 4 chars; padding shaves off up to 2 bytes.
+  const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
+  const bytes = Math.floor((payload.length * 3) / 4) - padding;
+  if (bytes > MAX_UPLOAD_BYTES) {
+    throw ApiError.badRequest(`Image is too large (${Math.round(bytes / 1024 / 1024)} MB). Maximum is 5 MB.`);
+  }
+
+  // A rejection from Cloudinary (corrupt file, quota, bad credentials) is not a
+  // server fault — surface it as a 400 the admin can act on rather than an
+  // opaque 500.
+  let imageUrl: string;
+  try {
+    imageUrl = await uploadImage(image.trim());
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw ApiError.badRequest(`Image upload failed: ${message}`);
+  }
   return ok(res, { imageUrl }, "Image uploaded successfully");
 }
 

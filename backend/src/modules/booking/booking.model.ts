@@ -41,6 +41,12 @@ const bookingSchema = new Schema(
     },
     hasBefore: { type: Boolean, default: false },
     hasAfter: { type: Boolean, default: false },
+    // The actual proof-of-service images. hasBefore/hasAfter used to be set by
+    // an empty POST with no image at all, so the "photos required before
+    // completing" gate was satisfiable without taking a single photo and
+    // nothing was retained to settle a damage or no-show dispute.
+    beforePhotoUrl: { type: String, default: "" },
+    afterPhotoUrl: { type: String, default: "" },
 
     // Real-time dispatch pipeline
     dispatchStatus: {
@@ -81,6 +87,9 @@ const bookingSchema = new Schema(
 
 // Geospatial index so we can rank agents by distance from the service point.
 bookingSchema.index({ location: "2dsphere" });
+// Backs the dashboard counters and the admin booking lists, which filter on
+// exactly these two fields.
+bookingSchema.index({ status: 1, jobStatus: 1 });
 
 export type BookingDocument = HydratedDocument<InferSchemaType<typeof bookingSchema>>;
 export const Booking = model("Booking", bookingSchema);

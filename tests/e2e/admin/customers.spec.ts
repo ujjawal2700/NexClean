@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { loginAdminUI } from "../../fixtures/ui-helpers";
-import { authHeader, DEMO_OTP } from "../../fixtures/api-client";
+import { authHeader, DEMO_OTP, uniqueName } from "../../fixtures/api-client";
 import { seedNamedCustomer, loginAsNewCustomerApi, withRetry, apiUrl } from "../../fixtures/admin-e2e-ops-helpers";
 
 test.describe("Admin Customers", () => {
@@ -9,7 +9,7 @@ test.describe("Admin Customers", () => {
   });
 
   test("lists customers, and search filters them down", async ({ page, request }) => {
-    const name = `Search E2E Customer ${Date.now()}`;
+    const name = uniqueName("Search Test Customer");
     await seedNamedCustomer(request, name);
 
     await page.goto("/admin/customers");
@@ -29,7 +29,7 @@ test.describe("Admin Customers", () => {
     // aggregate row counts before/after a filter click is inherently flaky.
     // Instead: seed one known active customer, scope the table to it via
     // search, and confirm the status pills correctly show/hide that one row.
-    const name = `Filter Pills E2E Customer ${Date.now()}`;
+    const name = uniqueName("Filter Pills Customer");
     await seedNamedCustomer(request, name);
 
     await page.goto("/admin/customers");
@@ -52,7 +52,7 @@ test.describe("Admin Customers", () => {
   });
 
   test("row click navigates to the customer detail page", async ({ page, request }) => {
-    const name = `RowClick E2E Customer ${Date.now()}`;
+    const name = uniqueName("RowClick Customer");
     await seedNamedCustomer(request, name);
 
     await page.goto("/admin/customers");
@@ -67,7 +67,7 @@ test.describe("Admin Customers", () => {
     page,
     request,
   }) => {
-    const name = `Suspend E2E Customer ${Date.now()}`;
+    const name = uniqueName("Suspend Customer");
     const { phone } = await seedNamedCustomer(request, name);
 
     await page.goto("/admin/customers");
@@ -114,7 +114,7 @@ test.describe("Admin Customers", () => {
           vehicleName: "Test Car",
           packageId,
           date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          slot: "10:00 AM",
+          slot: "11:00 AM",
           addressLabel: "Home",
           addressLine: "123 Test Street",
         },

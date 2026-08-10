@@ -28,7 +28,7 @@ export function HelpSupport() {
   const createTicketMutation = useCreateTicket();
   const closeTicketMutation = useCloseTicket();
   const sendMessageMutation = useSendMessage();
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
 
   // UI state
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
@@ -63,7 +63,7 @@ export function HelpSupport() {
 
   // Handle socket connection when chat is opened
   useEffect(() => {
-    if (!isChatOpen || !token) {
+    if (!isChatOpen || !authenticated) {
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
@@ -72,7 +72,7 @@ export function HelpSupport() {
     }
 
     const socket = io(SOCKET_URL, {
-      auth: { token },
+      withCredentials: true,
       transports: ["websocket"],
     });
 
@@ -108,7 +108,7 @@ export function HelpSupport() {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [isChatOpen, activeTicket?.id, token]);
+  }, [isChatOpen, activeTicket?.id, authenticated]);
 
   // Join socket room if activeTicket changes and socket is open
   useEffect(() => {

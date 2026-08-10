@@ -3,17 +3,12 @@ import { Booking, type BookingDocument } from "../booking/booking.model";
 import { notifyUser, pushToUser } from "../notification/notification.service";
 import { emitToUser, emitToAdmins } from "../../shared/services/socket";
 import { offerNext, emitDispatchUpdate } from "./dispatch.service";
+// Re-exported for backwards compatibility. The list itself lives in
+// shared/slots.ts — a second copy here could drift from the one the booking
+// validator enforces, and this module is what decides when a job is overdue.
+import { TIME_SLOTS as SLOTS } from "../../shared/slots";
 
-export const TIME_SLOTS = [
-  "08:00 AM",
-  "09:30 AM",
-  "11:00 AM",
-  "12:30 PM",
-  "02:00 PM",
-  "03:30 PM",
-  "05:00 PM",
-  "06:30 PM",
-];
+export const TIME_SLOTS: readonly string[] = SLOTS;
 
 // Configurable defaults (can also be updated via Admin API)
 let rescheduleBufferMinutes = 30;

@@ -18,7 +18,7 @@ export function Login() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const setToken = useAgentSession((s) => s.setToken);
-  const token = useAgentSession((s) => s.token);
+  const authenticated = useAgentSession((s) => s.authenticated);
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -29,7 +29,7 @@ export function Login() {
   const sendOtp = useSendOtp();
   const verifyOtp = useVerifyOtp();
 
-  if (token) return <Navigate to="/agent" replace />;
+  if (authenticated) return <Navigate to="/agent" replace />;
 
   const send = async () => {
     if (!/^\d{10}$/.test(phone)) return setError("Enter a valid 10-digit number");

@@ -30,6 +30,10 @@ export async function updateSettings(req: Request, res: Response): Promise<Respo
 export async function trigger(req: Request, res: Response): Promise<Response> {
   const parsed = triggerSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("society is required");
+  // Agents are scoped to societies they actually work; admins are not.
+  if (req.userRole === "agent") {
+    await service.assertAgentMayAlert(req.userId!, parsed.data.society);
+  }
   const record = await service.trigger(parsed.data.society, parsed.data.agentName);
   return created(res, record, `Alert sent to ${record.sentCount} nearby customer(s)`);
 }

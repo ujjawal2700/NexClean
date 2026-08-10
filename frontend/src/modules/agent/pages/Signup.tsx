@@ -62,7 +62,7 @@ type Step = "details" | "otp" | "kyc";
 export function Signup() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const token = useAgentSession((s) => s.token);
+  const authenticated = useAgentSession((s) => s.authenticated);
   const setToken = useAgentSession((s) => s.setToken);
   const signup = useAgentSignup();
   const signupBasic = useAgentSignupBasic();
@@ -92,17 +92,23 @@ export function Signup() {
     return () => clearInterval(timer);
   }, [step, resendTimer]);
 
+  // A signed-in agent who hasn't submitted KYC yet belongs on the KYC step.
+  // "unverified" is the state agentSignupBasic() creates, and the backend's
+  // KYC endpoint accepts *only* that state — so this is the one status that
+  // must land here, not just "pending" (a resubmission after review).
+  const needsKyc = me?.agentStatus === "unverified" || me?.agentStatus === "pending";
+
   useEffect(() => {
-    if (token && me && me.agentStatus === "pending") {
+    if (authenticated && me && needsKyc) {
       setStep("kyc");
       setName(me.name || "");
       setPhone(me.phone || "");
       setArea(me.area || "");
       phoneRef.current = me.phone || "";
     }
-  }, [token, me]);
+  }, [authenticated, me, needsKyc]);
 
-  if (token && isLoadingMe) {
+  if (authenticated && isLoadingMe) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="size-8 animate-spin text-primary" />
@@ -110,7 +116,7 @@ export function Signup() {
     );
   }
 
-  if (token && me && me.agentStatus !== "pending") {
+  if (authenticated && me && !needsKyc) {
     return <Navigate to="/agent" replace />;
   }
 

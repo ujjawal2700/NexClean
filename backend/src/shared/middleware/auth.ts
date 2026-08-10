@@ -3,36 +3,68 @@ import { verifyToken, type Role } from "../utils/jwt";
 import { ApiError } from "../utils/ApiError";
 import { User } from "../../modules/user/user.model";
 import { env } from "../../config/env";
+import { readSessionToken } from "../utils/sessionCookie";
 
-/** Requires a valid Bearer JWT; sets req.userId and req.userRole. */
-export function requireAuth(req: Request, _res: Response, next: NextFunction): void {
-  const header = req.headers.authorization;
-  if (!header?.startsWith("Bearer ")) {
+/**
+ * Decode the session JWT onto the request. Throws 401 if missing/invalid.
+ *
+ * The token comes from an httpOnly cookie for browser sessions, falling back to
+ * the Authorization header so API clients and the test suite are unaffected.
+ */
+function readToken(req: Request): void {
+  const raw = readSessionToken(req);
+  if (!raw) {
     throw ApiError.unauthorized("Missing authentication token");
   }
   let payload: ReturnType<typeof verifyToken>;
   try {
-    payload = verifyToken(header.slice(7));
+    payload = verifyToken(raw);
   } catch {
     throw ApiError.unauthorized("Invalid or expired token");
   }
-  // `next()` runs outside the try/catch above: requireRole() calls this with a
-  // synchronous callback that itself throws (403 for a wrong role), and that
-  // must not be caught here and remapped to a misleading 401.
   req.userId = payload.sub;
   req.userRole = payload.role;
+  req.tokenVersion = payload.ver ?? 0;
+}
+
+/**
+ * Reject tokens belonging to a suspended account.
+ *
+ * Tokens live 30 days and there is no revocation list, so suspension used to
+ * be enforced only at OTP login — a cleaner removed for misconduct kept full
+ * access for up to a month on the token already in their browser. One indexed
+ * lookup per authenticated request buys real revocation.
+ */
+async function assertAccountActive(req: Request): Promise<void> {
+  const user = await User.findById(req.userId).select("status tokenVersion").lean();
+  if (!user) throw ApiError.unauthorized("Account no longer exists");
+  if (user.status === "suspended") {
+    throw ApiError.forbidden("ACCOUNT_DEACTIVATED: Your account is deactivated. Please contact customer support for assistance.");
+  }
+  // Real revocation: a JWT is self-contained, so the only way to stop honouring
+  // one is to refuse tokens issued before the account's current version.
+  // Bumped on logout-everywhere, password change, deactivation and suspension.
+  if ((req.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)) {
+    throw ApiError.unauthorized("Session expired. Please sign in again.");
+  }
+}
+
+/** Requires a valid Bearer JWT for an active account; sets req.userId/req.userRole. */
+export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
+  readToken(req);
+  await assertAccountActive(req);
   next();
 }
 
 /** Requires the authenticated user to have one of the given roles. */
 export function requireRole(...roles: Role[]) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    requireAuth(req, _res, () => {
-      if (!req.userRole || !roles.includes(req.userRole)) {
-        throw ApiError.forbidden("You don't have access to this resource");
-      }
-      next();
-    });
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    readToken(req);
+    if (!req.userRole || !roles.includes(req.userRole)) {
+      throw ApiError.forbidden("You don't have access to this resource");
+    }
+    await assertAccountActive(req);
+    next();
   };
 }
 
@@ -46,9 +78,14 @@ export function requirePermission(permission: string) {
       throw ApiError.forbidden("Admin access required");
     }
 
-    // 1. Super Admin access
-    if (user.phone === `admin:${env.adminEmail}` || !user.adminRoleId) {
+    // 1. Super Admin access. Only the seeded super-admin account gets a blanket
+    //    pass — an ordinary admin with no role assigned used to land here too
+    //    and silently inherit every permission, which fails open.
+    if (user.phone === `admin:${env.adminEmail}`) {
       return next();
+    }
+    if (!user.adminRoleId) {
+      throw ApiError.forbidden("No role assigned to your admin account. Ask a super admin to assign one.");
     }
 
     // 2. Custom Role access

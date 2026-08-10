@@ -3,19 +3,12 @@ import { authHeader } from "../fixtures/api-client";
 import { apiUrl, loginAsAdminApi, loginAsAgentApi, loginAsNewCustomerApi } from "../fixtures/admin-api-helpers";
 
 /**
- * KNOWN APP BUG (backend/src/shared/middleware/auth.ts:8-33): requireRole()
- * calls requireAuth(req, res, callback), and that callback (which does the
- * actual role check and throws ApiError.forbidden(403) on mismatch) runs
- * *inside* requireAuth's own try block — so its 403 throw is caught by
- * requireAuth's `catch { throw ApiError.unauthorized(...) }` and reported as
- * 401 "Invalid or expired token" instead of 403. Reproduced directly via
- * curl: a syntactically-valid customer JWT that works fine against
- * GET /auth/me (200) and GET /bookings (200) gets a 401 "Invalid or expired
- * token" body from GET /area-alerts/settings and GET /admin/stats (routes
- * gated by requireRole) purely because the role doesn't match — never a 403.
- * The tests below assert the CORRECT (403) behavior per the API contract
- * documented in this task, so they currently fail and document the bug
- * rather than silently passing on the wrong status code.
+ * Role-gating note (previously a documented app bug, now fixed):
+ * requireRole() used to run its 403 role check inside requireAuth()'s own
+ * try/catch, so a valid token with the wrong role surfaced as
+ * 401 "Invalid or expired token" instead of 403. The middleware now reads the
+ * token and checks the role as separate steps, so these assert the correct
+ * contract: missing/!invalid token → 401, valid token + wrong role → 403.
  */
 test.describe("Area alerts", () => {
   test.describe("settings", () => {
@@ -24,7 +17,7 @@ test.describe("Area alerts", () => {
       expect(res.status()).toBe(401);
     });
 
-    test("GET /area-alerts/settings rejects a non-admin (customer) caller [BUG: returns 401, see file header]", async ({ request }) => {
+    test("GET /area-alerts/settings rejects a non-admin (customer) caller", async ({ request }) => {
       const { token } = await loginAsNewCustomerApi(request);
       const res = await request.get(apiUrl("/area-alerts/settings"), { headers: authHeader(token) });
       expect(res.status()).toBe(403);
@@ -79,7 +72,7 @@ test.describe("Area alerts", () => {
       expect(res.status()).toBe(401);
     });
 
-    test("rejects a plain customer (agent or admin only) [BUG: returns 401, see file header]", async ({ request }) => {
+    test("rejects a plain customer (agent or admin only)", async ({ request }) => {
       const { token } = await loginAsNewCustomerApi(request);
       const res = await request.post(apiUrl("/area-alerts/trigger"), {
         headers: authHeader(token),
@@ -99,13 +92,15 @@ test.describe("Area alerts", () => {
       expect(body.message).toBe("society is required");
     });
 
-    test("an agent can trigger an alert for a society", async ({ request }) => {
+    test("an agent can trigger an alert for their own area", async ({ request }) => {
       const { token: adminToken } = await loginAsAdminApi(request);
       // Make sure alerts are enabled first (another test in this file may have left them disabled).
       await request.put(apiUrl("/area-alerts/settings"), { headers: authHeader(adminToken), data: { enabled: true } });
 
       const { token: agentToken } = await loginAsAgentApi(request);
-      const society = `Test Society ${Date.now()}`;
+      // Cleaners are scoped to societies they actually work — the seeded agent's
+      // assigned area. An arbitrary society is rejected (see the next test).
+      const society = "Green Valley Society";
       const res = await request.post(apiUrl("/area-alerts/trigger"), {
         headers: authHeader(agentToken),
         data: { society, agentName: "Test Agent" },
@@ -115,6 +110,18 @@ test.describe("Area alerts", () => {
       expect(body.data.society).toBe(society);
       expect(typeof body.data.sentCount).toBe("number");
       expect(body.message).toContain("nearby customer");
+    });
+
+    test("an agent cannot trigger an alert for a society they don't work", async ({ request }) => {
+      const { token: adminToken } = await loginAsAdminApi(request);
+      await request.put(apiUrl("/area-alerts/settings"), { headers: authHeader(adminToken), data: { enabled: true } });
+
+      const { token: agentToken } = await loginAsAgentApi(request);
+      const res = await request.post(apiUrl("/area-alerts/trigger"), {
+        headers: authHeader(agentToken),
+        data: { society: `Unrelated Society ${Date.now()}`, agentName: "Test Agent" },
+      });
+      expect(res.status()).toBe(403);
     });
 
     test("an admin can also trigger an alert", async ({ request }) => {
@@ -134,7 +141,7 @@ test.describe("Area alerts", () => {
       expect(res.status()).toBe(401);
     });
 
-    test("rejects a plain customer [BUG: returns 401, see file header]", async ({ request }) => {
+    test("rejects a plain customer", async ({ request }) => {
       const { token } = await loginAsNewCustomerApi(request);
       const res = await request.get(apiUrl("/area-alerts/triggered"), { headers: authHeader(token) });
       expect(res.status()).toBe(403);

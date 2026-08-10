@@ -20,7 +20,7 @@ const DEMO_OTP = "123456";
 export function Login() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const token = useSessionStore((s) => s.token);
+  const authenticated = useSessionStore((s) => s.authenticated);
   const setToken = useSessionStore((s) => s.setToken);
   const sendOtp = useSendOtp();
   const verifyOtp = useVerifyOtp();
@@ -32,7 +32,7 @@ export function Login() {
   const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
   const phoneRef = useRef("");
 
-  if (token) return <Navigate to="/app" replace />;
+  if (authenticated) return <Navigate to="/app" replace />;
 
   const send = async () => {
     if (!/^\d{10}$/.test(phone)) {

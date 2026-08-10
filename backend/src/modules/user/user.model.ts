@@ -43,6 +43,10 @@ const userSchema = new Schema(
     email: { type: String, default: "", trim: true, lowercase: true },
     role: { type: String, enum: ["customer", "agent", "admin"], default: "customer" },
     status: { type: String, enum: ["active", "suspended"], default: "active" },
+    // Bumped to invalidate every JWT already issued for this account (log out
+    // all devices). Embedded in the token as `ver` and compared on each
+    // request — see shared/utils/jwt.ts.
+    tokenVersion: { type: Number, default: 0 },
     password: { type: String, default: null },
     adminRoleId: { type: Schema.Types.ObjectId, ref: "AdminRole", default: null },
     subscriptionStartDate: { type: Date, default: null },
@@ -53,10 +57,18 @@ const userSchema = new Schema(
     deviceTokens: { type: [String], default: [] },
 
     // Referrals + wallet (customers only)
-    referralCode: { type: String, default: null, unique: true, sparse: true, index: true },
+    referralCode: { type: String, default: null },
     referredBy: { type: Types.ObjectId, ref: "User", default: null },
     // One-time guard: set true once the referrer has been rewarded for this user's first milestone.
     referralRewarded: { type: Boolean, default: false },
+    // Signup fingerprint, used only to spot one person farming referral bonuses
+    // across many phone numbers. Deliberately NOT used to block signups —
+    // Indian mobile carriers NAT thousands of users behind one address, so
+    // refusing an account on a shared IP would lock out real customers.
+    signupIp: { type: String, default: "", index: true },
+    signupDeviceId: { type: String, default: "", index: true },
+    // Set when the welcome bonus was withheld as suspected farming.
+    referralFlagged: { type: Boolean, default: false },
     // Coin wallet balance. Coins are earned via referrals and redeemable at checkout.
     coins: { type: Number, default: 0, min: 0 },
 
@@ -106,6 +118,17 @@ const userSchema = new Schema(
 // indexes ignore documents missing the field, so customers/agents without a
 // live location simply aren't matched.
 userSchema.index({ liveLocation: "2dsphere" });
+
+// Referral codes are unique only among users that actually have one. A plain
+// `sparse` unique index is NOT enough here: sparse skips documents where the
+// field is *missing*, but `default: null` writes an explicit null on every
+// insert, so the second code-less user (any agent, any OTP-only signup)
+// collided on `{ referralCode: null }` and the request 500'd. A partial index
+// keyed on the string type ignores those nulls entirely.
+userSchema.index(
+  { referralCode: 1 },
+  { unique: true, partialFilterExpression: { referralCode: { $type: "string" } }, name: "referralCode_unique" },
+);
 
 export type UserDoc = HydratedDocument<InferSchemaType<typeof userSchema>>;
 export const User = model("User", userSchema);
