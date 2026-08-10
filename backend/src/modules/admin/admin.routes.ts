@@ -97,6 +97,7 @@ adminRouter.delete("/promo-banners/:id", requirePermission("promotions"), asyncH
 
 adminRouter.get("/campaigns", requirePermission("promotions"), asyncHandler(c.campaigns));
 adminRouter.get("/campaigns/audience-sizes", requirePermission("promotions"), asyncHandler(c.campaignAudienceSizes));
+adminRouter.get("/campaigns/audiences", requirePermission("promotions"), asyncHandler(c.campaignAudiences));
 adminRouter.post("/campaigns", requirePermission("promotions"), asyncHandler(c.sendCampaign));
 
 adminRouter.get("/content", requirePermission("content"), asyncHandler(c.content));

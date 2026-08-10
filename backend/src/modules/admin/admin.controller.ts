@@ -535,6 +535,11 @@ export async function campaignAudienceSizes(_req: Request, res: Response): Promi
   return ok(res, await service.audienceSizes());
 }
 
+/** The audience picker's options, grouped by app, so the UI isn't a hardcoded copy. */
+export async function campaignAudiences(_req: Request, res: Response): Promise<Response> {
+  return ok(res, service.AUDIENCE_GROUPS);
+}
+
 const campaignSchema = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
@@ -544,7 +549,7 @@ export async function sendCampaign(req: Request, res: Response): Promise<Respons
   const parsed = campaignSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Title, body and audience are required");
   const campaign = await service.sendCampaign(parsed.data);
-  return created(res, campaign, `Sent to ${campaign.sentCount} customer(s)`);
+  return created(res, campaign, `Sent to ${campaign.sentCount} recipient(s)`);
 }
 
 export async function customers(_req: Request, res: Response): Promise<Response> {

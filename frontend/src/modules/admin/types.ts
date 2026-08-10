@@ -140,6 +140,9 @@ export type Campaign = {
 
 export type AudienceSizes = Record<string, number>;
 
+/** Campaign audiences grouped by the app they reach ("Customers", "Agents"). */
+export type AudienceGroup = { label: string; audiences: string[] };
+
 export type PlanPrices = Record<CarType, number>;
 
 export type AdminPlan = {

@@ -340,11 +340,37 @@ export async function deletePlan(id: string) {
   await planService.deletePlan(id);
 }
 
-export const AUDIENCES = ["All customers", "Active customers", "Lapsed customers", "Subscribers"] as const;
-export type Audience = (typeof AUDIENCES)[number];
+/**
+ * Campaign audiences, grouped by the app they reach.
+ *
+ * The labels are the wire format — they are stored on the Campaign document and
+ * sent back by the client verbatim — so renaming one changes the history of
+ * past campaigns. Add rather than rename.
+ */
+export const AUDIENCE_GROUPS = [
+  { label: "Customers", audiences: ["All customers", "Active customers", "Lapsed customers", "Subscribers"] },
+  { label: "Agents", audiences: ["All agents", "Verified agents", "Online agents"] },
+] as const;
+
+export const AUDIENCES = AUDIENCE_GROUPS.flatMap((g) => g.audiences) as unknown as readonly string[];
+export type Audience = (typeof AUDIENCE_GROUPS)[number]["audiences"][number];
 
 /** Resolve a marketing audience label to a concrete User filter. */
 async function audienceFilter(audience: string): Promise<Record<string, unknown>> {
+  // ── Agents ──
+  if (audience === "All agents") {
+    return { role: "agent" };
+  }
+  if (audience === "Verified agents") {
+    return { role: "agent", agentStatus: "verified" };
+  }
+  if (audience === "Online agents") {
+    // `online` is the cleaner's own availability toggle, so this is "who is
+    // working right now" — the audience for an urgent operational notice.
+    return { role: "agent", agentStatus: "verified", online: true };
+  }
+
+  // ── Customers ──
   if (audience === "Subscribers") {
     return { role: "customer", activePlan: { $ne: null } };
   }
@@ -407,17 +433,24 @@ export async function listCampaigns() {
 }
 
 export async function sendCampaign(input: { title: string; body: string; audience: string }) {
-  const customers = await User.find(await audienceFilter(input.audience)).select("_id deviceTokens");
+  // An unrecognised label used to fall through to "every customer". Harmless
+  // while the only audiences were customer ones; now that agent labels exist, a
+  // typo would quietly blast the entire customer base instead.
+  if (!AUDIENCES.includes(input.audience)) {
+    throw ApiError.badRequest(`Unknown audience "${input.audience}"`);
+  }
+
+  const recipients = await User.find(await audienceFilter(input.audience)).select("_id deviceTokens");
   let pushDelivered = 0;
-  for (const c of customers) {
-    await notifyUser(c.id, { type: "system", title: input.title, body: input.body });
-    if (c.deviceTokens?.length) pushDelivered += 1;
+  for (const r of recipients) {
+    await notifyUser(r.id, { type: "system", title: input.title, body: input.body });
+    if (r.deviceTokens?.length) pushDelivered += 1;
   }
   return Campaign.create({
     ...input,
-    sentCount: customers.length,
+    sentCount: recipients.length,
     pushDelivered,
-    inAppOnly: customers.length - pushDelivered,
+    inAppOnly: recipients.length - pushDelivered,
   });
 }
 

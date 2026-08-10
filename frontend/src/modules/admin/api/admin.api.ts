@@ -33,6 +33,7 @@ import type {
   PromoBanner,
   AdminReports,
   AudienceSizes,
+  AudienceGroup,
   Lead,
   AdminReferralLog,
   AdminRole,
@@ -69,6 +70,7 @@ const keys = {
   promoBanners: ["admin", "promo-banners"] as const,
   reports: ["admin", "reports"] as const,
   audienceSizes: ["admin", "campaigns", "audience-sizes"] as const,
+  audienceGroups: ["admin", "campaigns", "audiences"] as const,
   content: ["admin", "content"] as const,
   leads: ["admin", "leads"] as const,
   referralLogs: ["admin", "referral-logs"] as const,
@@ -199,6 +201,9 @@ export const useReports = () => useAuthedQuery<AdminReports>(keys.reports, "/adm
 export const useContent = () => useAuthedQuery<SiteContent>(keys.content, "/admin/content");
 export const useAudienceSizes = () =>
   useAuthedQuery<AudienceSizes>(keys.audienceSizes, "/admin/campaigns/audience-sizes");
+/** Audience options come from the server so the picker can't drift from what it accepts. */
+export const useAudienceGroups = () =>
+  useAuthedQuery<AudienceGroup[]>(keys.audienceGroups, "/admin/campaigns/audiences");
 
 /* ------------------------------ Mutations -------------------------------- */
 
