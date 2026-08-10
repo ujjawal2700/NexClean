@@ -508,12 +508,16 @@ async function assertPhoneFree(phone: string, exceptUserId?: string) {
   if (existing) throw ApiError.badRequest("Another account already uses this mobile number");
 }
 
-export async function createAgent(input: {
+export type AgentStatus = "verified" | "pending" | "suspended" | "unverified";
+export type AgentInput = {
   name: string; phone: string; email?: string; area?: string;
-  agentStatus?: "verified" | "pending" | "suspended" | "unverified";
-}) {
+  agentStatus?: AgentStatus; aadharNumber?: string;
+};
+
+export async function createAgent(input: AgentInput) {
   const phone = normalizePhone(input.phone);
   await assertPhoneFree(phone);
+  const agentStatus = input.agentStatus ?? "verified";
   const agent = await User.create({
     name: input.name.trim(),
     phone,
@@ -523,15 +527,17 @@ export async function createAgent(input: {
     // Admin-created cleaners are trusted by default — an admin adding someone
     // by hand has already vetted them, and "pending" would strand them behind
     // a KYC screen they never went through.
-    agentStatus: input.agentStatus ?? "verified",
+    agentStatus,
+    // agentStatus and status are two different switches; a cleaner created as
+    // suspended must not be left with an active account that can still log in.
+    status: agentStatus === "suspended" ? "suspended" : "active",
+    aadharNumber: input.aadharNumber?.trim() ?? "",
     online: false,
   });
   return mapAgent(agent);
 }
 
-export async function updateAgent(id: string, input: {
-  name?: string; phone?: string; email?: string; area?: string;
-}) {
+export async function updateAgent(id: string, input: Partial<AgentInput>) {
   const agent = await User.findOne({ _id: id, role: "agent" });
   if (!agent) throw ApiError.notFound("Agent not found");
 
@@ -547,6 +553,17 @@ export async function updateAgent(id: string, input: {
   if (input.name !== undefined) agent.name = input.name.trim();
   if (input.email !== undefined) agent.email = input.email.trim();
   if (input.area !== undefined) agent.area = input.area.trim();
+  if (input.aadharNumber !== undefined) agent.aadharNumber = input.aadharNumber.trim();
+
+  // Mirrors setAgentStatus(): the account switch follows the verification
+  // switch, and a suspension ends live sessions instead of waiting out the
+  // 30-day token. Editing someone into "suspended" has to do the same thing
+  // the Suspend button does, or the form becomes a way around it.
+  if (input.agentStatus !== undefined && input.agentStatus !== agent.agentStatus) {
+    agent.agentStatus = input.agentStatus;
+    agent.status = input.agentStatus === "suspended" ? "suspended" : "active";
+    if (input.agentStatus === "suspended") agent.tokenVersion = (agent.tokenVersion ?? 0) + 1;
+  }
 
   await agent.save();
   return mapAgent(agent);
@@ -560,20 +577,48 @@ export async function deleteAgent(id: string) {
   return { deleted: true, id };
 }
 
-export async function createCustomer(input: { name: string; phone: string; email?: string }) {
+export type CustomerInput = {
+  name: string; phone: string; email?: string;
+  status?: "active" | "suspended";
+  address?: { label?: string; line?: string; society?: string };
+  vehicle?: { type?: string; name?: string; plate?: string };
+};
+
+/**
+ * An address is only worth storing if it has a street line, and a vehicle only
+ * if it has a name — the rest are labels on top of that. Returns null when the
+ * admin left the optional block blank, which is the common case.
+ */
+function buildAddress(input?: CustomerInput["address"]) {
+  const line = input?.line?.trim();
+  if (!line) return null;
+  return { label: input?.label?.trim() || "Home", line, society: input?.society?.trim() ?? "" };
+}
+function buildVehicle(input?: CustomerInput["vehicle"]) {
+  const name = input?.name?.trim();
+  if (!name) return null;
+  return { type: input?.type?.trim() || "hatchback", name, plate: input?.plate?.trim() || "—" };
+}
+
+export async function createCustomer(input: CustomerInput) {
   const phone = normalizePhone(input.phone);
   await assertPhoneFree(phone);
+  const address = buildAddress(input.address);
+  const vehicle = buildVehicle(input.vehicle);
   const customer = await User.create({
     name: input.name.trim(),
     phone,
     email: input.email?.trim() ?? "",
     role: "customer",
+    status: input.status ?? "active",
+    addresses: address ? [address] : [],
+    vehicles: vehicle ? [vehicle] : [],
     referralCode: await generateUniqueReferralCode(input.name),
   });
   return mapCustomerSummary(customer);
 }
 
-export async function updateCustomer(id: string, input: { name?: string; phone?: string; email?: string }) {
+export async function updateCustomer(id: string, input: Partial<CustomerInput>) {
   const customer = await User.findOne({ _id: id, role: "customer" });
   if (!customer) throw ApiError.notFound("Customer not found");
 
@@ -587,6 +632,29 @@ export async function updateCustomer(id: string, input: { name?: string; phone?:
   }
   if (input.name !== undefined) customer.name = input.name.trim();
   if (input.email !== undefined) customer.email = input.email.trim();
+
+  // Mirrors setCustomerStatus(): a suspension has to end live sessions here
+  // too, or editing someone to "suspended" would be a softer action than
+  // pressing Suspend.
+  if (input.status !== undefined && input.status !== customer.status) {
+    customer.status = input.status;
+    if (input.status === "suspended") customer.tokenVersion = (customer.tokenVersion ?? 0) + 1;
+  }
+
+  // The form edits the FIRST address and vehicle — the ones the app treats as
+  // primary. Updating in place rather than appending keeps repeated saves from
+  // growing the list, and a blank block is left alone rather than deleting what
+  // the customer entered themselves.
+  const address = buildAddress(input.address);
+  if (address) {
+    if (customer.addresses?.length) customer.addresses[0].set(address);
+    else customer.addresses.push(address as never);
+  }
+  const vehicle = buildVehicle(input.vehicle);
+  if (vehicle) {
+    if (customer.vehicles?.length) customer.vehicles[0].set(vehicle);
+    else customer.vehicles.push(vehicle as never);
+  }
 
   await customer.save();
   return mapCustomerSummary(customer);

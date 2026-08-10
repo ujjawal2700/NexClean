@@ -155,11 +155,13 @@ test.describe("Admin — detail page actions", () => {
     await expect(page.getByRole("dialog")).toBeHidden();
     await expect(page.getByRole("heading", { name: "Zeta Detail Renamed" })).toBeVisible();
 
-    // Suspend / Reinstate still work alongside the new actions.
-    await page.getByRole("button", { name: "Suspend" }).click();
+    // Suspend / Reinstate still work alongside the new actions, now behind a confirmation.
+    await page.getByRole("button", { name: "Suspend", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Suspend", exact: true }).click();
     await expect(page.getByRole("button", { name: "Reinstate" })).toBeVisible();
     await page.getByRole("button", { name: "Reinstate" }).click();
-    await expect(page.getByRole("button", { name: "Suspend" })).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "Verify", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Suspend", exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Delete" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
@@ -198,6 +200,113 @@ test.describe("Admin — detail page actions", () => {
     await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/customers$/);
     await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
+  });
+});
+
+test.describe("Admin — richer forms and verification", () => {
+  test("the agent form exposes area, verification status and Aadhaar", async ({ page }) => {
+    await loginAdminUI(page);
+    await page.goto("/admin/agents");
+    await page.getByRole("button", { name: "Add agent" }).click();
+
+    const dialog = page.getByRole("dialog");
+    for (const field of ["personName", "personPhone", "personEmail", "personArea", "personAadhar"]) {
+      await expect(dialog.locator(`[name="${field}"]`)).toBeVisible();
+    }
+    await expect(dialog.locator('select[name="personAgentStatus"]')).toBeVisible();
+
+    // Aadhaar is validated client-side before any round trip.
+    const phone = uniquePhone();
+    await fillPerson(page, { name: "Zeta Aadhaar Agent", phone });
+    await dialog.locator('[name="personAadhar"]').fill("12345");
+    await page.getByRole("button", { name: "Create agent" }).click();
+    await expect(page.getByText("Must be exactly 12 digits")).toBeVisible();
+
+    await dialog.locator('[name="personAadhar"]').fill("123456789012");
+    // The picker warns that "pending" routes them elsewhere, so this is the
+    // behaviour worth pinning rather than a surprise.
+    await dialog.locator('select[name="personAgentStatus"]').selectOption("pending");
+    await expect(dialog.getByText("Queues under Agent Verification, not the Agents list")).toBeVisible();
+    await dialog.locator('select[name="personAgentStatus"]').selectOption("verified");
+    await page.getByRole("button", { name: "Create agent" }).click();
+    await expect(dialog).toBeHidden();
+
+    await page.locator('input[name="search"]').fill(phone);
+    await expect(page.getByText("Zeta Aadhaar Agent")).toBeVisible();
+
+    await page.getByRole("button", { name: "Delete Zeta Aadhaar Agent" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+  });
+
+  test("the customer form exposes status, address and vehicle", async ({ page }) => {
+    await loginAdminUI(page);
+    await page.goto("/admin/customers");
+    await page.getByRole("button", { name: "Add customer" }).click();
+
+    const dialog = page.getByRole("dialog");
+    for (const field of ["personAddressLabel", "personAddressLine", "personAddressSociety", "personVehicleName", "personVehiclePlate"]) {
+      await expect(dialog.locator(`[name="${field}"]`)).toBeVisible();
+    }
+    await expect(dialog.locator('select[name="personStatus"]')).toBeVisible();
+    await expect(dialog.locator('select[name="personVehicleType"]')).toBeVisible();
+
+    const phone = uniquePhone();
+    await fillPerson(page, { name: "Zeta Full Customer", phone });
+    await dialog.locator('[name="personAddressLine"]').fill("42 Ring Road");
+    await dialog.locator('[name="personVehicleName"]').fill("City ZX");
+    await page.getByRole("button", { name: "Create customer" }).click();
+    await expect(dialog).toBeHidden();
+
+    // The address and vehicle made it onto the record.
+    await page.locator('input[name="search"]').fill(phone);
+    const row = page.locator("tbody tr").filter({ hasText: "Zeta Full Customer" });
+    await row.getByRole("cell").first().click();
+    await expect(page.getByText("42 Ring Road")).toBeVisible();
+    await expect(page.getByText("City ZX")).toBeVisible();
+
+    await page.getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/customers$/);
+  });
+
+  test("changing an agent's verification asks for confirmation first", async ({ page }) => {
+    const phone = uniquePhone();
+    await loginAdminUI(page);
+    await page.goto("/admin/agents");
+    await page.getByRole("button", { name: "Add agent" }).click();
+    await fillPerson(page, { name: "Zeta Confirm Agent", phone });
+    await page.getByRole("button", { name: "Create agent" }).click();
+    await expect(page.getByRole("dialog")).toBeHidden();
+
+    await page.locator('input[name="search"]').fill(phone);
+    await page.getByRole("link", { name: /Zeta Confirm Agent/ }).first().click();
+    await expect(page).toHaveURL(/\/admin\/agents\/[a-f0-9]{24}$/);
+
+    // The detail page states the verification status outright. Scoped, because
+    // "Suspend"/"Suspended" also appear as filter pills back on the list.
+    const panel = page.locator("div.glass").filter({ hasText: "Verification" }).first();
+    await expect(panel.getByText("Verified", { exact: true })).toBeVisible();
+
+    // Cancelling leaves the status untouched.
+    await page.getByRole("button", { name: "Suspend", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Suspend this agent?" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(panel.getByText("Verified", { exact: true })).toBeVisible();
+
+    // Confirming applies it.
+    await page.getByRole("button", { name: "Suspend", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Suspend", exact: true }).click();
+    await expect(panel.getByText("Suspended", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Reinstate" }).click();
+    await expect(page.getByRole("heading", { name: "Verify this agent?" })).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "Verify", exact: true }).click();
+    await expect(panel.getByText("Verified", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/agents$/);
   });
 });
 

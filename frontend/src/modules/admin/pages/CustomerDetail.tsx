@@ -366,6 +366,7 @@ export function CustomerDetail() {
         <Pagination page={payments.page} totalPages={payments.totalPages} onPageChange={payments.setPage} />
       </GlassCard>
       <PersonFormModal
+        kind="customer"
         open={editing}
         title="Edit customer"
         submitLabel="Save changes"

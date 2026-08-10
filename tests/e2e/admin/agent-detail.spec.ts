@@ -67,12 +67,15 @@ test.describe("Admin Agent Detail", () => {
     await loginAdminUI(page);
     await page.goto(`/admin/agents/${id}`);
 
-    const suspendBtn = page.getByRole("button", { name: /Suspend/i });
+    // Status changes go through a confirmation dialog — see PersonFormModal's
+    // ConfirmActionModal and the "verification asks for confirmation" spec.
+    const suspendBtn = page.getByRole("button", { name: "Suspend", exact: true });
     await expect(suspendBtn).toBeVisible();
     const suspendRespPromise = page.waitForResponse(
       (r) => r.url().includes(`/admin/agents/${id}/status`) && r.request().method() === "PATCH",
     );
     await suspendBtn.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Suspend", exact: true }).click();
     expect((await suspendRespPromise).ok()).toBeTruthy();
 
     const reinstateBtn = page.getByRole("button", { name: /Reinstate/i });
@@ -81,9 +84,10 @@ test.describe("Admin Agent Detail", () => {
       (r) => r.url().includes(`/admin/agents/${id}/status`) && r.request().method() === "PATCH",
     );
     await reinstateBtn.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Verify", exact: true }).click();
     expect((await reinstateRespPromise).ok()).toBeTruthy();
 
-    await expect(page.getByRole("button", { name: /Suspend/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Suspend", exact: true })).toBeVisible();
   });
 
   test("Verify button on a fresh pending agent's detail page calls PATCH status", async ({ page, request }) => {
@@ -100,14 +104,15 @@ test.describe("Admin Agent Detail", () => {
     await page.goto(`/admin/agents/${agent!.id}`);
     await expect(page.locator("h1")).toHaveText(name);
 
-    const verifyBtn = page.getByRole("button", { name: /Verify/i });
+    const verifyBtn = page.getByRole("button", { name: "Verify", exact: true });
     await expect(verifyBtn).toBeVisible();
     const verifyRespPromise = page.waitForResponse(
       (r) => r.url().includes(`/admin/agents/${agent!.id}/status`) && r.request().method() === "PATCH",
     );
     await verifyBtn.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Verify", exact: true }).click();
     expect((await verifyRespPromise).ok()).toBeTruthy();
 
-    await expect(page.getByRole("button", { name: /Suspend/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Suspend", exact: true })).toBeVisible();
   });
 });

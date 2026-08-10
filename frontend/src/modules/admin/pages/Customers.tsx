@@ -203,6 +203,7 @@ export function Customers() {
       </GlassCard>
 
       <PersonFormModal
+        kind="customer"
         open={editing !== null}
         title={editing === "new" ? "Add customer" : "Edit customer"}
         submitLabel={editing === "new" ? "Create customer" : "Save changes"}

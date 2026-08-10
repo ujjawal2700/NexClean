@@ -15,7 +15,7 @@ import {
   useUpdateAgent,
   useDeleteAgent,
 } from "../api/admin.api";
-import { PersonFormModal, ConfirmDeleteModal } from "../components/PersonFormModal";
+import { PersonFormModal, ConfirmDeleteModal, ConfirmActionModal } from "../components/PersonFormModal";
 import { AGENT_STATUS_STYLE, BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
 
 export function AgentDetail() {
@@ -32,6 +32,8 @@ export function AgentDetail() {
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [formError, setFormError] = useState("");
+  // Pending verification change, held until the admin confirms it.
+  const [statusChange, setStatusChange] = useState<"verified" | "pending" | "suspended" | null>(null);
 
   if (!agent) return null;
 
@@ -79,19 +81,27 @@ export function AgentDetail() {
           >
             <Trash2 className="size-4" /> Delete
           </Button>
-          {agent.status === "pending" && (
-            <Button size="sm" onClick={() => setAgentStatus.mutate({ id: agent.id, status: "verified" })}>
-              <BadgeCheck className="size-4" /> Verify
+          {/* Every status change goes through a confirmation — these sit next to
+              each other in one toolbar, and suspending ends the cleaner's live
+              sessions and drops them out of dispatch immediately. */}
+          {agent.status !== "verified" && (
+            <Button size="sm" onClick={() => { setFormError(""); setStatusChange("verified"); }}>
+              <BadgeCheck className="size-4" /> {agent.status === "suspended" ? "Reinstate" : "Verify"}
             </Button>
           )}
           {agent.status === "verified" && (
-            <Button size="sm" variant="outline" onClick={() => setAgentStatus.mutate({ id: agent.id, status: "suspended" })}>
-              <Ban className="size-4" /> Suspend
+            <Button size="sm" variant="outline" onClick={() => { setFormError(""); setStatusChange("pending"); }}>
+              <RotateCcw className="size-4" /> Move to pending
             </Button>
           )}
-          {agent.status === "suspended" && (
-            <Button size="sm" variant="outline" onClick={() => setAgentStatus.mutate({ id: agent.id, status: "verified" })}>
-              <RotateCcw className="size-4" /> Reinstate
+          {agent.status !== "suspended" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setFormError(""); setStatusChange("suspended"); }}
+              className="text-red-600 hover:border-red-500/40 hover:bg-red-500/10"
+            >
+              <Ban className="size-4" /> Suspend
             </Button>
           )}
         </div>
@@ -123,6 +133,34 @@ export function AgentDetail() {
           <p className="mt-1.5 font-display text-2xl font-semibold text-ink">{formatMoney(agent.totalEarnings)}</p>
         </GlassCard>
       </div>
+
+      <GlassCard className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted">Verification</p>
+          <p className="mt-1 flex items-center gap-2 font-display text-lg font-semibold text-ink">
+            {agent.status === "verified" ? (
+              <>
+                <BadgeCheck className="size-5 text-primary" /> Verified
+              </>
+            ) : agent.status === "suspended" ? (
+              <>
+                <Ban className="size-5 text-red-500" /> Suspended
+              </>
+            ) : (
+              <>
+                <RotateCcw className="size-5 text-amber-500" /> {agent.status === "pending" ? "Pending review" : "Unverified"}
+              </>
+            )}
+          </p>
+        </div>
+        <p className="max-w-md text-sm text-muted">
+          {agent.status === "verified"
+            ? "This agent can receive dispatch offers and take jobs."
+            : agent.status === "suspended"
+              ? "Signed out of every device and blocked from signing in. No dispatch offers."
+              : "Cannot take jobs until verified. Review the KYC documents below, then verify."}
+        </p>
+      </GlassCard>
 
       <GlassCard>
         <div className="flex items-center justify-between">
@@ -216,7 +254,7 @@ export function AgentDetail() {
         open={editing}
         title="Edit agent"
         submitLabel="Save changes"
-        withArea
+        kind="agent"
         initial={agent}
         pending={updateAgent.isPending}
         error={formError}
@@ -228,6 +266,51 @@ export function AgentDetail() {
             {
               onSuccess: () => { setEditing(false); setFormError(""); },
               onError: (e: unknown) => setFormError((e as Error)?.message ?? "Something went wrong"),
+            },
+          );
+        }}
+      />
+
+      <ConfirmActionModal
+        open={statusChange !== null}
+        title={
+          statusChange === "suspended"
+            ? "Suspend this agent?"
+            : statusChange === "verified"
+              ? "Verify this agent?"
+              : "Move back to pending?"
+        }
+        description={
+          statusChange === "suspended" ? (
+            <>
+              <span className="font-medium text-ink">{agent.name}</span> will be signed out of every device and blocked
+              from signing in. Any job already assigned to them stays assigned — reassign it from the booking if needed.
+            </>
+          ) : statusChange === "verified" ? (
+            <>
+              <span className="font-medium text-ink">{agent.name}</span> will be able to sign in and start receiving
+              dispatch offers immediately. Check the KYC documents first if you haven't.
+            </>
+          ) : (
+            <>
+              <span className="font-medium text-ink">{agent.name}</span> will stop receiving dispatch offers until they
+              are verified again. They can still sign in.
+            </>
+          )
+        }
+        confirmLabel={statusChange === "suspended" ? "Suspend" : statusChange === "verified" ? "Verify" : "Move to pending"}
+        destructive={statusChange === "suspended"}
+        pending={setAgentStatus.isPending}
+        error={formError}
+        onClose={() => { setStatusChange(null); setFormError(""); }}
+        onConfirm={() => {
+          if (!statusChange) return;
+          setFormError("");
+          setAgentStatus.mutate(
+            { id: agent.id, status: statusChange },
+            {
+              onSuccess: () => setStatusChange(null),
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't change the status"),
             },
           );
         }}

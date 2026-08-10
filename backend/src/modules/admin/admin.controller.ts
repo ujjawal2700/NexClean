@@ -114,18 +114,26 @@ const personName = z
 const personPhone = z.string().trim().regex(/^\d{10}$/, "Mobile number must be exactly 10 digits");
 const personEmail = z.string().trim().email("Enter a valid email address").max(120).optional().or(z.literal(""));
 
-const createAgentSchema = z.object({
-  name: personName,
-  phone: personPhone,
+const AGENT_STATUSES = ["verified", "pending", "suspended", "unverified"] as const;
+/** Optional because plenty of admin-added cleaners are onboarded before KYC. */
+const aadharNumber = z
+  .string()
+  .trim()
+  .regex(/^\d{12}$/, "Aadhaar number must be exactly 12 digits")
+  .optional()
+  .or(z.literal(""));
+
+const agentFields = {
   email: personEmail,
   area: z.string().trim().max(120).optional(),
-  agentStatus: z.enum(["verified", "pending", "suspended", "unverified"]).optional(),
-});
+  agentStatus: z.enum(AGENT_STATUSES).optional(),
+  aadharNumber,
+};
+const createAgentSchema = z.object({ name: personName, phone: personPhone, ...agentFields });
 const updateAgentSchema = z.object({
   name: personName.optional(),
   phone: personPhone.optional(),
-  email: personEmail,
-  area: z.string().trim().max(120).optional(),
+  ...agentFields,
 });
 
 export async function createAgent(req: Request, res: Response): Promise<Response> {
@@ -144,11 +152,38 @@ export async function deleteAgent(req: Request, res: Response): Promise<Response
   return ok(res, await service.deleteAgent(String(req.params.id)), "Agent deleted");
 }
 
-const createCustomerSchema = z.object({ name: personName, phone: personPhone, email: personEmail });
+/**
+ * A customer's first address and vehicle, so an admin taking a booking over the
+ * phone can capture everything in one go. Both are optional and both are
+ * all-or-nothing: an address without a line, or a vehicle without a name, is
+ * not worth storing.
+ */
+const addressInput = z
+  .object({
+    label: z.string().trim().max(40).optional(),
+    line: z.string().trim().max(200).optional(),
+    society: z.string().trim().max(120).optional(),
+  })
+  .optional();
+const vehicleInput = z
+  .object({
+    type: z.string().trim().max(60).optional(),
+    name: z.string().trim().max(60).optional(),
+    plate: z.string().trim().max(20).optional(),
+  })
+  .optional();
+
+const customerFields = {
+  email: personEmail,
+  status: z.enum(["active", "suspended"]).optional(),
+  address: addressInput,
+  vehicle: vehicleInput,
+};
+const createCustomerSchema = z.object({ name: personName, phone: personPhone, ...customerFields });
 const updateCustomerSchema = z.object({
   name: personName.optional(),
   phone: personPhone.optional(),
-  email: personEmail,
+  ...customerFields,
 });
 
 export async function createCustomer(req: Request, res: Response): Promise<Response> {

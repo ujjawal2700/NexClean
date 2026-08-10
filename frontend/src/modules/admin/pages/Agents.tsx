@@ -257,7 +257,7 @@ export function Agents() {
         open={editing !== null}
         title={editing === "new" ? "Add agent" : "Edit agent"}
         submitLabel={editing === "new" ? "Create agent" : "Save changes"}
-        withArea
+        kind="agent"
         initial={editing && editing !== "new" ? editing : undefined}
         pending={createAgent.isPending || updateAgent.isPending}
         error={formError}
