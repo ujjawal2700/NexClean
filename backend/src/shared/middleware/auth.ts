@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { verifyToken, type Role } from "../utils/jwt";
 import { ApiError } from "../utils/ApiError";
+import { isSuperAdmin } from "../utils/superAdmin";
 import { User } from "../../modules/user/user.model";
-import { env } from "../../config/env";
 import { readSessionToken } from "../utils/sessionCookie";
 
 /**
@@ -78,10 +78,10 @@ export function requirePermission(permission: string) {
       throw ApiError.forbidden("Admin access required");
     }
 
-    // 1. Super Admin access. Only the seeded super-admin account gets a blanket
-    //    pass — an ordinary admin with no role assigned used to land here too
-    //    and silently inherit every permission, which fails open.
-    if (user.phone === `admin:${env.adminEmail}`) {
+    // 1. Super Admin access. Only the designated super-admin account gets a
+    //    blanket pass — an ordinary admin with no role assigned used to land
+    //    here too and silently inherit every permission, which fails open.
+    if (isSuperAdmin(user)) {
       return next();
     }
     if (!user.adminRoleId) {

@@ -4,6 +4,7 @@ import { creditRefereeWelcome } from "../promotions/referral.service";
 import { generateUniqueReferralCode } from "../user/user.service";
 import { env, isProd } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
+import { isSuperAdmin } from "../../shared/utils/superAdmin";
 import { signToken, type Role } from "../../shared/utils/jwt";
 import { generateOtp } from "../../shared/utils/otp";
 import type { CustomerSignupInput, AgentSignupInput, AgentSignupBasicInput } from "./auth.validation";
@@ -308,7 +309,7 @@ export async function adminLogin(email: string, password: string) {
   }
 
   const token = signToken(user.id, "admin", user.tokenVersion ?? 0);
-  const isSuper = isSuperAdminEmail || user.phone === `admin:${env.adminEmail}` || !user.adminRoleId;
+  const isSuper = isSuperAdminEmail || isSuperAdmin(user);
   const role = user.adminRoleId as any;
   const permissions = isSuper ? ["*"] : role ? role.permissions : [];
 
@@ -332,7 +333,7 @@ export async function getMe(userId: string) {
 
   let permissions: string[] = [];
   if (user.role === "admin") {
-    if (user.phone === `admin:${env.adminEmail}` || !user.adminRoleId) {
+    if (isSuperAdmin(user)) {
       permissions = ["*"];
     } else {
       const role = user.adminRoleId as any;
