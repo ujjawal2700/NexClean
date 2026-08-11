@@ -25,38 +25,7 @@ import { useAgentSession } from "../store/sessionStore";
 import { useAgentSignup, useSendSignupOtp, useVerifyOtpCodeOnly, meKey, useAgentSignupBasic, useAgentMe } from "../api/agent.api";
 import { usePublicCities, usePublicZones } from "@modules/customer/api/public";
 import { LocationPicker } from "../components/LocationPicker";
-
-function fileToDataUri(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * Phone camera photos are often 3-8MB; base64-inflated that can blow past the
- * upload limit and crawl on mobile data. Downscale + re-encode as JPEG first.
- * Falls back to the raw file if the canvas pipeline isn't available.
- */
-async function fileToCompressedDataUri(file: File, maxDim = 1600, quality = 0.8): Promise<string> {
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
-    const width = Math.round(bitmap.width * scale);
-    const height = Math.round(bitmap.height * scale);
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas unavailable");
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    return canvas.toDataURL("image/jpeg", quality);
-  } catch {
-    return fileToDataUri(file);
-  }
-}
+import { fileToCompressedDataUri } from "@shared/lib/imageUtils";
 
 type Step = "details" | "otp" | "kyc";
 

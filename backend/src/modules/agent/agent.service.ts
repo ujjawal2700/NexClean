@@ -108,7 +108,22 @@ export async function setPhoto(
 
   // Store the image when one is supplied. `image` stays optional so older
   // agent clients keep working, but the URL is what makes the flag meaningful.
-  const url = image ? await uploadImage(image) : "";
+  //
+  // A failed upload must not throw: completion is gated on hasBefore/hasAfter,
+  // so letting a Cloudinary outage bubble up left the cleaner standing at a
+  // finished car unable to close the job. Record the flag, and leave the URL
+  // empty so the missing evidence is visible to admins rather than silent.
+  let url = "";
+  if (image) {
+    try {
+      url = await uploadImage(image);
+    } catch (err) {
+      console.error(
+        `[agent:setPhoto] ${kind} photo upload failed for booking ${bookingId}:`,
+        (err as Error).message,
+      );
+    }
+  }
 
   if (kind === "before") {
     booking.hasBefore = true;
