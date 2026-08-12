@@ -217,8 +217,17 @@ export type PreviewAmountResponse = {
 /** Validate a discount code / coin redemption and preview the final total before paying. */
 export function usePreviewDiscount() {
   return useMutation({
-    mutationFn: (vars: { vehicleType: CarType; packageId: string; discountCode?: string; coinsToRedeem?: number }) =>
-      apiFetch<PreviewAmountResponse>("/payments/preview", { method: "POST", body: vars }),
+    mutationFn: (vars: {
+      vehicleType: CarType;
+      packageId: string;
+      discountCode?: string;
+      coinsToRedeem?: number;
+      // The slot being quoted for. Peak-hours-only codes are validated against
+      // it, so sending it keeps the quote identical to what booking creation
+      // will compute — omit it and such a code is refused rather than mis-quoted.
+      date?: string;
+      slot?: string;
+    }) => apiFetch<PreviewAmountResponse>("/payments/preview", { method: "POST", body: vars }),
   });
 }
 

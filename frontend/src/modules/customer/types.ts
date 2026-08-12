@@ -90,6 +90,8 @@ export type Booking = {
   createdAt: string;
 };
 
+export type BannerType = "promotional" | "discount" | "peak-hours" | "announcement";
+
 export type PromoBanner = {
   id: string;
   title: string;
@@ -97,7 +99,27 @@ export type PromoBanner = {
   imageUrl: string;
   ctaLabel: string;
   ctaLink: string;
+  type: BannerType;
   sortOrder: number;
+};
+
+/** 0 = Sunday, matching JS Date#getDay. */
+export type WeekdayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export type PeakWindow = {
+  day: WeekdayIndex;
+  /** 24-hour "HH:MM" in the config's timezone. */
+  start: string;
+  end: string;
+  label: string;
+  startMinutes: number;
+  endMinutes: number;
+};
+
+export type PeakHoursConfig = {
+  timezone: string;
+  active: boolean;
+  windows: PeakWindow[];
 };
 
 export type ReferredUser = {

@@ -9,6 +9,7 @@ import type {
   AppNotification,
   CatalogPlan,
   PromoBanner,
+  PeakHoursConfig,
   ReferralSummary,
   Wallet,
   VehicleCategory,
@@ -25,6 +26,7 @@ export const bookingsKey = ["bookings"] as const;
 export const notificationsKey = ["notifications"] as const;
 export const plansKey = ["catalog", "plans"] as const;
 export const promoBannersKey = ["catalog", "promo-banners"] as const;
+export const peakHoursKey = ["catalog", "peak-hours"] as const;
 export const referralsKey = ["referrals"] as const;
 export const walletKey = ["wallet"] as const;
 export const vehicleCategoriesKey = ["catalog", "vehicle-categories"] as const;
@@ -79,6 +81,19 @@ export function usePromoBanners() {
   return useQuery({
     queryKey: promoBannersKey,
     queryFn: () => apiFetch<PromoBanner[]>("/catalog/promo-banners"),
+  });
+}
+
+/**
+ * Peak windows set by the admin (public catalog), used to flag peak slots in the
+ * booking picker. Config changes rarely, so a long stale time keeps the schedule
+ * step from refetching on every revisit.
+ */
+export function usePeakHours() {
+  return useQuery({
+    queryKey: peakHoursKey,
+    queryFn: () => apiFetch<PeakHoursConfig>("/catalog/peak-hours"),
+    staleTime: 5 * 60_000,
   });
 }
 

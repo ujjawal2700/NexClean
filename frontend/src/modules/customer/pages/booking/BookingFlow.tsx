@@ -21,7 +21,8 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { BrandModelSelect, type VehicleSelection } from "../../components/BrandModelSelect";
 import { ApiError } from "@shared/lib/api";
-import { useMe, useVehicleCategories, useCategoryLabel, useWallet } from "../../api/queries";
+import { useMe, useVehicleCategories, useCategoryLabel, useWallet, usePeakHours } from "../../api/queries";
+import { isPeakSlot, windowsForDate } from "../../data/peakHours";
 import { useVerifyPayment, usePreviewDiscount, useAddAddress } from "../../api/mutations";
 import type { PreviewAmountResponse } from "../../api/mutations";
 import { usePlacesAutocomplete, type PlaceCoords } from "@shared/hooks/usePlacesAutocomplete";
@@ -118,6 +119,10 @@ export function BookingFlow() {
       packageId: pkg.id,
       discountCode: code,
       coinsToRedeem: coins > 0 ? coins : undefined,
+      // Sent so a peak-hours-only code is judged against the slot the customer
+      // actually picked, exactly as booking creation will judge it.
+      date: draft.date ?? undefined,
+      slot: draft.slot ?? undefined,
     });
     setAppliedDiscount(result);
     return result;
@@ -149,6 +154,48 @@ export function BookingFlow() {
       setCoinsToRedeem(next);
     } catch { /* ignore */ }
   };
+
+  /**
+   * A peak-hours-only code is tied to the slot it was applied on, so going back
+   * and picking a different time can invalidate a code that is already showing
+   * as applied. Re-validate whenever the schedule changes: without this the
+   * stale discount survives to `pay()`, where the server rejects it and the
+   * customer meets a payment error instead of a clear "doesn't apply" message
+   * on the screen where they can still act on it.
+   */
+  const validatedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${draft.date ?? ""}|${draft.slot ?? ""}`;
+    if (validatedFor.current === key) return;
+    validatedFor.current = key;
+
+    if (!appliedDiscount?.discountCode || !draft.date || !draft.slot) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        await refreshQuote(discountInput.trim(), coinsToRedeem);
+      } catch (e) {
+        if (cancelled) return;
+        setDiscountError(
+          e instanceof ApiError ? e.message : "That code doesn't apply to the time slot you picked",
+        );
+        setDiscountInput("");
+        // Drop only the code — any coins the customer redeemed should survive.
+        try {
+          await refreshQuote(undefined, coinsToRedeem);
+        } catch {
+          if (!cancelled) setAppliedDiscount(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally keyed on the schedule alone: re-running on discount/coin
+    // changes would re-quote on every keystroke and fight refreshQuote.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.date, draft.slot]);
 
   const canContinue = [
     !!draft.vehicleType,
@@ -477,6 +524,8 @@ function PackageStep({
 function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) => void }) {
   const dates = upcomingDates(7);
   const slots = availableSlotsForDate(draft.date);
+  const { data: peakConfig } = usePeakHours();
+  const peakWindows = windowsForDate(peakConfig, draft.date);
 
   // When a date is selected, if the currently chosen slot is no longer valid, clear it.
   const selectDate = (iso: string) => {
@@ -519,7 +568,15 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
         </div>
       </div>
 
-      <p className="mb-3 mt-6 text-sm font-medium text-muted">Time slot</p>
+      <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium text-muted">Time slot</p>
+        {peakWindows.length > 0 && (
+          <span className="flex items-center gap-1.5 text-[11px] text-amber-600">
+            <span className="size-1.5 rounded-full bg-amber-500" />
+            Peak {peakWindows.map((w) => `${w.start}–${w.end}`).join(", ")}
+          </span>
+        )}
+      </div>
       {draft.date && slots.length === 0 ? (
         <p className="rounded-2xl border border-amber-300/40 bg-amber-50/60 px-4 py-3 text-sm text-amber-700">
           No more slots available today — please pick a future date.
@@ -528,22 +585,44 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
         <div className="grid grid-cols-2 gap-2.5 xs:grid-cols-3 sm:grid-cols-4">
           {slots.map((slot) => {
             const selected = draft.slot === slot;
+            // A hint only — the server decides whether a peak coupon applies.
+            const peak = isPeakSlot(peakConfig, draft.date, slot);
             return (
               <button
                 key={slot}
                 onClick={() => set({ slot })}
                 className={cn(
-                  "rounded-xl border px-2 py-2.5 text-sm font-medium transition-all",
+                  "relative rounded-xl border px-2 py-2.5 text-sm font-medium transition-all",
                   selected
                     ? "border-primary bg-primary/5 text-primary ring-2 ring-primary/20"
-                    : "border-line bg-surface text-ink-soft hover:border-primary/40",
+                    : peak
+                      ? "border-amber-400/50 bg-amber-50/40 text-ink-soft hover:border-primary/40"
+                      : "border-line bg-surface text-ink-soft hover:border-primary/40",
                 )}
+                // Peak status rides on `title` and `data-peak`, never on an
+                // aria-label: the dot is inside the button, so labelling it
+                // would append to the button's accessible name and the control
+                // would stop being addressable as plainly "11:00 AM". The
+                // legend above the grid carries the meaning in text.
+                title={peak ? `${slot} — peak hour slot` : undefined}
+                data-peak={peak ? "true" : undefined}
               >
                 {slot}
+                {peak && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-amber-500"
+                  />
+                )}
               </button>
             );
           })}
         </div>
+      )}
+      {peakWindows.length > 0 && (
+        <p className="mt-3 text-xs text-muted">
+          Slots marked with a dot fall in a peak window. Some coupons only apply to these.
+        </p>
       )}
     </div>
   );

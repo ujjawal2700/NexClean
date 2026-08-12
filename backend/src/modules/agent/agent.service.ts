@@ -7,6 +7,7 @@ import { toPoint, haversineMeters, type LngLat } from "../../shared/geo.js";
 import { emitToUser, emitToAdmins } from "../../shared/services/socket.js";
 import { notifyUser } from "../notification/notification.service.js";
 import { uploadImage } from "../../shared/utils/cloudinary.js";
+import { payoutCalculator } from "../payout/payoutConfig.service.js";
 
 const JOB_FLOW = ["assigned", "enroute", "arrived", "in_progress", "completed"] as const;
 type JobStatus = (typeof JOB_FLOW)[number];
@@ -18,8 +19,17 @@ function jobDistanceKm(b: BookingDocument, agentPoint?: LngLat): number | null {
   return Number((haversineMeters(agentPoint, [coords[0], coords[1]]) / 1000).toFixed(1));
 }
 
+/**
+ * What this job pays. A completed job quotes the amount frozen on the booking;
+ * anything still open is quoted from the current admin-set rule, so an agent
+ * always sees today's rate for work they haven't finished yet.
+ */
+function jobPayout(b: BookingDocument, payoutOf: (price: number) => number): number {
+  return b.agentPayout ?? payoutOf(b.price);
+}
+
 /** Shape a booking into the agent-facing "job" the frontend expects. */
-function mapJob(b: BookingDocument, agentPoint?: LngLat) {
+function mapJob(b: BookingDocument, payoutOf: (price: number) => number, agentPoint?: LngLat) {
   const user = b.user as unknown as { name?: string } | null;
   return {
     id: b.id,
@@ -34,7 +44,7 @@ function mapJob(b: BookingDocument, agentPoint?: LngLat) {
     society: b.society,
     distanceKm: jobDistanceKm(b, agentPoint),
     price: b.price,
-    payout: Math.round(b.price * 0.7),
+    payout: jobPayout(b, payoutOf),
     status: b.jobStatus,
     hasBefore: b.hasBefore,
     hasAfter: b.hasAfter,
@@ -49,11 +59,11 @@ async function getAgentPoint(agentId: string): Promise<LngLat | undefined> {
 }
 
 export async function listJobs(agentId: string) {
-  const agentPoint = await getAgentPoint(agentId);
+  const [agentPoint, payoutOf] = await Promise.all([getAgentPoint(agentId), payoutCalculator()]);
   const bookings = await Booking.find({ assignedAgent: agentId })
     .populate("user", "name")
     .sort({ createdAt: -1 });
-  return bookings.map((b) => mapJob(b, agentPoint));
+  return bookings.map((b) => mapJob(b, payoutOf, agentPoint));
 }
 
 async function getOwnedJob(agentId: string, bookingId: string) {
@@ -79,9 +89,13 @@ export async function advanceStatus(agentId: string, bookingId: string) {
   }
 
   const next = JOB_FLOW[Math.min(idx + 1, JOB_FLOW.length - 1)];
+  const payoutOf = await payoutCalculator();
   booking.jobStatus = next;
   if (next === "completed") {
     booking.status = "completed";
+    // Freeze the earnings at today's rule. Editing the rule later must not
+    // retroactively change what an agent was already told they had earned.
+    booking.agentPayout = payoutOf(booking.price);
     await User.updateOne({ _id: agentId }, { $inc: { jobsDone: 1 } });
   }
   await booking.save();
@@ -95,7 +109,7 @@ export async function advanceStatus(agentId: string, bookingId: string) {
     );
   }
 
-  return mapJob(booking, await getAgentPoint(agentId));
+  return mapJob(booking, payoutOf, await getAgentPoint(agentId));
 }
 
 export async function setPhoto(
@@ -133,19 +147,24 @@ export async function setPhoto(
     if (url) booking.afterPhotoUrl = url;
   }
   await booking.save();
-  return mapJob(booking, await getAgentPoint(agentId));
+  const [payoutOf, agentPoint] = await Promise.all([payoutCalculator(), getAgentPoint(agentId)]);
+  return mapJob(booking, payoutOf, agentPoint);
 }
 
 export async function summary(agentId: string) {
-  const jobs = await Booking.find({ assignedAgent: agentId });
+  const [jobs, payoutOf] = await Promise.all([
+    Booking.find({ assignedAgent: agentId }),
+    payoutCalculator(),
+  ]);
   const isToday = (d: Date) => new Date(d).toDateString() === new Date().toDateString();
   const todays = jobs.filter((j) => isToday(j.date));
   const completedToday = todays.filter((j) => j.jobStatus === "completed");
+  const payout = (j: (typeof jobs)[number]) => j.agentPayout ?? payoutOf(j.price);
   return {
     jobsToday: todays.length,
     completedToday: completedToday.length,
-    earnedToday: completedToday.reduce((s, j) => s + Math.round(j.price * 0.7), 0),
-    potentialToday: todays.reduce((s, j) => s + Math.round(j.price * 0.7), 0),
+    earnedToday: completedToday.reduce((s, j) => s + payout(j), 0),
+    potentialToday: todays.reduce((s, j) => s + payout(j), 0),
   };
 }
 
@@ -271,8 +290,8 @@ export async function listAvailableJobs(agentId: string) {
     .sort({ date: 1, slot: 1 })
     .limit(20);
 
-  const agentPoint = await getAgentPoint(agentId);
-  return bookings.map((b) => mapJob(b, agentPoint));
+  const [agentPoint, payoutOf] = await Promise.all([getAgentPoint(agentId), payoutCalculator()]);
+  return bookings.map((b) => mapJob(b, payoutOf, agentPoint));
 }
 
 /**
@@ -323,6 +342,6 @@ export async function claimJob(agentId: string, bookingId: string) {
     data: { bookingId: String(booking._id) },
   }).catch(() => {});
 
-  const agentPoint = await getAgentPoint(agentId);
-  return mapJob(booking, agentPoint);
+  const [agentPoint, payoutOf] = await Promise.all([getAgentPoint(agentId), payoutCalculator()]);
+  return mapJob(booking, payoutOf, agentPoint);
 }

@@ -26,6 +26,11 @@ export async function computePrice(
     packageId: string;
     discountCode?: string;
     coinsToRedeem?: number;
+    // The slot the code is being spent on. Peak-hours-only codes are validated
+    // against it; supplied by both booking creation and the checkout quote so
+    // the two can never disagree about whether a code applies.
+    date?: string;
+    slot?: string;
   },
 ) {
   const pkg = await getPackageRecord(input.packageId);
@@ -41,12 +46,20 @@ export async function computePrice(
   if (input.discountCode) {
     const raw = input.discountCode.trim().toUpperCase();
     isSpecialCoupon = raw.startsWith(SPECIAL_COUPON_PREFIX);
+    // Only a well-formed date *and* slot make a usable context; a half-supplied
+    // pair would be worse than none, since assertPeakEligible's "pick your slot
+    // first" message is clearer than a check against a NaN date.
+    const parsedDate = input.date ? new Date(input.date) : null;
+    const redemptionContext =
+      parsedDate && !Number.isNaN(parsedDate.getTime()) && input.slot
+        ? { date: parsedDate, slot: input.slot }
+        : undefined;
     const applied = isSpecialCoupon
       ? await (async () => {
-          const r = await applySpecialCoupon(raw, basePrice, userId);
+          const r = await applySpecialCoupon(raw, basePrice, userId, redemptionContext);
           return { discountAmount: r.discountAmount, codeId: r.couponId, code: r.code };
         })()
-      : await applyDiscountCode(raw, basePrice);
+      : await applyDiscountCode(raw, basePrice, redemptionContext);
     discountAmount = applied.discountAmount;
     discountCodeId = applied.codeId;
     discountCodeLabel = applied.code;

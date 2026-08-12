@@ -114,6 +114,29 @@ export async function completeAnyOpenJobsForAgent(request: APIRequestContext, ag
 }
 
 /**
+ * Decline whatever offer the seeded agent is already holding, if any.
+ *
+ * There is one demo agent shared by every agent spec, so it can still be
+ * holding an offer for an earlier test's booking. `/agent/offers/current`
+ * returns only that one offer, so seedAssignedJob would poll for its own
+ * bookingId and keep seeing the older one — for up to OFFER_TTL_MS (25s by
+ * default), well past its 12s poll window, and past the 30s test timeout once
+ * setup is counted. That is the whole flake: nothing is broken, the helper was
+ * just racing an offer TTL. Declining up front makes it deterministic.
+ */
+async function drainPendingOffers(request: APIRequestContext, agentToken: string): Promise<void> {
+  // A handful of iterations: declining one offer can immediately cascade the
+  // next queued booking to the same agent.
+  for (let i = 0; i < 5; i++) {
+    const res = await request.get("/agent/offers/current", { headers: authHeader(agentToken) });
+    if (!res.ok()) return;
+    const bookingId = (await res.json())?.data?.bookingId;
+    if (!bookingId) return;
+    await request.post(`/agent/offers/${bookingId}/decline`, { headers: authHeader(agentToken) });
+  }
+}
+
+/**
  * Seeds a job that is ASSIGNED to the seeded demo agent (SEED_AGENT_PHONE),
  * bypassing the flaky real-time OfferOverlay UI popup: goes the agent online,
  * has a fresh customer create a booking at the same coordinates, polls for the
@@ -127,6 +150,7 @@ export async function seedAssignedJob(
   const { token: agentToken, userId: agentId } = await loginAsAgent(request);
   await completeAnyOpenJobsForAgent(request, agentToken);
   await goOnlineNear(request, agentToken);
+  await drainPendingOffers(request, agentToken);
 
   const { token: customerToken } = await loginAsNewCustomer(request);
   const packageId = await firstPackageId(request);

@@ -20,6 +20,13 @@ const discountCodeSchema = new Schema(
     usageCount: { type: Number, default: 0 },
     validTill: { type: Date, default: null },
     active: { type: Boolean, default: true },
+    /**
+     * When true the code only applies to bookings whose *slot* falls inside a
+     * configured peak window (see promotions/peakHours.service). Independent of
+     * `active` and `validTill`: those bound the code's lifetime, this bounds
+     * which slots within that lifetime it may be spent on.
+     */
+    peakHoursOnly: { type: Boolean, default: false },
   },
   { timestamps: true, toJSON: jsonTransform },
 );

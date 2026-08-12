@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import { Plus, Trash2, Percent, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Plus, Trash2, Percent, Image as ImageIcon, Loader2, Clock } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -19,7 +20,15 @@ import {
   useUploadMedia,
 } from "../api/admin.api";
 
-import type { DiscountType } from "../types";
+import { BANNER_TYPES, type BannerType, type DiscountType } from "../types";
+
+/** Admin-facing copy for each banner type, plus the badge tint used in the list. */
+const BANNER_TYPE_META: Record<BannerType, { label: string; badge: string }> = {
+  promotional: { label: "Promotional", badge: "bg-primary/10 text-primary" },
+  discount: { label: "Discount", badge: "bg-emerald-500/10 text-emerald-600" },
+  "peak-hours": { label: "Peak hours", badge: "bg-amber-500/10 text-amber-600" },
+  announcement: { label: "Announcement", badge: "bg-sky-500/10 text-sky-600" },
+};
 
 function DiscountCodesSection() {
   const { data: codes = [] } = useDiscountCodes();
@@ -32,6 +41,7 @@ function DiscountCodesSection() {
   const [value, setValue] = useState("");
   const [minOrderValue, setMinOrderValue] = useState("");
   const [validTill, setValidTill] = useState("");
+  const [peakHoursOnly, setPeakHoursOnly] = useState(false);
   const [error, setError] = useState("");
 
   const paginated = usePagination(codes, 5);
@@ -46,6 +56,7 @@ function DiscountCodesSection() {
         value: Number(value),
         minOrderValue: minOrderValue ? Number(minOrderValue) : undefined,
         validTill: validTill ? new Date(validTill).toISOString() : null,
+        peakHoursOnly,
       },
       {
         onSuccess: () => {
@@ -53,6 +64,7 @@ function DiscountCodesSection() {
           setValue("");
           setMinOrderValue("");
           setValidTill("");
+          setPeakHoursOnly(false);
         },
         onError: (e) => setError(e instanceof ApiError ? e.message : "Couldn't create that discount code"),
       },
@@ -99,6 +111,28 @@ function DiscountCodesSection() {
         />
         <Input name="validTill" type="date" value={validTill} onChange={(e) => setValidTill(e.target.value)} />
       </div>
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-surface/60 p-3">
+        <input
+          type="checkbox"
+          checked={peakHoursOnly}
+          onChange={(e) => setPeakHoursOnly(e.target.checked)}
+          className="mt-0.5 size-4 accent-[color:var(--color-primary,#4F7CFF)]"
+        />
+        <span className="min-w-0">
+          <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
+            <Clock className="size-3.5 text-primary" /> Peak hours only
+          </span>
+          <span className="mt-0.5 block text-xs text-muted">
+            Applies only when the booking's time slot falls inside a window set on the{" "}
+            <Link to="/admin/peak-hours" className="text-primary hover:underline">
+              Peak Hours
+            </Link>{" "}
+            page.
+          </span>
+        </span>
+      </label>
+
       <Button size="sm" onClick={submit} disabled={create.isPending || !code.trim() || !value}>
         <Plus className="size-4" /> Add discount code
       </Button>
@@ -107,7 +141,14 @@ function DiscountCodesSection() {
         {paginated.pageItems.map((c) => (
           <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface/60 p-3">
             <div className="min-w-0">
-              <p className={`font-mono text-sm font-semibold ${c.active ? "text-ink" : "text-muted line-through"}`}>{c.code}</p>
+              <p className={`flex flex-wrap items-center gap-2 font-mono text-sm font-semibold ${c.active ? "text-ink" : "text-muted line-through"}`}>
+                {c.code}
+                {c.peakHoursOnly && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 font-sans text-[10px] font-medium text-amber-600">
+                    <Clock className="size-3" /> Peak only
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-muted">
                 {c.type === "percent" ? `${c.value}% off` : `${formatMoney(c.value)} off`}
                 {c.minOrderValue ? ` · min order ${formatMoney(c.minOrderValue)}` : ""}
@@ -149,9 +190,11 @@ function PromotionalBannersSection() {
   const uploadMedia = useUploadMedia();
 
   const [title, setTitle] = useState("");
+  const [subtitle, setSubtitle] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [ctaLabel, setCtaLabel] = useState("");
   const [ctaLink, setCtaLink] = useState("");
+  const [bannerType, setBannerType] = useState<BannerType>("promotional");
   const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -184,13 +227,22 @@ function PromotionalBannersSection() {
   const submit = () => {
     if (!title.trim() || !imageUrl.trim()) return;
     create.mutate(
-      { title: title.trim(), imageUrl: imageUrl.trim(), ctaLabel: ctaLabel.trim(), ctaLink: ctaLink.trim() },
+      {
+        title: title.trim(),
+        subtitle: subtitle.trim(),
+        imageUrl: imageUrl.trim(),
+        ctaLabel: ctaLabel.trim(),
+        ctaLink: ctaLink.trim(),
+        type: bannerType,
+      },
       {
         onSuccess: () => {
           setTitle("");
+          setSubtitle("");
           setImageUrl("");
           setCtaLabel("");
           setCtaLink("");
+          setBannerType("promotional");
         },
       },
     );
@@ -214,6 +266,24 @@ function PromotionalBannersSection() {
           value={imageUrl}
           onChange={(e) => setImageUrl(e.target.value)}
         />
+        <Input
+          name="bannerSubtitle"
+          placeholder="Subtitle (optional)"
+          value={subtitle}
+          onChange={(e) => setSubtitle(e.target.value)}
+        />
+        <select
+          value={bannerType}
+          onChange={(e) => setBannerType(e.target.value as BannerType)}
+          aria-label="Banner type"
+          className="h-12 rounded-2xl border border-line bg-surface px-4 text-ink outline-none focus:border-primary/50"
+        >
+          {BANNER_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {BANNER_TYPE_META[t].label}
+            </option>
+          ))}
+        </select>
         <Input name="bannerCtaLabel" placeholder="Button label (optional)" value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} />
         <Input name="bannerCtaLink" placeholder="Button link (optional)" value={ctaLink} onChange={(e) => setCtaLink(e.target.value)} />
       </div>
@@ -265,6 +335,13 @@ function PromotionalBannersSection() {
             <div className="flex items-center justify-between gap-3 p-3">
               <div className="min-w-0">
                 <p className={`truncate text-sm font-semibold ${b.active ? "text-ink" : "text-muted line-through"}`}>{b.title}</p>
+                <span
+                  className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    BANNER_TYPE_META[b.type]?.badge ?? BANNER_TYPE_META.promotional.badge
+                  }`}
+                >
+                  {BANNER_TYPE_META[b.type]?.label ?? BANNER_TYPE_META.promotional.label}
+                </span>
                 {b.ctaLabel && <p className="truncate text-xs text-muted">{b.ctaLabel}</p>}
               </div>
               <div className="flex items-center gap-1.5">

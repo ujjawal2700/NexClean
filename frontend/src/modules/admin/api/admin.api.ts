@@ -30,7 +30,11 @@ import type {
   DiscountCode,
   SpecialCoupon,
   ReferralConfig,
+  PayoutConfig,
   PromoBanner,
+  BannerType,
+  PeakHoursConfig,
+  PeakWindow,
   AdminReports,
   AudienceSizes,
   AudienceGroup,
@@ -67,6 +71,8 @@ const keys = {
   discountCodes: ["admin", "discount-codes"] as const,
   specialCoupons: ["admin", "special-coupons"] as const,
   referralConfig: ["admin", "referral-config"] as const,
+  peakHours: ["admin", "peak-hours"] as const,
+  payoutConfig: ["admin", "payout-config"] as const,
   promoBanners: ["admin", "promo-banners"] as const,
   reports: ["admin", "reports"] as const,
   audienceSizes: ["admin", "campaigns", "audience-sizes"] as const,
@@ -205,6 +211,8 @@ export const useDiscountCodes = () => useAuthedQuery<DiscountCode[]>(keys.discou
 export const useSpecialCoupons = () => useAuthedQuery<SpecialCoupon[]>(keys.specialCoupons, "/admin/special-coupons");
 export const useReferralConfig = () =>
   useAuthedQuery<ReferralConfig>(keys.referralConfig, "/admin/referral-config");
+export const usePayoutConfig = () => useAuthedQuery<PayoutConfig>(keys.payoutConfig, "/admin/payout-config");
+export const usePeakHours = () => useAuthedQuery<PeakHoursConfig>(keys.peakHours, "/admin/peak-hours");
 export const usePromoBanners = () => useAuthedQuery<PromoBanner[]>(keys.promoBanners, "/admin/promo-banners");
 export const useReports = () => useAuthedQuery<AdminReports>(keys.reports, "/admin/reports");
 export const useContent = () => useAuthedQuery<SiteContent>(keys.content, "/admin/content");
@@ -591,6 +599,7 @@ export function useCreateDiscountCode() {
       maxDiscount?: number | null;
       usageLimit?: number | null;
       validTill?: string | null;
+      peakHoursOnly?: boolean;
     }) => apiFetch<DiscountCode>("/admin/discount-codes", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.discountCodes }),
   });
@@ -624,6 +633,7 @@ export function useGenerateSpecialCoupons() {
       maxDiscount?: number | null;
       validFrom?: string | null;
       validTill?: string | null;
+      peakHoursOnly?: boolean;
     }) => apiFetch<SpecialCoupon[]>("/admin/special-coupons/generate", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.specialCoupons }),
   });
@@ -670,11 +680,47 @@ export function useUpdateReferralConfig() {
   });
 }
 
+/**
+ * Windows are sent without the server-derived `startMinutes`/`endMinutes` —
+ * those are read-only projections, and echoing them back would invite the two
+ * representations to disagree.
+ */
+export type PeakWindowInput = Pick<PeakWindow, "day" | "start" | "end"> & { label?: string };
+
+export function useUpdatePeakHours() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { timezone?: string; active?: boolean; windows?: PeakWindowInput[] }) =>
+      apiFetch<PeakHoursConfig>("/admin/peak-hours", { method: "PUT", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.peakHours }),
+  });
+}
+
+export function useUpdatePayoutConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: Partial<PayoutConfig>) =>
+      apiFetch<PayoutConfig>("/admin/payout-config", { method: "PUT", body: vars }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.payoutConfig });
+      // Pending settlement on the Payments screen is derived from this rule.
+      qc.invalidateQueries({ queryKey: keys.paymentStats });
+    },
+  });
+}
+
 export function useCreatePromoBanner() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { title: string; subtitle?: string; imageUrl: string; ctaLabel?: string; ctaLink?: string }) =>
-      apiFetch<PromoBanner>("/admin/promo-banners", { method: "POST", body: vars }),
+    mutationFn: (vars: {
+      title: string;
+      subtitle?: string;
+      imageUrl: string;
+      ctaLabel?: string;
+      ctaLink?: string;
+      type?: BannerType;
+      sortOrder?: number;
+    }) => apiFetch<PromoBanner>("/admin/promo-banners", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.promoBanners }),
   });
 }

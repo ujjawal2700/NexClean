@@ -7,6 +7,7 @@ import { notifyUser, pushToUser } from "../notification/notification.service";
 import { emitToUser, emitToAdmins } from "../../shared/services/socket";
 import { haversineMeters, type LngLat } from "../../shared/geo";
 import { findNearestEligibleAgents, type NearbyAgent } from "./dispatch.query";
+import { payoutCalculator } from "../payout/payoutConfig.service";
 import {
   OFFER_TTL_MS,
   SEARCH_RADII_M,
@@ -28,7 +29,8 @@ function customerId(b: BookingDocument): string {
 }
 
 /** Payload the agent app renders in the incoming-offer popup. */
-function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
+async function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
+  const payoutOf = await payoutCalculator();
   return {
     bookingId: String(b._id),
     customerName: "Customer",
@@ -41,7 +43,7 @@ function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
     date: b.date,
     slot: b.slot,
     price: b.price,
-    payout: Math.round(b.price * 0.7),
+    payout: payoutOf(b.price),
     distanceKm: distanceM != null ? Number((distanceM / 1000).toFixed(1)) : null,
     isSubscriptionWash: b.isSubscriptionWash,
     expiresAt: b.offerExpiresAt,
@@ -62,7 +64,7 @@ export function emitCancelToAgent(agentId: string, bookingId: string) {
 }
 
 async function sendOffer(b: BookingDocument, candidate: NearbyAgent) {
-  const payload = buildOfferPayload(b, candidate.distanceM);
+  const payload = await buildOfferPayload(b, candidate.distanceM);
   emitToUser(candidate.id, "job_offer", payload);
   // FCM backup so a backgrounded agent app still gets pinged. Push-only (no feed row).
   await pushToUser(candidate.id, {

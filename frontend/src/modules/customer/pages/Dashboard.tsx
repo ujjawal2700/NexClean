@@ -7,6 +7,18 @@ import { Skeleton } from "@shared/ui/Skeleton";
 import { useMe, useBookings, usePromoBanners, useVehicleCategories, useCategoryLabel } from "../api/queries";
 import { PACKAGES } from "../data/catalog";
 import { formatDate, formatMoney, greeting } from "@shared/lib/format";
+import type { BannerType } from "../types";
+
+/**
+ * Corner badge per banner type. "promotional" deliberately has none — it is the
+ * default and the most common, and labelling every card "Promotional" would be
+ * noise rather than information.
+ */
+const BANNER_TYPE_BADGES: Partial<Record<BannerType, { label: string; className: string }>> = {
+  discount: { label: "Discount", className: "bg-emerald-500/80 text-white" },
+  "peak-hours": { label: "Peak hours", className: "bg-amber-500/85 text-white" },
+  announcement: { label: "News", className: "bg-sky-500/80 text-white" },
+};
 
 export function Dashboard() {
   const { data: me, isLoading: meLoading } = useMe();
@@ -110,10 +122,16 @@ export function Dashboard() {
           <div className="overflow-hidden">
             <div className="flex gap-4 overflow-x-auto pb-3">
               {banners.map((b) => {
+              const badge = BANNER_TYPE_BADGES[b.type];
               const content = (
                 <div className="relative h-36 w-72 shrink-0 overflow-hidden rounded-card border border-line shadow-sm transition-transform hover:scale-[1.01] sm:w-80">
                   <img src={b.imageUrl} alt={b.title} className="size-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  {badge && (
+                    <span className={`absolute left-3 top-3 rounded-full px-2 py-0.5 text-[10px] font-medium backdrop-blur-md ${badge.className}`}>
+                      {badge.label}
+                    </span>
+                  )}
                   <div className="absolute inset-x-0 bottom-0 p-4">
                     <p className="font-display text-base font-semibold text-white">{b.title}</p>
                     {b.subtitle && <p className="mt-0.5 text-xs text-white/80">{b.subtitle}</p>}

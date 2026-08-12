@@ -75,9 +75,30 @@ else
   # become unreliable once hundreds of stale "searching"/"pending_admin"
   # bookings from prior runs pile up uncleaned in the same local database —
   # starting fresh avoids that entirely and keeps runs reproducible.
-  if command -v mongosh >/dev/null 2>&1; then
+  #
+  # Resolve mongosh explicitly rather than trusting PATH: Homebrew puts it in
+  # /opt/homebrew/bin, which an interactive shell has but a runner's environment
+  # often does not. This used to be a bare `command -v mongosh` guard that
+  # silently skipped the reset when it missed — so runs quietly stopped being
+  # reproducible and state piled up across them. That is not a harmless skip:
+  # the referral-farming test counts prior referred signups from the same IP,
+  # and once enough accumulate it fails on a code path that is working fine.
+  # Hence the loud warning when the tool genuinely isn't there.
+  MONGOSH_BIN=""
+  for candidate in "${MONGOSH_PATH:-}" mongosh /opt/homebrew/bin/mongosh /usr/local/bin/mongosh; do
+    [ -z "$candidate" ] && continue
+    if command -v "$candidate" >/dev/null 2>&1; then MONGOSH_BIN="$candidate"; break; fi
+  done
+
+  if [ -n "$MONGOSH_BIN" ]; then
     log "Resetting local test DB (nexclean-test)"
-    mongosh --quiet nexclean-test --eval "db.dropDatabase()" >/dev/null
+    "$MONGOSH_BIN" --quiet nexclean-test --eval "db.dropDatabase()" >/dev/null
+    export MONGOSH_PATH="$MONGOSH_BIN"
+  else
+    printf '\n\033[1;33m⚠ mongosh not found — SKIPPING the test-DB reset.\033[0m\n'
+    printf '  Runs are no longer reproducible: state accumulates across runs and\n'
+    printf '  tests that count prior records (e.g. referral farming) will fail for\n'
+    printf '  reasons unrelated to your change. Install it, or set MONGOSH_PATH.\n\n'
   fi
   log "Starting backend on :$BACKEND_PORT against local test DB (nexclean-test)"
   (

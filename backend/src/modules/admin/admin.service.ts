@@ -17,6 +17,7 @@ import { listCategories } from "../catalog/category.service";
 import { ServiceZone } from "../location/location.model";
 import { normalize as normalizePhone } from "../auth/auth.service";
 import { generateUniqueReferralCode } from "../user/user.service";
+import { payoutCalculator, computePayout, getPayoutConfig } from "../payout/payoutConfig.service";
 
 type BookingDoc = BookingDocument;
 type DisplayStatus = "upcoming" | "in_progress" | "completed" | "cancelled";
@@ -178,6 +179,12 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
     booking.status = "completed";
     booking.jobStatus = "completed";
     booking.dispatchStatus = "assigned"; // keeps it out of the searching/pending queue
+    // Freeze the cleaner's earnings at the rule in force now, exactly as the
+    // agent-side completion does — an admin closing the job must not leave it
+    // re-priced by whatever the payout rule happens to be later.
+    if (booking.assignedAgent && booking.agentPayout == null) {
+      booking.agentPayout = computePayout(booking.price, await getPayoutConfig());
+    }
   } else if (status === "in_progress") {
     booking.status = "upcoming";
     booking.jobStatus = "in_progress";
@@ -803,9 +810,10 @@ export async function paymentStats() {
   const totalRefunded = payments
     .filter((p) => p.status === "refunded")
     .reduce((s, p) => s + p.refundAmount, 0);
+  const payoutOf = await payoutCalculator();
   const pendingSettlement = payments
     .filter((p) => p.status === "paid" && p.settlementStatus === "pending")
-    .reduce((s, p) => s + Math.round(p.amount * 0.7), 0);
+    .reduce((s, p) => s + payoutOf(p.amount), 0);
   const settledAmount = payments
     .filter((p) => p.settlementStatus === "settled")
     .reduce((s, p) => s + p.agentPayout, 0);
@@ -870,7 +878,7 @@ export async function settlePayment(id: string) {
   if (payment.status !== "paid") throw ApiError.badRequest("Only paid payments can be settled");
   if (payment.settlementStatus === "settled") throw ApiError.badRequest("Payment is already settled");
 
-  payment.agentPayout = Math.round(payment.amount * 0.7);
+  payment.agentPayout = computePayout(payment.amount, await getPayoutConfig());
   payment.settlementStatus = "settled";
   payment.settledAt = new Date();
   await payment.save();

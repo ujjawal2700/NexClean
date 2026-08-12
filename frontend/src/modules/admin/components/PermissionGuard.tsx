@@ -6,6 +6,7 @@ const NAV_PERMISSIONS = [
   { to: "/admin", permission: "dashboard" },
   { to: "/admin/bookings", permission: "bookings" },
   { to: "/admin/dispatch", permission: "bookings" },
+  { to: "/admin/peak-hours", permission: "peak-hours" },
   { to: "/admin/customers", permission: "customers" },
   { to: "/admin/agents", permission: "agents" },
   { to: "/admin/agent-verification", permission: "agents" },

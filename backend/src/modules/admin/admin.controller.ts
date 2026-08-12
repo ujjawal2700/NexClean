@@ -10,7 +10,10 @@ import * as categoryService from "../catalog/category.service";
 import * as discountCodeService from "../promotions/discountCode.service";
 import * as specialCouponService from "../promotions/specialCoupon.service";
 import { getReferralConfig, updateReferralConfig } from "../promotions/referralConfig.service";
+import { getPeakHoursConfig, updatePeakHoursConfig } from "../promotions/peakHours.service";
+import { getPayoutConfig, updatePayoutConfig } from "../payout/payoutConfig.service";
 import * as promoBannerService from "../promotions/promoBanner.service";
+import { BANNER_TYPES } from "../promotions/promoBanner.model";
 import * as service from "./admin.service";
 import { getContent, updateContent } from "../content/content.service";
 import { AdminRole } from "./adminRole.model";
@@ -436,6 +439,7 @@ const createDiscountCodeSchema = z.object({
   maxDiscount: z.number().min(0).nullable().optional(),
   usageLimit: z.number().int().positive().nullable().optional(),
   validTill: z.coerce.date().nullable().optional(),
+  peakHoursOnly: z.boolean().optional(),
 });
 export async function createDiscountCode(req: Request, res: Response): Promise<Response> {
   const parsed = createDiscountCodeSchema.safeParse(req.body);
@@ -451,6 +455,7 @@ const updateDiscountCodeSchema = z.object({
   usageLimit: z.number().int().positive().nullable().optional(),
   validTill: z.coerce.date().nullable().optional(),
   active: z.boolean().optional(),
+  peakHoursOnly: z.boolean().optional(),
 });
 export async function updateDiscountCode(req: Request, res: Response): Promise<Response> {
   const parsed = updateDiscountCodeSchema.safeParse(req.body);
@@ -475,6 +480,7 @@ const generateSpecialCouponsSchema = z.object({
   maxDiscount: z.number().min(0).nullable().optional(),
   validFrom: z.coerce.date().nullable().optional(),
   validTill: z.coerce.date().nullable().optional(),
+  peakHoursOnly: z.boolean().optional(),
 });
 export async function generateSpecialCoupons(req: Request, res: Response): Promise<Response> {
   const parsed = generateSpecialCouponsSchema.safeParse(req.body);
@@ -525,6 +531,79 @@ export async function updateReferralConfigHandler(req: Request, res: Response): 
   return ok(res, await updateReferralConfig(parsed.data), "Referral settings updated");
 }
 
+/* ------------------------------ Peak hours ------------------------------- */
+
+export async function peakHours(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await getPeakHoursConfig());
+}
+
+const peakWindowSchema = z.object({
+  day: z.number().int().min(0).max(6),
+  start: z.string().trim().min(1),
+  end: z.string().trim().min(1),
+  label: z.string().trim().max(60).optional(),
+});
+const updatePeakHoursSchema = z.object({
+  timezone: z.string().trim().min(1).optional(),
+  // Capped so one request can't store an unbounded document; 7 days × a
+  // generous number of windows each is far beyond any real configuration.
+  windows: z.array(peakWindowSchema).max(70).optional(),
+  active: z.boolean().optional(),
+});
+export async function updatePeakHoursHandler(req: Request, res: Response): Promise<Response> {
+  const parsed = updatePeakHoursSchema.safeParse(req.body);
+  // Unlike the sibling handlers, the specific message from the service layer is
+  // worth surfacing here — "end must be after start" tells an admin what to fix,
+  // where a flat "invalid update" would leave them guessing which row is wrong.
+  // The field path is prefixed because zod's bare "Required" says nothing about
+  // *which* of several windows is missing a field.
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const where = issue?.path.length ? `${issue.path.join(".")}: ` : "";
+    throw ApiError.badRequest(issue ? `${where}${issue.message}` : "Invalid peak hours update");
+  }
+  return ok(res, await updatePeakHoursConfig(parsed.data), "Peak hours updated");
+}
+
+/* ---------------------------- Agent payouts ------------------------------ */
+
+export async function payoutConfig(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await getPayoutConfig());
+}
+
+const updatePayoutConfigSchema = z
+  .object({
+    mode: z.enum(["percent", "flat"]).optional(),
+    percent: z.number().min(0).max(100).optional(),
+    flatAmount: z.number().min(0).optional(),
+    minPayout: z.number().min(0).optional(),
+    maxPayout: z.number().min(0).optional(),
+  })
+  .refine((v) => v.maxPayout === undefined || v.minPayout === undefined || v.maxPayout === 0 || v.maxPayout >= v.minPayout, {
+    message: "Maximum payout cannot be below the minimum payout",
+  });
+export async function updatePayoutConfigHandler(req: Request, res: Response): Promise<Response> {
+  const parsed = updatePayoutConfigSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "Invalid payout settings");
+  }
+  // A saved rule must be usable on its own: switching to "flat" without an
+  // amount, or to "percent" with 0%, would quietly zero out every cleaner's
+  // earnings on the next job.
+  const current = await getPayoutConfig();
+  const next = { ...current, ...parsed.data };
+  if (next.mode === "flat" && next.flatAmount <= 0) {
+    throw ApiError.badRequest("Set a flat amount above ₹0 before switching to flat payouts");
+  }
+  if (next.mode === "percent" && next.percent <= 0) {
+    throw ApiError.badRequest("Set a percentage above 0% before saving");
+  }
+  if (next.maxPayout > 0 && next.maxPayout < next.minPayout) {
+    throw ApiError.badRequest("Maximum payout cannot be below the minimum payout");
+  }
+  return ok(res, await updatePayoutConfig(parsed.data), "Agent payout settings updated");
+}
+
 export async function promoBanners(_req: Request, res: Response): Promise<Response> {
   return ok(res, await promoBannerService.listPromoBanners());
 }
@@ -535,6 +614,7 @@ const createPromoBannerSchema = z.object({
   imageUrl: z.string().trim().min(1),
   ctaLabel: z.string().trim().optional(),
   ctaLink: z.string().trim().optional(),
+  type: z.enum(BANNER_TYPES).optional(),
   sortOrder: z.number().optional(),
 });
 export async function createPromoBanner(req: Request, res: Response): Promise<Response> {
@@ -549,6 +629,7 @@ const updatePromoBannerSchema = z.object({
   imageUrl: z.string().trim().min(1).optional(),
   ctaLabel: z.string().trim().optional(),
   ctaLink: z.string().trim().optional(),
+  type: z.enum(BANNER_TYPES).optional(),
   sortOrder: z.number().optional(),
   active: z.boolean().optional(),
 });

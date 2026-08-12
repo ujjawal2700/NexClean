@@ -6,6 +6,7 @@ import { listActivePlans } from "./plan.service";
 import { listActiveCategories } from "./category.service";
 import { getContent } from "../content/content.service";
 import { listActivePromoBanners } from "../promotions/promoBanner.service";
+import { getPeakHoursConfig } from "../promotions/peakHours.service";
 import { listActiveBrands } from "../brand/brand.service";
 import { listActiveModelsForBrand } from "../brand/vehicleModel.service";
 import { City, ServiceZone } from "../location/location.model";
@@ -30,6 +31,15 @@ export async function getPlans(_req: Request, res: Response): Promise<Response> 
 
 export async function getPromoBannersCtl(_req: Request, res: Response): Promise<Response> {
   return ok(res, await listActivePromoBanners());
+}
+
+/**
+ * Peak windows, public so the booking screen can flag which slots are peak
+ * before the customer has typed a code. Read-only config with no customer data
+ * in it, so it needs no auth — same footing as packages and banners.
+ */
+export async function getPeakHoursCtl(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await getPeakHoursConfig());
 }
 
 /** Active brands — used by the Add Vehicle / booking pickers (brand spans many categories). */

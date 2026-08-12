@@ -41,6 +41,11 @@ const bookingSchema = new Schema(
     },
     hasBefore: { type: Boolean, default: false },
     hasAfter: { type: Boolean, default: false },
+    // What the cleaner actually earned, frozen at the moment the job completed.
+    // The payout rule is admin-editable, so computing it live would silently
+    // rewrite the earnings history of every past job the next time the rate
+    // changed. null = not completed yet, so quote it from the current rule.
+    agentPayout: { type: Number, default: null },
     // The actual proof-of-service images. hasBefore/hasAfter used to be set by
     // an empty POST with no image at all, so the "photos required before
     // completing" gate was satisfiable without taking a single photo and

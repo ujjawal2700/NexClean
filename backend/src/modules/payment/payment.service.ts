@@ -18,6 +18,8 @@ export async function previewAmount(
     packageId: string;
     discountCode?: string;
     coinsToRedeem?: number;
+    date?: string;
+    slot?: string;
   },
 ) {
   const { basePrice, price, discountAmount, discountCodeLabel, coinsRedeemed, coinDiscount } =

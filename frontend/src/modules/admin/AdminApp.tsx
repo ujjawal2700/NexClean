@@ -13,6 +13,7 @@ import { AgentDetail } from "./pages/AgentDetail";
 import { Customers } from "./pages/Customers";
 import { CustomerDetail } from "./pages/CustomerDetail";
 import { Payments } from "./pages/Payments";
+import { AgentPayouts } from "./pages/AgentPayouts";
 import { Pricing } from "./pages/Pricing";
 import { AreaAlerts } from "./pages/AreaAlerts";
 import { Notifications } from "./pages/Notifications";
@@ -22,6 +23,7 @@ import { VehicleCategories } from "./pages/VehicleCategories";
 import { VehicleBrands } from "./pages/VehicleBrands";
 import { Promotions } from "./pages/Promotions";
 import { SpecialCoupons } from "./pages/SpecialCoupons";
+import { PeakHours } from "./pages/PeakHours";
 import { Reports } from "./pages/Reports";
 import { ContentManagement } from "./pages/ContentManagement";
 import { Leads } from "./pages/Leads";
@@ -58,6 +60,7 @@ export function AdminApp() {
           <Route path="customers" element={<PermissionGuard permission="customers"><Customers /></PermissionGuard>} />
           <Route path="customers/:id" element={<PermissionGuard permission="customers"><CustomerDetail /></PermissionGuard>} />
           <Route path="payments" element={<PermissionGuard permission="payments"><Payments /></PermissionGuard>} />
+          <Route path="agent-payouts" element={<PermissionGuard permission="agent-payouts"><AgentPayouts /></PermissionGuard>} />
           <Route path="pricing" element={<PermissionGuard permission="pricing"><Pricing /></PermissionGuard>} />
           <Route path="area-alerts" element={<PermissionGuard permission="area-alerts"><AreaAlerts /></PermissionGuard>} />
           <Route path="notifications" element={<PermissionGuard permission="notifications"><Notifications /></PermissionGuard>} />
@@ -67,6 +70,7 @@ export function AdminApp() {
           <Route path="vehicle-brands" element={<PermissionGuard permission="vehicle-brands"><VehicleBrands /></PermissionGuard>} />
           <Route path="promotions" element={<PermissionGuard permission="promotions"><Promotions /></PermissionGuard>} />
           <Route path="special-coupons" element={<PermissionGuard permission="special-coupons"><SpecialCoupons /></PermissionGuard>} />
+          <Route path="peak-hours" element={<PermissionGuard permission="peak-hours"><PeakHours /></PermissionGuard>} />
           <Route path="referrals" element={<PermissionGuard permission="referrals"><Referrals /></PermissionGuard>} />
           <Route path="content" element={<PermissionGuard permission="content"><ContentManagement /></PermissionGuard>} />
           <Route path="leads" element={<PermissionGuard permission="leads"><Leads /></PermissionGuard>} />

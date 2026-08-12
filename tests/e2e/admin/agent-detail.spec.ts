@@ -51,12 +51,15 @@ test.describe("Admin Agent Detail", () => {
     await loginAdminUI(page);
     await page.goto(`/admin/agents/${id}`);
 
+    // `exact: true` matters on "View": Playwright matches accessible names by
+    // substring, so a bare "View" also matches the sidebar's "Overview" group
+    // toggle and the click fails on a strict-mode violation.
     await expect(page.getByText("Documents are hidden.")).toBeVisible();
-    await page.getByRole("button", { name: "View" }).click();
+    await page.getByRole("button", { name: "View", exact: true }).click();
     await expect(page.getByText("Documents are hidden.")).not.toBeVisible();
-    await expect(page.getByRole("button", { name: "Hide" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Hide", exact: true })).toBeVisible();
 
-    await page.getByRole("button", { name: "Hide" }).click();
+    await page.getByRole("button", { name: "Hide", exact: true }).click();
     await expect(page.getByText("Documents are hidden.")).toBeVisible();
   });
 

@@ -309,6 +309,8 @@ export type DiscountCode = {
   usageCount: number;
   validTill: string | null;
   active: boolean;
+  /** Only redeemable on bookings whose slot falls in a configured peak window. */
+  peakHoursOnly: boolean;
 };
 
 export type SpecialCouponStatus = "active" | "used" | "inactive";
@@ -332,8 +334,19 @@ export type SpecialCoupon = {
   status: SpecialCouponStatus;
   assignedCustomer: { id: string; name: string; phone: string; email?: string } | null;
   batchId: string;
+  peakHoursOnly: boolean;
   usageHistory: SpecialCouponUsageRecord[];
   createdAt: string;
+};
+
+/** What a cleaner earns per completed job. See the Agent Payouts admin page. */
+export type PayoutConfig = {
+  mode: "percent" | "flat";
+  percent: number;
+  flatAmount: number;
+  minPayout: number;
+  /** 0 means uncapped. */
+  maxPayout: number;
 };
 
 export type ReferralConfig = {
@@ -344,6 +357,9 @@ export type ReferralConfig = {
   active: boolean;
 };
 
+export const BANNER_TYPES = ["promotional", "discount", "peak-hours", "announcement"] as const;
+export type BannerType = (typeof BANNER_TYPES)[number];
+
 export type PromoBanner = {
   id: string;
   title: string;
@@ -351,8 +367,30 @@ export type PromoBanner = {
   imageUrl: string;
   ctaLabel: string;
   ctaLink: string;
+  type: BannerType;
   sortOrder: number;
   active: boolean;
+};
+
+/** 0 = Sunday, matching JS Date#getDay. */
+export type WeekdayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export type PeakWindow = {
+  day: WeekdayIndex;
+  /** 24-hour "HH:MM" in the config's timezone. */
+  start: string;
+  end: string;
+  label: string;
+  /** Server-derived minutes since midnight, so the client never re-parses "HH:MM". */
+  startMinutes: number;
+  endMinutes: number;
+};
+
+export type PeakHoursConfig = {
+  /** IANA zone every window is interpreted in, e.g. "Asia/Kolkata". */
+  timezone: string;
+  active: boolean;
+  windows: PeakWindow[];
 };
 
 export type AdminReports = {

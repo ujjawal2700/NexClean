@@ -38,6 +38,12 @@ const specialCouponSchema = new Schema(
     status: { type: String, enum: ["active", "used", "inactive"], default: "active", index: true },
     assignedCustomer: { type: Types.ObjectId, ref: "User", default: null, index: true },
     batchId: { type: String, required: true, index: true },
+    /**
+     * When true the coupon only applies to bookings whose *slot* falls inside a
+     * configured peak window (see promotions/peakHours.service). Set per batch
+     * at generation time.
+     */
+    peakHoursOnly: { type: Boolean, default: false },
     usageHistory: { type: [usageHistorySchema], default: [] },
   },
   { timestamps: true, toJSON: jsonTransform },

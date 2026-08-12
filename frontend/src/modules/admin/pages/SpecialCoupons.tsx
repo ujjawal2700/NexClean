@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Plus, Sparkles, Search, RotateCcw, UserPlus } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Plus, Sparkles, Search, RotateCcw, UserPlus, Clock } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -42,6 +43,7 @@ function GenerateCouponsSection() {
   const [maxDiscount, setMaxDiscount] = useState("");
   const [validFrom, setValidFrom] = useState("");
   const [validTill, setValidTill] = useState("");
+  const [peakHoursOnly, setPeakHoursOnly] = useState(false);
 
   const reset = () => {
     setCount("10");
@@ -50,6 +52,7 @@ function GenerateCouponsSection() {
     setMaxDiscount("");
     setValidFrom("");
     setValidTill("");
+    setPeakHoursOnly(false);
   };
 
   const submit = () => {
@@ -64,6 +67,7 @@ function GenerateCouponsSection() {
         maxDiscount: maxDiscount ? Number(maxDiscount) : undefined,
         validFrom: validFrom ? new Date(validFrom).toISOString() : undefined,
         validTill: validTill ? new Date(validTill).toISOString() : undefined,
+        peakHoursOnly,
       },
       { onSuccess: () => { reset(); setOpen(false); } },
     );
@@ -143,6 +147,27 @@ function GenerateCouponsSection() {
               onChange={(e) => setValidTill(e.target.value)}
             />
           </div>
+          <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-surface/60 p-3">
+            <input
+              type="checkbox"
+              checked={peakHoursOnly}
+              onChange={(e) => setPeakHoursOnly(e.target.checked)}
+              className="mt-0.5 size-4 accent-[color:var(--color-primary,#4F7CFF)]"
+            />
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
+                <Clock className="size-3.5 text-primary" /> Peak hours only
+              </span>
+              <span className="mt-0.5 block text-xs text-muted">
+                Every coupon in this batch will apply only when the booking's time slot falls inside a
+                window set on the{" "}
+                <Link to="/admin/peak-hours" className="text-primary hover:underline">
+                  Peak Hours
+                </Link>{" "}
+                page.
+              </span>
+            </span>
+          </label>
           <Button size="sm" onClick={submit} disabled={generate.isPending || !count || !value}>
             {generate.isPending ? "Generating…" : `Generate ${count || 0} coupon(s)`}
           </Button>
@@ -212,6 +237,11 @@ function CouponRow({ coupon }: { coupon: SpecialCoupon }) {
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-mono text-sm font-semibold text-ink">{coupon.code}</p>
             <Badge className={statusBadgeClass(coupon.status)}>{coupon.status}</Badge>
+            {coupon.peakHoursOnly && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                <Clock className="size-3" /> Peak only
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted">
             {discountLabel(coupon)}

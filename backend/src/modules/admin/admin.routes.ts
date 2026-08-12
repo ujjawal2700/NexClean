@@ -95,6 +95,10 @@ adminRouter.post("/promo-banners", requirePermission("promotions"), asyncHandler
 adminRouter.patch("/promo-banners/:id", requirePermission("promotions"), asyncHandler(c.updatePromoBanner));
 adminRouter.delete("/promo-banners/:id", requirePermission("promotions"), asyncHandler(c.deletePromoBanner));
 
+// Peak hours — per-weekday demand windows that peak-only coupons key off
+adminRouter.get("/peak-hours", requirePermission("peak-hours"), asyncHandler(c.peakHours));
+adminRouter.put("/peak-hours", requirePermission("peak-hours"), asyncHandler(c.updatePeakHoursHandler));
+
 adminRouter.get("/campaigns", requirePermission("promotions"), asyncHandler(c.campaigns));
 adminRouter.get("/campaigns/audience-sizes", requirePermission("promotions"), asyncHandler(c.campaignAudienceSizes));
 adminRouter.get("/campaigns/audiences", requirePermission("promotions"), asyncHandler(c.campaignAudiences));
@@ -107,6 +111,10 @@ adminRouter.put("/content", requirePermission("content"), asyncHandler(c.updateC
 adminRouter.get("/leads", requirePermission("leads"), asyncHandler(listLeads));
 adminRouter.patch("/leads/:id/status", requirePermission("leads"), asyncHandler(updateLeadStatus));
 adminRouter.delete("/leads/:id", requirePermission("leads"), asyncHandler(deleteLead));
+
+// Agent payouts — what a cleaner earns per job (percent or flat)
+adminRouter.get("/payout-config", requirePermission("agent-payouts"), asyncHandler(c.payoutConfig));
+adminRouter.put("/payout-config", requirePermission("agent-payouts"), asyncHandler(c.updatePayoutConfigHandler));
 
 // Referrals — program config + logs
 adminRouter.get("/referral-config", requirePermission("referrals"), asyncHandler(c.referralConfig));
