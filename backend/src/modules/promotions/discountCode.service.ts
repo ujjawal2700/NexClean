@@ -1,34 +1,35 @@
 import { DiscountCode, type DiscountCodeDoc } from "./discountCode.model";
 import { SPECIAL_COUPON_PREFIX } from "./specialCoupon.model";
-import { evaluatePeakSlot } from "./peakHours.service";
+import { evaluateOffPeakSlot } from "./offPeakHours.service";
 import { ApiError } from "../../shared/utils/ApiError";
 
 /**
- * The slot a code is being spent on. Peak-only codes are checked against this;
- * codes without the flag ignore it entirely.
+ * The slot a code is being spent on. Off-peak-only codes are checked against
+ * this; codes without the flag ignore it entirely.
  */
 export type RedemptionContext = { date: Date; slot: string };
 
 /**
  * Shared gate for both code kinds. Kept here (rather than inlined twice) so the
- * peak rule can never drift between normal discount codes and special coupons.
+ * off-peak rule can never drift between normal discount codes and special
+ * coupons.
  *
- * Fails *closed* when a peak-only code is presented without slot context: the
- * alternative is granting the discount on a quote that booking creation would
- * then refuse, which shows the customer one price and charges another.
+ * Fails *closed* when an off-peak-only code is presented without slot context:
+ * the alternative is granting the discount on a quote that booking creation
+ * would then refuse, which shows the customer one price and charges another.
  */
-export async function assertPeakEligible(
-  peakHoursOnly: boolean,
+export async function assertOffPeakEligible(
+  offPeakOnly: boolean,
   context: RedemptionContext | undefined,
 ): Promise<void> {
-  if (!peakHoursOnly) return;
+  if (!offPeakOnly) return;
   if (!context) {
     throw ApiError.badRequest(
-      "This coupon only works on peak-hour slots — pick your date and time slot first",
+      "This coupon only works on off-peak slots — pick your date and time slot first",
     );
   }
-  const { peak, reason } = await evaluatePeakSlot(context.date, context.slot);
-  if (!peak) throw ApiError.badRequest(reason);
+  const { offPeak, reason } = await evaluateOffPeakSlot(context.date, context.slot);
+  if (!offPeak) throw ApiError.badRequest(reason);
 }
 
 function mapCode(c: DiscountCodeDoc) {
@@ -43,7 +44,7 @@ function mapCode(c: DiscountCodeDoc) {
     usageCount: c.usageCount,
     validTill: c.validTill,
     active: c.active,
-    peakHoursOnly: c.peakHoursOnly,
+    offPeakOnly: c.offPeakOnly,
   };
 }
 
@@ -60,7 +61,7 @@ export async function createDiscountCode(input: {
   maxDiscount?: number | null;
   usageLimit?: number | null;
   validTill?: Date | null;
-  peakHoursOnly?: boolean;
+  offPeakOnly?: boolean;
 }) {
   const code = input.code.toUpperCase();
   if (code.startsWith(SPECIAL_COUPON_PREFIX)) {
@@ -81,7 +82,7 @@ export async function updateDiscountCode(
     usageLimit?: number | null;
     validTill?: Date | null;
     active?: boolean;
-    peakHoursOnly?: boolean;
+    offPeakOnly?: boolean;
   },
 ) {
   const code = await DiscountCode.findByIdAndUpdate(id, patch, { new: true });
@@ -96,7 +97,7 @@ export async function deleteDiscountCode(id: string) {
 
 /**
  * Validate a code against an order amount and compute the discount (rupees). Does not mutate usage.
- * `context` carries the booking's date + slot, required for peak-hours-only codes.
+ * `context` carries the booking's date + slot, required for off-peak-only codes.
  */
 export async function applyDiscountCode(
   rawCode: string,
@@ -115,13 +116,16 @@ export async function applyDiscountCode(
   if (amount < code.minOrderValue) {
     throw ApiError.badRequest(`This code needs a minimum order of ₹${code.minOrderValue}`);
   }
-  await assertPeakEligible(code.peakHoursOnly, context);
+  await assertOffPeakEligible(code.offPeakOnly, context);
 
   let discountAmount = code.type === "percent" ? (amount * code.value) / 100 : code.value;
   if (code.maxDiscount != null) discountAmount = Math.min(discountAmount, code.maxDiscount);
   discountAmount = Math.min(Math.round(discountAmount), amount);
 
-  return { discountAmount, codeId: code.id as string, code: code.code };
+  // `offPeakOnly` travels with the result so the booking can snapshot whether
+  // this discount was conditional on the slot — that is the amount a later move
+  // into a peak slot has to reclaim.
+  return { discountAmount, codeId: code.id as string, code: code.code, offPeakOnly: code.offPeakOnly };
 }
 
 /** Mark a code as used — call only once the booking it discounted is actually created. */

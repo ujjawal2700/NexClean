@@ -67,13 +67,29 @@ export async function createOrder(userId: string, input: CreateOrderInput) {
 export async function verifyAndBook(userId: string, input: VerifyPaymentInput) {
   if (!paymentsLive) {
     const booking = await createBooking(userId, input.booking);
-    // Link the order record to the booking it produced, so the admin payments
-    // list can still show which booking a (cash/mock) payment belongs to.
+
     if (input.razorpay_order_id) {
+      // A mock order already exists for this booking — link it rather than
+      // minting a second ledger row for the same money.
       await Payment.updateOne(
         { orderId: input.razorpay_order_id, user: userId },
         { booking: booking.id },
       );
+    } else {
+      // Pay-to-cleaner: the app confirms the booking directly and never calls
+      // /payments/order, so nothing used to be written here at all — the
+      // booking existed but had no ledger entry, and Payments & Settlement
+      // simply never listed it. Record the transaction now, as "created":
+      // the cash is owed but not yet collected, and it flips to "paid" when
+      // the cleaner completes the job (see markPaymentCollected).
+      await Payment.create({
+        user: userId,
+        booking: booking.id,
+        orderId: mockOrderId("cash"),
+        amount: booking.price,
+        status: "created",
+        bookingDraft: input.booking,
+      });
     }
     return booking;
   }

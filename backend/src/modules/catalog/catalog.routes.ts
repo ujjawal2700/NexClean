@@ -5,7 +5,8 @@ import {
   getPlans,
   getContentCtl,
   getPromoBannersCtl,
-  getPeakHoursCtl,
+  getOffPeakHoursCtl,
+  getPaymentModeCtl,
   getVehicleCategoriesCtl,
   getVehicleBrandsCtl,
   getVehicleModelsCtl,
@@ -20,7 +21,8 @@ catalogRouter.get("/packages", getPackages);
 catalogRouter.get("/plans", asyncHandler(getPlans));
 catalogRouter.get("/content", asyncHandler(getContentCtl));
 catalogRouter.get("/promo-banners", asyncHandler(getPromoBannersCtl));
-catalogRouter.get("/peak-hours", asyncHandler(getPeakHoursCtl));
+catalogRouter.get("/off-peak-hours", asyncHandler(getOffPeakHoursCtl));
+catalogRouter.get("/payment-mode", getPaymentModeCtl);
 catalogRouter.get("/vehicle-categories", asyncHandler(getVehicleCategoriesCtl));
 catalogRouter.get("/vehicle-brands", asyncHandler(getVehicleBrandsCtl));
 catalogRouter.get("/vehicle-brands/:id/models", asyncHandler(getVehicleModelsCtl));

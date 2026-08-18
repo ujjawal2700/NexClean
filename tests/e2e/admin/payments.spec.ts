@@ -1,6 +1,17 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import { loginAdminUI } from "../../fixtures/ui-helpers";
-import { forcePaymentPaidByBookingId, seedPayment } from "../../fixtures/admin-e2e-ops-helpers";
+import { authHeader, ADMIN_EMAIL, ADMIN_PASSWORD } from "../../fixtures/api-client";
+import { apiUrl, forcePaymentPaidByBookingId, seedPayment } from "../../fixtures/admin-e2e-ops-helpers";
+
+// This project's `request` fixture is bound to the frontend origin, so backend
+// calls go through the absolute apiUrl() helper — same as the sibling specs.
+async function loginAsAdminApi(request: APIRequestContext) {
+  const res = await request.post(apiUrl("/auth/admin-login"), {
+    data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+  });
+  if (!res.ok()) throw new Error(`admin-login failed: ${await res.text()}`);
+  return { token: (await res.json()).data.token as string };
+}
 
 test.describe("Admin Payments", () => {
   test.beforeEach(async ({ page }) => {
@@ -108,5 +119,76 @@ test.describe("Admin Payments", () => {
     // there — the previous assertion matched the filter's own hidden <option>.
     await page.locator("select").first().selectOption("refunded");
     await expect(page.locator("table tbody tr").first()).toContainText("Refunded");
+  });
+
+  /**
+   * The Agent filter used to build its options from the payment rows on screen,
+   * so a cleaner only showed up once they already had a payment in the list —
+   * newly added agents, and anyone whose payments fell outside the 200-row
+   * window the API returns, were missing from the filter entirely. Options now
+   * come from the agents directory, so every agent is selectable.
+   */
+  test("the agent filter lists every agent, not just those with payments", async ({ page, request }) => {
+    await seedPayment(request);
+
+    const { token } = await loginAsAdminApi(request);
+    const agents = (await (
+      await request.get(apiUrl("/admin/agents"), { headers: authHeader(token) })
+    ).json()).data as Array<{ id: string; name: string }>;
+    expect(agents.length, "no agents seeded — the assertion below would be vacuous").toBeGreaterThan(0);
+
+    await page.goto("/admin/payments");
+    const agentSelect = page.locator("select").nth(1);
+    await expect(agentSelect).toBeVisible();
+
+    // Polled rather than read once: the options come from the agents query, so
+    // a single synchronous read can land on the first paint when the only
+    // option is "all" — which failed this test intermittently for reasons that
+    // had nothing to do with the filter being correct.
+    //
+    // getAttribute keeps the callback on Element, so it needs no DOM lib types.
+    await expect
+      .poll(
+        async () =>
+          agentSelect.locator("option").evaluateAll((opts) => opts.map((o) => o.getAttribute("value"))),
+        { message: "the agent options never loaded" },
+      )
+      .toEqual(expect.arrayContaining(agents.map((a) => a.id)));
+  });
+
+  /**
+   * Asserts the selection is actually applied, without assuming anything about
+   * which agents happen to have payments — earlier specs in a full run assign
+   * agents to bookings, so "pick the first agent and expect an empty table"
+   * holds in isolation and fails in the suite. seedPayment always creates an
+   * *unassigned* booking, which is the one fact that stays true either way.
+   */
+  test("selecting an agent actually applies the filter", async ({ page, request }) => {
+    await seedPayment(request);
+
+    const { token } = await loginAsAdminApi(request);
+    const agents = (await (
+      await request.get(apiUrl("/admin/agents"), { headers: authHeader(token) })
+    ).json()).data as Array<{ id: string; name: string }>;
+
+    await page.goto("/admin/payments");
+    const rows = page.locator("table tbody tr");
+    await expect(rows.first()).toBeVisible();
+
+    // Unassigned: every row on screen must have an empty agent cell.
+    await page.locator("select").nth(1).selectOption("unassigned");
+    await expect(rows.first()).toBeVisible();
+    const unassignedAgents = await rows.locator("td:nth-child(3)").allTextContents();
+    expect(unassignedAgents.length).toBeGreaterThan(0);
+    for (const cell of unassignedAgents) expect(cell.trim()).toBe("—");
+
+    // A named agent: nothing unassigned may leak through, and any row that does
+    // show must belong to that agent.
+    await page.locator("select").nth(1).selectOption(agents[0].id);
+    const noMatches = await page.getByText("No payments match your search.").isVisible().catch(() => false);
+    if (!noMatches) {
+      const named = await rows.locator("td:nth-child(3)").allTextContents();
+      for (const cell of named) expect(cell.trim()).toBe(agents[0].name);
+    }
   });
 });

@@ -11,7 +11,7 @@ const jsonTransform = {
 
 /** What a banner is *about*, so the customer app can badge it and the admin list
  *  can be scanned at a glance. Purely presentational — it does not gate display. */
-export const BANNER_TYPES = ["promotional", "discount", "peak-hours", "announcement"] as const;
+export const BANNER_TYPES = ["promotional", "discount", "off-peak-hours", "announcement"] as const;
 export type BannerType = (typeof BANNER_TYPES)[number];
 
 const promoBannerSchema = new Schema(

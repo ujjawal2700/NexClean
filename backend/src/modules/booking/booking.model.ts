@@ -22,6 +22,59 @@ const bookingSchema = new Schema(
     // Coins the customer redeemed on this booking and the ₹ discount they bought.
     coinsRedeemed: { type: Number, default: 0 },
     coinDiscount: { type: Number, default: 0 },
+
+    /**
+     * Off-peak subsidy, snapshotted at booking time.
+     *
+     * `offPeakLocked` marks a booking that only got its price because it was
+     * placed in a quiet slot. Moving it into a peak slot later has to reclaim
+     * that subsidy, otherwise a customer can buy the cheap slot and walk the
+     * booking over to the expensive one.
+     *
+     * `offPeakDiscountAmount` is the rupees that subsidy was worth, and it is
+     * stored rather than recomputed for two reasons: the coupon may be edited or
+     * deleted before the reschedule happens, and a percentage coupon recomputed
+     * against a changed base price would reclaim a different number than the
+     * customer was ever given. Only the off-peak-gated portion goes in here —
+     * general coupons and redeemed coins are excluded by construction, so they
+     * can never be clawed back.
+     *
+     * Bookings created before this shipped have neither field; the defaults make
+     * them unlocked, which is deliberate — they move freely and are never
+     * charged for a rule that did not exist when they were made.
+     */
+    offPeakLocked: { type: Boolean, default: false },
+    offPeakDiscountAmount: { type: Number, default: 0 },
+
+    /**
+     * Fee collected for moving this booking into a peak slot.
+     *
+     * Kept apart from `price` on purpose: the cleaner's payout is a percentage
+     * of `price`, and this is a platform charge for the disruption, not service
+     * revenue. Folding it into `price` would quietly raise what the cleaner
+     * earns for identical work. It is also never refunded, so cancellation has
+     * to be able to tell the two apart.
+     */
+    peakUpgradeFeeCharged: { type: Number, default: 0 },
+
+    /**
+     * An admin let a peak upgrade through without charging for it.
+     *
+     * Recorded rather than silently applied: waiving is a goodwill decision with
+     * a rupee value, and "why is this booking in a peak slot at the off-peak
+     * price?" needs an answer that is not guesswork.
+     */
+    upgradeWaivedAmount: { type: Number, default: 0 },
+    upgradeWaivedBy: { type: Types.ObjectId, ref: "User", default: null },
+    upgradeWaivedAt: { type: Date, default: null },
+
+    /**
+     * How many times the *customer* has moved this booking. Separate from
+     * `rescheduleCount`, which the missed-slot sweep owns and resets — mixing
+     * them would let a customer's moves exhaust the sweep's retry budget, or a
+     * sweep reset hand back unlimited customer moves.
+     */
+    customerRescheduleCount: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["upcoming", "completed", "cancelled"],

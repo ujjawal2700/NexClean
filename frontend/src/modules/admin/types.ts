@@ -29,6 +29,10 @@ export type AdminBooking = {
   dispatchStatus?: DispatchStatus;
   agentName: string | null;
   assignedAgentId: string | null;
+  /** Booked into a quiet slot with an off-peak coupon — moving it to a peak slot costs money. */
+  offPeakLocked: boolean;
+  /** The subsidy that would be reclaimed on such a move, in rupees. */
+  offPeakDiscountAmount: number;
 };
 
 export type DispatchStatus =
@@ -250,6 +254,8 @@ export type AdminPayment = {
   bookingId: string | null;
   society: string;
   agentName: string | null;
+  /** The assigned cleaner's id, or null while the booking is unassigned. */
+  agentId: string | null;
   orderId: string;
   paymentId: string | null;
   amount: number;
@@ -309,8 +315,8 @@ export type DiscountCode = {
   usageCount: number;
   validTill: string | null;
   active: boolean;
-  /** Only redeemable on bookings whose slot falls in a configured peak window. */
-  peakHoursOnly: boolean;
+  /** Only redeemable on bookings whose slot falls in a configured off-peak (discounted) window. */
+  offPeakOnly: boolean;
 };
 
 export type SpecialCouponStatus = "active" | "used" | "inactive";
@@ -334,7 +340,7 @@ export type SpecialCoupon = {
   status: SpecialCouponStatus;
   assignedCustomer: { id: string; name: string; phone: string; email?: string } | null;
   batchId: string;
-  peakHoursOnly: boolean;
+  offPeakOnly: boolean;
   usageHistory: SpecialCouponUsageRecord[];
   createdAt: string;
 };
@@ -357,7 +363,7 @@ export type ReferralConfig = {
   active: boolean;
 };
 
-export const BANNER_TYPES = ["promotional", "discount", "peak-hours", "announcement"] as const;
+export const BANNER_TYPES = ["promotional", "discount", "off-peak-hours", "announcement"] as const;
 export type BannerType = (typeof BANNER_TYPES)[number];
 
 export type PromoBanner = {
@@ -375,7 +381,7 @@ export type PromoBanner = {
 /** 0 = Sunday, matching JS Date#getDay. */
 export type WeekdayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-export type PeakWindow = {
+export type OffPeakWindow = {
   day: WeekdayIndex;
   /** 24-hour "HH:MM" in the config's timezone. */
   start: string;
@@ -386,11 +392,43 @@ export type PeakWindow = {
   endMinutes: number;
 };
 
-export type PeakHoursConfig = {
+/** One weekday × slot cell of the demand grid behind a suggestion. */
+export type DemandCell = {
+  day: WeekdayIndex;
+  slot: string;
+  count: number;
+  offPeak: boolean;
+};
+
+export type DemandDaySummary = {
+  day: WeekdayIndex;
+  label: string;
+  total: number;
+  median: number;
+  /** False when the weekday has too little history to classify honestly. */
+  enoughData: boolean;
+};
+
+/** A proposal drawn from booking history — never applied until the admin saves. */
+export type OffPeakSuggestion = {
+  lookbackWeeks: number;
+  sensitivity: number;
+  minSamplesPerDay: number;
+  totalBookings: number;
+  /** Bookings left out because they were themselves won by an off-peak discount. */
+  excludedDiscounted: number;
+  days: DemandDaySummary[];
+  grid: DemandCell[];
+  windows: { day: WeekdayIndex; start: string; end: string; label: string }[];
+};
+
+export type OffPeakHoursConfig = {
   /** IANA zone every window is interpreted in, e.g. "Asia/Kolkata". */
   timezone: string;
   active: boolean;
-  windows: PeakWindow[];
+  /** Flat charge for moving a subsidised booking into a peak slot. */
+  peakUpgradeFee: number;
+  windows: OffPeakWindow[];
 };
 
 export type AdminReports = {

@@ -1,8 +1,8 @@
-import type { PeakHoursConfig, PeakWindow, WeekdayIndex } from "../types";
+import type { OffPeakHoursConfig, OffPeakWindow, WeekdayIndex } from "../types";
 
 /**
- * Client-side mirror of the server's peak-slot test, used only to *hint* which
- * slots are peak in the picker. The server stays authoritative for whether a
+ * Client-side mirror of the server's off-peak test, used only to *hint* which
+ * slots are discounted in the picker. The server stays authoritative for whether a
  * coupon actually applies — this never gates anything, so a stale config here
  * can mislabel a chip but can never mis-price a booking.
  */
@@ -35,8 +35,8 @@ export function weekdayInTimezone(date: Date, timezone: string): WeekdayIndex {
 }
 
 /** Window membership is [start, end), matching the server. */
-export function isPeakSlot(
-  config: PeakHoursConfig | undefined,
+export function isOffPeakSlot(
+  config: OffPeakHoursConfig | undefined,
   dateIso: string | null,
   slot: string | null,
 ): boolean {
@@ -53,9 +53,9 @@ export function isPeakSlot(
 
 /** The windows configured for the weekday a date falls on, for explanatory copy. */
 export function windowsForDate(
-  config: PeakHoursConfig | undefined,
+  config: OffPeakHoursConfig | undefined,
   dateIso: string | null,
-): PeakWindow[] {
+): OffPeakWindow[] {
   if (!config?.active || !dateIso) return [];
   const date = new Date(dateIso);
   if (Number.isNaN(date.getTime())) return [];

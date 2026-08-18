@@ -21,9 +21,17 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { BrandModelSelect, type VehicleSelection } from "../../components/BrandModelSelect";
 import { ApiError } from "@shared/lib/api";
-import { useMe, useVehicleCategories, useCategoryLabel, useWallet, usePeakHours } from "../../api/queries";
-import { isPeakSlot, windowsForDate } from "../../data/peakHours";
-import { useVerifyPayment, usePreviewDiscount, useAddAddress } from "../../api/mutations";
+import {
+  useMe,
+  useVehicleCategories,
+  useCategoryLabel,
+  useWallet,
+  useOffPeakHours,
+  usePaymentMode,
+} from "../../api/queries";
+import { isOffPeakSlot, windowsForDate } from "../../data/offPeakHours";
+import { useVerifyPayment, useCreateOrder, usePreviewDiscount, useAddAddress } from "../../api/mutations";
+import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import type { PreviewAmountResponse } from "../../api/mutations";
 import { usePlacesAutocomplete, type PlaceCoords } from "@shared/hooks/usePlacesAutocomplete";
 import { PACKAGES, availableSlotsForDate, upcomingDates, priceFor } from "../../data/catalog";
@@ -75,6 +83,7 @@ export function BookingFlow() {
   const vehicles = me?.vehicles ?? [];
   const addresses = me?.addresses ?? [];
   const verifyPayment = useVerifyPayment();
+  const createOrder = useCreateOrder();
   const previewDiscount = usePreviewDiscount();
   const { data: wallet } = useWallet();
 
@@ -119,7 +128,7 @@ export function BookingFlow() {
       packageId: pkg.id,
       discountCode: code,
       coinsToRedeem: coins > 0 ? coins : undefined,
-      // Sent so a peak-hours-only code is judged against the slot the customer
+      // Sent so an off-peak-only code is judged against the slot the customer
       // actually picked, exactly as booking creation will judge it.
       date: draft.date ?? undefined,
       slot: draft.slot ?? undefined,
@@ -156,7 +165,7 @@ export function BookingFlow() {
   };
 
   /**
-   * A peak-hours-only code is tied to the slot it was applied on, so going back
+   * An off-peak-only code is tied to the slot it was applied on, so going back
    * and picking a different time can invalidate a code that is already showing
    * as applied. Re-validate whenever the schedule changes: without this the
    * stale discount survives to `pay()`, where the server rejects it and the
@@ -226,13 +235,19 @@ export function BookingFlow() {
     };
 
     try {
-      // Direct demo confirm — Razorpay disabled per demo requirement
-      const booking = await verifyPayment.mutateAsync({ booking: bookingInput });
-      setConfirmed(booking);
-      setProcessing(false);
-      return;
-
-      /* Razorpay disabled for demo
+      /**
+       * Ask the server to open an order first, and let its answer choose the
+       * route. `mock: true` means no gateway is configured, so the booking is
+       * confirmed directly and the customer pays the cleaner in cash.
+       *
+       * This branch used to be commented out with the direct confirm hardcoded
+       * above it — which quietly made the app unable to accept online payment at
+       * all. Worse, it was a trap rather than a limitation: the moment real
+       * Razorpay keys were added, /payments/verify starts demanding a signature
+       * and the hardcoded call would have failed every booking with "Missing
+       * payment confirmation fields". Letting the server decide means adding
+       * keys switches the flow on instead of breaking it.
+       */
       const order = await createOrder.mutateAsync(bookingInput);
 
       if (order.mock) {
@@ -264,9 +279,10 @@ export function BookingFlow() {
             setProcessing(false);
           }
         },
+        // Closing the sheet without paying must release the button, not leave
+        // the customer staring at a spinner they cannot clear.
         modal: { ondismiss: () => setProcessing(false) },
       });
-      */
     } catch (e) {
       setPayError(e instanceof ApiError ? e.message : "Payment failed. Please try again.");
       setProcessing(false);
@@ -359,7 +375,7 @@ export function BookingFlow() {
                     <Loader2 className="size-4 animate-spin" /> Processing…
                   </>
                 ) : (
-                  <>Pay to cleaner {formatMoney(payable)}</>
+                  <>Pay {formatMoney(payable)}</>
                 )}
               </Button>
             )}
@@ -524,8 +540,8 @@ function PackageStep({
 function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) => void }) {
   const dates = upcomingDates(7);
   const slots = availableSlotsForDate(draft.date);
-  const { data: peakConfig } = usePeakHours();
-  const peakWindows = windowsForDate(peakConfig, draft.date);
+  const { data: offPeakConfig } = useOffPeakHours();
+  const offPeakWindows = windowsForDate(offPeakConfig, draft.date);
 
   // When a date is selected, if the currently chosen slot is no longer valid, clear it.
   const selectDate = (iso: string) => {
@@ -570,10 +586,10 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
 
       <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium text-muted">Time slot</p>
-        {peakWindows.length > 0 && (
-          <span className="flex items-center gap-1.5 text-[11px] text-amber-600">
-            <span className="size-1.5 rounded-full bg-amber-500" />
-            Peak {peakWindows.map((w) => `${w.start}–${w.end}`).join(", ")}
+        {offPeakWindows.length > 0 && (
+          <span className="flex items-center gap-1.5 text-[11px] text-emerald-600">
+            <span className="size-1.5 rounded-full bg-emerald-500" />
+            Cheaper {offPeakWindows.map((w) => `${w.start}–${w.end}`).join(", ")}
           </span>
         )}
       </div>
@@ -585,8 +601,8 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
         <div className="grid grid-cols-2 gap-2.5 xs:grid-cols-3 sm:grid-cols-4">
           {slots.map((slot) => {
             const selected = draft.slot === slot;
-            // A hint only — the server decides whether a peak coupon applies.
-            const peak = isPeakSlot(peakConfig, draft.date, slot);
+            // A hint only — the server decides whether an off-peak coupon applies.
+            const offPeak = isOffPeakSlot(offPeakConfig, draft.date, slot);
             return (
               <button
                 key={slot}
@@ -595,23 +611,23 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
                   "relative rounded-xl border px-2 py-2.5 text-sm font-medium transition-all",
                   selected
                     ? "border-primary bg-primary/5 text-primary ring-2 ring-primary/20"
-                    : peak
-                      ? "border-amber-400/50 bg-amber-50/40 text-ink-soft hover:border-primary/40"
+                    : offPeak
+                      ? "border-emerald-400/50 bg-emerald-50/40 text-ink-soft hover:border-primary/40"
                       : "border-line bg-surface text-ink-soft hover:border-primary/40",
                 )}
-                // Peak status rides on `title` and `data-peak`, never on an
-                // aria-label: the dot is inside the button, so labelling it
+                // Off-peak status rides on `title` and `data-off-peak`, never on
+                // an aria-label: the dot is inside the button, so labelling it
                 // would append to the button's accessible name and the control
                 // would stop being addressable as plainly "11:00 AM". The
                 // legend above the grid carries the meaning in text.
-                title={peak ? `${slot} — peak hour slot` : undefined}
-                data-peak={peak ? "true" : undefined}
+                title={offPeak ? `${slot} — off-peak slot, discounts apply` : undefined}
+                data-off-peak={offPeak ? "true" : undefined}
               >
                 {slot}
-                {peak && (
+                {offPeak && (
                   <span
                     aria-hidden="true"
-                    className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-amber-500"
+                    className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-emerald-500"
                   />
                 )}
               </button>
@@ -619,9 +635,9 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
           })}
         </div>
       )}
-      {peakWindows.length > 0 && (
+      {offPeakWindows.length > 0 && (
         <p className="mt-3 text-xs text-muted">
-          Slots marked with a dot fall in a peak window. Some coupons only apply to these.
+          Slots marked with a green dot are our quieter hours — discount codes apply to these.
         </p>
       )}
     </div>
@@ -803,6 +819,9 @@ function PaymentSummary({
   coinDiscount: number;
   toggleCoins: () => void;
 }) {
+  // Cached query — reading it here avoids threading the flag through props.
+  const { data: paymentMode } = usePaymentMode();
+  const payOnline = paymentMode?.online ?? false;
   // No payment-method picker: NexClean is pay-to-cleaner, so the money is
   // always collected in cash on completion. Offering UPI/Card/Wallet implied a
   // choice that doesn't exist and that nothing downstream acted on.
@@ -922,7 +941,9 @@ function PaymentSummary({
           </div>
         </dl>
         <p className="mt-3 border-t border-line pt-3 text-xs text-muted">
-          Payable in cash to your cleaner after the service is finished — nothing is charged now.
+          {payOnline
+            ? "Paid securely now — your cleaner collects nothing on the day."
+            : "Payable in cash to your cleaner after the service is finished — nothing is charged now."}
         </p>
       </div>
       {draft.vehicleType && (

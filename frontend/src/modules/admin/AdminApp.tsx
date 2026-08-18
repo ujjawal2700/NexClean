@@ -23,7 +23,7 @@ import { VehicleCategories } from "./pages/VehicleCategories";
 import { VehicleBrands } from "./pages/VehicleBrands";
 import { Promotions } from "./pages/Promotions";
 import { SpecialCoupons } from "./pages/SpecialCoupons";
-import { PeakHours } from "./pages/PeakHours";
+import { OffPeakHours } from "./pages/OffPeakHours";
 import { Reports } from "./pages/Reports";
 import { ContentManagement } from "./pages/ContentManagement";
 import { Leads } from "./pages/Leads";
@@ -70,7 +70,7 @@ export function AdminApp() {
           <Route path="vehicle-brands" element={<PermissionGuard permission="vehicle-brands"><VehicleBrands /></PermissionGuard>} />
           <Route path="promotions" element={<PermissionGuard permission="promotions"><Promotions /></PermissionGuard>} />
           <Route path="special-coupons" element={<PermissionGuard permission="special-coupons"><SpecialCoupons /></PermissionGuard>} />
-          <Route path="peak-hours" element={<PermissionGuard permission="peak-hours"><PeakHours /></PermissionGuard>} />
+          <Route path="off-peak-hours" element={<PermissionGuard permission="off-peak-hours"><OffPeakHours /></PermissionGuard>} />
           <Route path="referrals" element={<PermissionGuard permission="referrals"><Referrals /></PermissionGuard>} />
           <Route path="content" element={<PermissionGuard permission="content"><ContentManagement /></PermissionGuard>} />
           <Route path="leads" element={<PermissionGuard permission="leads"><Leads /></PermissionGuard>} />

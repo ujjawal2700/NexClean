@@ -62,7 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/admin/bookings", label: "Bookings", icon: CalendarRange, permission: "bookings" },
       { to: "/admin/dispatch", label: "Dispatch", icon: Radio, permission: "bookings" },
-      { to: "/admin/peak-hours", label: "Peak Hours", icon: Clock, permission: "peak-hours" },
+      { to: "/admin/off-peak-hours", label: "Off-Peak Hours", icon: Clock, permission: "off-peak-hours" },
       { to: "/admin/area-alerts", label: "Area Alerts", icon: Radar, permission: "area-alerts" },
       { to: "/admin/support", label: "Support Chat", icon: MessageSquare, permission: "chat" },
     ],

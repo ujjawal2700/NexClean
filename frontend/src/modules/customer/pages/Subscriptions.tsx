@@ -18,7 +18,14 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { formatMoney } from "@shared/lib/format";
-import { useMe, usePlans, useCategoryLabel, useSubscriptionSchedule, useWallet } from "../api/queries";
+import {
+  useMe,
+  usePlans,
+  useCategoryLabel,
+  useSubscriptionSchedule,
+  useWallet,
+} from "../api/queries";
+import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import {
   useCreateSubscriptionOrder,
   useVerifySubscription,
@@ -161,12 +168,9 @@ export function Subscriptions() {
     };
 
     try {
-      // Direct demo confirm — Razorpay disabled per demo requirement
-      await verifySub.mutateAsync(checkoutVars);
-      finish();
-      return;
-
-      /* Razorpay disabled for demo
+      // The server decides the route: `mock: true` means no gateway is
+      // configured, so the plan activates directly and is settled in cash.
+      // Adding real keys switches this to checkout without any code change.
       const order = await createSubOrder.mutateAsync(checkoutVars);
 
       if (order.mock) {
@@ -196,9 +200,10 @@ export function Subscriptions() {
             setSubProcessing(false);
           }
         },
+        // Dismissing the sheet must release the button, not strand the customer
+        // behind a spinner they cannot clear.
         modal: { ondismiss: () => setSubProcessing(false) },
       });
-      */
     } catch (err: any) {
       setCheckoutError(err?.message || "Failed to subscribe. Please try again.");
       setSubProcessing(false);
@@ -868,7 +873,7 @@ export function Subscriptions() {
       {activePlan && (
         <GlassCard className="mt-6 text-center text-sm text-muted">
           You're on the <span className="font-medium text-ink capitalize">{activePlan}</span> plan.
-          Subscription billing connects when the backend (Razorpay) is live.
+          Manage or change your plan any time.
         </GlassCard>
       )}
 
@@ -953,7 +958,7 @@ export function Subscriptions() {
 
             <div className="flex gap-3 border-t border-line/50 pt-4">
               <Button className="flex-1" onClick={confirmSubscribe} disabled={busy}>
-                {subProcessing ? "Processing…" : `Pay to cleaner ${formatMoney(payableSub)}`}
+                {subProcessing ? "Processing…" : `Pay ${formatMoney(payableSub)}`}
               </Button>
               <Button variant="outline" className="flex-1" onClick={() => setCheckoutPlan(null)} disabled={busy}>
                 Cancel

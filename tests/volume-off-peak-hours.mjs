@@ -1,9 +1,9 @@
 /**
- * Volume / load test for the peak-hours feature.
+ * Volume / load test for the off-peak-hours feature.
  *
  * Two questions this answers that the functional suite cannot:
  *
- *  1. COST. Every peak-only coupon validation now reads the peak-hours config
+ *  1. COST. Every off-peak-only coupon validation now reads the off-peak config
  *     from Mongo, on a path (checkout pricing) that already ran several queries.
  *     This measures whether that extra read shows up as latency under sustained
  *     concurrent checkouts.
@@ -15,8 +15,8 @@
  *     averaged away into a latency percentile.
  *
  * Run against a throwaway backend only:
- *   API=http://127.0.0.1:4000/api node volume-peak-hours.mjs
- *   API=... DURATION=30 CONCURRENCY=50 node volume-peak-hours.mjs
+ *   API=http://127.0.0.1:4000/api node volume-off-peak-hours.mjs
+ *   API=... DURATION=30 CONCURRENCY=50 node volume-off-peak-hours.mjs
  */
 const API = process.env.API ?? "http://127.0.0.1:4000/api";
 const DEMO_OTP = process.env.DEMO_OTP ?? "123456";
@@ -26,8 +26,8 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "superadmin@gmail.com";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "password123";
 
 const IST = "Asia/Kolkata";
-const PEAK_SLOT = "11:00 AM"; // 660 min — inside the 10:00–12:00 window below
-const OFF_PEAK_SLOT = "05:00 PM"; // 1020 min — outside it
+const DISCOUNTED_SLOT = "11:00 AM"; // 660 min — inside the 10:00–12:00 window below
+const FULL_PRICE_SLOT = "05:00 PM"; // 1020 min — outside it
 
 async function call(path, { method = "GET", token, body } = {}) {
   const started = performance.now();
@@ -127,7 +127,7 @@ const main = async () => {
     process.exit(1);
   }
 
-  console.log(`Peak-hours volume test → ${API}`);
+  console.log(`Off-peak-hours volume test → ${API}`);
   console.log(`${CONCURRENCY} concurrent clients, ${DURATION_S}s per scenario\n${"─".repeat(70)}`);
 
   // ---- Setup -------------------------------------------------------------
@@ -137,7 +137,7 @@ const main = async () => {
   });
   const adminToken = JSON.parse(adminRes.text || "{}")?.data?.token;
   if (!adminToken) {
-    console.error("admin login failed — cannot configure peak hours");
+    console.error("admin login failed — cannot configure off-peak hours");
     process.exit(1);
   }
 
@@ -152,8 +152,8 @@ const main = async () => {
   const targetDate = daysFromNow(3);
   const targetDay = weekdayInZone(targetDate);
 
-  // A window containing PEAK_SLOT but not OFF_PEAK_SLOT, on the target weekday.
-  const configured = await call("/admin/peak-hours", {
+  // A window containing DISCOUNTED_SLOT but not FULL_PRICE_SLOT, on the target weekday.
+  const configured = await call("/admin/off-peak-hours", {
     method: "PUT",
     token: adminToken,
     body: {
@@ -163,51 +163,51 @@ const main = async () => {
     },
   });
   if (configured.status !== 200) {
-    console.error(`failed to configure peak hours: ${configured.status} ${configured.text}`);
+    console.error(`failed to configure off-peak hours: ${configured.status} ${configured.text}`);
     process.exit(1);
   }
 
-  const peakCode = `LOADPEAK${Date.now()}`;
+  const offPeakCode = `LOADOFFPEAK${Date.now()}`;
   const created = await call("/admin/discount-codes", {
     method: "POST",
     token: adminToken,
-    body: { code: peakCode, type: "flat", value: 25, peakHoursOnly: true },
+    body: { code: offPeakCode, type: "flat", value: 25, offPeakOnly: true },
   });
   if (created.status !== 201) {
-    console.error(`failed to create peak-only code: ${created.status} ${created.text}`);
+    console.error(`failed to create off-peak-only code: ${created.status} ${created.text}`);
     process.exit(1);
   }
 
   const quoteBody = (slot) => ({
     vehicleType: "hatchback",
     packageId,
-    discountCode: peakCode,
+    discountCode: offPeakCode,
     date: targetDate,
     slot,
   });
 
   const results = [];
 
-  // 1. The public read the booking screen makes to flag peak slots.
+  // 1. The public read the booking screen makes to flag discounted slots.
   results.push(
     await scenario(
-      "Public peak config   GET /catalog/peak-hours",
+      "Public off-peak config    GET /catalog/off-peak-hours",
       DURATION_S,
       CONCURRENCY,
-      () => call("/catalog/peak-hours"),
+      () => call("/catalog/off-peak-hours"),
       (r) => r.status === 200,
     ),
   );
 
-  // 2. The hot path: a peak-only coupon quoted on a PEAK slot must always be
+  // 2. The hot path: an off-peak-only coupon quoted on an OFF-PEAK slot must always be
   //    granted. Any 400 here would mean the gate is rejecting valid redemptions
   //    under load — customers losing a discount they are entitled to.
   results.push(
     await scenario(
-      "Peak coupon GRANTED  POST /payments/preview (peak slot)",
+      "Off-peak coupon GRANTED   POST /payments/preview (off-peak slot)",
       DURATION_S,
       CONCURRENCY,
-      () => call("/payments/preview", { method: "POST", token, body: quoteBody(PEAK_SLOT) }),
+      () => call("/payments/preview", { method: "POST", token, body: quoteBody(DISCOUNTED_SLOT) }),
       (r) => r.status === 200 && JSON.parse(r.text || "{}")?.data?.discountAmount === 25,
     ),
   );
@@ -217,10 +217,10 @@ const main = async () => {
   //    rather than being smoothed into a percentile.
   results.push(
     await scenario(
-      "Peak coupon REFUSED  POST /payments/preview (off-peak slot)",
+      "Off-peak coupon REFUSED   POST /payments/preview (peak slot)",
       DURATION_S,
       CONCURRENCY,
-      () => call("/payments/preview", { method: "POST", token, body: quoteBody(OFF_PEAK_SLOT) }),
+      () => call("/payments/preview", { method: "POST", token, body: quoteBody(FULL_PRICE_SLOT) }),
       (r) => r.status === 400,
     ),
   );
@@ -229,11 +229,11 @@ const main = async () => {
   //    upsert path doesn't deadlock or 5xx when several admins save at once.
   results.push(
     await scenario(
-      "Config write         PUT /admin/peak-hours",
+      "Config write         PUT /admin/off-peak-hours",
       Math.max(5, Math.floor(DURATION_S / 2)),
       Math.max(4, Math.floor(CONCURRENCY / 5)),
       () =>
-        call("/admin/peak-hours", {
+        call("/admin/off-peak-hours", {
           method: "PUT",
           token: adminToken,
           body: {
@@ -255,11 +255,11 @@ const main = async () => {
     let on = true;
     while (Date.now() < flipDeadline) {
       on = !on;
-      await call("/admin/peak-hours", { method: "PUT", token: adminToken, body: { active: on } });
+      await call("/admin/off-peak-hours", { method: "PUT", token: adminToken, body: { active: on } });
       await new Promise((r) => setTimeout(r, 50));
     }
     // Leave it on so the assertion below is meaningful.
-    await call("/admin/peak-hours", { method: "PUT", token: adminToken, body: { active: true } });
+    await call("/admin/off-peak-hours", { method: "PUT", token: adminToken, body: { active: true } });
   })();
 
   results.push(
@@ -267,7 +267,7 @@ const main = async () => {
       "Read during flips    POST /payments/preview (config toggling)",
       DURATION_S,
       CONCURRENCY,
-      () => call("/payments/preview", { method: "POST", token, body: quoteBody(PEAK_SLOT) }),
+      () => call("/payments/preview", { method: "POST", token, body: quoteBody(DISCOUNTED_SLOT) }),
       // Either outcome is legitimate depending on which side of a flip the read
       // landed — but it must be one of them, cleanly, with no server error and
       // no half-applied discount.
@@ -282,7 +282,7 @@ const main = async () => {
   await flipper;
 
   // ---- Teardown ----------------------------------------------------------
-  await call("/admin/peak-hours", {
+  await call("/admin/off-peak-hours", {
     method: "PUT",
     token: adminToken,
     body: { timezone: IST, active: true, windows: [] },

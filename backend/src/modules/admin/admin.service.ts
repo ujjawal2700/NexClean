@@ -18,6 +18,8 @@ import { ServiceZone } from "../location/location.model";
 import { normalize as normalizePhone } from "../auth/auth.service";
 import { generateUniqueReferralCode } from "../user/user.service";
 import { payoutCalculator, computePayout, getPayoutConfig } from "../payout/payoutConfig.service";
+import { evaluateReschedule } from "../booking/reschedule.service";
+import { syncCashLedgerAmount } from "../payment/ledger.service";
 
 type BookingDoc = BookingDocument;
 type DisplayStatus = "upcoming" | "in_progress" | "completed" | "cancelled";
@@ -45,6 +47,10 @@ function mapBooking(b: BookingDoc) {
     dispatchStatus: b.dispatchStatus,
     agentName: b.agentName,
     assignedAgentId: b.assignedAgent ? String(b.assignedAgent) : null,
+    // Surfaced so support can see, without opening the booking, why moving it
+    // into a peak slot asks the customer for money.
+    offPeakLocked: !!b.offPeakLocked,
+    offPeakDiscountAmount: b.offPeakDiscountAmount ?? 0,
   };
 }
 
@@ -120,11 +126,41 @@ export async function cancelBooking(id: string) {
   return mapBooking(booking);
 }
 
-export async function rescheduleBooking(id: string, input: { date: string; slot: string }) {
+/** Price a hypothetical move without performing it. See reschedule.service for the rules. */
+export async function quoteReschedule(id: string, input: { date: string; slot: string }) {
+  const booking = await Booking.findById(id);
+  if (!booking) throw ApiError.notFound("Booking not found");
+  return evaluateReschedule(booking, new Date(input.date), input.slot);
+}
+
+export async function rescheduleBooking(
+  id: string,
+  input: { date: string; slot: string; waiveUpgrade?: boolean },
+  adminId?: string,
+) {
   const booking = await Booking.findById(id).populate("user", "name");
   if (!booking) throw ApiError.notFound("Booking not found");
 
   const prevOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
+
+  // Admins move bookings for the same money customers do, unless they choose to
+  // waive it. Without this an admin-initiated move would be a free bypass of
+  // the whole off-peak rule — and the easiest one to ask support for.
+  const quote = await evaluateReschedule(booking, new Date(input.date), input.slot);
+  if (quote.requiresPayment) {
+    if (input.waiveUpgrade) {
+      booking.upgradeWaivedAmount = (booking.upgradeWaivedAmount ?? 0) + quote.totalDue;
+      booking.set("upgradeWaivedBy", adminId ?? null);
+      booking.upgradeWaivedAt = new Date();
+    } else {
+      booking.price = quote.newPrice;
+      booking.peakUpgradeFeeCharged = (booking.peakUpgradeFeeCharged ?? 0) + quote.fee;
+    }
+    // Either way the subsidy no longer applies — it has been repaid or written
+    // off, and leaving the lock on would charge for the same move twice.
+    booking.offPeakLocked = false;
+    booking.offPeakDiscountAmount = 0;
+  }
 
   booking.date = new Date(input.date);
   booking.slot = input.slot;
@@ -157,6 +193,12 @@ export async function rescheduleBooking(id: string, input: { date: string; slot:
     body: `Admin rescheduled your service to ${dateFormatted} at ${input.slot}.`,
     data: { bookingId: String(booking._id) },
   }).catch((err: unknown) => console.error("reschedule notify failed:", (err as Error).message));
+
+  if (quote.requiresPayment && !input.waiveUpgrade) {
+    void syncCashLedgerAmount(booking.id, booking.price + (booking.peakUpgradeFeeCharged ?? 0)).catch((err) =>
+      console.error("ledger sync after admin reschedule failed:", (err as Error).message),
+    );
+  }
 
   dispatch.emitDispatchUpdate();
   void dispatch.offerNext(id).catch((err) => console.error("offerNext error on admin reschedule:", (err as Error).message));
@@ -770,7 +812,13 @@ export async function getCustomerActivity(id: string) {
 
 function mapPayment(p: PaymentDocument) {
   const user = p.user as unknown as { id?: string; name?: string } | null;
-  const booking = p.booking as unknown as { id?: string; agentName?: string | null; society?: string } | null;
+  const booking = p.booking as unknown as {
+    id?: string;
+    agentName?: string | null;
+    society?: string;
+    assignedAgent?: unknown;
+  } | null;
+  const assignedAgent = booking && typeof booking === "object" ? booking.assignedAgent : null;
   return {
     id: p.id,
     customerId: (user && typeof user === "object" && user.id) || String(p.user),
@@ -778,6 +826,9 @@ function mapPayment(p: PaymentDocument) {
     bookingId: (booking && typeof booking === "object" && booking.id) || (p.booking ? String(p.booking) : null),
     society: (booking && typeof booking === "object" && booking.society) || "",
     agentName: (booking && typeof booking === "object" && booking.agentName) || null,
+    // Identity, not just the display name — the admin agent filter matches on
+    // this so two cleaners who happen to share a name stay distinguishable.
+    agentId: assignedAgent ? String(assignedAgent) : null,
     orderId: p.orderId,
     paymentId: p.paymentId,
     amount: p.amount,
@@ -796,7 +847,7 @@ function mapPayment(p: PaymentDocument) {
 export async function listPayments() {
   const payments = await Payment.find()
     .populate("user", "name")
-    .populate("booking", "agentName society")
+    .populate("booking", "agentName society assignedAgent")
     .sort({ createdAt: -1 })
     .limit(200);
   return payments.map((p) => mapPayment(p));
@@ -840,15 +891,47 @@ function describeGatewayError(err: unknown): string {
   return String(err);
 }
 
+/**
+ * The part of a payment that cannot be given back.
+ *
+ * The peak-upgrade fee is a platform charge for the disruption of moving a
+ * discounted booking into a busy slot, and it is explicitly non-refundable. It
+ * is stored apart from the service price precisely so a refund can tell the two
+ * apart — without this, cancelling after an upgrade would hand the fee back and
+ * the "no refunds on the change fee" rule would exist only in the copy.
+ */
+function nonRefundablePortion(payment: PaymentDocument): number {
+  if (payment.kind === "reschedule") {
+    // A "pay now" upgrade row is reclaim + fee; only the reclaim is service value.
+    const intent = payment.rescheduleIntent as { fee?: number } | null;
+    return Math.max(0, intent?.fee ?? 0);
+  }
+  // A cash upgrade folded the fee into this booking's row.
+  const booking = payment.booking as unknown as { peakUpgradeFeeCharged?: number } | null;
+  return Math.max(0, (booking && typeof booking === "object" && booking.peakUpgradeFeeCharged) || 0);
+}
+
 export async function refundPayment(id: string, input: { amount?: number; reason?: string }) {
-  const payment = await Payment.findById(id).populate("user", "name").populate("booking", "agentName society");
+  const payment = await Payment.findById(id)
+    .populate("user", "name")
+    .populate("booking", "agentName society assignedAgent peakUpgradeFeeCharged");
   if (!payment) throw ApiError.notFound("Payment not found");
   if (payment.status !== "paid") throw ApiError.badRequest("Only paid payments can be refunded");
 
-  // Never refund more than was actually collected.
-  const amount = input.amount ?? payment.amount;
-  if (amount <= 0 || amount > payment.amount) {
-    throw ApiError.badRequest(`Refund amount must be between ₹1 and ₹${payment.amount}`);
+  // Never refund more than was actually collected, and never the change fee.
+  const withheld = nonRefundablePortion(payment);
+  const refundable = payment.amount - withheld;
+  if (refundable <= 0) {
+    throw ApiError.badRequest("This payment is entirely a non-refundable change fee");
+  }
+
+  const amount = input.amount ?? refundable;
+  if (amount <= 0 || amount > refundable) {
+    throw ApiError.badRequest(
+      withheld > 0
+        ? `Refund amount must be between ₹1 and ₹${refundable} — the ₹${withheld} change fee is not refundable`
+        : `Refund amount must be between ₹1 and ₹${payment.amount}`,
+    );
   }
 
   // Actually move the money. This used to only flip database fields, so the
@@ -873,7 +956,7 @@ export async function refundPayment(id: string, input: { amount?: number; reason
 }
 
 export async function settlePayment(id: string) {
-  const payment = await Payment.findById(id).populate("user", "name").populate("booking", "agentName society");
+  const payment = await Payment.findById(id).populate("user", "name").populate("booking", "agentName society assignedAgent");
   if (!payment) throw ApiError.notFound("Payment not found");
   if (payment.status !== "paid") throw ApiError.badRequest("Only paid payments can be settled");
   if (payment.settlementStatus === "settled") throw ApiError.badRequest("Payment is already settled");

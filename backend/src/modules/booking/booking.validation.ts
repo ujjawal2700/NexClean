@@ -31,3 +31,27 @@ export const createBookingSchema = z.object({
 });
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
+
+/**
+ * Moving an existing booking. The date is bounded on the upper side only —
+ * `assertCustomerMayReschedule` owns the lead-time rule, so it can explain
+ * "pick a slot at least an hour from now" rather than this returning a flat
+ * "invalid date" the customer cannot act on.
+ */
+export const rescheduleBookingSchema = z.object({
+  date: z
+    .string()
+    .datetime({ message: "date must be an ISO datetime" })
+    .refine((v) => Date.parse(v) <= Date.now() + 365 * 24 * 60 * 60 * 1000, {
+      message: "Booking date is too far in the future",
+    }),
+  slot: z.enum(TIME_SLOTS, { errorMap: () => ({ message: `slot must be one of: ${SLOT_LIST}` }) }),
+  /** How the customer settles anything owed. Omit when nothing is due. */
+  paymentMethod: z.enum(["cash", "online"]).optional(),
+  // Proof for the online route, carried straight from the gateway callback.
+  razorpay_order_id: z.string().optional(),
+  razorpay_payment_id: z.string().optional(),
+  razorpay_signature: z.string().optional(),
+});
+
+export type RescheduleBookingInput = z.infer<typeof rescheduleBookingSchema>;

@@ -17,6 +17,7 @@ adminRouter.patch("/bookings/:id/cancel", requirePermission("bookings"), asyncHa
 adminRouter.patch("/bookings/:id/status", requirePermission("bookings"), asyncHandler(c.setBookingStatus));
 adminRouter.patch("/bookings/:id/assign", requirePermission("bookings"), asyncHandler(c.assignBooking));
 adminRouter.patch("/bookings/:id/reschedule", requirePermission("bookings"), asyncHandler(c.rescheduleBooking));
+adminRouter.post("/bookings/:id/reschedule/quote", requirePermission("bookings"), asyncHandler(c.rescheduleQuote));
 adminRouter.post("/bookings/:id/auto-assign", requirePermission("bookings"), asyncHandler(c.autoAssignBooking));
 adminRouter.get("/bookings/:id/assignable-agents", requirePermission("bookings"), asyncHandler(c.assignableAgents));
 adminRouter.get("/dispatch/queue", requirePermission("bookings"), asyncHandler(c.dispatchQueue));
@@ -95,9 +96,10 @@ adminRouter.post("/promo-banners", requirePermission("promotions"), asyncHandler
 adminRouter.patch("/promo-banners/:id", requirePermission("promotions"), asyncHandler(c.updatePromoBanner));
 adminRouter.delete("/promo-banners/:id", requirePermission("promotions"), asyncHandler(c.deletePromoBanner));
 
-// Peak hours — per-weekday demand windows that peak-only coupons key off
-adminRouter.get("/peak-hours", requirePermission("peak-hours"), asyncHandler(c.peakHours));
-adminRouter.put("/peak-hours", requirePermission("peak-hours"), asyncHandler(c.updatePeakHoursHandler));
+// Off-peak hours — the quiet per-weekday windows that off-peak coupons key off
+adminRouter.get("/off-peak-hours", requirePermission("off-peak-hours"), asyncHandler(c.offPeakHours));
+adminRouter.get("/off-peak-hours/suggest", requirePermission("off-peak-hours"), asyncHandler(c.suggestOffPeakHours));
+adminRouter.put("/off-peak-hours", requirePermission("off-peak-hours"), asyncHandler(c.updateOffPeakHoursHandler));
 
 adminRouter.get("/campaigns", requirePermission("promotions"), asyncHandler(c.campaigns));
 adminRouter.get("/campaigns/audience-sizes", requirePermission("promotions"), asyncHandler(c.campaignAudienceSizes));

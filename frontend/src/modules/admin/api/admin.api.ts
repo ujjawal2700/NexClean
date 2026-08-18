@@ -33,8 +33,9 @@ import type {
   PayoutConfig,
   PromoBanner,
   BannerType,
-  PeakHoursConfig,
-  PeakWindow,
+  OffPeakHoursConfig,
+  OffPeakSuggestion,
+  OffPeakWindow,
   AdminReports,
   AudienceSizes,
   AudienceGroup,
@@ -71,7 +72,7 @@ const keys = {
   discountCodes: ["admin", "discount-codes"] as const,
   specialCoupons: ["admin", "special-coupons"] as const,
   referralConfig: ["admin", "referral-config"] as const,
-  peakHours: ["admin", "peak-hours"] as const,
+  offPeakHours: ["admin", "off-peak-hours"] as const,
   payoutConfig: ["admin", "payout-config"] as const,
   promoBanners: ["admin", "promo-banners"] as const,
   reports: ["admin", "reports"] as const,
@@ -212,7 +213,7 @@ export const useSpecialCoupons = () => useAuthedQuery<SpecialCoupon[]>(keys.spec
 export const useReferralConfig = () =>
   useAuthedQuery<ReferralConfig>(keys.referralConfig, "/admin/referral-config");
 export const usePayoutConfig = () => useAuthedQuery<PayoutConfig>(keys.payoutConfig, "/admin/payout-config");
-export const usePeakHours = () => useAuthedQuery<PeakHoursConfig>(keys.peakHours, "/admin/peak-hours");
+export const useOffPeakHours = () => useAuthedQuery<OffPeakHoursConfig>(keys.offPeakHours, "/admin/off-peak-hours");
 export const usePromoBanners = () => useAuthedQuery<PromoBanner[]>(keys.promoBanners, "/admin/promo-banners");
 export const useReports = () => useAuthedQuery<AdminReports>(keys.reports, "/admin/reports");
 export const useContent = () => useAuthedQuery<SiteContent>(keys.content, "/admin/content");
@@ -341,13 +342,35 @@ export function useAutoAssignAll() {
   });
 }
 
+/** What moving a booking would cost, from the shared rule engine. */
+export type AdminRescheduleQuote = {
+  targetIsOffPeak: boolean;
+  requiresPayment: boolean;
+  exempt: boolean;
+  reclaim: number;
+  fee: number;
+  totalDue: number;
+  newPrice: number;
+  reason: string;
+};
+
+export function useRescheduleQuote() {
+  return useMutation({
+    mutationFn: (vars: { id: string; date: string; slot: string }) =>
+      apiFetch<AdminRescheduleQuote>(`/admin/bookings/${vars.id}/reschedule/quote`, {
+        method: "POST",
+        body: { date: vars.date, slot: vars.slot },
+      }),
+  });
+}
+
 export function useRescheduleBooking() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { id: string; date: string; slot: string }) =>
+    mutationFn: (vars: { id: string; date: string; slot: string; waiveUpgrade?: boolean }) =>
       apiFetch<AdminBooking>(`/admin/bookings/${vars.id}/reschedule`, {
         method: "PATCH",
-        body: { date: vars.date, slot: vars.slot },
+        body: { date: vars.date, slot: vars.slot, waiveUpgrade: vars.waiveUpgrade },
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.bookings });
@@ -599,7 +622,7 @@ export function useCreateDiscountCode() {
       maxDiscount?: number | null;
       usageLimit?: number | null;
       validTill?: string | null;
-      peakHoursOnly?: boolean;
+      offPeakOnly?: boolean;
     }) => apiFetch<DiscountCode>("/admin/discount-codes", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.discountCodes }),
   });
@@ -633,7 +656,7 @@ export function useGenerateSpecialCoupons() {
       maxDiscount?: number | null;
       validFrom?: string | null;
       validTill?: string | null;
-      peakHoursOnly?: boolean;
+      offPeakOnly?: boolean;
     }) => apiFetch<SpecialCoupon[]>("/admin/special-coupons/generate", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.specialCoupons }),
   });
@@ -685,14 +708,38 @@ export function useUpdateReferralConfig() {
  * those are read-only projections, and echoing them back would invite the two
  * representations to disagree.
  */
-export type PeakWindowInput = Pick<PeakWindow, "day" | "start" | "end"> & { label?: string };
+export type OffPeakWindowInput = Pick<OffPeakWindow, "day" | "start" | "end"> & { label?: string };
 
-export function useUpdatePeakHours() {
+export function useUpdateOffPeakHours() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { timezone?: string; active?: boolean; windows?: PeakWindowInput[] }) =>
-      apiFetch<PeakHoursConfig>("/admin/peak-hours", { method: "PUT", body: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.peakHours }),
+    mutationFn: (vars: {
+      timezone?: string;
+      active?: boolean;
+      peakUpgradeFee?: number;
+      windows?: OffPeakWindowInput[];
+    }) => apiFetch<OffPeakHoursConfig>("/admin/off-peak-hours", { method: "PUT", body: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.offPeakHours }),
+  });
+}
+
+/**
+ * Ask the server to propose windows from booking history.
+ *
+ * A mutation rather than a query because it is an action the admin takes, and
+ * because the result should not be silently refetched underneath a draft they
+ * are still reviewing.
+ */
+export function useSuggestOffPeakHours() {
+  return useMutation({
+    mutationFn: (vars: { weeks?: number; sensitivity?: number; minSamples?: number } = {}) => {
+      const params = new URLSearchParams();
+      if (vars.weeks !== undefined) params.set("weeks", String(vars.weeks));
+      if (vars.sensitivity !== undefined) params.set("sensitivity", String(vars.sensitivity));
+      if (vars.minSamples !== undefined) params.set("minSamples", String(vars.minSamples));
+      const qs = params.toString();
+      return apiFetch<OffPeakSuggestion>(`/admin/off-peak-hours/suggest${qs ? `?${qs}` : ""}`);
+    },
   });
 }
 

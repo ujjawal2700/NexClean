@@ -20,7 +20,7 @@ test.describe("Subscription plans", () => {
 
     await page.getByRole("button", { name: "Choose Basic" }).click();
     await expect(page.getByText("Confirm subscription")).toBeVisible();
-    const payButton = page.getByRole("button", { name: /^Pay to cleaner ₹/ });
+    const payButton = page.getByRole("button", { name: /^Pay ₹/ });
     await payButton.click();
 
     // Mock mode goes straight through — lands on the Active Subscription dashboard.
@@ -33,7 +33,7 @@ test.describe("Subscription plans", () => {
     await loginCustomerUI(page);
     await page.goto("/app/plans");
     await page.getByRole("button", { name: "Choose Basic" }).click();
-    await page.getByRole("button", { name: /^Pay to cleaner ₹/ }).click();
+    await page.getByRole("button", { name: /^Pay ₹/ }).click();
     await expect(page.locator("h1")).toHaveText("Active Subscription", { timeout: 15000 });
 
     await page.getByRole("button", { name: "Upgrade / Cancel Plan" }).click();
@@ -60,7 +60,7 @@ test.describe("Subscription plans", () => {
     await loginCustomerUI(page, phone);
     await page.goto("/app/plans");
     await page.getByRole("button", { name: "Choose Basic" }).click();
-    await page.getByRole("button", { name: /^Pay to cleaner ₹/ }).click();
+    await page.getByRole("button", { name: /^Pay ₹/ }).click();
     await expect(page.locator("h1")).toHaveText("Active Subscription", { timeout: 15000 });
 
     await page.getByRole("button", { name: "Schedule now" }).click();
@@ -97,7 +97,7 @@ test.describe("Subscription plans", () => {
     await loginCustomerUI(page, phone);
     await page.goto("/app/plans");
     await page.getByRole("button", { name: "Choose Basic" }).click();
-    await page.getByRole("button", { name: /^Pay to cleaner ₹/ }).click();
+    await page.getByRole("button", { name: /^Pay ₹/ }).click();
     await expect(page.locator("h1")).toHaveText("Active Subscription", { timeout: 15000 });
 
     await page.getByRole("button", { name: "Schedule now" }).click();

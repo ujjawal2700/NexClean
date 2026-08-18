@@ -7,6 +7,7 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Pagination } from "@shared/ui/Pagination";
 import { usePagination } from "@shared/lib/usePagination";
+import { shortId } from "@shared/lib/format";
 import {
   useAgents,
   useSetAgentStatus,
@@ -157,7 +158,9 @@ export function Agents() {
                   <p className="truncate font-display font-semibold text-ink hover:text-primary">{a.name}</p>
                   {a.status === "verified" && <BadgeCheck className="size-4 shrink-0 text-primary" />}
                 </div>
-                <p className="text-xs text-muted">…{a.id.slice(-8)} · {a.phone}</p>
+                <p className="text-xs text-muted">
+                  <span title={a.id}>{shortId(a.id)}</span> · {a.phone}
+                </p>
               </div>
               <span className={cn("rounded-pill px-2.5 py-0.5 text-xs font-medium capitalize", AGENT_STATUS_STYLE[a.status])}>
                 {a.status}

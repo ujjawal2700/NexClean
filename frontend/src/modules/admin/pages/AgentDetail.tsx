@@ -5,7 +5,7 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Pagination } from "@shared/ui/Pagination";
-import { formatMoney, formatDate } from "@shared/lib/format";
+import { formatMoney, formatDate, shortId } from "@shared/lib/format";
 import { usePagination } from "@shared/lib/usePagination";
 import {
   useAgent,
@@ -225,7 +225,7 @@ export function AgentDetail() {
               <tr key={b.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
                   <p className="font-medium text-ink">{b.packageName}</p>
-                  <p className="text-xs text-muted">#{b.id}</p>
+                  <p className="text-xs text-muted" title={b.id}>#{shortId(b.id)}</p>
                 </td>
                 <td className="px-2 py-3 text-ink-soft">{b.customerName}</td>
                 <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)} · {b.slot}</td>

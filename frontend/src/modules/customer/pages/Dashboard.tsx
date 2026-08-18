@@ -16,7 +16,7 @@ import type { BannerType } from "../types";
  */
 const BANNER_TYPE_BADGES: Partial<Record<BannerType, { label: string; className: string }>> = {
   discount: { label: "Discount", className: "bg-emerald-500/80 text-white" },
-  "peak-hours": { label: "Peak hours", className: "bg-amber-500/85 text-white" },
+  "off-peak-hours": { label: "Off-peak hours", className: "bg-amber-500/85 text-white" },
   announcement: { label: "News", className: "bg-sky-500/80 text-white" },
 };
 

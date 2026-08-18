@@ -7,24 +7,53 @@ import { offerNext, emitDispatchUpdate } from "./dispatch.service";
 // shared/slots.ts — a second copy here could drift from the one the booking
 // validator enforces, and this module is what decides when a job is overdue.
 import { TIME_SLOTS as SLOTS } from "../../shared/slots";
+import { RescheduleConfig } from "./rescheduleConfig.model";
+import { getOffPeakHoursConfig, isOffPeakSlotWithConfig } from "../promotions/offPeakHours.service";
 
 export const TIME_SLOTS: readonly string[] = SLOTS;
 
-// Configurable defaults (can also be updated via Admin API)
-let rescheduleBufferMinutes = 30;
-let maxConsecutiveDaysLimit = 2;
-
-export function getRescheduleConfig() {
-  return { rescheduleBufferMinutes, maxConsecutiveDaysLimit };
+/**
+ * Sweep settings, persisted. These were module-level `let`s until they were
+ * found reverting on every deploy — see rescheduleConfig.model for the story.
+ * The returned shape is unchanged so existing callers and the admin endpoints
+ * keep working; only the storage moved.
+ */
+export async function getRescheduleConfig(): Promise<{
+  rescheduleBufferMinutes: number;
+  maxConsecutiveDaysLimit: number;
+}> {
+  const existing = await RescheduleConfig.findById("global");
+  const doc = existing ?? (await createGlobalConfig());
+  return {
+    rescheduleBufferMinutes: doc.bufferMinutes,
+    maxConsecutiveDaysLimit: doc.maxDaysLimit,
+  };
 }
 
-export function updateRescheduleConfig(config: { bufferMinutes?: number; maxDaysLimit?: number }) {
+async function createGlobalConfig() {
+  try {
+    return await RescheduleConfig.create({ _id: "global" });
+  } catch (err) {
+    // Concurrent first-hits race to insert the same _id; the loser reads.
+    const raced = await RescheduleConfig.findById("global");
+    if (raced) return raced;
+    throw err;
+  }
+}
+
+export async function updateRescheduleConfig(config: { bufferMinutes?: number; maxDaysLimit?: number }) {
+  const update: Record<string, number> = {};
   if (config.bufferMinutes !== undefined && config.bufferMinutes >= 0) {
-    rescheduleBufferMinutes = config.bufferMinutes;
+    update.bufferMinutes = Math.round(config.bufferMinutes);
   }
   if (config.maxDaysLimit !== undefined && config.maxDaysLimit > 0) {
-    maxConsecutiveDaysLimit = config.maxDaysLimit;
+    update.maxDaysLimit = Math.round(config.maxDaysLimit);
   }
+  await RescheduleConfig.findByIdAndUpdate(
+    "global",
+    { $set: update },
+    { new: true, upsert: true, setDefaultsOnInsert: true },
+  );
   return getRescheduleConfig();
 }
 
@@ -58,6 +87,10 @@ function customerId(b: BookingDocument): string {
 export async function sweepAndRescheduleMissedSlots(): Promise<{ processed: number; rescheduled: number }> {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Read once per sweep rather than per booking — the settings cannot change
+  // mid-pass, and a query per candidate would scale with the queue.
+  const { rescheduleBufferMinutes, maxConsecutiveDaysLimit } = await getRescheduleConfig();
 
   // Find all unassigned upcoming bookings
   const candidateBookings = await Booking.find({
@@ -108,16 +141,33 @@ export async function sweepAndRescheduleMissedSlots(): Promise<{ processed: numb
     let nextSlot: string | null = null;
     let nextDate: Date | null = null;
 
-    // Try finding next slot on same day if today
+    // Try finding next slot on same day if today.
+    //
+    // A booking discounted for being off-peak is moved *preferentially* into
+    // another off-peak slot. The sweep never charges the customer (the move is
+    // not their doing), so without this preference the system would quietly
+    // hand out a peak slot at the off-peak price — the very leak the reschedule
+    // rules exist to close, opened from the inside. Falls through to the next
+    // available slot when no off-peak one is left, since delivering the service
+    // matters more than protecting the margin on it.
     if (!isPastDate) {
+      const laterSlots: string[] = [];
       for (let i = currentSlotIdx + 1; i < TIME_SLOTS.length; i++) {
         const candidateSlot = TIME_SLOTS[i];
         const { start: candidateStart } = getSlotTimeRange(bDate, candidateSlot);
-        if (candidateStart.getTime() > now.getTime() + 15 * 60 * 1000) {
-          nextSlot = candidateSlot;
-          nextDate = bDate;
-          break;
-        }
+        if (candidateStart.getTime() > now.getTime() + 15 * 60 * 1000) laterSlots.push(candidateSlot);
+      }
+
+      let preferred: string | undefined;
+      if (b.offPeakLocked && laterSlots.length > 0) {
+        const config = await getOffPeakHoursConfig();
+        preferred = laterSlots.find((s) => isOffPeakSlotWithConfig(config, bDate, s));
+      }
+
+      const chosen = preferred ?? laterSlots[0];
+      if (chosen) {
+        nextSlot = chosen;
+        nextDate = bDate;
       }
     }
 

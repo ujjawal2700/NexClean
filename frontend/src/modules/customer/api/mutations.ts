@@ -251,6 +251,66 @@ export function useVerifyPayment() {
   });
 }
 
+/** What moving a booking to another slot would cost. Read-only. */
+export type RescheduleQuote = {
+  targetIsOffPeak: boolean;
+  requiresPayment: boolean;
+  exempt: boolean;
+  reclaim: number;
+  fee: number;
+  totalDue: number;
+  newPrice: number;
+  reason: string;
+  /** False when no gateway is configured — the screen must not offer "pay now". */
+  onlinePaymentAvailable: boolean;
+};
+
+export function usePreviewReschedule() {
+  return useMutation({
+    mutationFn: (vars: { id: string; date: string; slot: string }) =>
+      apiFetch<RescheduleQuote>(`/bookings/${vars.id}/reschedule/preview`, {
+        method: "POST",
+        body: { date: vars.date, slot: vars.slot },
+      }),
+  });
+}
+
+/**
+ * Open a gateway order for a peak-upgrade charge. Nothing about the booking
+ * changes here — the move happens on commit, once the signature verifies.
+ */
+export function useRescheduleOrder() {
+  return useMutation({
+    mutationFn: (vars: { id: string; date: string; slot: string }) =>
+      apiFetch<{ orderId: string; amount: number; currency: string; keyId: string }>(
+        `/bookings/${vars.id}/reschedule/order`,
+        { method: "POST", body: { date: vars.date, slot: vars.slot } },
+      ),
+  });
+}
+
+export function useRescheduleBooking() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      id: string;
+      date: string;
+      slot: string;
+      paymentMethod?: "cash" | "online";
+      razorpay_order_id?: string;
+      razorpay_payment_id?: string;
+      razorpay_signature?: string;
+    }) => {
+      const { id, ...body } = vars;
+      return apiFetch<Booking>(`/bookings/${id}/reschedule`, { method: "PATCH", body });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: bookingsKey });
+      qc.invalidateQueries({ queryKey: ["subscription", "schedule"] });
+    },
+  });
+}
+
 export function useCancelBooking() {
   const qc = useQueryClient();
   return useMutation({

@@ -11,8 +11,8 @@ export const previewAmountSchema = z.object({
   packageId: z.string().min(1),
   discountCode: z.string().trim().min(1).optional(),
   coinsToRedeem: z.number().int().min(0).optional(),
-  // The slot being quoted for. Optional so older clients keep working, but a
-  // peak-hours-only code presented without them is refused rather than quoted —
+  // The slot being quoted for. Optional so older clients keep working, but an
+  // off-peak-only code presented without them is refused rather than quoted —
   // quoting a discount that booking creation would then reject is the one
   // outcome worth avoiding. Deliberately not bounded like createBookingSchema's
   // `date`: this is a read-only quote, and rejecting a past date here would

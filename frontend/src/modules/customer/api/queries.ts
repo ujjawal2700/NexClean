@@ -9,7 +9,7 @@ import type {
   AppNotification,
   CatalogPlan,
   PromoBanner,
-  PeakHoursConfig,
+  OffPeakHoursConfig,
   ReferralSummary,
   Wallet,
   VehicleCategory,
@@ -26,7 +26,8 @@ export const bookingsKey = ["bookings"] as const;
 export const notificationsKey = ["notifications"] as const;
 export const plansKey = ["catalog", "plans"] as const;
 export const promoBannersKey = ["catalog", "promo-banners"] as const;
-export const peakHoursKey = ["catalog", "peak-hours"] as const;
+export const offPeakHoursKey = ["catalog", "off-peak-hours"] as const;
+export const paymentModeKey = ["catalog", "payment-mode"] as const;
 export const referralsKey = ["referrals"] as const;
 export const walletKey = ["wallet"] as const;
 export const vehicleCategoriesKey = ["catalog", "vehicle-categories"] as const;
@@ -85,15 +86,29 @@ export function usePromoBanners() {
 }
 
 /**
- * Peak windows set by the admin (public catalog), used to flag peak slots in the
+ * Off-peak windows set by the admin (public catalog), used to flag the discounted slots in the
  * booking picker. Config changes rarely, so a long stale time keeps the schedule
  * step from refetching on every revisit.
  */
-export function usePeakHours() {
+export function useOffPeakHours() {
   return useQuery({
-    queryKey: peakHoursKey,
-    queryFn: () => apiFetch<PeakHoursConfig>("/catalog/peak-hours"),
+    queryKey: offPeakHoursKey,
+    queryFn: () => apiFetch<OffPeakHoursConfig>("/catalog/off-peak-hours"),
     staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Whether checkout goes through a gateway or is settled in cash.
+ *
+ * Screens need this to label a pay button honestly *before* the customer taps
+ * it. Rarely changes — it only moves when the deployment's keys do.
+ */
+export function usePaymentMode() {
+  return useQuery({
+    queryKey: paymentModeKey,
+    queryFn: () => apiFetch<{ online: boolean }>("/catalog/payment-mode"),
+    staleTime: 10 * 60_000,
   });
 }
 

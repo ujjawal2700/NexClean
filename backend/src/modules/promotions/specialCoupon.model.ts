@@ -40,10 +40,10 @@ const specialCouponSchema = new Schema(
     batchId: { type: String, required: true, index: true },
     /**
      * When true the coupon only applies to bookings whose *slot* falls inside a
-     * configured peak window (see promotions/peakHours.service). Set per batch
-     * at generation time.
+     * configured off-peak window (see promotions/offPeakHours.service). Set per
+     * batch at generation time.
      */
-    peakHoursOnly: { type: Boolean, default: false },
+    offPeakOnly: { type: Boolean, default: false },
     usageHistory: { type: [usageHistorySchema], default: [] },
   },
   { timestamps: true, toJSON: jsonTransform },

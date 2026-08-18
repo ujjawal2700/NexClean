@@ -26,7 +26,7 @@ import { BANNER_TYPES, type BannerType, type DiscountType } from "../types";
 const BANNER_TYPE_META: Record<BannerType, { label: string; badge: string }> = {
   promotional: { label: "Promotional", badge: "bg-primary/10 text-primary" },
   discount: { label: "Discount", badge: "bg-emerald-500/10 text-emerald-600" },
-  "peak-hours": { label: "Peak hours", badge: "bg-amber-500/10 text-amber-600" },
+  "off-peak-hours": { label: "Off-peak hours", badge: "bg-amber-500/10 text-amber-600" },
   announcement: { label: "Announcement", badge: "bg-sky-500/10 text-sky-600" },
 };
 
@@ -41,7 +41,7 @@ function DiscountCodesSection() {
   const [value, setValue] = useState("");
   const [minOrderValue, setMinOrderValue] = useState("");
   const [validTill, setValidTill] = useState("");
-  const [peakHoursOnly, setPeakHoursOnly] = useState(false);
+  const [offPeakOnly, setOffPeakOnly] = useState(false);
   const [error, setError] = useState("");
 
   const paginated = usePagination(codes, 5);
@@ -56,7 +56,7 @@ function DiscountCodesSection() {
         value: Number(value),
         minOrderValue: minOrderValue ? Number(minOrderValue) : undefined,
         validTill: validTill ? new Date(validTill).toISOString() : null,
-        peakHoursOnly,
+        offPeakOnly,
       },
       {
         onSuccess: () => {
@@ -64,7 +64,7 @@ function DiscountCodesSection() {
           setValue("");
           setMinOrderValue("");
           setValidTill("");
-          setPeakHoursOnly(false);
+          setOffPeakOnly(false);
         },
         onError: (e) => setError(e instanceof ApiError ? e.message : "Couldn't create that discount code"),
       },
@@ -115,18 +115,18 @@ function DiscountCodesSection() {
       <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line bg-surface/60 p-3">
         <input
           type="checkbox"
-          checked={peakHoursOnly}
-          onChange={(e) => setPeakHoursOnly(e.target.checked)}
+          checked={offPeakOnly}
+          onChange={(e) => setOffPeakOnly(e.target.checked)}
           className="mt-0.5 size-4 accent-[color:var(--color-primary,#4F7CFF)]"
         />
         <span className="min-w-0">
           <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
-            <Clock className="size-3.5 text-primary" /> Peak hours only
+            <Clock className="size-3.5 text-primary" /> Off-peak hours only
           </span>
           <span className="mt-0.5 block text-xs text-muted">
             Applies only when the booking's time slot falls inside a window set on the{" "}
-            <Link to="/admin/peak-hours" className="text-primary hover:underline">
-              Peak Hours
+            <Link to="/admin/off-peak-hours" className="text-primary hover:underline">
+              Off-Peak Hours
             </Link>{" "}
             page.
           </span>
@@ -143,9 +143,9 @@ function DiscountCodesSection() {
             <div className="min-w-0">
               <p className={`flex flex-wrap items-center gap-2 font-mono text-sm font-semibold ${c.active ? "text-ink" : "text-muted line-through"}`}>
                 {c.code}
-                {c.peakHoursOnly && (
+                {c.offPeakOnly && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 font-sans text-[10px] font-medium text-amber-600">
-                    <Clock className="size-3" /> Peak only
+                    <Clock className="size-3" /> Off-peak only
                   </span>
                 )}
               </p>

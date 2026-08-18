@@ -62,7 +62,7 @@ test.describe("Booking flow", () => {
 
     // Pay — mock mode (no Razorpay keys configured) means this should go
     // straight to the confirmation screen without any checkout iframe.
-    const payButton = page.getByRole("button", { name: /^Pay to cleaner ₹/ });
+    const payButton = page.getByRole("button", { name: /^Pay ₹/ });
     await payButton.click();
 
     await expect(page.locator("h1")).toHaveText("Booking confirmed!", { timeout: 15000 });

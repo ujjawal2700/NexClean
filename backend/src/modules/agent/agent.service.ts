@@ -8,6 +8,7 @@ import { emitToUser, emitToAdmins } from "../../shared/services/socket.js";
 import { notifyUser } from "../notification/notification.service.js";
 import { uploadImage } from "../../shared/utils/cloudinary.js";
 import { payoutCalculator } from "../payout/payoutConfig.service.js";
+import { markPaymentCollected } from "../payment/ledger.service.js";
 
 const JOB_FLOW = ["assigned", "enroute", "arrived", "in_progress", "completed"] as const;
 type JobStatus = (typeof JOB_FLOW)[number];
@@ -106,6 +107,13 @@ export async function advanceStatus(agentId: string, bookingId: string) {
     const customerId = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
     void maybeCreditReferrer(customerId).catch((err) =>
       console.error("referral credit failed:", (err as Error).message),
+    );
+
+    // The cleaner has just been paid in cash, so the ledger row for this
+    // booking becomes "paid". Fire-and-forget for the same reason as above —
+    // a bookkeeping write must never leave a cleaner unable to close a job.
+    void markPaymentCollected(booking.id).catch((err) =>
+      console.error("payment collection mark failed:", (err as Error).message),
     );
   }
 

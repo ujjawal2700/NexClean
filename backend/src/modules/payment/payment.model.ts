@@ -14,6 +14,36 @@ const paymentSchema = new Schema(
     bookingDraft: { type: Schema.Types.Mixed, default: null },
     status: { type: String, enum: ["created", "paid", "mock", "refunded"], default: "created", index: true },
 
+    /**
+     * What this row is for. "booking" is the service itself; "reschedule" is an
+     * upcharge for moving a discounted booking into a peak slot. Kept distinct
+     * because the two behave differently on refund — the upgrade fee inside a
+     * reschedule row is never returned.
+     */
+    kind: { type: String, enum: ["booking", "reschedule"], default: "booking", index: true },
+
+    /**
+     * The exact move this upcharge was quoted for.
+     *
+     * Binding the slot to the order is what stops a customer paying for a cheap
+     * upgrade and then applying it to a different, dearer slot: on verify the
+     * requested move must match what was paid for, or the payment buys nothing.
+     * Same reasoning as `bookingDraft` above, one level down.
+     */
+    rescheduleIntent: {
+      type: new Schema(
+        {
+          date: { type: Date, required: true },
+          slot: { type: String, required: true },
+          reclaim: { type: Number, required: true },
+          fee: { type: Number, required: true },
+          totalDue: { type: Number, required: true },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
+
     // Refund handling
     refundAmount: { type: Number, default: 0 },
     refundedAt: { type: Date, default: null },

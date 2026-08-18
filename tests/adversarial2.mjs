@@ -42,11 +42,20 @@ const main = async () => {
   console.log(`\n[D2] self-referral farming`);
   console.log(`   referrer code  : ${code ?? "(unreadable) " + JSON.stringify(summary.body?.data)?.slice(0, 200)}`);
   if (code) {
-    const r = await call("/auth/customer-signup", { method: "POST", body: { name: "Self Referrer", phone: freshPhone(), referralCode: code } });
+    const r = await call("/auth/customer/signup", { method: "POST", body: { name: "Self Referrer", phone: freshPhone(), referralCode: code } });
     console.log(`   signup w/ code : ${r.status} ${r.body?.message ?? ""}`);
     const w = await call("/wallet", { token: referrer.token });
     console.log(`   referrer wallet: ${JSON.stringify(w.body?.data)}`);
-    console.log(`   => ${r.status === 200 ? "⚠️  Accepted — no device/identity guard against one person farming with multiple numbers (business-policy call)." : "🟢 rejected"}`);
+    // A 404 means the probe is pointed at a route that no longer exists — that
+    // is a broken probe, not a passing one. Say so loudly, because the previous
+    // `status !== 200` test reported a stale URL as "🟢 rejected" for months.
+    const accepted = r.status >= 200 && r.status < 300;
+    console.log(`   => ${
+      r.status === 404
+        ? "🔧 PROBE BROKEN — signup route not found; this probe proved nothing."
+        : accepted
+          ? "⚠️  Accepted — no device/identity guard against one person farming with multiple numbers (business-policy call)."
+          : "🟢 rejected"}`);
   }
 };
 main().catch((e) => { console.error(e); process.exit(1); });
