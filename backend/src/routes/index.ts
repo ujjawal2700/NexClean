@@ -12,6 +12,7 @@ import { adminRouter } from "../modules/admin/admin.routes";
 import { leadRouter } from "../modules/lead/lead.routes";
 import { chatRouter } from "../modules/chat/chat.routes";
 import { walletRouter } from "../modules/wallet/wallet.routes";
+import { trackingRouter } from "../modules/tracking/tracking.routes";
 
 /** Mounts every module router under /api. */
 export const apiRouter = Router();
@@ -29,3 +30,4 @@ apiRouter.use("/admin", adminRouter);
 apiRouter.use("/leads", leadRouter);
 apiRouter.use("/chat", chatRouter);
 apiRouter.use("/wallet", walletRouter);
+apiRouter.use("/tracking", trackingRouter);

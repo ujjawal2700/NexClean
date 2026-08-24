@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Phone, Mail, MapPin, Car, Ban, RotateCcw, Download, Loader2, Gift, Users, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 
@@ -273,8 +273,12 @@ export function CustomerDetail() {
             {bookings.pageItems.map((b) => (
               <tr key={b.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
-                  <p className="font-medium text-ink">{b.vehicleName}</p>
-                  <p className="text-xs text-muted">#{b.id}</p>
+                  <Link to={`/admin/bookings/${b.id}`} className="font-medium text-ink hover:text-primary transition-colors block">
+                    {b.vehicleName}
+                  </Link>
+                  <p className="text-xs text-muted">
+                    <Link to={`/admin/bookings/${b.id}`} className="hover:underline hover:text-primary">#{b.id}</Link>
+                  </p>
                 </td>
                 <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)}</td>
                 <td className="px-2 py-3 text-ink-soft">{b.slot}</td>

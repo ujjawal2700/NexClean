@@ -13,6 +13,8 @@ import {
   Tag,
   X,
   Coins,
+  Radio,
+  Crosshair,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
@@ -34,6 +36,9 @@ import { useVerifyPayment, useCreateOrder, usePreviewDiscount, useAddAddress } f
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import type { PreviewAmountResponse } from "../../api/mutations";
 import { usePlacesAutocomplete, type PlaceCoords } from "@shared/hooks/usePlacesAutocomplete";
+import { ServicePinPicker } from "@shared/components/map/ServicePinPicker";
+import { AddAddressModal } from "@shared/components/address/AddAddressModal";
+import type { LatLng } from "@shared/lib/maps";
 import { PACKAGES, availableSlotsForDate, upcomingDates, priceFor } from "../../data/catalog";
 import type { CarType, Booking, Vehicle, Address, VehicleCategory } from "../../types";
 import { formatMoney } from "@shared/lib/format";
@@ -46,6 +51,15 @@ type Draft = {
   date: string | null;
   slot: string | null;
   addressId: string | null;
+  /**
+   * The exact spot the cleaner drives to, dropped on a map by the customer.
+   *
+   * Separate from the address's own coordinates on purpose: a saved address
+   * geocodes to a building or a gate, while the car is in a particular bay of
+   * a particular basement. This is the point the live tracking map, the ETA and
+   * the nearest-cleaner search all run on, so it is worth asking for.
+   */
+  pin: LatLng | null;
 };
 
 const EMPTY: Draft = {
@@ -55,6 +69,7 @@ const EMPTY: Draft = {
   date: null,
   slot: null,
   addressId: null,
+  pin: null,
 };
 
 const DRAFT_STORAGE_KEY = "nexclean-booking-draft";
@@ -229,9 +244,11 @@ export function BookingFlow() {
       addressLine: address.line,
       discountCode: appliedDiscount?.discountCode ? discountInput.trim() : undefined,
       coinsToRedeem: coinsToRedeem > 0 ? coinsToRedeem : undefined,
-      // GeoJSON stores [lng, lat]; the API expects lat/lng.
-      lat: address.coordinates?.[1],
-      lng: address.coordinates?.[0],
+      // The dropped pin wins over the address's geocode — it is the more
+      // precise of the two, and the one the customer will watch the cleaner
+      // approach. GeoJSON stores [lng, lat]; the API expects lat/lng.
+      lat: draft.pin?.lat ?? address.coordinates?.[1],
+      lng: draft.pin?.lng ?? address.coordinates?.[0],
     };
 
     try {
@@ -653,57 +670,30 @@ function AddressStep({
   set: (p: Partial<Draft>) => void;
   addresses: Address[];
 }) {
-  const [showForm, setShowForm] = useState(addresses.length === 0);
-  const [aLabel, setALabel] = useState("");
-  const [aLine, setALine] = useState("");
-  const [aCoords, setACoords] = useState<PlaceCoords | null>(null);
-  const [aPlaceId, setAPlaceId] = useState("");
-  const lineRef = useRef<HTMLInputElement>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
-  const addAddress = useAddAddress();
+  const selectedAddress = addresses.find((a) => a.id === draft.addressId) ?? null;
+  const addressCenter: LatLng | null = selectedAddress?.coordinates
+    ? { lat: selectedAddress.coordinates[1], lng: selectedAddress.coordinates[0] }
+    : null;
 
-  usePlacesAutocomplete({
-    inputRef: lineRef,
-    types: ["geocode", "establishment"],
-    onSelect: (placeName, placeId, coords) => {
-      setALine(placeName);
-      setAPlaceId(placeId);
-      setACoords(coords ?? null);
-    },
-  });
-
-  const saveAddress = () => {
-    if (!aLabel.trim() || !aLine.trim()) return;
-    addAddress.mutate(
-      {
-        label: aLabel.trim(),
-        line: aLine.trim(),
-        society: aLine.trim(),
-        lat: aCoords?.lat,
-        lng: aCoords?.lng,
-        placeId: aPlaceId || undefined,
-      },
-      {
-        onSuccess: (updatedUser) => {
-          setALabel("");
-          setALine("");
-          setACoords(null);
-          setAPlaceId("");
-          setShowForm(false);
-          const newAddr = updatedUser.addresses?.[updatedUser.addresses.length - 1];
-          if (newAddr) {
-            set({ addressId: newAddr.id });
-          }
-        },
-      },
-    );
-  };
+  // A pin belongs to the address it was dropped on. Switching addresses has to
+  // discard it, otherwise the booking silently carries the previous address's
+  // coordinates and the cleaner is routed to the wrong place entirely.
+  const [pinnedFor, setPinnedFor] = useState<string | null>(draft.addressId);
+  useEffect(() => {
+    if (draft.addressId === pinnedFor) return;
+    setPinnedFor(draft.addressId);
+    set({ pin: null });
+    // `set` is recreated every render by the parent; depending on it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.addressId, pinnedFor]);
 
   return (
     <div>
       <StepHeading title="Where should we come?" subtitle="Select a saved address or add a new one." />
 
-      {addresses.length > 0 && (
+      {addresses.length > 0 ? (
         <div className="space-y-3">
           {addresses.map((a) => {
             const selected = draft.addressId === a.id;
@@ -712,17 +702,25 @@ function AddressStep({
                 key={a.id}
                 onClick={() => set({ addressId: a.id })}
                 className={cn(
-                  "flex w-full items-center gap-4 rounded-card border p-4 text-left transition-all",
+                  "flex w-full items-center gap-4 rounded-card border p-4 text-left transition-all cursor-pointer",
                   selected
                     ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                     : "border-line bg-surface hover:border-primary/40",
                 )}
+                data-testid={`select-address-${a.id}`}
               >
                 <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
                   <MapPin className="size-5" />
                 </span>
-                <div className="min-w-0">
-                  <p className="font-display font-semibold text-ink">{a.label}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-display font-semibold text-ink">{a.label}</p>
+                    {a.coordinates && a.coordinates.length === 2 && (
+                      <span className="rounded-pill bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                        📍 Pinned
+                      </span>
+                    )}
+                  </div>
                   <p className="truncate text-sm text-muted">{a.line}</p>
                 </div>
                 {selected && <Check className="ml-auto size-5 text-primary" />}
@@ -730,57 +728,52 @@ function AddressStep({
             );
           })}
         </div>
+      ) : (
+        <div className="py-8 text-center rounded-2xl border border-dashed border-line bg-surface-muted/40 p-6">
+          <MapPin className="mx-auto size-8 text-muted" />
+          <p className="mt-2 font-display font-semibold text-ink">No addresses added yet</p>
+          <p className="text-xs text-muted mt-0.5">Add your address with exact map coordinates to continue.</p>
+          <Button size="sm" className="mt-4" onClick={() => setShowAddModal(true)} data-testid="add-first-address-btn">
+            <Plus className="size-4" /> Add your address
+          </Button>
+        </div>
       )}
 
-      {showForm ? (
-        <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
-          <p className="sm:col-span-2 font-display text-sm font-semibold text-ink">Add new address</p>
-          <Input
-            name="alabel"
-            label="Label"
-            placeholder="Home / Office"
-            value={aLabel}
-            onChange={(e) => setALabel(e.target.value)}
-          />
-          <Input
-            ref={lineRef}
-            name="aline"
-            label="Address"
-            placeholder="Search your address"
-            value={aLine}
-            onChange={(e) => {
-              setALine(e.target.value);
-              setACoords(null);
-              setAPlaceId("");
-            }}
-            hint={aCoords ? "📍 Location pinned" : "Pick a suggestion to pin the exact location"}
-          />
-          <div className="sm:col-span-2 flex items-center gap-2">
-            <Button size="sm" onClick={saveAddress} disabled={addAddress.isPending || !aLabel.trim() || !aLine.trim()}>
-              {addAddress.isPending ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" /> Saving...
-                </>
-              ) : (
-                "Save & select address"
-              )}
-            </Button>
-            {addresses.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>
-                Cancel
-              </Button>
-            )}
+      {selectedAddress && (
+        <div className="mt-5">
+          <div className="mb-2.5 flex items-center gap-2">
+            <Crosshair className="size-4 text-primary" />
+            <div>
+              <p className="font-display text-sm font-semibold text-ink">Drop your exact pin</p>
+              <p className="text-xs text-muted">
+                Move the map so the pin sits on your car. Your cleaner navigates to this exact spot.
+              </p>
+            </div>
           </div>
+          <ServicePinPicker
+            value={draft.pin}
+            fallbackCenter={addressCenter}
+            onChange={(coords) => set({ pin: coords })}
+          />
         </div>
-      ) : (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <Button variant="outline" onClick={() => setShowForm(true)}>
-            <Plus className="size-4" /> Add a new address
-          </Button>
-          <Link to="/app/profile/addresses?add=true" className="text-xs text-muted hover:text-primary transition-colors">
-            Manage all saved addresses
-          </Link>
-        </div>
+      )}
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <Button variant="outline" size="sm" onClick={() => setShowAddModal(true)} data-testid="add-new-address-btn">
+          <Plus className="size-4" /> Add a new address
+        </Button>
+        <Link to="/app/profile/addresses?add=true" className="text-xs text-muted hover:text-primary transition-colors">
+          Manage all saved addresses
+        </Link>
+      </div>
+
+      {showAddModal && (
+        <AddAddressModal
+          onClose={() => setShowAddModal(false)}
+          onSuccess={(newAddr) => {
+            set({ addressId: newAddr.id });
+          }}
+        />
       )}
     </div>
   );
@@ -1025,6 +1018,23 @@ function OrderSummary({
 /* --------------------------- Confirmation ------------------------------- */
 
 function Confirmation({ booking }: { booking: Booking }) {
+  const navigate = useNavigate();
+
+  /**
+   * Hand off to live tracking on its own.
+   *
+   * Dispatch starts the instant the booking is created, so the interesting
+   * thing — cleaners being offered the job — is already happening while this
+   * receipt is on screen. Three seconds is long enough to register that the
+   * booking worked and short enough that the customer arrives at the search
+   * while it is still searching. The button below does the same thing
+   * immediately, so this is a convenience, not the only way through.
+   */
+  useEffect(() => {
+    const timer = setTimeout(() => navigate(`/app/track/${booking.id}`), 3000);
+    return () => clearTimeout(timer);
+  }, [booking.id, navigate]);
+
   return (
     <div className="mx-auto max-w-lg py-10 text-center">
       <motion.div
@@ -1037,8 +1047,10 @@ function Confirmation({ booking }: { booking: Booking }) {
       </motion.div>
       <h1 className="mt-6 font-display text-3xl font-semibold text-ink">Booking confirmed!</h1>
       <p className="mt-2 text-muted">
-        We're finding you the nearest available cleaner — you'll be notified the moment one accepts.
-        Booking ID <span className="font-medium text-ink">{booking.id}</span>.
+        We're finding you the nearest available cleaner — taking you to live tracking…
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        Booking ID <span className="font-medium text-ink">{booking.id}</span>
       </p>
 
       <GlassCard className="mt-8 text-left">
@@ -1071,11 +1083,13 @@ function Confirmation({ booking }: { booking: Booking }) {
         </dl>
       </GlassCard>
 
-      <div className="mt-8 flex justify-center gap-3">
-        <Button asChild variant="outline">
-          <Link to="/app">Back to dashboard</Link>
-        </Button>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button asChild>
+          <Link to={`/app/track/${booking.id}`}>
+            <Radio className="size-4" /> Track my cleaner
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
           <Link to="/app/bookings">View my bookings</Link>
         </Button>
       </div>

@@ -4,10 +4,16 @@ import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { agentLiveSince, isAgentLive } from "../user/presence";
 import { notifyUser, pushToUser } from "../notification/notification.service";
-import { emitToUser, emitToAdmins } from "../../shared/services/socket";
+import { emitToUser, emitToAdmins, emitToRoom } from "../../shared/services/socket";
 import { haversineMeters, type LngLat } from "../../shared/geo";
 import { findNearestEligibleAgents, type NearbyAgent } from "./dispatch.query";
 import { payoutCalculator } from "../payout/payoutConfig.service";
+import {
+  broadcastJobStatus,
+  forgetAgentBookings,
+  bookingRoom,
+  revokeAgentTracking,
+} from "../tracking/tracking.service";
 import {
   OFFER_TTL_MS,
   SEARCH_RADII_M,
@@ -50,6 +56,23 @@ async function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
   };
 }
 
+/**
+ * Push search progress to the waiting customer (and anyone watching the
+ * booking). Without this the customer's screen is a spinner that never says
+ * anything, which is exactly the moment they cancel.
+ */
+function emitSearchProgress(b: BookingDocument) {
+  const payload = {
+    bookingId: String(b._id),
+    dispatchStatus: b.dispatchStatus,
+    dispatchAttempts: b.dispatchAttempts ?? 0,
+    searchRadiusM: b.searchRadiusM ?? 0,
+    at: new Date().toISOString(),
+  };
+  emitToUser(customerId(b), "dispatch_progress", payload);
+  emitToRoom(bookingRoom(String(b._id)), "dispatch_progress", payload);
+}
+
 /** Live-updates the admin dispatch console. */
 export function emitDispatchUpdate() {
   emitToAdmins("dispatch_update", { at: Date.now() });
@@ -79,6 +102,7 @@ async function moveToAdminQueue(b: BookingDocument) {
   b.currentOfferAgent = null;
   b.offerExpiresAt = null;
   await b.save();
+  emitSearchProgress(b);
   emitDispatchUpdate();
   emitToAdmins("dispatch_pending", { bookingId: String(b._id) });
 }
@@ -86,6 +110,11 @@ async function moveToAdminQueue(b: BookingDocument) {
 /** Notify the customer + refresh admin views once a cleaner is locked in. */
 async function onAssigned(b: BookingDocument, agent: { id: string; name: string }) {
   const cid = customerId(b);
+  // The job just entered the trackable window: invalidate the cached
+  // agent→bookings set so the very next GPS fix reaches this booking's room,
+  // and push the opening state to whoever is already watching.
+  forgetAgentBookings(agent.id);
+  broadcastJobStatus(b);
   emitToUser(cid, "booking_assigned", { bookingId: String(b._id), agentName: agent.name });
   await notifyUser(cid, {
     type: "booking",
@@ -109,6 +138,7 @@ export async function startDispatch(bookingId: string): Promise<void> {
   b.currentOfferAgent = null;
   b.offerExpiresAt = null;
   await b.save();
+  emitSearchProgress(b);
   await offerNext(bookingId);
 }
 
@@ -166,6 +196,7 @@ export async function offerNext(bookingId: string): Promise<void> {
       await b.save();
 
       await sendOffer(b, candidate);
+      emitSearchProgress(b);
       emitDispatchUpdate();
       return;
     }
@@ -232,6 +263,7 @@ export async function declineOffer(agentId: string, bookingId: string) {
   );
   await User.updateOne({ _id: agentId, currentOfferBooking: bookingId }, { currentOfferBooking: null });
   if (booking) {
+    revokeAgentTracking(agentId, bookingId);
     emitToUser(agentId, "offer_revoked", { bookingId });
     await offerNext(bookingId);
   }
@@ -270,6 +302,9 @@ export async function assignAgentToBooking(bookingId: string, agentId: string) {
   if (!booking) throw ApiError.notFound("Booking not found");
 
   const previousOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
+  // Captured before the overwrite: a reassignment has to revoke the previous
+  // cleaner's live feed, or they keep watching their replacement drive in.
+  const previousAssignedAgent = booking.assignedAgent ? String(booking.assignedAgent) : null;
 
   booking.assignedAgent = agent.id;
   booking.agentName = agent.name;
@@ -280,10 +315,16 @@ export async function assignAgentToBooking(bookingId: string, agentId: string) {
   booking.offerExpiresAt = null;
   await booking.save();
 
+  if (previousAssignedAgent && previousAssignedAgent !== String(agent._id)) {
+    revokeAgentTracking(previousAssignedAgent, String(booking._id));
+    forgetAgentBookings(previousAssignedAgent);
+  }
+
   // Release any offer locks tied to this booking.
   if (previousOfferAgent) {
     await User.updateOne({ _id: previousOfferAgent, currentOfferBooking: booking._id }, { currentOfferBooking: null });
     if (previousOfferAgent !== String(agent._id)) {
+      revokeAgentTracking(previousOfferAgent, String(booking._id));
       emitToUser(previousOfferAgent, "offer_revoked", { bookingId: String(booking._id) });
     }
   }
@@ -494,6 +535,7 @@ export async function sweepOffers(): Promise<void> {
     );
     if (agentId) {
       await User.updateOne({ _id: agentId, currentOfferBooking: b._id }, { currentOfferBooking: null });
+      revokeAgentTracking(agentId, String(b._id));
       emitToUser(agentId, "offer_revoked", { bookingId: String(b._id) });
     }
     await offerNext(String(b._id));

@@ -17,6 +17,7 @@ import {
 } from "../payment/ledger.service";
 import { evaluateReschedule, assertCustomerMayReschedule } from "./reschedule.service";
 import { toPoint } from "../../shared/geo";
+import { broadcastJobStatus, forgetAgentBookings } from "../tracking/tracking.service";
 import type { CreateBookingInput } from "./booking.validation";
 
 /** The wall-clock instant a slot begins on a given date — used for lead-time checks. */
@@ -383,5 +384,7 @@ export async function cancelBooking(userId: string, bookingId: string) {
   }
   booking.status = "cancelled";
   await booking.save();
+  forgetAgentBookings(booking.assignedAgent ? String(booking.assignedAgent) : null);
+  broadcastJobStatus(booking);
   return booking;
 }

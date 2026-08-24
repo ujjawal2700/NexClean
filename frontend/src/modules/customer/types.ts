@@ -87,6 +87,10 @@ export type Booking = {
   dispatchStatus?: DispatchStatus;
   agentName?: string | null;
   isSubscriptionWash?: boolean;
+  beforePhotos?: string[];
+  afterPhotos?: string[];
+  beforePhotoUrl?: string | null;
+  afterPhotoUrl?: string | null;
   createdAt: string;
 };
 

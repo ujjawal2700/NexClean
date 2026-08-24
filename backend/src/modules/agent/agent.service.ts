@@ -3,12 +3,13 @@ import { User } from "../user/user.model.js";
 import { ApiError } from "../../shared/utils/ApiError.js";
 import { trigger as triggerAreaAlert, assertAgentMayAlert } from "../area-alert/areaAlert.service.js";
 import { maybeCreditReferrer } from "../promotions/referral.service.js";
-import { toPoint, haversineMeters, type LngLat } from "../../shared/geo.js";
+import { toPoint, haversineMeters, isPlausibleMove, type LngLat } from "../../shared/geo.js";
 import { emitToUser, emitToAdmins } from "../../shared/services/socket.js";
 import { notifyUser } from "../notification/notification.service.js";
 import { uploadImage } from "../../shared/utils/cloudinary.js";
 import { payoutCalculator } from "../payout/payoutConfig.service.js";
 import { markPaymentCollected } from "../payment/ledger.service.js";
+import { broadcastJobStatus, forgetAgentBookings } from "../tracking/tracking.service.js";
 
 const JOB_FLOW = ["assigned", "enroute", "arrived", "in_progress", "completed"] as const;
 type JobStatus = (typeof JOB_FLOW)[number];
@@ -32,6 +33,19 @@ function jobPayout(b: BookingDocument, payoutOf: (price: number) => number): num
 /** Shape a booking into the agent-facing "job" the frontend expects. */
 function mapJob(b: BookingDocument, payoutOf: (price: number) => number, agentPoint?: LngLat) {
   const user = b.user as unknown as { name?: string } | null;
+  const beforePhotos =
+    b.beforePhotos && b.beforePhotos.length > 0
+      ? b.beforePhotos
+      : b.beforePhotoUrl
+        ? [b.beforePhotoUrl]
+        : [];
+  const afterPhotos =
+    b.afterPhotos && b.afterPhotos.length > 0
+      ? b.afterPhotos
+      : b.afterPhotoUrl
+        ? [b.afterPhotoUrl]
+        : [];
+
   return {
     id: b.id,
     customerName: (user && typeof user === "object" && user.name) || "Customer",
@@ -44,11 +58,17 @@ function mapJob(b: BookingDocument, payoutOf: (price: number) => number, agentPo
     addressLine: b.addressLine,
     society: b.society,
     distanceKm: jobDistanceKm(b, agentPoint),
+    coordinates:
+      b.location?.coordinates && b.location.coordinates.length === 2
+        ? { lat: b.location.coordinates[1], lng: b.location.coordinates[0] }
+        : null,
     price: b.price,
     payout: jobPayout(b, payoutOf),
     status: b.jobStatus,
-    hasBefore: b.hasBefore,
-    hasAfter: b.hasAfter,
+    hasBefore: beforePhotos.length >= 4 || b.hasBefore,
+    hasAfter: afterPhotos.length >= 4 || b.hasAfter,
+    beforePhotos,
+    afterPhotos,
   };
 }
 
@@ -85,14 +105,27 @@ export async function advanceStatus(agentId: string, bookingId: string) {
     throw ApiError.badRequest("This job is already completed");
   }
 
-  if (current === "in_progress" && !(booking.hasBefore && booking.hasAfter)) {
-    throw ApiError.badRequest("Add before & after photos before completing");
+  const beforeCount = booking.beforePhotos?.length ?? (booking.beforePhotoUrl ? 1 : 0);
+  const afterCount = booking.afterPhotos?.length ?? (booking.afterPhotoUrl ? 1 : 0);
+
+  // Gating requirements:
+  // 1. Moving from arrived to in_progress (Start cleaning): Must have at least 4 before photos (or hasBefore flag).
+  if (current === "arrived" && beforeCount < 4 && !booking.hasBefore) {
+    throw ApiError.badRequest("Upload at least 4 before photos (4 mandatory) to start cleaning");
+  }
+
+  // 2. Moving from in_progress to completed (Mark complete): Must have at least 4 after photos (or hasAfter flag).
+  if (current === "in_progress" && afterCount < 4 && !booking.hasAfter) {
+    throw ApiError.badRequest("Upload at least 4 after photos (4 mandatory) to mark complete");
   }
 
   const next = JOB_FLOW[Math.min(idx + 1, JOB_FLOW.length - 1)];
   const payoutOf = await payoutCalculator();
   booking.jobStatus = next;
+  // Stamp the transitions so the wash's real duration can be reported later.
+  if (next === "in_progress" && !booking.jobStartedAt) booking.jobStartedAt = new Date();
   if (next === "completed") {
+    booking.jobCompletedAt = new Date();
     booking.status = "completed";
     // Freeze the earnings at today's rule. Editing the rule later must not
     // retroactively change what an agent was already told they had earned.
@@ -100,6 +133,13 @@ export async function advanceStatus(agentId: string, bookingId: string) {
     await User.updateOne({ _id: agentId }, { $inc: { jobsDone: 1 } });
   }
   await booking.save();
+
+  // The customer's tracking screen is driven entirely by these events, so it
+  // has to hear about the change before any of the slower follow-up work.
+  // "completed" also drops the job out of the trackable set, which the cached
+  // agent→bookings lookup would otherwise keep serving for up to its TTL.
+  forgetAgentBookings(agentId);
+  broadcastJobStatus(booking);
 
   // A completed service is a qualifying referral milestone for the customer.
   // Fire-and-forget: never block job completion on the reward.
@@ -124,37 +164,69 @@ export async function setPhoto(
   agentId: string,
   bookingId: string,
   kind: "before" | "after",
-  image?: string,
+  options: {
+    image?: string;
+    action?: "add" | "remove";
+    index?: number;
+  } = {},
 ) {
   const booking = await getOwnedJob(agentId, bookingId);
+  const { image, action = "add", index } = options;
 
-  // Store the image when one is supplied. `image` stays optional so older
-  // agent clients keep working, but the URL is what makes the flag meaningful.
-  //
-  // A failed upload must not throw: completion is gated on hasBefore/hasAfter,
-  // so letting a Cloudinary outage bubble up left the cleaner standing at a
-  // finished car unable to close the job. Record the flag, and leave the URL
-  // empty so the missing evidence is visible to admins rather than silent.
-  let url = "";
-  if (image) {
-    try {
-      url = await uploadImage(image);
-    } catch (err) {
-      console.error(
-        `[agent:setPhoto] ${kind} photo upload failed for booking ${bookingId}:`,
-        (err as Error).message,
-      );
+  if (action === "remove") {
+    if (typeof index === "number") {
+      if (kind === "before") {
+        if (booking.beforePhotos && index >= 0 && index < booking.beforePhotos.length) {
+          booking.beforePhotos.splice(index, 1);
+        }
+      } else {
+        if (booking.afterPhotos && index >= 0 && index < booking.afterPhotos.length) {
+          booking.afterPhotos.splice(index, 1);
+        }
+      }
+    }
+  } else {
+    if (image) {
+      const currentList = kind === "before" ? (booking.beforePhotos || []) : (booking.afterPhotos || []);
+      if (currentList.length >= 8) {
+        throw ApiError.badRequest(`Maximum 8 ${kind} photos allowed (4 mandatory + 4 optional)`);
+      }
+
+      let url = "";
+      try {
+        url = await uploadImage(image);
+      } catch (err) {
+        console.error(
+          `[agent:setPhoto] ${kind} photo upload failed for booking ${bookingId}:`,
+          (err as Error).message,
+        );
+        url = image;
+      }
+
+      if (url) {
+        if (kind === "before") {
+          if (!booking.beforePhotos) booking.beforePhotos = [];
+          booking.beforePhotos.push(url);
+        } else {
+          if (!booking.afterPhotos) booking.afterPhotos = [];
+          booking.afterPhotos.push(url);
+        }
+      }
     }
   }
 
   if (kind === "before") {
-    booking.hasBefore = true;
-    if (url) booking.beforePhotoUrl = url;
+    booking.hasBefore = (booking.beforePhotos?.length ?? 0) >= 4;
+    booking.beforePhotoUrl = booking.beforePhotos?.[0] || "";
   } else {
-    booking.hasAfter = true;
-    if (url) booking.afterPhotoUrl = url;
+    booking.hasAfter = (booking.afterPhotos?.length ?? 0) >= 4;
+    booking.afterPhotoUrl = booking.afterPhotos?.[0] || "";
   }
+
+  booking.markModified("beforePhotos");
+  booking.markModified("afterPhotos");
   await booking.save();
+
   const [payoutOf, agentPoint] = await Promise.all([payoutCalculator(), getAgentPoint(agentId)]);
   return mapJob(booking, payoutOf, agentPoint);
 }
@@ -191,24 +263,13 @@ function isValidLocationUpdate(
   newLng: number,
   agentId: string,
 ): boolean {
-  if (!prevLoc || !prevLoc.coordinates || prevLoc.coordinates.length !== 2 || !prevTime) {
-    return true; // no previous location/time to compare
-  }
-  const distanceMeters = haversineMeters(
-    [prevLoc.coordinates[0], prevLoc.coordinates[1]],
-    [newLng, newLat],
+  const prev = prevLoc?.coordinates;
+  const prevPoint: LngLat | null = prev && prev.length === 2 ? [prev[0], prev[1]] : null;
+  if (isPlausibleMove(prevPoint, prevTime, [newLng, newLat])) return true;
+  console.warn(
+    `[GPS Spoofing Check] Agent ${agentId} reported an impossible jump between fixes. Location update ignored.`,
   );
-  const timeDiffSeconds = (Date.now() - new Date(prevTime).getTime()) / 1000;
-  if (distanceMeters > 100 && timeDiffSeconds > 0) {
-    const speedKmH = (distanceMeters / 1000) / (timeDiffSeconds / 3600);
-    if (speedKmH > 150) {
-      console.warn(
-        `[GPS Spoofing Check] Agent ${agentId} anomaly: moved ${distanceMeters.toFixed(0)}m in ${timeDiffSeconds.toFixed(1)}s (${speedKmH.toFixed(1)} km/h). Location update ignored.`,
-      );
-      return false;
-    }
-  }
-  return true;
+  return false;
 }
 
 export async function setOnline(agentId: string, online: boolean, coords?: Coords) {
@@ -249,18 +310,6 @@ export async function heartbeat(agentId: string, coords?: Coords) {
   }
   const updatedAgent = await User.findByIdAndUpdate(agentId, update, { new: true });
   return updatedAgent!;
-}
-
-/** Persist a streamed live location (from the socket channel). Best-effort, no throw. */
-export async function updateAgentLocation(agentId: string, lat: number, lng: number) {
-  const agent = await User.findById(agentId).select("liveLocation locationUpdatedAt agentStatus");
-  if (!agent || agent.agentStatus !== "verified") return;
-  if (!isValidLocationUpdate(agent.liveLocation as any, agent.locationUpdatedAt, lat, lng, agentId)) {
-    return;
-  }
-  const patch = locationPatch({ lat, lng });
-  if (!("liveLocation" in patch)) return;
-  await User.updateOne({ _id: agentId, role: "agent" }, patch);
 }
 
 /** Agent notifies nearby customers (Smart Area Alert) for a society. */
@@ -341,6 +390,8 @@ export async function claimJob(agentId: string, bookingId: string) {
 
   // Notify the customer.
   const cid = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
+  forgetAgentBookings(agentId);
+  broadcastJobStatus(booking);
   emitToUser(cid, "booking_assigned", { bookingId: String(booking._id), agentName: agent.name });
   emitToAdmins("dispatch_update", { at: Date.now() });
   void notifyUser(cid, {

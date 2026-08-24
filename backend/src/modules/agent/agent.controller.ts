@@ -22,12 +22,18 @@ const photoSchema = z.object({
   // Base64 data URL captured on the cleaner's device. Optional so older clients
   // that only flip the flag keep working.
   image: z.string().min(1).optional(),
+  action: z.enum(["add", "remove"]).optional(),
+  index: z.number().int().min(0).optional(),
 });
 export async function photo(req: Request, res: Response): Promise<Response> {
   const parsed = photoSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("kind must be 'before' or 'after'");
-  const job = await service.setPhoto(req.userId!, String(req.params.id), parsed.data.kind, parsed.data.image);
-  return ok(res, job, "Photo added");
+  const job = await service.setPhoto(req.userId!, String(req.params.id), parsed.data.kind, {
+    image: parsed.data.image,
+    action: parsed.data.action,
+    index: parsed.data.index,
+  });
+  return ok(res, job, parsed.data.action === "remove" ? "Photo removed" : "Photo added");
 }
 
 const coordsSchema = z.object({ lat: z.number(), lng: z.number() }).partial();

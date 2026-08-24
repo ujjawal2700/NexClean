@@ -13,6 +13,7 @@ adminRouter.get("/stats", requirePermission("dashboard"), asyncHandler(c.stats))
 adminRouter.get("/reports", requirePermission("reports"), asyncHandler(c.reports));
 
 adminRouter.get("/bookings", requirePermission("bookings"), asyncHandler(c.bookings));
+adminRouter.get("/bookings/:id", requirePermission("bookings"), asyncHandler(c.bookingDetail));
 adminRouter.patch("/bookings/:id/cancel", requirePermission("bookings"), asyncHandler(c.cancelBooking));
 adminRouter.patch("/bookings/:id/status", requirePermission("bookings"), asyncHandler(c.setBookingStatus));
 adminRouter.patch("/bookings/:id/assign", requirePermission("bookings"), asyncHandler(c.assignBooking));

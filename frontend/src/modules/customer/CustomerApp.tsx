@@ -17,6 +17,7 @@ import { Addresses } from "./pages/Addresses";
 import { Notifications } from "./pages/Notifications";
 import { BookingFlow } from "./pages/booking/BookingFlow";
 import { HelpSupport } from "./pages/HelpSupport";
+import { TrackBooking } from "./pages/tracking/TrackBooking";
 
 /**
  * Customer module router (base path /app). Login is public; everything else
@@ -29,6 +30,15 @@ export function CustomerApp() {
         <Route path="login" element={<Login />} />
         <Route path="signup" element={<Signup />} />
         <Route path="coming-soon" element={<ComingSoon />} />
+
+        <Route
+          path="track/:id"
+          element={
+            <ProtectedRoute>
+              <TrackBooking />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           element={

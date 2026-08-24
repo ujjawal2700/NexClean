@@ -35,6 +35,55 @@ export type AdminBooking = {
   offPeakDiscountAmount: number;
 };
 
+/** One booking, in full — what the admin booking detail page renders. */
+export type AdminBookingDetail = {
+  id: string;
+  status: BookingStatus;
+  rawStatus: "upcoming" | "completed" | "cancelled";
+  jobStatus: "assigned" | "enroute" | "arrived" | "in_progress" | "completed";
+  dispatchStatus: DispatchStatus;
+  /** A cleaner is in the field right now — show the live map rather than the record. */
+  isLive: boolean;
+  customer: { id: string | null; name: string; phone: string | null; email: string | null };
+  agent: { id: string | null; name: string; phone: string | null; email: string | null } | null;
+  vehicleType: string;
+  vehicleName: string;
+  packageName: string;
+  isSubscriptionWash: boolean;
+  date: string;
+  slot: string;
+  createdAt: string;
+  assignedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMinutes: number | null;
+  addressLabel: string;
+  addressLine: string;
+  society: string;
+  serviceLocation: { lat: number; lng: number } | null;
+  price: number;
+  discountCode: string | null;
+  discountAmount: number;
+  coinsRedeemed: number;
+  coinDiscount: number;
+  offPeakLocked: boolean;
+  offPeakDiscountAmount: number;
+  peakUpgradeFeeCharged: number;
+  upgradeWaivedAmount: number;
+  totalAmount: number;
+  /** null when no cleaner is assigned yet. Provisional until agentShareSettled. */
+  agentShare: number | null;
+  /** True once the job completed and the payout was frozen. */
+  agentShareSettled: boolean;
+  beforePhotos: string[];
+  afterPhotos: string[];
+  beforePhotoUrl: string | null;
+  afterPhotoUrl: string | null;
+  rescheduleCount: number;
+  customerRescheduleCount: number;
+  autoRescheduled: boolean;
+};
+
 export type DispatchStatus =
   | "scheduled"
   | "searching"

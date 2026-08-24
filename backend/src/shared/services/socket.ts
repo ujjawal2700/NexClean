@@ -5,10 +5,24 @@ import { verifyToken } from "../utils/jwt";
 import { SupportTicket } from "../../modules/chat/ticket.model";
 import { notifyUser } from "../../modules/notification/notification.service";
 import { SupportConfig } from "../../modules/chat/supportConfig.model";
-import { updateAgentLocation } from "../../modules/agent/agent.service";
+import {
+  recordAgentLocation,
+  assertCanTrack,
+  bookingRoom,
+  forgetAgentBookingsLocal,
+  FORGET_AGENT_EVENT,
+} from "../../modules/tracking/tracking.service";
 import { env, isProd } from "../../config/env";
 
 let io: Server | null = null;
+/**
+ * Whether a multi-node adapter is attached, i.e. whether there are other
+ * workers to talk to at all. Tracked rather than probed: the in-memory adapter
+ * answers a serverSideEmit with a console.warn instead of throwing, so a
+ * try/catch cannot detect it and every single-process deployment would log a
+ * warning on each assignment and status change.
+ */
+let clusterAdapterReady = false;
 const adminConnections = new Map<string, Set<string>>(); // userId -> Set of socketIds
 
 interface AuthenticatedSocket extends Socket {
@@ -60,8 +74,23 @@ export async function initSocket(server: any) {
     subClient.on("error", (err) => console.error("Redis subClient error:", err.message));
     await Promise.all([pubClient.connect(), subClient.connect()]);
     io.adapter(createAdapter(pubClient, subClient));
+    clusterAdapterReady = true;
     console.log("🔌 Socket.IO using Redis adapter for cross-worker broadcast");
   }
+
+  /**
+   * Another worker is telling us one of its cached facts went stale.
+   *
+   * Each worker keeps its own agent→bookings map, and the worker that handles
+   * the HTTP request assigning a job is almost never the worker holding that
+   * cleaner's WebSocket. Clearing only the local copy leaves the socket-holding
+   * worker convinced the cleaner has no active job, and it silently drops every
+   * GPS fix until its TTL lapses. Delivered via the Redis adapter, so this is a
+   * no-op in single-process mode where the local delete was already complete.
+   */
+  io.on(FORGET_AGENT_EVENT, (agentId: string) => {
+    forgetAgentBookingsLocal(agentId);
+  });
 
   /** Pull whichever role session cookie is present off the handshake headers. */
   const readTokenFromCookieHeader = (header?: string): string | null => {
@@ -137,18 +166,48 @@ export async function initSocket(server: any) {
       console.log(`🎟️ Socket ${socket.id} left ticket:${ticketId}`);
     });
 
-    // Agent streams its live GPS position while online (for nearest-agent dispatch).
-    socket.on("agent_location", async (data: { lat?: number; lng?: number }) => {
-      if (role !== "agent") return;
-      const lat = Number(data?.lat);
-      const lng = Number(data?.lng);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    /**
+     * Watch one booking's live tracking feed.
+     *
+     * The room is authorized on join rather than on emit: a socket that never
+     * proved it owns the booking never enters the room, so the per-fix
+     * broadcast path stays a plain room emit with no permission check in the
+     * hot loop.
+     */
+    socket.on("join_booking", async (bookingId: string, ack?: (res: unknown) => void) => {
+      if (!bookingId || typeof bookingId !== "string") return;
       try {
-        await updateAgentLocation(userId, lat, lng);
+        await assertCanTrack(bookingId, { id: userId, role });
+        socket.join(bookingRoom(bookingId));
+        ack?.({ ok: true, bookingId });
       } catch (err) {
-        console.error("agent_location update failed:", (err as Error).message);
+        ack?.({ ok: false, error: (err as Error).message });
       }
     });
+
+    socket.on("leave_booking", (bookingId: string) => {
+      if (!bookingId || typeof bookingId !== "string") return;
+      socket.leave(bookingRoom(bookingId));
+    });
+
+    // Agent streams its live GPS position: ranks them for dispatch, and drives
+    // the customer/admin live maps for whatever job they are currently on.
+    socket.on(
+      "agent_location",
+      async (data: { lat?: number; lng?: number; heading?: number | null; speed?: number | null }) => {
+        if (role !== "agent") return;
+        try {
+          await recordAgentLocation(userId, {
+            lat: Number(data?.lat),
+            lng: Number(data?.lng),
+            heading: data?.heading ?? null,
+            speed: data?.speed ?? null,
+          });
+        } catch (err) {
+          console.error("agent_location update failed:", (err as Error).message);
+        }
+      },
+    );
 
     socket.on("disconnect", async () => {
       console.log(`🔌 User disconnected: ${userId} | Socket: ${socket.id}`);
@@ -243,6 +302,43 @@ export function broadcastTicketStatus(ticketId: string, status: "open" | "closed
 /** Emit an event to a single user's personal room (all their connected devices). */
 export function emitToUser(userId: string, event: string, payload: unknown) {
   io?.to(`user:${userId}`).emit(event, payload);
+}
+
+/**
+ * Send an event to every OTHER API worker (never back to this one).
+ *
+ * Used for cache invalidation that has to be fleet-wide. Requires the Redis
+ * adapter; with the default in-memory adapter there are no peers and this is
+ * correctly a no-op, because a single process has already done the work
+ * locally.
+ */
+export function broadcastToWorkers(event: string, ...args: unknown[]) {
+  // Single process: the caller has already applied the change locally, and
+  // there is nobody else to tell.
+  if (!io || !clusterAdapterReady) return;
+  io.serverSideEmit(event, ...args);
+}
+
+/**
+ * Force one user's sockets out of a room.
+ *
+ * Room membership is granted once, on join, and would otherwise outlive the
+ * permission that granted it. Keyed on the user's personal room so it covers
+ * every device they have open, and routed through the adapter so it reaches
+ * sockets held by other workers too.
+ */
+export function evictUserFromRoom(userId: string, room: string) {
+  if (!io) return;
+  try {
+    io.in(`user:${userId}`).socketsLeave(room);
+  } catch (err) {
+    console.error("[socket] room eviction failed:", (err as Error).message);
+  }
+}
+
+/** Emit an event to an arbitrary room (booking tracking feeds). */
+export function emitToRoom(room: string, event: string, payload: unknown) {
+  io?.to(room).emit(event, payload);
 }
 
 /** Emit an event to every connected admin (dispatch queue live updates). */

@@ -24,11 +24,11 @@ const AGENTS: AgentSeed[] = [
  * admin apps have something to log into and work with.
  */
 export async function seedDemoData(): Promise<void> {
-  const agents = env.nodeEnv === "test" ? AGENTS : [];
+  const agents = env.nodeEnv !== "production" ? AGENTS : [];
   for (const a of agents) {
     await User.updateOne(
       { phone: a.phone },
-      { $setOnInsert: { ...a, role: "agent" } },
+      { $set: { ...a, role: "agent" } },
       { upsert: true },
     );
   }

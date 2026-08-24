@@ -38,6 +38,10 @@ export async function bookings(_req: Request, res: Response): Promise<Response> 
   return ok(res, await service.listBookings());
 }
 
+export async function bookingDetail(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.getBookingDetail(String(req.params.id)));
+}
+
 export async function cancelBooking(req: Request, res: Response): Promise<Response> {
   return ok(res, await service.cancelBooking(String(req.params.id)), "Booking cancelled");
 }

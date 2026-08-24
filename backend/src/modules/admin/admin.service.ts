@@ -220,6 +220,9 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
   } else if (status === "completed") {
     booking.status = "completed";
     booking.jobStatus = "completed";
+    // Same stamping as the agent-side completion, so a job an admin closes
+    // still reports a duration rather than a blank.
+    if (!booking.jobCompletedAt) booking.jobCompletedAt = new Date();
     booking.dispatchStatus = "assigned"; // keeps it out of the searching/pending queue
     // Freeze the cleaner's earnings at the rule in force now, exactly as the
     // agent-side completion does — an admin closing the job must not leave it
@@ -230,6 +233,7 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
   } else if (status === "in_progress") {
     booking.status = "upcoming";
     booking.jobStatus = "in_progress";
+    if (!booking.jobStartedAt) booking.jobStartedAt = new Date();
   } else {
     booking.status = "upcoming";
     booking.jobStatus = "assigned";
@@ -1160,3 +1164,133 @@ export async function listReferralLogs() {
   );
 }
 
+
+/**
+ * Everything the admin booking detail screen shows for one booking.
+ *
+ * Deliberately fuller than the list's `mapBooking`: the list is a scan-and-act
+ * table, this is the record you open when you need to settle a dispute or
+ * explain a charge — so it carries the proof photos, the money broken down to
+ * the line, where the service actually happened, and what the cleaner earned.
+ *
+ * `agentPayout` is null until a job completes, so an in-flight job is quoted
+ * from the current rule and flagged as provisional. Reporting a completed
+ * job's frozen payout and an in-flight job's estimate as the same number would
+ * misrepresent one of them.
+ */
+export async function getBookingDetail(id: string) {
+  if (!Types.ObjectId.isValid(id)) throw ApiError.notFound("Booking not found");
+
+  const booking = await Booking.findById(id)
+    .populate("user", "name phone email")
+    .populate("assignedAgent", "name phone email");
+  if (!booking) throw ApiError.notFound("Booking not found");
+
+  const customer = booking.user as unknown as
+    | { _id?: unknown; name?: string; phone?: string; email?: string }
+    | null;
+  const agent = booking.assignedAgent as unknown as
+    | { _id?: unknown; name?: string; phone?: string; email?: string }
+    | null;
+
+  const settled = booking.agentPayout != null;
+  const agentShare = settled
+    ? booking.agentPayout
+    : booking.assignedAgent
+      ? computePayout(booking.price, await getPayoutConfig())
+      : null;
+
+  const startedAt = booking.jobStartedAt ?? null;
+  const completedAt = booking.jobCompletedAt ?? null;
+  const durationMinutes =
+    startedAt && completedAt
+      ? Math.max(0, Math.round((completedAt.getTime() - startedAt.getTime()) / 60000))
+    : startedAt
+      ? Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 60000))
+      : null;
+
+  // [lng, lat] in the document; the map wants { lat, lng }.
+  const coords = (booking.location as unknown as { coordinates?: number[] } | undefined)?.coordinates;
+  const serviceLocation =
+    Array.isArray(coords) && coords.length === 2 ? { lat: coords[1], lng: coords[0] } : null;
+
+  return {
+    id: booking.id,
+    status: displayStatus(booking),
+    rawStatus: booking.status,
+    jobStatus: booking.jobStatus,
+    dispatchStatus: booking.dispatchStatus,
+    // Whether a cleaner is out in the field right now — what decides between
+    // showing the live map and showing the finished record.
+    isLive:
+      booking.status === "upcoming" &&
+      ["assigned", "enroute", "arrived", "in_progress"].includes(String(booking.jobStatus)),
+
+    customer: {
+      id: customer?._id ? String(customer._id) : null,
+      name: customer?.name || "Customer",
+      phone: customer?.phone || null,
+      email: customer?.email || null,
+    },
+    agent: agent
+      ? {
+          id: agent._id ? String(agent._id) : null,
+          name: agent.name || booking.agentName || "Agent",
+          phone: agent.phone || null,
+          email: agent.email || null,
+        }
+      : null,
+
+    vehicleType: booking.vehicleType,
+    vehicleName: booking.vehicleName,
+    packageName: booking.packageName,
+    isSubscriptionWash: !!booking.isSubscriptionWash,
+
+    date: booking.date,
+    slot: booking.slot,
+    createdAt: booking.createdAt,
+    assignedAt: booking.assignedAt,
+    startedAt,
+    completedAt,
+    durationMinutes,
+
+    addressLabel: booking.addressLabel,
+    addressLine: booking.addressLine,
+    society: booking.society,
+    serviceLocation,
+
+    // Money, itemised. The screen has to be able to explain the total, and a
+    // single figure cannot.
+    price: booking.price,
+    discountCode: booking.discountCode,
+    discountAmount: booking.discountAmount ?? 0,
+    coinsRedeemed: booking.coinsRedeemed ?? 0,
+    coinDiscount: booking.coinDiscount ?? 0,
+    offPeakLocked: !!booking.offPeakLocked,
+    offPeakDiscountAmount: booking.offPeakDiscountAmount ?? 0,
+    peakUpgradeFeeCharged: booking.peakUpgradeFeeCharged ?? 0,
+    upgradeWaivedAmount: booking.upgradeWaivedAmount ?? 0,
+    totalAmount: (booking.price ?? 0) + (booking.peakUpgradeFeeCharged ?? 0),
+    agentShare,
+    agentShareSettled: settled,
+
+    beforePhotos:
+      booking.beforePhotos && booking.beforePhotos.length > 0
+        ? booking.beforePhotos
+        : booking.beforePhotoUrl
+          ? [booking.beforePhotoUrl]
+          : [],
+    afterPhotos:
+      booking.afterPhotos && booking.afterPhotos.length > 0
+        ? booking.afterPhotos
+        : booking.afterPhotoUrl
+          ? [booking.afterPhotoUrl]
+          : [],
+    beforePhotoUrl: booking.beforePhotoUrl || (booking.beforePhotos?.[0] ?? null),
+    afterPhotoUrl: booking.afterPhotoUrl || (booking.afterPhotos?.[0] ?? null),
+
+    rescheduleCount: booking.rescheduleCount ?? 0,
+    customerRescheduleCount: booking.customerRescheduleCount ?? 0,
+    autoRescheduled: !!booking.autoRescheduled,
+  };
+}

@@ -11,6 +11,7 @@ import {
   Loader2,
   CalendarClock,
   ChevronDown,
+  Navigation2,
 } from "lucide-react";
 import { SOCKET_URL } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
@@ -27,6 +28,7 @@ import {
   useAutoAssignAll,
 } from "../api/admin.api";
 import type { DispatchQueueItem, DispatchStatus } from "../types";
+import { TrackingModal } from "../components/TrackingModal";
 
 const STATUS_STYLE: Record<DispatchStatus, string> = {
   pending_admin: "bg-red-500/10 text-red-600 border-red-500/20",
@@ -154,10 +156,35 @@ export function Dispatch() {
 
 function DispatchRow({ item }: { item: DispatchQueueItem }) {
   const [open, setOpen] = useState(false);
+  const [tracking, setTracking] = useState(false);
   const needsAssignment = ["pending_admin", "searching", "offered", "scheduled"].includes(item.dispatchStatus);
+  // Anything with a cleaner attached has a live position worth looking at.
+  // Unassigned rows open too, so an admin can confirm the pin is where the
+  // customer says it is before placing the job by hand.
+  const trackable = item.dispatchStatus !== "cancelled";
 
   return (
-    <GlassCard className={cn("flex flex-col gap-4 md:flex-row md:items-center md:justify-between transition-all", open && "relative z-30 shadow-xl border-primary/30")}>
+    <GlassCard
+      className={cn(
+        "flex flex-col gap-4 md:flex-row md:items-center md:justify-between transition-all",
+        open && "relative z-30 shadow-xl border-primary/30",
+        trackable && "cursor-pointer hover:border-primary/40",
+      )}
+      onClick={trackable ? () => setTracking(true) : undefined}
+      role={trackable ? "button" : undefined}
+      tabIndex={trackable ? 0 : undefined}
+      onKeyDown={
+        trackable
+          ? (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setTracking(true);
+              }
+            }
+          : undefined
+      }
+      data-testid={`dispatch-row-${item.id}`}
+    >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn("rounded-pill border px-2.5 py-0.5 text-xs font-semibold", STATUS_STYLE[item.dispatchStatus])}>
@@ -209,10 +236,24 @@ function DispatchRow({ item }: { item: DispatchQueueItem }) {
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
         <span className="font-display font-semibold text-ink">{formatMoney(item.price)}</span>
+        {trackable && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setTracking(true)}
+            title="See the cleaner's live location"
+            data-testid={`track-${item.id}`}
+          >
+            <Navigation2 className="size-4" />
+            <span className="hidden sm:inline">Track</span>
+          </Button>
+        )}
         {needsAssignment && <AssignControls item={item} open={open} setOpen={setOpen} />}
       </div>
+
+      {tracking && <TrackingModal bookingId={item.id} onClose={() => setTracking(false)} />}
     </GlassCard>
   );
 }

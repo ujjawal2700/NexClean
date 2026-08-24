@@ -92,6 +92,18 @@ const bookingSchema = new Schema(
       enum: ["assigned", "enroute", "arrived", "in_progress", "completed"],
       default: "assigned",
     },
+    /**
+     * When the cleaner actually started and finished the wash.
+     *
+     * jobStatus records where a job is but not when it got there, so the time
+     * a wash took could not be reported at all — only 'assigned' had a
+     * timestamp. Recorded at the transition rather than derived from
+     * updatedAt, which any later edit to the booking would overwrite.
+     * Bookings that completed before this shipped have neither, and are shown
+     * as unknown rather than guessed at.
+     */
+    jobStartedAt: { type: Date, default: null },
+    jobCompletedAt: { type: Date, default: null },
     hasBefore: { type: Boolean, default: false },
     hasAfter: { type: Boolean, default: false },
     // What the cleaner actually earned, frozen at the moment the job completed.
@@ -99,10 +111,9 @@ const bookingSchema = new Schema(
     // rewrite the earnings history of every past job the next time the rate
     // changed. null = not completed yet, so quote it from the current rule.
     agentPayout: { type: Number, default: null },
-    // The actual proof-of-service images. hasBefore/hasAfter used to be set by
-    // an empty POST with no image at all, so the "photos required before
-    // completing" gate was satisfiable without taking a single photo and
-    // nothing was retained to settle a damage or no-show dispute.
+    // The actual proof-of-service images (up to 8 before and 8 after).
+    beforePhotos: { type: [String], default: [] },
+    afterPhotos: { type: [String], default: [] },
     beforePhotoUrl: { type: String, default: "" },
     afterPhotoUrl: { type: String, default: "" },
 

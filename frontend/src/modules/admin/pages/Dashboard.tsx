@@ -195,8 +195,12 @@ export function Dashboard() {
               {!bookingsLoading && recent.map((b) => (
                 <tr key={b.id} className="border-t border-line/70">
                   <td className="px-2 py-3">
-                    <p className="font-medium text-ink">{b.vehicleName}</p>
-                    <p className="text-xs text-muted">#{b.id}</p>
+                    <Link to={`/admin/bookings/${b.id}`} className="font-medium text-ink hover:text-primary transition-colors block">
+                      {b.vehicleName}
+                    </Link>
+                    <p className="text-xs text-muted">
+                      <Link to={`/admin/bookings/${b.id}`} className="hover:underline hover:text-primary">#{b.id}</Link>
+                    </p>
                   </td>
                   <td className="px-2 py-3 text-ink-soft">{b.customerName}</td>
                   <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)} · {b.slot}</td>

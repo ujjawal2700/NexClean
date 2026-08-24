@@ -1,60 +1,34 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, MapPin, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, MapPin, Plus, Trash2, Home, Briefcase, Tag, Navigation } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
-import { Input } from "@shared/ui/Input";
-import { usePlacesAutocomplete, type PlaceCoords } from "@shared/hooks/usePlacesAutocomplete";
 import { useMe } from "../api/queries";
-import { useAddAddress, useRemoveAddress } from "../api/mutations";
+import { useRemoveAddress } from "../api/mutations";
+import { AddAddressModal } from "@shared/components/address/AddAddressModal";
+
+function getLabelIcon(label: string) {
+  const l = label.toLowerCase();
+  if (l === "home") return Home;
+  if (l === "office" || l === "work") return Briefcase;
+  return MapPin;
+}
 
 export function Addresses() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: me } = useMe();
   const addresses = me?.addresses ?? [];
 
-  const addAddress = useAddAddress();
   const removeAddress = useRemoveAddress();
+  const [showAddModal, setShowAddModal] = useState(() => searchParams.get("add") === "true");
 
-  const [showAddr, setShowAddr] = useState(() => searchParams.get("add") === "true");
-  const [aLabel, setALabel] = useState("");
-  const [aLine, setALine] = useState("");
-  const [aCoords, setACoords] = useState<PlaceCoords | null>(null);
-  const [aPlaceId, setAPlaceId] = useState("");
-  const lineRef = useRef<HTMLInputElement>(null);
-
-  usePlacesAutocomplete({
-    inputRef: lineRef,
-    types: ["geocode", "establishment"],
-    onSelect: (placeName, placeId, coords) => {
-      setALine(placeName);
-      setAPlaceId(placeId);
-      setACoords(coords ?? null);
-    },
-  });
-
-  const saveAddress = () => {
-    if (!aLabel.trim() || !aLine.trim()) return;
-    addAddress.mutate(
-      {
-        label: aLabel.trim(),
-        line: aLine.trim(),
-        society: aLine.trim(),
-        lat: aCoords?.lat,
-        lng: aCoords?.lng,
-        placeId: aPlaceId || undefined,
-      },
-      {
-        onSuccess: () => {
-          setALabel("");
-          setALine("");
-          setACoords(null);
-          setAPlaceId("");
-          setShowAddr(false);
-        },
-      },
-    );
+  const handleCloseModal = () => {
+    setShowAddModal(false);
+    if (searchParams.get("add")) {
+      searchParams.delete("add");
+      setSearchParams(searchParams, { replace: true });
+    }
   };
 
   return (
@@ -70,65 +44,78 @@ export function Addresses() {
         <h1 className="font-display text-2xl text-ink sm:text-3xl">Saved addresses</h1>
       </div>
 
-      <GlassCard>
-        <div className="flex items-center justify-between">
-          <p className="font-display text-lg font-semibold text-ink">Addresses</p>
-          <Button variant="ghost" size="sm" onClick={() => setShowAddr((v) => !v)}>
-            <Plus className="size-4" /> Add address
+      <GlassCard className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-display text-lg font-semibold text-ink">My Addresses</p>
+            <p className="text-xs text-muted">Manage your service locations with exact map coordinates</p>
+          </div>
+          <Button size="sm" onClick={() => setShowAddModal(true)} data-testid="open-add-address">
+            <Plus className="size-4" /> Add new address
           </Button>
         </div>
 
-        {showAddr && (
-          <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
-            <Input name="alabel" label="Label" placeholder="Home / Office" value={aLabel} onChange={(e) => setALabel(e.target.value)} />
-            <Input
-              ref={lineRef}
-              name="aline"
-              label="Address"
-              placeholder="Search your address"
-              value={aLine}
-              onChange={(e) => {
-                setALine(e.target.value);
-                // Typing manually invalidates the previously picked pin.
-                setACoords(null);
-                setAPlaceId("");
-              }}
-              hint={aCoords ? "📍 Location pinned" : "Pick a suggestion to pin the exact location"}
-            />
-            <div className="sm:col-span-2">
-              <Button size="sm" onClick={saveAddress} disabled={addAddress.isPending}>
-                Save address
+        <div className="space-y-3 pt-2">
+          {addresses.map((a) => {
+            const Icon = getLabelIcon(a.label);
+            const coords = a.coordinates;
+            const hasCoords = coords && coords.length === 2;
+
+            return (
+              <div
+                key={a.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-4 transition-all hover:border-primary/30"
+              >
+                <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+                    <Icon className="size-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-display font-semibold text-ink">{a.label}</p>
+                      {hasCoords && (
+                        <span className="inline-flex items-center gap-1 rounded-pill bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                          <Navigation className="size-2.5" /> GPS Pinned ({coords[1].toFixed(4)}, {coords[0].toFixed(4)})
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm text-muted break-words">{a.line}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 shrink-0">
+                  <button
+                    onClick={() => removeAddress.mutate(a.id)}
+                    className="grid size-9 place-items-center rounded-xl text-muted transition-colors hover:bg-red-50 hover:text-red-500 cursor-pointer"
+                    aria-label={`Remove ${a.label}`}
+                    data-testid={`remove-address-${a.id}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {addresses.length === 0 && (
+            <div className="py-12 text-center">
+              <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-surface-muted text-muted">
+                <MapPin className="size-6" />
+              </div>
+              <p className="mt-3 font-display font-semibold text-ink">No saved addresses yet</p>
+              <p className="mt-1 text-xs text-muted">Pin your car's location on the map to get started.</p>
+              <Button size="sm" className="mt-4" onClick={() => setShowAddModal(true)}>
+                <Plus className="size-4" /> Add your first address
               </Button>
             </div>
-          </div>
-        )}
-
-        <div className="mt-4 space-y-3">
-          {addresses.map((a) => (
-            <div key={a.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
-              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <MapPin className="size-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-display font-semibold text-ink">{a.label}</p>
-                <p className="truncate text-sm text-muted">{a.line}</p>
-              </div>
-              <button
-                onClick={() => removeAddress.mutate(a.id)}
-                className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:bg-red-50 hover:text-red-500"
-                aria-label={`Remove ${a.label}`}
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </div>
-          ))}
-          {addresses.length === 0 && (
-            <p className="flex items-center gap-2 text-sm text-muted">
-              <MapPin className="size-4" /> No addresses yet.
-            </p>
           )}
         </div>
       </GlassCard>
+
+      {/* Add Address Modal with Interactive Map Pinning */}
+      {showAddModal && (
+        <AddAddressModal onClose={handleCloseModal} />
+      )}
     </div>
   );
 }

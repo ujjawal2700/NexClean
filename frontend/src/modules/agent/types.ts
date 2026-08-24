@@ -49,11 +49,14 @@ export type Job = {
   addressLine: string;
   society: string;
   distanceKm: number | null;
+  coordinates?: { lat: number; lng: number } | null;
   price: number;
   payout: number;
   status: JobStatus;
   hasBefore: boolean;
   hasAfter: boolean;
+  beforePhotos: string[];
+  afterPhotos: string[];
 };
 
 /** A live dispatch offer pushed to the agent (Uber-style incoming request). */

@@ -67,12 +67,20 @@ test.describe("Booking flow", () => {
 
     await expect(page.locator("h1")).toHaveText("Booking confirmed!", { timeout: 15000 });
     await expect(page.getByText(/Booking ID/)).toBeVisible();
-    await expect(page.getByRole("link", { name: "Back to dashboard" })).toBeVisible();
+    // Tracking is the primary action now: dispatch is already offering the job
+    // to cleaners while this receipt is on screen, so the confirmation hands
+    // straight off to the live search rather than dead-ending on the dashboard.
+    await expect(page.getByRole("link", { name: "Track my cleaner" })).toBeVisible();
     await expect(page.getByRole("link", { name: "View my bookings" })).toBeVisible();
 
-    // Follow through to the bookings list and confirm it shows up.
-    await page.getByRole("link", { name: "View my bookings" }).click();
-    await page.waitForURL(/\/app\/bookings$/);
+    // …and it forwards there on its own if the customer does nothing.
+    await page.waitForURL(/\/app\/track\/[a-f0-9]{24}$/, { timeout: 15000 });
+    await expect(
+      page.getByText(/Finding the nearest cleaner|Priority assignment in progress|on the way/),
+    ).toBeVisible({ timeout: 15000 });
+
+    // The booking is real and shows up in the list.
+    await page.goto("/app/bookings");
     await expect(page.getByText("Test Hatchback")).toBeVisible();
   });
 
@@ -93,7 +101,7 @@ test.describe("Booking flow", () => {
     await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
   });
 
-  test("Continue is disabled on the address step with no saved addresses, and the add-address link works", async ({ page }) => {
+  test("Continue is disabled on the address step with no saved addresses, and adding an address works via modal", async ({ page }) => {
     // Fresh customer, no seeded vehicles/addresses.
     await loginCustomerUI(page);
     await page.goto("/app/book");
@@ -111,10 +119,19 @@ test.describe("Booking flow", () => {
 
     await expect(page.getByText("Where should we come?")).toBeVisible();
     await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled();
-    // With zero saved addresses the step opens straight into the inline
-    // add-address form (AddressStep seeds showForm from addresses.length === 0),
-    // so there is no "Add a new address" button to press first.
-    await expect(page.locator('input[name="alabel"]')).toBeVisible();
-    await expect(page.getByPlaceholder("Search your address")).toBeVisible();
+
+    // Verify empty addresses card & open modal
+    await expect(page.getByText("No addresses added yet")).toBeVisible();
+    await page.getByTestId("add-first-address-btn").click();
+
+    await expect(page.getByRole("dialog", { name: "Add Service Address" })).toBeVisible();
+    await page.getByTestId("input-house-no").fill("Flat 101");
+    await page.getByTestId("input-society").fill("Sunrise Heights");
+    await page.getByTestId("save-address-btn").click();
+
+    // Modal closes and address is auto-selected, enabling Continue
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page.getByText("Sunrise Heights")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue" })).toBeEnabled();
   });
 });

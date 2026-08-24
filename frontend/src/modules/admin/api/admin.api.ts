@@ -5,6 +5,7 @@ import { useAdminSession } from "../store/sessionStore";
 import type {
   AdminStats,
   AdminBooking,
+  AdminBookingDetail,
   AdminAgent,
   AdminAgentDetail,
   AgentActivity,
@@ -51,6 +52,7 @@ import type {
 const keys = {
   stats: ["admin", "stats"] as const,
   bookings: ["admin", "bookings"] as const,
+  booking: (id: string) => ["admin", "bookings", id] as const,
   agents: ["admin", "agents"] as const,
   agent: (id: string) => ["admin", "agents", id] as const,
   agentActivity: (id: string) => ["admin", "agents", id, "activity"] as const,
@@ -88,7 +90,11 @@ const keys = {
 };
 
 
-function useAuthedQuery<T>(key: readonly unknown[], path: string, opts?: { refetchInterval?: number; staleTime?: number }) {
+function useAuthedQuery<T>(
+  key: readonly unknown[],
+  path: string,
+  opts?: { refetchInterval?: number | false; staleTime?: number },
+) {
   const authenticated = useAdminSession((s) => s.authenticated);
   return useQuery({
     queryKey: key,
@@ -199,6 +205,15 @@ export function useDeleteCustomer() {
 }
 
 export const useCustomers = () => useAuthedQuery<AdminCustomer[]>(keys.customers, "/admin/customers");
+/**
+ * One booking in full. Polls while a cleaner is in the field so the status,
+ * photos and payout stay current — the live position itself comes over the
+ * socket via useLiveTracking, but everything around it is REST.
+ */
+export const useBookingDetail = (id: string, live = false) =>
+  useAuthedQuery<AdminBookingDetail>(keys.booking(id), `/admin/bookings/${id}`, {
+    refetchInterval: live ? 15000 : false,
+  });
 export const useCustomer = (id: string) =>
   useAuthedQuery<AdminCustomerDetail>(keys.customer(id), `/admin/customers/${id}`);
 export const useCustomerActivity = (id: string) =>

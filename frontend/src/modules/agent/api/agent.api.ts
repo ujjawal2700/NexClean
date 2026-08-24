@@ -104,11 +104,18 @@ export function useAdvanceJob() {
 }
 
 export function useJobPhoto() {
-  return useJobMutation((vars: { id: string; kind: "before" | "after"; image?: string }) =>
-    apiFetch<Job>(`/agent/jobs/${vars.id}/photo`, {
-      method: "POST",
-      body: { kind: vars.kind, image: vars.image },
-    }),
+  return useJobMutation(
+    (vars: {
+      id: string;
+      kind: "before" | "after";
+      image?: string;
+      action?: "add" | "remove";
+      index?: number;
+    }) =>
+      apiFetch<Job>(`/agent/jobs/${vars.id}/photo`, {
+        method: "POST",
+        body: { kind: vars.kind, image: vars.image, action: vars.action, index: vars.index },
+      }),
   );
 }
 

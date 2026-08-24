@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Search, X, Wand2, Calendar, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Search, X, Wand2, Calendar, Loader2, Eye } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -317,8 +318,16 @@ export function Bookings() {
             {!isLoading && paginated.pageItems.map((b) => (
               <tr key={b.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
-                  <p className="font-medium text-ink">{b.vehicleName}</p>
-                  <p className="text-xs text-muted">{categoryLabel(b.vehicleType)} · #{b.id}</p>
+                  <Link
+                    to={`/admin/bookings/${b.id}`}
+                    className="font-medium text-ink hover:text-primary transition-colors block"
+                    data-testid={`booking-link-${b.id}`}
+                  >
+                    {b.vehicleName}
+                  </Link>
+                  <p className="text-xs text-muted">
+                    {categoryLabel(b.vehicleType)} · <Link to={`/admin/bookings/${b.id}`} className="hover:underline hover:text-primary">#{b.id}</Link>
+                  </p>
                   {b.offPeakLocked && (
                     <span
                       className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
@@ -340,6 +349,11 @@ export function Bookings() {
                 <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(b.price)}</td>
                 <td className="px-2 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
+                    <Link to={`/admin/bookings/${b.id}`}>
+                      <Button variant="ghost" size="sm" title="View booking details and live tracking" data-testid={`view-booking-${b.id}`}>
+                        <Eye className="size-3.5" /> Details
+                      </Button>
+                    </Link>
                     {b.status === "upcoming" && (
                       <Button
                         variant="outline"

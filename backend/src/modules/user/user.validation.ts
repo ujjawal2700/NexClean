@@ -44,10 +44,10 @@ export const addVehicleSchema = z.object({
 });
 
 export const addAddressSchema = z.object({
-  label: z.string().min(1).max(40),
-  line: z.string().min(1).max(120),
-  society: z.string().max(80).optional(),
-  // Geo captured from Google Places (optional; enables nearest-agent dispatch).
+  label: z.string().min(1).max(60),
+  line: z.string().min(1).max(500),
+  society: z.string().max(150).optional(),
+  // Geo captured from map pin / Google Places (optional; enables nearest-agent dispatch).
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   placeId: z.string().max(200).optional(),

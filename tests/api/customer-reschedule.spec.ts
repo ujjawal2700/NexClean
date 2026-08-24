@@ -262,11 +262,17 @@ test.describe("Customer reschedule", () => {
     const { token } = await loginAsNewCustomer(request);
     const booking = await book(request, token, packageId, FULL_PRICE_SLOT);
 
-    // Today's first slot has long since started by most run times; the guard is
-    // about the *instant*, so use a date whose slot is already behind us.
+    // The guard is about the *instant* the slot begins, so this needs a
+    // date+slot pair that is behind us no matter when the suite runs.
+    //
+    // Two hours ago is not enough: before 07:00 local, "two hours ago" is still
+    // today, and today's 08:00 slot is then in the FUTURE — the move is
+    // legitimately allowed and this test failed for a run at 06:11. Going back
+    // a whole day plus a couple of hours puts the slot a clear ~24h in the past
+    // at every hour of the clock.
     const res = await request.patch(`/bookings/${booking.id}/reschedule`, {
       headers: authHeader(token),
-      data: { date: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), slot: "08:00 AM" },
+      data: { date: new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString(), slot: "08:00 AM" },
     });
     expect(res.status()).toBe(400);
     expect((await res.json()).message).toContain("at least an hour");

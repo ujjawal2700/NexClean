@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CalendarDays, MapPin, Clock, Plus, ArrowLeft, UserCheck, Loader2, RefreshCw } from "lucide-react";
+import { CalendarDays, MapPin, Clock, Plus, ArrowLeft, UserCheck, Loader2, RefreshCw, Radio, Camera } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -9,6 +9,7 @@ import { SkeletonListCards } from "@shared/ui/Skeleton";
 import { useBookings } from "../api/queries";
 import { useCancelBooking } from "../api/mutations";
 import { RescheduleModal } from "../components/RescheduleModal";
+import { ServicePhotosModal } from "../components/ServicePhotosModal";
 import type { Booking, BookingStatus } from "../types";
 import { formatDate, formatMoney } from "@shared/lib/format";
 
@@ -64,6 +65,7 @@ export function Bookings() {
   const cancelBooking = useCancelBooking();
   const [filter, setFilter] = useState<BookingStatus | "all">("all");
   const [rescheduling, setRescheduling] = useState<Booking | null>(null);
+  const [viewingPhotos, setViewingPhotos] = useState<Booking | null>(null);
 
   const list = filter === "all" ? bookings : bookings.filter((b) => b.status === filter);
 
@@ -148,8 +150,25 @@ export function Bookings() {
 
               <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
                 <p className="font-display text-xl font-semibold text-ink">{formatMoney(b.price)}</p>
+                {b.status === "completed" && (
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setViewingPhotos(b)}
+                      data-testid={`view-photos-${b.id}`}
+                    >
+                      <Camera className="size-3.5" /> Service Photos
+                    </Button>
+                  </div>
+                )}
                 {b.status === "upcoming" && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <Button size="sm" asChild data-testid={`track-${b.id}`}>
+                      <Link to={`/app/track/${b.id}`}>
+                        <Radio className="size-3.5" /> Track live
+                      </Link>
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => setRescheduling(b)}>
                       <RefreshCw className="size-3.5" /> Reschedule
                     </Button>
@@ -171,6 +190,10 @@ export function Bookings() {
 
       {rescheduling && (
         <RescheduleModal booking={rescheduling} onClose={() => setRescheduling(null)} />
+      )}
+
+      {viewingPhotos && (
+        <ServicePhotosModal booking={viewingPhotos} onClose={() => setViewingPhotos(null)} />
       )}
     </div>
   );
