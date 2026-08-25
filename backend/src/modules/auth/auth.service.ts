@@ -91,6 +91,19 @@ export async function sendSignupOtp(rawPhone: string): Promise<{ sent: boolean }
   return sendOtp(phone);
 }
 
+/** Send an OTP for login, verifying first that a user exists with this phone. */
+export async function sendLoginOtp(rawPhone: string): Promise<{ sent: boolean }> {
+  const phone = normalize(rawPhone);
+  const existing = await User.findOne({ phone });
+  if (!existing) {
+    throw ApiError.notFound("NOT_REGISTERED: This mobile number is not registered. Kindly sign up first.");
+  }
+  if (existing.status === "suspended") {
+    throw ApiError.forbidden("ACCOUNT_DEACTIVATED: Your account is deactivated. Please contact customer support for assistance.");
+  }
+  return sendOtp(phone);
+}
+
 /** Verify an OTP code without creating/upserting a User record. */
 export async function verifyOtpCodeOnly(rawPhone: string, code: string): Promise<{ verified: boolean }> {
   const phone = normalize(rawPhone);
@@ -98,22 +111,21 @@ export async function verifyOtpCodeOnly(rawPhone: string, code: string): Promise
   return { verified: true };
 }
 
-/** Verify an OTP, upsert the user, and return a JWT + the user. */
+/** Verify an OTP and return a JWT + the user. Rejects unregistered users. */
 export async function verifyOtp(rawPhone: string, code: string) {
   const phone = normalize(rawPhone);
   await verifyOtpCode(phone, code);
 
-  const user = await User.findOneAndUpdate(
-    { phone },
-    { $setOnInsert: { phone, name: "NexClean Member", role: "customer" } },
-    { upsert: true, new: true },
-  );
+  const user = await User.findOne({ phone });
+  if (!user) {
+    throw ApiError.notFound("NOT_REGISTERED: This mobile number is not registered. Kindly sign up first.");
+  }
 
   if (user.status === "suspended") {
     throw ApiError.forbidden("ACCOUNT_DEACTIVATED: Your account is deactivated. Please contact customer support for assistance.");
   }
 
-  // Cover accounts created via OTP-only login (no customerSignup) or from before referral codes existed.
+  // Cover accounts created from before referral codes existed.
   if (user.role === "customer" && !user.referralCode) {
     user.referralCode = await generateUniqueReferralCode(user.name);
     await user.save();

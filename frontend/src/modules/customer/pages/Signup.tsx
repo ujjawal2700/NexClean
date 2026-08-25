@@ -38,7 +38,7 @@ export function Signup() {
   // Step 1 — Details
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(searchParams.get("phone") ?? "");
   const [referralCode, setReferralCode] = useState(searchParams.get("ref") ?? "");
 
   // Step 2 — Location

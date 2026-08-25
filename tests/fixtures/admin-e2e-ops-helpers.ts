@@ -52,7 +52,9 @@ export async function loginByPhoneApi(request: APIRequestContext, phone: string)
 }
 
 export async function loginAsNewCustomerApi(request: APIRequestContext) {
-  return loginByPhoneApi(request, freshPhone());
+  const phone = freshPhone();
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
+  return loginByPhoneApi(request, phone);
 }
 
 // Indore-ish coordinates matching the seeded demo agents' area (see tests/api/booking.spec.ts).

@@ -40,6 +40,13 @@ export function useSendOtp() {
   });
 }
 
+export function useSendLoginOtp() {
+  return useMutation({
+    mutationFn: (phone: string) =>
+      apiFetch<{ sent: boolean }>("/auth/send-login-otp", { method: "POST", body: { phone } }),
+  });
+}
+
 export function useVerifyOtp() {
   return useMutation({
     mutationFn: (vars: { phone: string; code: string }) =>

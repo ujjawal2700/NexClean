@@ -58,9 +58,11 @@ export async function loginByPhone(request: APIRequestContext, phone: string): P
   return { token: data.token, userId: data.user.id };
 }
 
-/** Logs in as a fresh, never-before-seen customer. */
+/** Logs in as a fresh, newly registered customer. */
 export async function loginAsNewCustomer(request: APIRequestContext) {
-  return loginByPhone(request, freshPhone());
+  const phone = freshPhone();
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
+  return loginByPhone(request, phone);
 }
 
 /** Logs in as the seeded demo agent or specified agent. */

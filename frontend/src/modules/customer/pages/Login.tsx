@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2, UserX, Mail, MapPin, X } from "lucide-react";
+import { Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2, UserX, UserPlus, Mail, MapPin, X } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Badge } from "@shared/ui/Badge";
 import { Input } from "@shared/ui/Input";
@@ -10,7 +10,7 @@ import { Logo } from "@shared/components/brand/Logo";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { ApiError } from "@shared/lib/api";
 import { Stepper } from "@shared/ui/Stepper";
-import { useSendOtp, useVerifyOtp } from "../api/mutations";
+import { useSendLoginOtp, useVerifyOtp } from "../api/mutations";
 import { meKey } from "../api/queries";
 import { useSessionStore } from "../store/sessionStore";
 
@@ -22,7 +22,7 @@ export function Login() {
   const qc = useQueryClient();
   const authenticated = useSessionStore((s) => s.authenticated);
   const setToken = useSessionStore((s) => s.setToken);
-  const sendOtp = useSendOtp();
+  const sendLoginOtp = useSendLoginOtp();
   const verifyOtp = useVerifyOtp();
 
   const [step, setStep] = useState<"phone" | "otp">("phone");
@@ -30,6 +30,7 @@ export function Login() {
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
+  const [showNotRegisteredModal, setShowNotRegisteredModal] = useState(false);
   const phoneRef = useRef("");
 
   if (authenticated) return <Navigate to="/app" replace />;
@@ -42,10 +43,18 @@ export function Login() {
     setError("");
     phoneRef.current = phone;
     try {
-      await sendOtp.mutateAsync(phone);
+      await sendLoginOtp.mutateAsync(phone);
       setStep("otp");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn't send OTP. Is the API running?");
+      const msg = e instanceof ApiError ? e.message : String(e);
+      if (msg.includes("NOT_REGISTERED") || msg.toLowerCase().includes("not registered")) {
+        setShowNotRegisteredModal(true);
+      } else if (msg.includes("ACCOUNT_DEACTIVATED") || msg.includes("deactivated") || msg.includes("suspended")) {
+        setShowDeactivatedModal(true);
+        setError("Your account has been deactivated.");
+      } else {
+        setError(msg || "Couldn't send OTP. Is the API running?");
+      }
     }
   };
 
@@ -66,7 +75,9 @@ export function Login() {
       navigate("/app", { replace: true });
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
-      if (msg.includes("ACCOUNT_DEACTIVATED") || msg.includes("deactivated") || msg.includes("suspended")) {
+      if (msg.includes("NOT_REGISTERED") || msg.toLowerCase().includes("not registered")) {
+        setShowNotRegisteredModal(true);
+      } else if (msg.includes("ACCOUNT_DEACTIVATED") || msg.includes("deactivated") || msg.includes("suspended")) {
         setShowDeactivatedModal(true);
         setError("Your account has been deactivated.");
       } else {
@@ -110,8 +121,8 @@ export function Login() {
                   onKeyDown={(e) => e.key === "Enter" && send()}
                   error={error}
                 />
-                <Button className="w-full" onClick={send} disabled={sendOtp.isPending}>
-                  {sendOtp.isPending ? <Loader2 className="size-4 animate-spin" /> : <>Send OTP <ArrowRight className="size-4" /></>}
+                <Button className="w-full" onClick={send} disabled={sendLoginOtp.isPending}>
+                  {sendLoginOtp.isPending ? <Loader2 className="size-4 animate-spin" /> : <>Send OTP <ArrowRight className="size-4" /></>}
                 </Button>
               </div>
             </>
@@ -220,6 +231,52 @@ export function Login() {
                 className="flex-1 rounded-xl"
               >
                 Close
+              </Button>
+            </div>
+          </GlassCard>
+        </div>
+      )}
+
+      {showNotRegisteredModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-md animate-fade-in">
+          <GlassCard className="w-full max-w-md space-y-6 bg-surface p-6 shadow-2xl border border-line relative">
+            <button
+              onClick={() => setShowNotRegisteredModal(false)}
+              className="absolute top-4 right-4 text-muted hover:text-ink p-1 rounded-lg transition-colors"
+            >
+              <X className="size-5" />
+            </button>
+
+            <div className="space-y-3 text-center pt-2">
+              <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
+                <UserX className="size-7" />
+              </div>
+              <h3 className="font-display text-2xl font-bold text-ink">Account Not Registered</h3>
+              <p className="text-sm text-muted leading-relaxed">
+                The mobile number <span className="font-semibold text-ink">+91 {phoneRef.current || phone}</span> is not registered with NexClean.
+              </p>
+              <p className="text-xs text-ink-soft bg-surface-muted/60 rounded-xl p-3 border border-line/40">
+                Kindly sign up first to create your profile, choose your service location, and get started!
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-1">
+              <Button
+                variant="outline"
+                onClick={() => setShowNotRegisteredModal(false)}
+                className="flex-1 rounded-xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  const targetPhone = phoneRef.current || phone;
+                  setShowNotRegisteredModal(false);
+                  navigate(`/app/signup?phone=${targetPhone}`);
+                }}
+                className="flex-1 rounded-xl bg-primary text-white"
+              >
+                Sign Up <ArrowRight className="size-4 ml-1" />
               </Button>
             </div>
           </GlassCard>

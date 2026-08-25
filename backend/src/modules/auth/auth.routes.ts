@@ -17,6 +17,7 @@ export const authRouter = Router();
 
 authRouter.post("/send-otp", sendOtpLimiter, validateBody(sendOtpSchema), asyncHandler(authController.sendOtp));
 authRouter.post("/send-signup-otp", sendOtpLimiter, validateBody(sendOtpSchema), asyncHandler(authController.sendSignupOtp));
+authRouter.post("/send-login-otp", sendOtpLimiter, validateBody(sendOtpSchema), asyncHandler(authController.sendLoginOtp));
 authRouter.post("/verify-otp-code", verifyOtpLimiter, validateBody(verifyOtpSchema), asyncHandler(authController.verifyOtpCodeOnly));
 authRouter.post("/verify-otp", verifyOtpLimiter, validateBody(verifyOtpSchema), asyncHandler(authController.verifyOtp));
 authRouter.post("/admin-login", adminLoginLimiter, validateBody(adminLoginSchema), asyncHandler(authController.adminLogin));
