@@ -612,54 +612,6 @@ function PersonCard({
   );
 }
 
-function PhotoTile({
-  label,
-  url,
-  onOpen,
-  testId,
-}: {
-  label: string;
-  url: string | null;
-  onOpen: (v: { url: string; label: string }) => void;
-  testId?: string;
-}) {
-  if (!url) {
-    return (
-      <div
-        className="grid h-48 place-items-center rounded-2xl border border-dashed border-line bg-surface-muted/50 text-center"
-        data-testid={testId}
-      >
-        <div>
-          <ImageOff className="mx-auto size-6 text-muted" />
-          <p className="mt-2 text-sm font-medium text-ink">No {label.toLowerCase()} photo</p>
-          <p className="mt-0.5 max-w-[24ch] text-xs text-muted">
-            Either it was never taken, or the upload failed on the cleaner's device.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen({ url, label })}
-      className="group relative h-48 overflow-hidden rounded-2xl border border-line"
-      data-testid={testId}
-    >
-      <img
-        src={url}
-        alt={`${label} the wash`}
-        loading="lazy"
-        className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-      />
-      <span className="absolute left-2 top-2 rounded-pill bg-ink/75 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-        {label}
-      </span>
-    </button>
-  );
-}
-
 function PhotoLightbox({
   url,
   label,

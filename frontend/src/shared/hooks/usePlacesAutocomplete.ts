@@ -45,15 +45,39 @@ export function usePlacesAutocomplete({
     const ac = new window.google.maps.places.Autocomplete(input, {
       types,
       componentRestrictions,
-      fields: ["name", "place_id", "address_components", "geometry"],
+      fields: ["name", "place_id", "address_components", "geometry", "formatted_address"],
     });
 
     ac.addListener("place_changed", () => {
       const place = ac.getPlace();
-      const name = place.name ?? input.value;
+      const name = place.name ?? place.formatted_address ?? input.value;
       const placeId = place.place_id ?? "";
       const loc = place.geometry?.location;
-      const coords = loc ? { lat: loc.lat(), lng: loc.lng() } : undefined;
+      const coords = loc
+        ? {
+            lat: typeof loc.lat === "function" ? loc.lat() : loc.lat,
+            lng: typeof loc.lng === "function" ? loc.lng() : loc.lng,
+          }
+        : undefined;
+
+      if (!coords && (name || input.value) && window.google?.maps?.Geocoder) {
+        const query = name || input.value;
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ address: query }, (results: any, status: any) => {
+          if (status === "OK" && results?.[0]?.geometry?.location) {
+            const gLoc = results[0].geometry.location;
+            const geoCoords = {
+              lat: typeof gLoc.lat === "function" ? gLoc.lat() : gLoc.lat,
+              lng: typeof gLoc.lng === "function" ? gLoc.lng() : gLoc.lng,
+            };
+            onSelectRef.current(name, results[0].place_id || placeId, geoCoords);
+            return;
+          }
+          onSelectRef.current(name, placeId, undefined);
+        });
+        return;
+      }
+
       onSelectRef.current(name, placeId, coords);
     });
 

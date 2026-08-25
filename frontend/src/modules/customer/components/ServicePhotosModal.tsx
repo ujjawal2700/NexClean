@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { X, Camera, Eye, ImageOff, CheckCircle2 } from "lucide-react";
+import { X, Camera, Eye, ImageOff } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
 import type { Booking } from "../types";

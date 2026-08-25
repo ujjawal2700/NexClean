@@ -269,21 +269,28 @@ test.describe("Tracking — snapshot contents", () => {
       data: { agentId: agent.userId },
     });
 
-    // assigned → enroute → arrived → in_progress
-    for (let i = 0; i < 3; i++) {
-      await request.patch(`/agent/jobs/${booking.id}/advance`, { headers: authHeader(agent.token) });
-    }
-    // Completion is gated on both photos.
-    for (const kind of ["before", "after"]) {
-      await request.post(`/agent/jobs/${booking.id}/photo`, {
-        headers: authHeader(agent.token),
-        data: { kind },
-      });
-    }
-    const done = await request.patch(`/agent/jobs/${booking.id}/advance`, {
-      headers: authHeader(agent.token),
-    });
-    expect(done.ok()).toBeTruthy();
+    const advance = () =>
+      request.patch(`/agent/jobs/${booking.id}/advance`, { headers: authHeader(agent.token) });
+    const upload = async (kind: "before" | "after") => {
+      for (let i = 0; i < 4; i++) {
+        await request.post(`/agent/jobs/${booking.id}/photo`, {
+          headers: authHeader(agent.token),
+          data: { kind, image: FAKE_AADHAR_IMAGE },
+        });
+      }
+    };
+
+    // Photos gate two different transitions now, so they cannot all be uploaded
+    // at the end: four 'before' shots are required to leave 'arrived', and four
+    // 'after' shots to leave 'in_progress'. Uploading them in that order is also
+    // what a cleaner actually does on site.
+    await advance(); // assigned → enroute
+    await advance(); // enroute  → arrived
+    await upload("before");
+    await advance(); // arrived  → in_progress
+    await upload("after");
+    const done = await advance(); // in_progress → completed
+    expect(done.ok(), await done.text()).toBeTruthy();
 
     const data = (
       await (

@@ -2,6 +2,10 @@ import { test, expect } from "../fixtures/base";
 import type { APIRequestContext } from "@playwright/test";
 import { authHeader, loginAsAdmin, loginAsAgent, loginAsNewCustomer } from "../fixtures/api-client";
 
+/** 1x1 transparent PNG — the smallest thing the upload path accepts. */
+const TINY_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
 /**
  * The cleaner's cut used to be a hardcoded `price * 0.7` in four separate
  * places. It is now a single admin-managed rule (Admin → Money → Agent
@@ -59,8 +63,17 @@ async function jobById(request: APIRequestContext, agentToken: string, bookingId
 
 /** Walks a job all the way to completed, satisfying the photo gate on the way. */
 async function completeJob(request: APIRequestContext, agentToken: string, bookingId: string) {
-  await request.post(`/agent/jobs/${bookingId}/photo`, { headers: authHeader(agentToken), data: { kind: "before" } });
-  await request.post(`/agent/jobs/${bookingId}/photo`, { headers: authHeader(agentToken), data: { kind: "after" } });
+  // Completing a job now requires four real photos per side — an image-less
+  // POST no longer flips hasBefore/hasAfter, because that flag is derived from
+  // the stored array. Four tiny PNGs is the cheapest way to satisfy it.
+  for (const kind of ["before", "after"] as const) {
+    for (let i = 0; i < 4; i++) {
+      await request.post(`/agent/jobs/${bookingId}/photo`, {
+        headers: authHeader(agentToken),
+        data: { kind, image: TINY_PNG },
+      });
+    }
+  }
   for (let i = 0; i < 5; i++) {
     const res = await request.patch(`/agent/jobs/${bookingId}/advance`, { headers: authHeader(agentToken) });
     const body = await res.json();

@@ -32,10 +32,9 @@ import {
   usePaymentMode,
 } from "../../api/queries";
 import { isOffPeakSlot, windowsForDate } from "../../data/offPeakHours";
-import { useVerifyPayment, useCreateOrder, usePreviewDiscount, useAddAddress } from "../../api/mutations";
+import { useVerifyPayment, useCreateOrder, usePreviewDiscount } from "../../api/mutations";
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import type { PreviewAmountResponse } from "../../api/mutations";
-import { usePlacesAutocomplete, type PlaceCoords } from "@shared/hooks/usePlacesAutocomplete";
 import { ServicePinPicker } from "@shared/components/map/ServicePinPicker";
 import { AddAddressModal } from "@shared/components/address/AddAddressModal";
 import type { LatLng } from "@shared/lib/maps";

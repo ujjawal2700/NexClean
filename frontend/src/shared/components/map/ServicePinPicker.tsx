@@ -59,6 +59,8 @@ export function ServicePinPicker({ value, onChange, fallbackCenter, className }:
     });
   }, []);
 
+  const lastReportedCenterRef = useRef<LatLng | null>(value ?? fallbackCenter ?? null);
+
   useEffect(() => {
     if (!ready || !containerRef.current || mapRef.current) return;
     const google = window.google;
@@ -74,27 +76,47 @@ export function ServicePinPicker({ value, onChange, fallbackCenter, className }:
     geocoderRef.current = new google.maps.Geocoder();
 
     map.addListener("dragstart", () => setDragging(true));
+    map.addListener("dragend", () => setDragging(false));
+    map.addListener("click", (e: any) => {
+      if (e?.latLng) {
+        map.panTo(e.latLng);
+      }
+    });
+
     map.addListener("idle", () => {
       setDragging(false);
       const c = map.getCenter();
       if (!c) return;
-      describe({ lat: c.lat(), lng: c.lng() });
+      const coords = { lat: c.lat(), lng: c.lng() };
+      lastReportedCenterRef.current = coords;
+      describe(coords);
     });
 
     return () => {
       mapRef.current = null;
     };
-    // Seeded once; later `value` changes come from this control itself.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, describe]);
 
-  // Re-centre when the address above the map changes to a different place.
+  // Re-centre whenever value or fallbackCenter changes from outside (e.g. search autocomplete or GPS)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !fallbackCenter || value) return;
-    map.panTo(fallbackCenter);
-    map.setZoom(17);
-  }, [fallbackCenter, value]);
+    const target = value ?? fallbackCenter;
+    if (!map || !target) return;
+
+    const currentCenter = map.getCenter();
+    const isDifferent =
+      !currentCenter ||
+      Math.abs(currentCenter.lat() - target.lat) > 0.0001 ||
+      Math.abs(currentCenter.lng() - target.lng) > 0.0001;
+
+    if (isDifferent) {
+      lastReportedCenterRef.current = target;
+      map.panTo(target);
+      if (map.getZoom() < 16) {
+        map.setZoom(17);
+      }
+    }
+  }, [value, fallbackCenter]);
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {

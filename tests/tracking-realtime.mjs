@@ -281,13 +281,21 @@ async function main() {
   );
 
   /* --- T3: the stream stops once the job leaves the trackable window ------ */
-  // enroute → arrived → in_progress, then photos, then complete.
-  await call(`/agent/jobs/${booking.id}/advance`, { method: "PATCH", token: agent.token });
-  await call(`/agent/jobs/${booking.id}/advance`, { method: "PATCH", token: agent.token });
-  for (const kind of ["before", "after"]) {
-    await call(`/agent/jobs/${booking.id}/photo`, { method: "POST", token: agent.token, body: { kind } });
-  }
-  const completed = await call(`/agent/jobs/${booking.id}/advance`, { method: "PATCH", token: agent.token });
+  const advance = () => call(`/agent/jobs/${booking.id}/advance`, { method: "PATCH", token: agent.token });
+  const upload = async (kind) => {
+    for (let i = 0; i < 4; i++) {
+      await call(`/agent/jobs/${booking.id}/photo`, { method: "POST", token: agent.token, body: { kind, image: FAKE_AADHAR } });
+    }
+  };
+
+  // T5 already moved this job to 'enroute'. Photos gate two of the remaining
+  // transitions: four 'before' shots to leave 'arrived', four 'after' shots to
+  // leave 'in_progress' — so they cannot all be uploaded at the end.
+  await advance(); // enroute → arrived
+  await upload("before");
+  await advance(); // arrived → in_progress
+  await upload("after");
+  const completed = await advance(); // in_progress → completed
   await sleep(600);
 
   const beforeComplete = fixes.length;

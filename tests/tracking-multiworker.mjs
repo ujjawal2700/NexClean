@@ -178,13 +178,22 @@ async function main() {
 
   /* ═══ X2: completion on worker B must stop the stream on worker A ═══ */
   {
-    // enroute → arrived → in_progress, photos, complete — all via worker B.
-    for (let i = 0; i < 3; i++) {
-      await call(B, `/agent/jobs/${booking.id}/advance`, { method: "PATCH", token: agent.token });
-    }
-    for (const kind of ["before", "after"]) {
-      await call(B, `/agent/jobs/${booking.id}/photo`, { method: "POST", token: agent.token, body: { kind } });
-    }
+    const advance = () => call(B, `/agent/jobs/${booking.id}/advance`, { method: "PATCH", token: agent.token });
+    const upload = async (kind) => {
+      for (let i = 0; i < 4; i++) {
+        await call(B, `/agent/jobs/${booking.id}/photo`, { method: "POST", token: agent.token, body: { kind, image: FAKE } });
+      }
+    };
+
+    // Photos gate two different transitions now, so they cannot all be uploaded
+    // at the end: four 'before' shots are required to leave 'arrived', and four
+    // 'after' shots to leave 'in_progress'. Uploading them in that order is also
+    // what a cleaner actually does on site.
+    await advance(); // assigned → enroute
+    await advance(); // enroute  → arrived
+    await upload("before");
+    await advance(); // arrived  → in_progress
+    await upload("after");
     const done = await call(B, `/agent/jobs/${booking.id}/advance`, { method: "PATCH", token: agent.token });
     await sleep(600);
 

@@ -1,11 +1,18 @@
 import { useRef, useState } from "react";
-import { X, MapPin, Search, Crosshair, Building2, Home, Briefcase, Tag, Check, Loader2, AlertCircle } from "lucide-react";
+import { X, MapPin, Search, Crosshair, Building2, Home, Briefcase, Tag, Check, Loader2, AlertCircle, LocateFixed, Sparkles } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { ServicePinPicker } from "@shared/components/map/ServicePinPicker";
 import { usePlacesAutocomplete } from "@shared/hooks/usePlacesAutocomplete";
 import { type LatLng } from "@shared/lib/maps";
+import {
+  getCurrentPosition,
+  reverseGeocode,
+  LOCATE_MESSAGE,
+  type LocateFailure,
+  type StructuredAddress,
+} from "@shared/lib/geocode";
 import { useAddAddress } from "@modules/customer/api/mutations";
 import type { Address } from "@modules/customer/types";
 
@@ -43,6 +50,12 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
 
   const [formError, setFormError] = useState("");
 
+  // "Fetch my location" state, kept apart from formError so a geolocation
+  // problem doesn't look like a validation problem.
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState("");
+  const [autoFilled, setAutoFilled] = useState(false);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Autocomplete for quick location searching on the map
@@ -55,6 +68,9 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
       if (coords) {
         setPinCoords(coords);
         setMapFallbackCenter(coords);
+        void reverseGeocode(coords).then((addr) => {
+          if (addr) applyAddress(addr, false);
+        });
       }
       if (!buildingSociety) {
         setBuildingSociety(placeName);
@@ -62,21 +78,76 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
     },
   });
 
-  // Handle pin movement and reverse-geocoded address parsing
+  /**
+   * Write a reverse-geocoded address into the form.
+   *
+   * `overwrite` is the difference between the two ways this runs. Pressing
+   * "Use my current location" is an explicit request to fill the form, so it
+   * replaces what is there. Nudging the map is not — it happens constantly
+   * while someone positions the pin, and clobbering a flat number they already
+   * typed because they dragged 20 metres would be maddening.
+   */
+  const applyAddress = (addr: StructuredAddress, overwrite: boolean) => {
+    const put = (current: string, next: string, setter: (v: string) => void) => {
+      if (!next) return;
+      if (overwrite || !current.trim()) setter(next);
+    };
+    put(houseNo, addr.houseNo, setHouseNo);
+    put(buildingSociety, addr.society || addr.street, setBuildingSociety);
+    put(streetLandmark, addr.street, setStreetLandmark);
+    put(city, addr.city, setCity);
+    put(pincode, addr.pincode, setPincode);
+  };
+
+  // Dragging the pin refines the address, but never overwrites typed input.
   const handlePinChange = (coords: LatLng, formattedAddress?: string) => {
     setPinCoords(coords);
-    if (formattedAddress) {
-      const parts = formattedAddress.split(",").map((s) => s.trim());
-      if (parts.length > 0) {
-        if (!buildingSociety) {
-          setBuildingSociety(parts.slice(0, 2).join(", "));
-        }
-        const lastPart = parts[parts.length - 2] || "";
-        const cityMatch = lastPart.replace(/\d+/g, "").trim();
-        const pinMatch = formattedAddress.match(/\b\d{6}\b/);
-        if (cityMatch && !city) setCity(cityMatch);
-        if (pinMatch && !pincode) setPincode(pinMatch[0]);
+    if (!formattedAddress) return;
+    void reverseGeocode(coords).then((addr) => {
+      if (addr) applyAddress(addr, false);
+    });
+  };
+
+  /**
+   * One button that does the whole job: locate the device, move the pin there,
+   * and fill every address field from it.
+   *
+   * The pin is set from the GPS fix before geocoding is attempted, so a
+   * rejected Maps key or a failed lookup still leaves the customer with an
+   * accurate location — they just type the address themselves instead of
+   * losing both.
+   */
+  const useCurrentLocation = async () => {
+    setLocating(true);
+    setLocateError("");
+    setAutoFilled(false);
+    try {
+      const { coords, accuracy } = await getCurrentPosition();
+      setPinCoords(coords);
+      setMapFallbackCenter(coords);
+
+      const addr = await reverseGeocode(coords);
+      if (addr) {
+        applyAddress(addr, true);
+        setSearchQuery(addr.formatted);
+        setAutoFilled(true);
+      } else {
+        setLocateError(
+          "Pin set from your GPS, but the address lookup is unavailable — please fill the fields below.",
+        );
       }
+
+      // A fix this coarse is a tower triangulation, not GPS. Saying so is
+      // better than silently pinning the wrong end of the street.
+      if (accuracy > 100) {
+        setLocateError(
+          `Your location is only accurate to about ${Math.round(accuracy)}m — drag the map to fine-tune the pin.`,
+        );
+      }
+    } catch (err) {
+      setLocateError(LOCATE_MESSAGE[err as LocateFailure] ?? LOCATE_MESSAGE.unavailable);
+    } finally {
+      setLocating(false);
     }
   };
 
@@ -190,13 +261,65 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
               )}
             </div>
 
+            {/* The one-tap path. Placed above the search because it is what most
+                people want: they are standing at the address they are adding. */}
+            <button
+              type="button"
+              onClick={useCurrentLocation}
+              disabled={locating}
+              data-testid="use-current-location"
+              className={cn(
+                "flex w-full items-center gap-3 rounded-2xl border-2 border-dashed px-4 py-3 text-left transition-all cursor-pointer",
+                "border-primary/40 bg-primary/5 hover:border-primary hover:bg-primary/10",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+              )}
+            >
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-white">
+                {locating ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <LocateFixed className="size-4" />
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-ink">
+                  {locating ? "Finding your location…" : "Use my current location"}
+                </span>
+                <span className="block text-xs text-muted">
+                  {locating
+                    ? "Allow location access if your browser asks"
+                    : "Fills the address below automatically"}
+                </span>
+              </span>
+            </button>
+
+            {autoFilled && !locateError && (
+              <p
+                className="flex items-center gap-1.5 rounded-xl bg-emerald-500/10 px-3 py-2 text-[11px] font-medium text-emerald-700"
+                data-testid="autofill-success"
+              >
+                <Sparkles className="size-3.5 shrink-0" />
+                Address filled from your location — check the details and edit anything that's off.
+              </p>
+            )}
+
+            {locateError && (
+              <p
+                className="flex items-start gap-1.5 rounded-xl bg-amber-500/10 px-3 py-2 text-[11px] font-medium text-amber-700"
+                data-testid="locate-error"
+              >
+                <AlertCircle className="mt-px size-3.5 shrink-0" />
+                {locateError}
+              </p>
+            )}
+
             {/* Places search input to center map */}
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted pointer-events-none" />
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search society, building, or area to jump map..."
+                placeholder="…or search a society, building or area"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full rounded-2xl border border-line bg-surface-muted/50 py-2.5 pl-10 pr-4 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
