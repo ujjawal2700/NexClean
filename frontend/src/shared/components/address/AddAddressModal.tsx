@@ -13,13 +13,14 @@ import {
   type LocateFailure,
   type StructuredAddress,
 } from "@shared/lib/geocode";
-import { useAddAddress } from "@modules/customer/api/mutations";
+import { useAddAddress, useUpdateAddress } from "@modules/customer/api/mutations";
 import type { Address } from "@modules/customer/types";
 
 type Props = {
   onClose: () => void;
   onSuccess?: (newAddress: Address) => void;
   initialCoords?: LatLng | null;
+  editingAddress?: Address | null;
 };
 
 const LABEL_PRESETS = [
@@ -28,25 +29,62 @@ const LABEL_PRESETS = [
   { id: "Other", label: "Other", icon: Tag },
 ];
 
-export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
+function parseInitialLine(line?: string, society?: string) {
+  if (!line) return { hNo: "", bSoc: society || "", sLandmark: "", cty: "", pincodeVal: "" };
+  const parts = line.split(",").map((p) => p.trim()).filter(Boolean);
+  let pincodeVal = "";
+  const filteredParts: string[] = [];
+  for (const part of parts) {
+    if (/^PIN:\s*\d{6}$/i.test(part) || /^\d{6}$/.test(part)) {
+      pincodeVal = part.replace(/PIN:\s*/i, "").trim();
+    } else {
+      filteredParts.push(part);
+    }
+  }
+  const hNo = filteredParts[0] || "";
+  const bSoc = society || filteredParts[1] || "";
+  const sLandmark = filteredParts.length > 3 ? filteredParts.slice(2, -1).join(", ") : (filteredParts[2] || "");
+  const cty = filteredParts.length > 2 ? filteredParts[filteredParts.length - 1] : "";
+  return { hNo, bSoc, sLandmark, cty, pincodeVal };
+}
+
+export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddress }: Props) {
   const addAddress = useAddAddress();
+  const updateAddress = useUpdateAddress();
+  const isEditing = Boolean(editingAddress);
+
+  const initialParsed = parseInitialLine(editingAddress?.line, editingAddress?.society);
+
+  const editCoords: LatLng | null =
+    editingAddress?.coordinates && editingAddress.coordinates.length === 2
+      ? { lat: editingAddress.coordinates[1], lng: editingAddress.coordinates[0] }
+      : null;
 
   // Pin & Geo State
-  const [pinCoords, setPinCoords] = useState<LatLng | null>(initialCoords ?? null);
-  const [mapFallbackCenter, setMapFallbackCenter] = useState<LatLng | null>(initialCoords ?? null);
+  const [pinCoords, setPinCoords] = useState<LatLng | null>(initialCoords ?? editCoords ?? null);
+  const [mapFallbackCenter, setMapFallbackCenter] = useState<LatLng | null>(initialCoords ?? editCoords ?? null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [placeId, setPlaceId] = useState("");
+  const [placeId, setPlaceId] = useState(editingAddress?.placeId || "");
 
   // Structured Address Fields
-  const [houseNo, setHouseNo] = useState("");
-  const [buildingSociety, setBuildingSociety] = useState("");
-  const [streetLandmark, setStreetLandmark] = useState("");
-  const [city, setCity] = useState("");
-  const [pincode, setPincode] = useState("");
+  const [houseNo, setHouseNo] = useState(initialParsed.hNo);
+  const [buildingSociety, setBuildingSociety] = useState(initialParsed.bSoc);
+  const [streetLandmark, setStreetLandmark] = useState(initialParsed.sLandmark);
+  const [city, setCity] = useState(initialParsed.cty);
+  const [pincode, setPincode] = useState(initialParsed.pincodeVal);
 
   // Label State
-  const [selectedPreset, setSelectedPreset] = useState<"Home" | "Office" | "Other">("Home");
-  const [customLabel, setCustomLabel] = useState("");
+  const initialPreset: "Home" | "Office" | "Other" =
+    editingAddress?.label === "Home" || editingAddress?.label === "Office"
+      ? editingAddress.label
+      : editingAddress?.label
+        ? "Other"
+        : "Home";
+
+  const [selectedPreset, setSelectedPreset] = useState<"Home" | "Office" | "Other">(initialPreset);
+  const [customLabel, setCustomLabel] = useState(
+    editingAddress?.label && !["Home", "Office"].includes(editingAddress.label) ? editingAddress.label : "",
+  );
 
   const [formError, setFormError] = useState("");
 
@@ -181,29 +219,51 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
 
     const fullLine = addressParts.join(", ");
 
-    addAddress.mutate(
-      {
-        label: effectiveLabel,
-        line: fullLine,
-        society: buildingSociety.trim(),
-        lat: pinCoords?.lat,
-        lng: pinCoords?.lng,
-        placeId: placeId || undefined,
-      },
-      {
-        onSuccess: (user) => {
-          const created = user.addresses?.[user.addresses.length - 1];
-          if (created && onSuccess) {
-            onSuccess(created);
-          }
-          onClose();
+    const payload = {
+      label: effectiveLabel,
+      line: fullLine,
+      society: buildingSociety.trim(),
+      lat: pinCoords?.lat,
+      lng: pinCoords?.lng,
+      placeId: placeId || undefined,
+    };
+
+    if (isEditing && editingAddress) {
+      updateAddress.mutate(
+        { id: editingAddress.id, data: payload },
+        {
+          onSuccess: (user) => {
+            const updated = user.addresses?.find((a) => a.id === editingAddress.id);
+            if (updated && onSuccess) {
+              onSuccess(updated);
+            }
+            onClose();
+          },
+          onError: (err: any) => {
+            setFormError(err?.message || "Failed to update address. Please check your details.");
+          },
         },
-        onError: (err: any) => {
-          setFormError(err?.message || "Failed to save address. Please check your details.");
+      );
+    } else {
+      addAddress.mutate(
+        payload,
+        {
+          onSuccess: (user) => {
+            const created = user.addresses?.[user.addresses.length - 1];
+            if (created && onSuccess) {
+              onSuccess(created);
+            }
+            onClose();
+          },
+          onError: (err: any) => {
+            setFormError(err?.message || "Failed to save address. Please check your details.");
+          },
         },
-      },
-    );
+      );
+    }
   };
+
+  const isPending = addAddress.isPending || updateAddress.isPending;
 
   return (
     <div
@@ -221,10 +281,12 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
             </span>
             <div>
               <h2 id="add-address-modal-title" className="font-display text-lg font-semibold text-ink">
-                Add Service Address
+                {isEditing ? "Edit Service Address" : "Add Service Address"}
               </h2>
               <p className="text-xs text-muted">
-                Pin your vehicle spot on the map and complete address details
+                {isEditing
+                  ? "Update your vehicle spot on the map and address details"
+                  : "Pin your vehicle spot on the map and complete address details"}
               </p>
             </div>
           </div>
@@ -453,22 +515,22 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
 
         {/* Fixed Footer Actions */}
         <div className="flex shrink-0 items-center justify-end gap-3 border-t border-line bg-surface px-6 py-4">
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={addAddress.isPending}>
+          <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           <Button
             type="submit"
             form="add-address-form"
             size="sm"
-            disabled={addAddress.isPending || !houseNo.trim() || !buildingSociety.trim()}
+            disabled={isPending || !houseNo.trim() || !buildingSociety.trim()}
             data-testid="save-address-btn"
           >
-            {addAddress.isPending ? (
+            {isPending ? (
               <>
-                <Loader2 className="size-4 animate-spin" /> Saving Address...
+                <Loader2 className="size-4 animate-spin" /> {isEditing ? "Updating Address..." : "Saving Address..."}
               </>
             ) : (
-              "Save Address"
+              isEditing ? "Save Changes" : "Save Address"
             )}
           </Button>
         </div>

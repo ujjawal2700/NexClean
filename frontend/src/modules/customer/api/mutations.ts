@@ -114,6 +114,13 @@ export function useAddAddress() {
   );
 }
 
+export function useUpdateAddress() {
+  return useUserMutation(
+    (vars: { id: string; data: { label?: string; line?: string; society?: string; lat?: number; lng?: number; placeId?: string } }) =>
+      apiFetch<User>(`/users/me/addresses/${vars.id}`, { method: "PATCH", body: vars.data }),
+  );
+}
+
 export function useRemoveAddress() {
   return useUserMutation((id: string) =>
     apiFetch<User>(`/users/me/addresses/${id}`, { method: "DELETE" }),

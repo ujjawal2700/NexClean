@@ -52,3 +52,5 @@ export const addAddressSchema = z.object({
   lng: z.number().min(-180).max(180).optional(),
   placeId: z.string().max(200).optional(),
 });
+
+export const updateAddressSchema = addAddressSchema.partial();

@@ -49,6 +49,11 @@ export async function addAddress(req: Request, res: Response): Promise<Response>
   return ok(res, user, "Address added");
 }
 
+export async function updateAddress(req: Request, res: Response): Promise<Response> {
+  const user = await userService.updateAddress(req.userId!, String(req.params.id), req.body);
+  return ok(res, user, "Address updated");
+}
+
 export async function removeAddress(req: Request, res: Response): Promise<Response> {
   const user = await userService.removeAddress(req.userId!, String(req.params.id));
   return ok(res, user, "Address removed");
