@@ -112,7 +112,7 @@ export function AgentDetail() {
         <GlassCard>
           <p className="text-sm text-muted">Rating</p>
           <p className="mt-1.5 flex items-center gap-1 font-display text-2xl font-semibold text-ink">
-            <Star className="size-4 fill-primary text-primary" /> {agent.rating}
+            <Star className="size-4 fill-primary text-primary" /> {agent.rating > 0 ? Number(agent.rating).toFixed(1) : "New"}
           </p>
         </GlassCard>
         <GlassCard>

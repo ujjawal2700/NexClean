@@ -597,7 +597,7 @@ async function assertPhoneFree(phone: string, exceptUserId?: string) {
 export type AgentStatus = "verified" | "pending" | "suspended" | "unverified";
 export type AgentInput = {
   name: string; phone: string; email?: string; city?: string; area?: string;
-  agentStatus?: AgentStatus; aadharNumber?: string;
+  agentStatus?: AgentStatus; aadharNumber?: string; rating?: number;
 };
 
 export async function createAgent(input: AgentInput) {
@@ -619,6 +619,7 @@ export async function createAgent(input: AgentInput) {
     // suspended must not be left with an active account that can still log in.
     status: agentStatus === "suspended" ? "suspended" : "active",
     aadharNumber: input.aadharNumber?.trim() ?? "",
+    rating: input.rating !== undefined ? Number(input.rating) : 0,
     online: false,
   });
   return mapAgent(agent);
@@ -642,6 +643,7 @@ export async function updateAgent(id: string, input: Partial<AgentInput>) {
   if (input.city !== undefined) agent.city = input.city.trim();
   if (input.area !== undefined) agent.area = input.area.trim();
   if (input.aadharNumber !== undefined) agent.aadharNumber = input.aadharNumber.trim();
+  if (input.rating !== undefined) agent.rating = Number(input.rating);
 
   // Mirrors setAgentStatus(): the account switch follows the verification
   // switch, and a suspension ends live sessions instead of waiting out the

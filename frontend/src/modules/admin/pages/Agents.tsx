@@ -170,7 +170,7 @@ export function Agents() {
             <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-line bg-surface/60 p-3 text-center">
               <div>
                 <p className="flex items-center justify-center gap-1 font-display font-semibold text-ink">
-                  <Star className="size-3.5 fill-primary text-primary" /> {a.rating}
+                  <Star className="size-3.5 fill-primary text-primary" /> {a.rating > 0 ? Number(a.rating).toFixed(1) : "New"}
                 </p>
                 <p className="text-[11px] text-muted">Rating</p>
               </div>

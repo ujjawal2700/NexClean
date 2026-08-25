@@ -15,6 +15,7 @@ export type PersonValues = {
   area?: string;
   agentStatus?: AgentStatus;
   aadharNumber?: string;
+  rating?: number;
   // Customer-only
   status?: "active" | "suspended";
   address?: { label?: string; line?: string; society?: string };
@@ -34,6 +35,7 @@ export type PersonInitial = {
   area?: string;
   city?: string;
   aadharNumber?: string;
+  rating?: number;
   status?: string;
   agentStatus?: string;
   address?: { label?: string; line?: string; society?: string };
@@ -130,13 +132,14 @@ export function PersonFormModal({
       area: initial?.area ?? "",
       agentStatus: (initial?.agentStatus ?? initial?.status ?? "verified") as AgentStatus,
       aadharNumber: initial?.aadharNumber ?? "",
+      rating: initial?.rating !== undefined ? Number(initial.rating) : undefined,
       status: initial?.status === "suspended" ? "suspended" : "active",
       address: { label: address?.label ?? "", line: address?.line ?? "", society: address?.society ?? "" },
       vehicle: { type: vehicle?.type ?? "", name: vehicle?.name ?? "", plate: vehicle?.plate ?? "" },
     });
     setTouched(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initial?.name, initial?.phone, initial?.email]);
+  }, [open, initial?.name, initial?.phone, initial?.email, initial?.rating]);
 
   if (!open) return null;
 
@@ -150,7 +153,8 @@ export function PersonFormModal({
   const phoneOk = /^\d{10}$/.test(values.phone.trim());
   const emailOk = !values.email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim());
   const aadharOk = !values.aadharNumber?.trim() || /^\d{12}$/.test(values.aadharNumber.trim());
-  const valid = nameOk && phoneOk && emailOk && (!isAgent || aadharOk);
+  const ratingOk = values.rating === undefined || (values.rating >= 0 && values.rating <= 5);
+  const valid = nameOk && phoneOk && emailOk && (!isAgent || (aadharOk && ratingOk));
 
   const submit = () => {
     setTouched(true);
@@ -164,6 +168,7 @@ export function PersonFormModal({
             area: values.area?.trim() ?? "",
             agentStatus: values.agentStatus,
             aadharNumber: values.aadharNumber?.trim() ?? "",
+            rating: values.rating !== undefined ? Number(values.rating) : undefined,
           }
         : { ...base, status: values.status, address: values.address, vehicle: values.vehicle },
     );
@@ -284,6 +289,18 @@ export function PersonFormModal({
                 value={values.aadharNumber ?? ""}
                 onChange={(e) => set("aadharNumber", e.target.value.replace(/\D/g, "").slice(0, 12))}
                 error={touched && !aadharOk ? "Must be exactly 12 digits" : undefined}
+              />
+              <Input
+                name="personRating"
+                label="Rating (0.0 - 5.0)"
+                type="number"
+                step="0.1"
+                min="0"
+                max="5"
+                value={values.rating !== undefined ? values.rating : ""}
+                onChange={(e) => set("rating", e.target.value !== "" ? parseFloat(e.target.value) : undefined)}
+                placeholder="e.g. 4.8"
+                error={touched && !ratingOk ? "Rating must be between 0 and 5.0" : undefined}
               />
             </>
           ) : (

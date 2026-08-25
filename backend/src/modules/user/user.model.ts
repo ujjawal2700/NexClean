@@ -79,7 +79,7 @@ const userSchema = new Schema(
     // and a rename in Locations shouldn't silently re-home existing cleaners.
     city: { type: String, default: "" },
     area: { type: String, default: "" },
-    rating: { type: Number, default: 4.8 },
+    rating: { type: Number, default: 0 },
     jobsDone: { type: Number, default: 0 },
     online: { type: Boolean, default: true },
     lastSeenAt: { type: Date, default: null },

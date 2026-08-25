@@ -156,6 +156,7 @@ const agentFields = {
   area: z.string().trim().max(120).optional(),
   agentStatus: z.enum(AGENT_STATUSES).optional(),
   aadharNumber,
+  rating: z.coerce.number().min(0).max(5).optional(),
 };
 const createAgentSchema = z.object({ name: personName, phone: personPhone, ...agentFields });
 const updateAgentSchema = z.object({
