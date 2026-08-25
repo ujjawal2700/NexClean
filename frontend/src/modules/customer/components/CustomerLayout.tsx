@@ -69,55 +69,51 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
     };
   }, [authenticated, qc]);
 
-  const isHomepage = location.pathname === "/app" || location.pathname === "/app/";
-
   return (
     <div className="min-h-dvh overflow-x-hidden bg-bg">
       {/* top bar */}
-      {isHomepage && (
-        <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl">
-          <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-5">
-            <button onClick={() => navigate("/app")} className="text-[1.1rem]" aria-label="Dashboard">
-              <Logo variant="full" />
-            </button>
+      <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-5">
+          <button onClick={() => navigate("/app")} className="text-[1.1rem] cursor-pointer" aria-label="Dashboard">
+            <Logo variant="full" />
+          </button>
 
-            <nav className="hidden items-center gap-1 md:flex">
-              {NAV.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-colors",
-                      isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:text-primary",
-                    )
-                  }
-                >
-                  <item.icon className="size-4" />
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-
-            <div className="flex items-center gap-2">
-              <Link
-                to="/app/notifications"
-                className="relative grid size-9 place-items-center rounded-full text-ink-soft transition-colors hover:bg-surface-muted hover:text-primary"
-                aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+          <nav className="hidden items-center gap-1 md:flex">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-colors",
+                    isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:text-primary",
+                  )
+                }
               >
-                <Bell className="size-5" />
-                {unread > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
-                    {unread > 9 ? "9+" : unread}
-                  </span>
-                )}
-              </Link>
-              <span className="hidden text-sm text-muted sm:inline">{me?.name || "Member"}</span>
-            </div>
+                <item.icon className="size-4" />
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <Link
+              to="/app/notifications"
+              className="relative grid size-9 place-items-center rounded-full text-ink-soft transition-colors hover:bg-surface-muted hover:text-primary"
+              aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+            >
+              <Bell className="size-5" />
+              {unread > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
+            </Link>
+            <span className="hidden text-sm text-muted sm:inline">{me?.name || "Member"}</span>
           </div>
-        </header>
-      )}
+        </div>
+      </header>
 
       {/* content */}
       <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-5 sm:pt-8 md:pb-16">

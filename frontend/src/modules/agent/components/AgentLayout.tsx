@@ -136,42 +136,41 @@ export function AgentLayout({ children }: { children: ReactNode }) {
       {/* Incoming-offer popup — rendered above everything, on every page. */}
       <OfferOverlay dispatch={dispatch} />
 
-      {isHomepage && (
-        <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl">
-          <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
-            <button onClick={() => navigate("/agent")} className="flex items-center gap-2 text-[1.05rem]">
-              <Logo variant="full" />
-              <span className="hidden rounded-pill bg-ink/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted sm:inline">
-                Agent
-              </span>
-            </button>
+      {/* Header top bar */}
+      <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
+          <button onClick={() => navigate("/agent")} className="flex items-center gap-2 text-[1.05rem] cursor-pointer" aria-label="Dashboard">
+            <Logo variant="full" />
+            <span className="hidden rounded-pill bg-ink/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted sm:inline">
+              Agent
+            </span>
+          </button>
 
-            <nav className="hidden items-center gap-1 md:flex">
-              {NAV.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-colors",
-                      isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:text-primary",
-                    )
-                  }
-                >
-                  <item.icon className="size-4" />
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
+          <nav className="hidden items-center gap-1 md:flex">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-2 rounded-pill px-4 py-2 text-sm font-medium transition-colors",
+                    isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:text-primary",
+                  )
+                }
+              >
+                <item.icon className="size-4" />
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
 
-            <div className="flex items-center gap-2">
-              <NotificationBell />
-              <OnlineToggle />
-            </div>
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            <OnlineToggle />
           </div>
-        </header>
-      )}
+        </div>
+      </header>
 
       <main className="mx-auto max-w-5xl px-4 pb-28 pt-6 sm:px-5 sm:pt-8 md:pb-16">
         {showLocationNudge && (
