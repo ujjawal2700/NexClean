@@ -72,9 +72,10 @@ test.describe("Landing page", () => {
     // sideways. Regression guard for reveal animations parking elements at
     // translateX(40px) off-screen, which let the page scroll 19px right.
     const scrolledX = await page.evaluate(() => {
-      window.scrollTo(300, 0);
-      const x = window.scrollX;
-      window.scrollTo(0, 0);
+      const win = globalThis as unknown as { scrollTo: (x: number, y: number) => void; scrollX: number };
+      win.scrollTo(300, 0);
+      const x = win.scrollX;
+      win.scrollTo(0, 0);
       return x;
     });
     expect(scrolledX).toBe(0);
