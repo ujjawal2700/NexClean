@@ -172,6 +172,12 @@ export type DeleteAgentOptions = {
   force?: boolean;
 };
 
+export type DeleteCustomerOptions = {
+  id: string;
+  mode?: "customer_only" | "with_data" | "strict";
+  force?: boolean;
+};
+
 export function useDeleteAgent() {
   const qc = useQueryClient();
   return useMutation({
@@ -186,7 +192,7 @@ export function useDeleteAgent() {
       qc.invalidateQueries({ queryKey: keys.agents });
       qc.invalidateQueries({ queryKey: keys.bookings });
       qc.invalidateQueries({ queryKey: keys.payments });
-      qc.invalidateQueries({ queryKey: keys.dashboardStats });
+      qc.invalidateQueries({ queryKey: keys.stats });
     },
   });
 }
@@ -216,7 +222,7 @@ export function useUpdateCustomer() {
 export function useDeleteCustomer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (args: string | DeleteAgentOptions) => {
+    mutationFn: (args: string | DeleteCustomerOptions) => {
       const id = typeof args === "string" ? args : args.id;
       const mode = typeof args === "object" ? (args.mode || (args.force ? "customer_only" : "strict")) : "strict";
       return apiFetch<{ deleted: boolean }>(`/admin/customers/${id}?mode=${mode}`, {
@@ -227,7 +233,7 @@ export function useDeleteCustomer() {
       qc.invalidateQueries({ queryKey: keys.customers });
       qc.invalidateQueries({ queryKey: keys.bookings });
       qc.invalidateQueries({ queryKey: keys.payments });
-      qc.invalidateQueries({ queryKey: keys.dashboardStats });
+      qc.invalidateQueries({ queryKey: keys.stats });
     },
   });
 }

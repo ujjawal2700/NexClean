@@ -63,9 +63,9 @@ export async function loginAsNewCustomer(request: APIRequestContext) {
   return loginByPhone(request, freshPhone());
 }
 
-/** Logs in as the seeded demo agent. */
-export async function loginAsAgent(request: APIRequestContext) {
-  return loginByPhone(request, SEED_AGENT_PHONE);
+/** Logs in as the seeded demo agent or specified agent. */
+export async function loginAsAgent(request: APIRequestContext, phone: string = SEED_AGENT_PHONE) {
+  return loginByPhone(request, phone);
 }
 
 /** Logs in as the seeded super admin. */
