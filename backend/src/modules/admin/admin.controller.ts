@@ -240,7 +240,20 @@ export async function updateCustomer(req: Request, res: Response): Promise<Respo
 }
 
 export async function deleteCustomer(req: Request, res: Response): Promise<Response> {
-  return ok(res, await service.deleteCustomer(String(req.params.id)), "Customer deleted");
+  const queryMode = req.query.mode as service.DeleteCustomerMode | undefined;
+  const bodyMode = req.body?.mode as service.DeleteCustomerMode | undefined;
+  const isForce = req.query.force === "true" || req.body?.force === true;
+
+  let mode: service.DeleteCustomerMode = "strict";
+  if (queryMode === "customer_only" || queryMode === "with_data" || queryMode === "strict") {
+    mode = queryMode;
+  } else if (bodyMode === "customer_only" || bodyMode === "with_data" || bodyMode === "strict") {
+    mode = bodyMode;
+  } else if (isForce) {
+    mode = "customer_only";
+  }
+
+  return ok(res, await service.deleteCustomer(String(req.params.id), mode), "Customer deleted");
 }
 
 const agentStatusSchema = z.object({ status: z.enum(["verified", "pending", "suspended"]) });

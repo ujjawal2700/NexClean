@@ -379,6 +379,8 @@ export function ConfirmDeleteModal({
   error,
   onConfirm,
   onDeleteAgentOnly,
+  onDeleteCustomerOnly,
+  onDeletePersonOnly,
   onDeleteWithData,
   onClose,
 }: {
@@ -389,10 +391,12 @@ export function ConfirmDeleteModal({
   error?: string;
   onConfirm?: () => void;
   onDeleteAgentOnly?: () => void;
+  onDeleteCustomerOnly?: () => void;
+  onDeletePersonOnly?: () => void;
   onDeleteWithData?: () => void;
   onClose: () => void;
 }) {
-  const [confirmStep, setConfirmStep] = useState<"agent_only" | "with_data" | null>(null);
+  const [confirmStep, setConfirmStep] = useState<"only" | "with_data" | null>(null);
 
   useEffect(() => {
     if (!open) setConfirmStep(null);
@@ -400,7 +404,9 @@ export function ConfirmDeleteModal({
 
   if (!open) return null;
 
-  const isAgent = kind === "agent" && (onDeleteAgentOnly || onDeleteWithData);
+  const handleDeleteOnlyAction = onDeletePersonOnly || (kind === "agent" ? onDeleteAgentOnly : onDeleteCustomerOnly);
+  const isMultiOption = !!(handleDeleteOnlyAction || onDeleteWithData);
+  const labelKind = kind === "agent" ? "Agent" : "Customer";
 
   const handleClose = () => {
     setConfirmStep(null);
@@ -409,16 +415,16 @@ export function ConfirmDeleteModal({
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
-      <div className="w-full max-w-lg rounded-3xl border border-line bg-surface p-6 shadow-2xl">
-        {/* Step 2: Confirmation for Delete Agent Only */}
-        {confirmStep === "agent_only" ? (
+      <div className="w-full max-w-xl rounded-3xl border border-line bg-surface p-6 shadow-2xl">
+        {/* Step 2: Confirmation for Delete Person Only */}
+        {confirmStep === "only" ? (
           <div>
             <div className="flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-2xl bg-amber-500/10 text-amber-600">
+              <span className="grid size-10 place-items-center rounded-2xl bg-amber-500/10 text-amber-600 shrink-0">
                 <AlertTriangle className="size-5" />
               </span>
               <div>
-                <h2 className="font-display text-lg font-semibold text-ink">Confirm: Delete Agent Only?</h2>
+                <h2 className="font-display text-lg font-semibold text-ink">Confirm: Delete {labelKind} Only?</h2>
                 <p className="text-xs text-muted">Please confirm this action</p>
               </div>
             </div>
@@ -428,7 +434,7 @@ export function ConfirmDeleteModal({
                 Are you sure you want to delete <span className="font-semibold text-ink">{name}</span>?
               </p>
               <p>
-                • The agent account will be deleted permanently and can no longer log in.
+                • The {kind} account will be deleted permanently and can no longer log in.
               </p>
               <p>
                 • All historical bookings, payments, and receipts will be <strong>safely preserved</strong> and marked as <span className="font-semibold text-ink">"{name} (deleted)"</span>.
@@ -441,34 +447,36 @@ export function ConfirmDeleteModal({
               </div>
             )}
 
-            <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5">
-              <Button variant="ghost" size="sm" onClick={() => setConfirmStep(null)} disabled={pending}>
-                Back
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
-                Cancel
-              </Button>
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-line/60 pt-4">
+              <div className="flex items-center gap-1.5">
+                <Button variant="ghost" size="sm" onClick={() => setConfirmStep(null)} disabled={pending}>
+                  Back
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
+                  Cancel
+                </Button>
+              </div>
               <button
                 type="button"
-                onClick={onDeleteAgentOnly}
+                onClick={handleDeleteOnlyAction}
                 disabled={pending}
-                className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-                data-testid="confirm-delete-agent-only-btn"
+                className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-xs sm:text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                data-testid={`confirm-delete-${kind}-only-btn`}
               >
                 {pending && <Loader2 className="size-4 animate-spin" />}
-                Yes, Delete Agent Only
+                Yes, Delete {labelKind} Only
               </button>
             </div>
           </div>
         ) : confirmStep === "with_data" ? (
-          /* Step 2: Confirmation for Delete Agent with All Data */
+          /* Step 2: Confirmation for Delete with All Data */
           <div>
             <div className="flex items-center gap-3">
-              <span className="grid size-10 place-items-center rounded-2xl bg-red-500/10 text-red-600">
+              <span className="grid size-10 place-items-center rounded-2xl bg-red-500/10 text-red-600 shrink-0">
                 <AlertTriangle className="size-5" />
               </span>
               <div>
-                <h2 className="font-display text-lg font-semibold text-red-600">Confirm: Delete Agent & All Data?</h2>
+                <h2 className="font-display text-lg font-semibold text-red-600">Confirm: Delete {labelKind} & All Data?</h2>
                 <p className="text-xs text-muted">Irreversible destructive action</p>
               </div>
             </div>
@@ -478,7 +486,7 @@ export function ConfirmDeleteModal({
                 ⚠️ Warning: You are about to permanently delete <span className="underline">{name}</span> AND ALL their assigned bookings, payments, and related records!
               </p>
               <p>
-                • This will permanently remove all booking history and receipts associated with this cleaner.
+                • This will permanently remove all booking history, payments, and receipts associated with this {kind}.
               </p>
               <p>
                 • This action <strong>cannot be undone</strong>.
@@ -491,22 +499,24 @@ export function ConfirmDeleteModal({
               </div>
             )}
 
-            <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5">
-              <Button variant="ghost" size="sm" onClick={() => setConfirmStep(null)} disabled={pending}>
-                Back
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
-                Cancel
-              </Button>
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-line/60 pt-4">
+              <div className="flex items-center gap-1.5">
+                <Button variant="ghost" size="sm" onClick={() => setConfirmStep(null)} disabled={pending}>
+                  Back
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
+                  Cancel
+                </Button>
+              </div>
               <button
                 type="button"
                 onClick={onDeleteWithData}
                 disabled={pending}
-                className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-                data-testid="confirm-delete-agent-with-data-btn"
+                className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-xs sm:text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                data-testid={`confirm-delete-${kind}-with-data-btn`}
               >
                 {pending && <Loader2 className="size-4 animate-spin" />}
-                Yes, Delete Agent & All Data
+                Yes, Delete {labelKind} & All Data
               </button>
             </div>
           </div>
@@ -518,15 +528,26 @@ export function ConfirmDeleteModal({
               <span className="font-semibold text-ink">{name}</span> will be removed.
             </p>
 
-            {isAgent ? (
-              <div className="mt-3 space-y-2.5 rounded-2xl border border-line bg-surface-muted/50 p-4 text-xs text-muted">
-                <div className="flex items-start gap-2">
-                  <span className="font-semibold text-ink shrink-0">1. Delete Agent Only:</span>
-                  <span>Removes the agent account while preserving all historical bookings and records, marking them as <strong className="text-ink">"{name} (deleted)"</strong>.</span>
+            {isMultiOption ? (
+              <div className="mt-4 space-y-3">
+                <div className="rounded-2xl border border-line bg-surface-muted/40 p-4 text-xs text-muted">
+                  <div className="font-semibold text-ink text-[13px] flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-primary shrink-0" />
+                    1. Delete {labelKind} Only
+                  </div>
+                  <p className="mt-1 pl-4 leading-relaxed text-ink-soft">
+                    Removes the {kind} account while keeping all historical bookings and financial records intact, marked as <strong className="text-ink">"{name} (deleted)"</strong>.
+                  </p>
                 </div>
-                <div className="flex items-start gap-2">
-                  <span className="font-semibold text-ink shrink-0">2. Delete Agent with Data:</span>
-                  <span>Permanently deletes the agent along with all their assigned bookings, payments, and related records.</span>
+
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-xs text-muted">
+                  <div className="font-semibold text-red-600 text-[13px] flex items-center gap-2">
+                    <span className="size-2 rounded-full bg-red-500 shrink-0" />
+                    2. Delete {labelKind} with Data
+                  </div>
+                  <p className="mt-1 pl-4 leading-relaxed text-red-700/90">
+                    Permanently deletes the {kind} along with all their assigned bookings, payments, and related records.
+                  </p>
                 </div>
               </div>
             ) : (
@@ -541,22 +562,22 @@ export function ConfirmDeleteModal({
               </div>
             )}
 
-            <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5">
+            <div className="mt-6 flex items-center justify-between gap-3 border-t border-line/60 pt-4">
               <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
                 Cancel
               </Button>
 
-              {isAgent ? (
-                <>
-                  {onDeleteAgentOnly && (
+              {isMultiOption ? (
+                <div className="flex items-center gap-2.5">
+                  {handleDeleteOnlyAction && (
                     <button
                       type="button"
-                      onClick={() => setConfirmStep("agent_only")}
+                      onClick={() => setConfirmStep("only")}
                       disabled={pending}
-                      className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-medium border border-line bg-surface text-ink hover:bg-surface-muted hover:border-primary/40 hover:text-primary transition-all cursor-pointer disabled:opacity-50"
-                      data-testid="delete-agent-only-btn"
+                      className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-xs sm:text-sm font-medium border border-line bg-surface text-ink hover:bg-surface-muted hover:border-primary/40 hover:text-primary transition-all cursor-pointer disabled:opacity-50"
+                      data-testid={`delete-${kind}-only-btn`}
                     >
-                      Delete Agent Only
+                      Delete {labelKind} Only
                     </button>
                   )}
                   {onDeleteWithData && (
@@ -564,19 +585,19 @@ export function ConfirmDeleteModal({
                       type="button"
                       onClick={() => setConfirmStep("with_data")}
                       disabled={pending}
-                      className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-                      data-testid="delete-agent-with-data-btn"
+                      className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-xs sm:text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                      data-testid={`delete-${kind}-with-data-btn`}
                     >
-                      Delete Agent with Data
+                      Delete {labelKind} with Data
                     </button>
                   )}
-                </>
+                </div>
               ) : (
                 <button
                   type="button"
                   onClick={onConfirm}
                   disabled={pending}
-                  className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-xs sm:text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
                   data-testid="delete-btn"
                 >
                   {pending && <Loader2 className="size-4 animate-spin" />}

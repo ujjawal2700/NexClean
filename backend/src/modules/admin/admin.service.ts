@@ -6,6 +6,9 @@ import { createRazorpayRefund, paymentsLive } from "../payment/razorpay";
 import { Campaign } from "./campaign.model";
 import { TriggeredAlert } from "../area-alert/areaAlert.model";
 import { SupportTicket } from "../chat/ticket.model";
+import { WalletTransaction } from "../wallet/walletTransaction.model";
+import { SpecialCoupon } from "../promotions/specialCoupon.model";
+import { Notification } from "../notification/notification.model";
 import { notifyUser, pushToUser } from "../notification/notification.service";
 import { maybeCreditReferrer } from "../promotions/referral.service";
 import { ApiError } from "../../shared/utils/ApiError";
@@ -34,9 +37,10 @@ function displayStatus(b: BookingDoc): DisplayStatus {
 
 function mapBooking(b: BookingDoc) {
   const user = b.user as unknown as { name?: string } | null;
+  const customerName = (user && typeof user === "object" && user.name) || (b as any).customerName || "Customer";
   return {
     id: b.id,
-    customerName: (user && typeof user === "object" && user.name) || "Customer",
+    customerName,
     vehicleType: b.vehicleType,
     vehicleName: b.vehicleName,
     packageName: b.packageName,
@@ -322,6 +326,33 @@ export async function setAgentStatus(id: string, status: "verified" | "pending" 
     { new: true },
   );
   if (!agent) throw ApiError.notFound("Agent not found");
+
+  // Verification is the gate on a cleaner earning anything at all, so the
+  // outcome cannot be something they discover by repeatedly opening the app.
+  // Fire-and-forget: a notification failure must not roll back the decision.
+  const NOTICE: Record<typeof status, { title: string; body: string } | null> = {
+    verified: {
+      title: "🎉 You're verified",
+      body: "Your documents were approved. Go online to start receiving jobs.",
+    },
+    suspended: {
+      title: "⛔ Account suspended",
+      body: "Your account has been suspended. Contact support for details.",
+    },
+    // "pending" is the state they are already in while waiting; announcing it
+    // would be noise, not news.
+    pending: null,
+  };
+  const notice = NOTICE[status];
+  if (notice) {
+    void notifyUser(String(agent._id), {
+      type: "system",
+      title: notice.title,
+      body: notice.body,
+      data: { role: "agent", agentStatus: status },
+    }).catch((err) => console.error("agent status notification failed:", (err as Error).message));
+  }
+
   return mapAgent(agent);
 }
 
@@ -794,12 +825,48 @@ export async function updateCustomer(id: string, input: Partial<CustomerInput>) 
   return mapCustomerSummary(customer);
 }
 
-export async function deleteCustomer(id: string) {
+export type DeleteCustomerMode = "strict" | "customer_only" | "with_data";
+
+export async function deleteCustomer(id: string, mode: DeleteCustomerMode = "strict") {
   const customer = await User.findOne({ _id: id, role: "customer" });
   if (!customer) throw ApiError.notFound("Customer not found");
-  await assertDeletable(id, "customer");
+
+  if (mode === "strict") {
+    await assertDeletable(id, "customer");
+  } else if (mode === "customer_only") {
+    const deletedName = `${customer.name || "Customer"} (deleted)`;
+
+    // Preserve customer name on all bookings
+    await Booking.updateMany(
+      { user: id },
+      { $set: { customerName: deletedName } },
+    );
+
+    // Preserve customer name on payments
+    await Payment.updateMany(
+      { user: id },
+      { $set: { customerName: deletedName } },
+    );
+  } else if (mode === "with_data") {
+    // 1. Find all bookings created by this customer
+    const bookings = await Booking.find({ user: id }).select("_id");
+    const bookingIds = bookings.map((b) => b._id);
+
+    if (bookingIds.length > 0) {
+      await Payment.deleteMany({ booking: { $in: bookingIds } });
+    }
+    await Payment.deleteMany({ user: id });
+    await Booking.deleteMany({ user: id });
+
+    // 2. Delete wallet transactions, special coupons, support tickets, notifications
+    await WalletTransaction.deleteMany({ $or: [{ user: id }, { relatedUser: id }] });
+    await SpecialCoupon.deleteMany({ $or: [{ usedBy: id }, { assignedCustomer: id }] });
+    await SupportTicket.deleteMany({ user: id });
+    await Notification.deleteMany({ user: id });
+  }
+
   await User.deleteOne({ _id: id });
-  return { deleted: true, id };
+  return { deleted: true, id, mode };
 }
 
 export async function listCustomers() {
@@ -901,10 +968,11 @@ function mapPayment(p: PaymentDocument) {
     assignedAgent?: unknown;
   } | null;
   const assignedAgent = booking && typeof booking === "object" ? booking.assignedAgent : null;
+  const customerName = (user && typeof user === "object" && user.name) || (p as any).customerName || "Customer";
   return {
     id: p.id,
     customerId: (user && typeof user === "object" && user.id) || String(p.user),
-    customerName: (user && typeof user === "object" && user.name) || "Customer",
+    customerName,
     bookingId: (booking && typeof booking === "object" && booking.id) || (p.booking ? String(p.booking) : null),
     society: (booking && typeof booking === "object" && booking.society) || "",
     agentName: (booking && typeof booking === "object" && booking.agentName) || null,

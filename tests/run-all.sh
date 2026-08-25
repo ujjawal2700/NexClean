@@ -109,6 +109,12 @@ else
     export JWT_SECRET="test-secret-key-1234567890-test-key"
     export JWT_EXPIRES_IN="30d"
     export DEMO_OTP="123456"
+    # Demo agents are opt-in now (see backend/src/config/seed.ts) so a real
+    # deployment can never quietly create loginable accounts. The suite depends
+    # on them heavily — the KYC gate, agent login, admin agent lists, area
+    # alerts and campaign audiences all address a seeded cleaner by phone — so
+    # the throwaway test backend opts in explicitly.
+    export SEED_DEMO_AGENTS="true"
     export CLIENT_ORIGIN="http://localhost:${FRONTEND_PORT}"
     export ADMIN_EMAIL="superadmin@gmail.com"
     export ADMIN_PASSWORD="password123"

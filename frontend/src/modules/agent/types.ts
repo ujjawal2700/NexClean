@@ -112,3 +112,19 @@ export type AgentSummary = {
   earnedToday: number;
   potentialToday: number;
 };
+
+/**
+ * One row in the cleaner's inbox.
+ *
+ * Same shape the customer app uses — the API is role-agnostic, it is only the
+ * screens that differ — but declared here so the agent module doesn't import
+ * types across a module boundary it otherwise never crosses.
+ */
+export type AgentNotification = {
+  id: string;
+  type: "booking" | "area_alert" | "system";
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+};

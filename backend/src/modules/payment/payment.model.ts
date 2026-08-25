@@ -3,6 +3,7 @@ import { Schema, model, Types, type HydratedDocument, type InferSchemaType } fro
 const paymentSchema = new Schema(
   {
     user: { type: Types.ObjectId, ref: "User", required: true, index: true },
+    customerName: { type: String, default: null },
     booking: { type: Types.ObjectId, ref: "Booking" },
     orderId: { type: String, required: true },
     paymentId: { type: String, default: null },

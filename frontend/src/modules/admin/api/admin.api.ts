@@ -216,8 +216,19 @@ export function useUpdateCustomer() {
 export function useDeleteCustomer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiFetch<{ deleted: boolean }>(`/admin/customers/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.customers }),
+    mutationFn: (args: string | DeleteAgentOptions) => {
+      const id = typeof args === "string" ? args : args.id;
+      const mode = typeof args === "object" ? (args.mode || (args.force ? "customer_only" : "strict")) : "strict";
+      return apiFetch<{ deleted: boolean }>(`/admin/customers/${id}?mode=${mode}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.customers });
+      qc.invalidateQueries({ queryKey: keys.bookings });
+      qc.invalidateQueries({ queryKey: keys.payments });
+      qc.invalidateQueries({ queryKey: keys.dashboardStats });
+    },
   });
 }
 

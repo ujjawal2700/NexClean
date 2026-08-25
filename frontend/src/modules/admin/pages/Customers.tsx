@@ -226,13 +226,27 @@ export function Customers() {
         pending={deleteCustomer.isPending}
         error={formError}
         onClose={closeDelete}
-        onConfirm={() => {
+        onDeleteCustomerOnly={() => {
           if (!deleting) return;
           setFormError("");
-          deleteCustomer.mutate(deleting.id, {
-            onSuccess: closeDelete,
-            onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this customer"),
-          });
+          deleteCustomer.mutate(
+            { id: deleting.id, mode: "customer_only" },
+            {
+              onSuccess: closeDelete,
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this customer"),
+            },
+          );
+        }}
+        onDeleteWithData={() => {
+          if (!deleting) return;
+          setFormError("");
+          deleteCustomer.mutate(
+            { id: deleting.id, mode: "with_data" },
+            {
+              onSuccess: closeDelete,
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this customer with data"),
+            },
+          );
         }}
       />
     </div>

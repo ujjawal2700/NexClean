@@ -36,6 +36,9 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (registered.current) return;
     registered.current = true;
+    // No requestPermission here on purpose: prompting on page load is how you
+    // get permanently denied. This only picks up a real token when the user has
+    // already granted permission; the Notifications screen does the asking.
     getPushToken()
       .then((t) => {
         saveDeviceToken(t);

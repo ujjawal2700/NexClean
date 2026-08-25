@@ -397,14 +397,27 @@ export function CustomerDetail() {
         pending={deleteCustomer.isPending}
         error={formError}
         onClose={() => { setDeleting(false); setFormError(""); }}
-        onConfirm={() => {
+        onDeleteCustomerOnly={() => {
           setFormError("");
-          deleteCustomer.mutate(customer.id, {
-            // The record this page is built on is gone, so go back to the list
-            // rather than leaving a detail view of something that no longer exists.
-            onSuccess: () => navigate("/admin/customers"),
-            onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this customer"),
-          });
+          deleteCustomer.mutate(
+            { id: customer.id, mode: "customer_only" },
+            {
+              // The record this page is built on is gone, so go back to the list
+              // rather than leaving a detail view of something that no longer exists.
+              onSuccess: () => navigate("/admin/customers"),
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this customer"),
+            },
+          );
+        }}
+        onDeleteWithData={() => {
+          setFormError("");
+          deleteCustomer.mutate(
+            { id: customer.id, mode: "with_data" },
+            {
+              onSuccess: () => navigate("/admin/customers"),
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this customer with data"),
+            },
+          );
         }}
       />
     </div>

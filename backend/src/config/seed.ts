@@ -24,7 +24,10 @@ const AGENTS: AgentSeed[] = [
  * admin apps have something to log into and work with.
  */
 export async function seedDemoData(): Promise<void> {
-  const agents = env.nodeEnv !== "production" ? AGENTS : [];
+  // Only seed demo agents if explicitly requested via SEED_DEMO_AGENTS=true
+  const shouldSeedAgents = process.env.SEED_DEMO_AGENTS === "true";
+  const agents = shouldSeedAgents ? AGENTS : [];
+
   for (const a of agents) {
     await User.updateOne(
       { phone: a.phone },
@@ -39,5 +42,7 @@ export async function seedDemoData(): Promise<void> {
     { upsert: true },
   );
 
-  console.log(`✓ Seeded ${agents.length} demo agents + admin (${env.adminEmail})`);
+  if (agents.length > 0) {
+    console.log(`✓ Seeded ${agents.length} demo agents + admin (${env.adminEmail})`);
+  }
 }

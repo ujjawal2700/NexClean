@@ -4,6 +4,7 @@ import { geoPointSchema } from "../../shared/geo";
 const bookingSchema = new Schema(
   {
     user: { type: Types.ObjectId, ref: "User", required: true, index: true },
+    customerName: { type: String, default: null },
     // Vehicle category key — admin-managed, not a fixed enum.
     vehicleType: { type: String, required: true },
     vehicleName: { type: String, required: true },

@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
-import type { Job, JobOffer, AgentProfile, AgentSummary, AreaAlert } from "../types";
+import type {
+  Job,
+  JobOffer,
+  AgentProfile,
+  AgentSummary,
+  AreaAlert,
+  AgentNotification,
+} from "../types";
 
 export const meKey = ["agent", "me"] as const;
 export const jobsKey = ["agent", "jobs"] as const;
@@ -147,6 +154,33 @@ export function useNotifyArea() {
   return useMutation({
     mutationFn: (society: string) =>
       apiFetch<AreaAlert>("/agent/notify-area", { method: "POST", body: { society } }),
+  });
+}
+
+export const notificationsKey = ["agent", "notifications"] as const;
+
+/**
+ * The cleaner's notification feed.
+ *
+ * Polls on the same cadence as the customer's inbox. The socket already pushes
+ * a "notification" event, but polling is the backstop that makes an unread
+ * badge correct after the app has been backgrounded or the socket has dropped.
+ */
+export function useAgentNotifications() {
+  const authenticated = useAgentSession((s) => s.authenticated);
+  return useQuery({
+    queryKey: notificationsKey,
+    queryFn: () => apiFetch<AgentNotification[]>("/notifications"),
+    enabled: authenticated,
+    refetchInterval: 20_000,
+  });
+}
+
+export function useMarkAgentNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<{ ok: boolean }>("/notifications/read", { method: "PATCH" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: notificationsKey }),
   });
 }
 

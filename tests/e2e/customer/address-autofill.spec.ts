@@ -35,14 +35,19 @@ function mapsStub(status: "OK" | "REQUEST_DENIED"): string {
     }
     class FakeMap extends MVCObject {
       constructor(el, o) {
-        super(); this.c = o.center;
+        super(); this.c = o.center; this.z = o.zoom ?? 15;
         el.innerHTML = '<div data-fake-map="1" style="width:100%;height:100%"></div>';
         setTimeout(() => this._fire("idle"), 30);
       }
       setCenter(c) { this.c = c; setTimeout(() => this._fire("idle"), 10); }
       panTo(c) { this.c = c; setTimeout(() => this._fire("idle"), 10); }
-      setZoom() {} getCenter() { return new LatLng(this.c); }
-      getBounds() { return { contains: () => true }; } fitBounds() {}
+      setZoom(z) { this.z = z; }
+      getZoom() { return this.z; }
+      getCenter() { return new LatLng(this.c); }
+      getBounds() { return { contains: () => true }; }
+      fitBounds() {}
+      get(k) { return this[k]; }
+      set(k, v) { this[k] = v; }
     }
     window.google = { maps: {
       Map: FakeMap, MVCObject, LatLng,

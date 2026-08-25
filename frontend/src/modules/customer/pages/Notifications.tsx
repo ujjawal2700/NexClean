@@ -43,7 +43,10 @@ export function Notifications() {
   const enablePush = async () => {
     setEnabling(true);
     try {
-      const token = await getPushToken();
+      // requestPermission is what makes the browser actually prompt. Without
+      // it this resolves to the synthetic fallback token and the button looks
+      // like it worked while registering something FCM can never deliver to.
+      const token = await getPushToken({ requestPermission: true });
       saveDeviceToken(token);
       await registerToken.mutateAsync(token);
       setPermission(getNotificationPermission());

@@ -332,11 +332,16 @@ export async function assignAgentToBooking(bookingId: string, agentId: string) {
 
   // Tell the assigned cleaner.
   emitToUser(String(agent._id), "job_assigned", { bookingId: String(booking._id) });
-  await pushToUser(String(agent._id), {
+  // notifyUser rather than pushToUser: an offer is ephemeral and rightly stays
+  // out of the feed, but an assignment is work the cleaner is now accountable
+  // for. It has to survive a missed push and be readable later, which is
+  // exactly what a stored notification is for.
+  await notifyUser(String(agent._id), {
+    type: "booking",
     title: "🧽 New job assigned",
-    body: `${booking.packageName} · ${booking.slot}`,
-    data: { bookingId: String(booking._id) },
-  }).catch((err) => console.error("assign push failed:", (err as Error).message));
+    body: `${booking.packageName} · ${booking.vehicleName} · ${booking.slot}`,
+    data: { bookingId: String(booking._id), role: "agent" },
+  }).catch((err) => console.error("assign notification failed:", (err as Error).message));
 
   await onAssigned(booking, { id: String(agent._id), name: agent.name });
   return booking;

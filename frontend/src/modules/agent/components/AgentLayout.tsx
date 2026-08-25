@@ -1,10 +1,16 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, ListChecks, Wallet, User, MapPinOff } from "lucide-react";
+import { LayoutDashboard, ListChecks, Wallet, User, MapPinOff, Bell } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
 import { getPushToken, saveDeviceToken } from "@shared/lib/push";
-import { useAgentMe, useToggleOnline, useHeartbeat, useRegisterToken } from "../api/agent.api";
+import {
+  useAgentMe,
+  useToggleOnline,
+  useHeartbeat,
+  useRegisterToken,
+  useAgentNotifications,
+} from "../api/agent.api";
 import { useAgentDispatch } from "../hooks/useAgentDispatch";
 import { OfferOverlay } from "./OfferOverlay";
 
@@ -17,6 +23,9 @@ function useRegisterPushToken() {
   useEffect(() => {
     if (registered.current) return;
     registered.current = true;
+    // No requestPermission here on purpose: prompting on page load is how you
+    // get permanently denied. This only picks up a real token when the user has
+    // already granted permission; the Notifications screen does the asking.
     getPushToken()
       .then((t) => {
         saveDeviceToken(t);
@@ -81,6 +90,36 @@ export function OnlineToggle() {
   );
 }
 
+/** Inbox entry point, with a count of what hasn't been read. */
+function NotificationBell() {
+  const { data: items = [] } = useAgentNotifications();
+  const unread = items.filter((n) => !n.read).length;
+
+  return (
+    <NavLink
+      to="/agent/notifications"
+      aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+      className={({ isActive }) =>
+        cn(
+          "relative grid size-9 place-items-center rounded-xl border border-line bg-surface transition-colors",
+          isActive ? "text-primary" : "text-ink-soft hover:text-primary",
+        )
+      }
+      data-testid="agent-notifications-bell"
+    >
+      <Bell className="size-4" />
+      {unread > 0 && (
+        <span
+          className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-primary px-1 text-[10px] font-bold leading-[18px] text-white"
+          data-testid="agent-unread-count"
+        >
+          {unread > 9 ? "9+" : unread}
+        </span>
+      )}
+    </NavLink>
+  );
+}
+
 export function AgentLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -127,6 +166,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
             </nav>
 
             <div className="flex items-center gap-2">
+              <NotificationBell />
               <OnlineToggle />
             </div>
           </div>

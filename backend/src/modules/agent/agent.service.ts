@@ -388,6 +388,14 @@ export async function claimJob(agentId: string, bookingId: string) {
   // Release any other agent's offer lock on this booking.
   await User.updateMany({ currentOfferBooking: booking._id }, { currentOfferBooking: null });
 
+  // The cleaner's own record of what they picked up.
+  void notifyUser(agentId, {
+    type: "booking",
+    title: "✅ Job claimed",
+    body: `${booking.packageName} · ${booking.vehicleName} · ${booking.slot}`,
+    data: { bookingId: String(booking._id), role: "agent" },
+  }).catch(() => {});
+
   // Notify the customer.
   const cid = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
   forgetAgentBookings(agentId);
