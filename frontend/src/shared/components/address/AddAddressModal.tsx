@@ -207,14 +207,14 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-address-modal-title"
     >
-      <div className="relative my-8 w-full max-w-2xl overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl">
+      <div className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-line px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
           <div className="flex items-center gap-2.5">
             <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
               <MapPin className="size-5" />
@@ -238,8 +238,8 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
           </button>
         </div>
 
-        {/* Content & Form */}
-        <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto p-6 space-y-6">
+        {/* Scrollable Content & Form */}
+        <form id="add-address-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* 1. Map Pinning Section */}
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -449,27 +449,29 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords }: Props) {
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-line">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={addAddress.isPending}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={addAddress.isPending || !houseNo.trim() || !buildingSociety.trim()}
-              data-testid="save-address-btn"
-            >
-              {addAddress.isPending ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" /> Saving Address...
-                </>
-              ) : (
-                "Save Address"
-              )}
-            </Button>
-          </div>
         </form>
+
+        {/* Fixed Footer Actions */}
+        <div className="flex shrink-0 items-center justify-end gap-3 border-t border-line bg-surface px-6 py-4">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={addAddress.isPending}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="add-address-form"
+            size="sm"
+            disabled={addAddress.isPending || !houseNo.trim() || !buildingSociety.trim()}
+            data-testid="save-address-btn"
+          >
+            {addAddress.isPending ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Saving Address...
+              </>
+            ) : (
+              "Save Address"
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

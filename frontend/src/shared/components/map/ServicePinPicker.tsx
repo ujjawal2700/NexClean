@@ -70,7 +70,7 @@ export function ServicePinPicker({ value, onChange, fallbackCenter, className }:
       ...MAP_OPTIONS_BASE,
       center,
       zoom: value || fallbackCenter ? 17 : 13,
-      gestureHandling: "greedy",
+      gestureHandling: "cooperative",
     });
     mapRef.current = map;
     geocoderRef.current = new google.maps.Geocoder();

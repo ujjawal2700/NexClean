@@ -177,7 +177,20 @@ export async function updateAgent(req: Request, res: Response): Promise<Response
 }
 
 export async function deleteAgent(req: Request, res: Response): Promise<Response> {
-  return ok(res, await service.deleteAgent(String(req.params.id)), "Agent deleted");
+  const queryMode = req.query.mode as service.DeleteAgentMode | undefined;
+  const bodyMode = req.body?.mode as service.DeleteAgentMode | undefined;
+  const isForce = req.query.force === "true" || req.body?.force === true;
+
+  let mode: service.DeleteAgentMode = "strict";
+  if (queryMode === "agent_only" || queryMode === "with_data" || queryMode === "strict") {
+    mode = queryMode;
+  } else if (bodyMode === "agent_only" || bodyMode === "with_data" || bodyMode === "strict") {
+    mode = bodyMode;
+  } else if (isForce) {
+    mode = "agent_only";
+  }
+
+  return ok(res, await service.deleteAgent(String(req.params.id), mode), "Agent deleted");
 }
 
 /**

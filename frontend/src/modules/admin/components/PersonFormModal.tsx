@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, AlertTriangle } from "lucide-react";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { useVehicleCategories, useCities, useZones } from "../api/admin.api";
@@ -378,6 +378,8 @@ export function ConfirmDeleteModal({
   pending,
   error,
   onConfirm,
+  onDeleteAgentOnly,
+  onDeleteWithData,
   onClose,
 }: {
   open: boolean;
@@ -385,39 +387,205 @@ export function ConfirmDeleteModal({
   kind: "agent" | "customer";
   pending: boolean;
   error?: string;
-  onConfirm: () => void;
+  onConfirm?: () => void;
+  onDeleteAgentOnly?: () => void;
+  onDeleteWithData?: () => void;
   onClose: () => void;
 }) {
+  const [confirmStep, setConfirmStep] = useState<"agent_only" | "with_data" | null>(null);
+
+  useEffect(() => {
+    if (!open) setConfirmStep(null);
+  }, [open]);
+
   if (!open) return null;
+
+  const isAgent = kind === "agent" && (onDeleteAgentOnly || onDeleteWithData);
+
+  const handleClose = () => {
+    setConfirmStep(null);
+    onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md rounded-card border border-line bg-surface p-6 shadow-[var(--shadow-lift)]">
-        <h2 className="font-display text-xl text-ink">Delete {kind}?</h2>
-        <p className="mt-2 text-sm text-muted">
-          <span className="font-medium text-ink">{name}</span> will be removed permanently. This can't be undone.
-        </p>
-        <p className="mt-2 text-sm text-muted">
-          Accounts with bookings or payments can't be deleted — suspend them instead, which blocks all access and keeps the
-          records intact.
-        </p>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+      <div className="w-full max-w-lg rounded-3xl border border-line bg-surface p-6 shadow-2xl">
+        {/* Step 2: Confirmation for Delete Agent Only */}
+        {confirmStep === "agent_only" ? (
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 place-items-center rounded-2xl bg-amber-500/10 text-amber-600">
+                <AlertTriangle className="size-5" />
+              </span>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-ink">Confirm: Delete Agent Only?</h2>
+                <p className="text-xs text-muted">Please confirm this action</p>
+              </div>
+            </div>
 
-        {error && (
-          <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">{error}</p>
+            <div className="mt-4 rounded-2xl border border-line bg-surface-muted/50 p-4 text-xs text-ink-soft space-y-2 leading-relaxed">
+              <p>
+                Are you sure you want to delete <span className="font-semibold text-ink">{name}</span>?
+              </p>
+              <p>
+                • The agent account will be deleted permanently and can no longer log in.
+              </p>
+              <p>
+                • All historical bookings, payments, and receipts will be <strong>safely preserved</strong> and marked as <span className="font-semibold text-ink">"{name} (deleted)"</span>.
+              </p>
+            </div>
+
+            {error && (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-600">
+                {error}
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmStep(null)} disabled={pending}>
+                Back
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
+                Cancel
+              </Button>
+              <button
+                type="button"
+                onClick={onDeleteAgentOnly}
+                disabled={pending}
+                className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                data-testid="confirm-delete-agent-only-btn"
+              >
+                {pending && <Loader2 className="size-4 animate-spin" />}
+                Yes, Delete Agent Only
+              </button>
+            </div>
+          </div>
+        ) : confirmStep === "with_data" ? (
+          /* Step 2: Confirmation for Delete Agent with All Data */
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 place-items-center rounded-2xl bg-red-500/10 text-red-600">
+                <AlertTriangle className="size-5" />
+              </span>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-red-600">Confirm: Delete Agent & All Data?</h2>
+                <p className="text-xs text-muted">Irreversible destructive action</p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-xs text-red-700 space-y-2 leading-relaxed">
+              <p className="font-semibold">
+                ⚠️ Warning: You are about to permanently delete <span className="underline">{name}</span> AND ALL their assigned bookings, payments, and related records!
+              </p>
+              <p>
+                • This will permanently remove all booking history and receipts associated with this cleaner.
+              </p>
+              <p>
+                • This action <strong>cannot be undone</strong>.
+              </p>
+            </div>
+
+            {error && (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-600">
+                {error}
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5">
+              <Button variant="ghost" size="sm" onClick={() => setConfirmStep(null)} disabled={pending}>
+                Back
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
+                Cancel
+              </Button>
+              <button
+                type="button"
+                onClick={onDeleteWithData}
+                disabled={pending}
+                className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                data-testid="confirm-delete-agent-with-data-btn"
+              >
+                {pending && <Loader2 className="size-4 animate-spin" />}
+                Yes, Delete Agent & All Data
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Step 1: Initial Selection */
+          <div>
+            <h2 className="font-display text-xl text-ink">Delete {kind}?</h2>
+            <p className="mt-2 text-sm text-muted">
+              <span className="font-semibold text-ink">{name}</span> will be removed.
+            </p>
+
+            {isAgent ? (
+              <div className="mt-3 space-y-2.5 rounded-2xl border border-line bg-surface-muted/50 p-4 text-xs text-muted">
+                <div className="flex items-start gap-2">
+                  <span className="font-semibold text-ink shrink-0">1. Delete Agent Only:</span>
+                  <span>Removes the agent account while preserving all historical bookings and records, marking them as <strong className="text-ink">"{name} (deleted)"</strong>.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="font-semibold text-ink shrink-0">2. Delete Agent with Data:</span>
+                  <span>Permanently deletes the agent along with all their assigned bookings, payments, and related records.</span>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted">
+                Accounts with bookings or payments can't be deleted — suspend them instead, which blocks all access and keeps the records intact.
+              </p>
+            )}
+
+            {error && (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-600">
+                {error}
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-2.5">
+              <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
+                Cancel
+              </Button>
+
+              {isAgent ? (
+                <>
+                  {onDeleteAgentOnly && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmStep("agent_only")}
+                      disabled={pending}
+                      className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-medium border border-line bg-surface text-ink hover:bg-surface-muted hover:border-primary/40 hover:text-primary transition-all cursor-pointer disabled:opacity-50"
+                      data-testid="delete-agent-only-btn"
+                    >
+                      Delete Agent Only
+                    </button>
+                  )}
+                  {onDeleteWithData && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmStep("with_data")}
+                      disabled={pending}
+                      className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                      data-testid="delete-agent-with-data-btn"
+                    >
+                      Delete Agent with Data
+                    </button>
+                  )}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onConfirm}
+                  disabled={pending}
+                  className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                  data-testid="delete-btn"
+                >
+                  {pending && <Loader2 className="size-4 animate-spin" />}
+                  Delete
+                </button>
+              )}
+            </div>
+          </div>
         )}
-
-        <div className="mt-6 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose} disabled={pending}>
-            Cancel
-          </Button>
-          <Button
-            onClick={onConfirm}
-            disabled={pending}
-            className="bg-red-500 text-white hover:bg-red-600 focus-visible:outline-red-500"
-          >
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            Delete
-          </Button>
-        </div>
       </div>
     </div>
   );

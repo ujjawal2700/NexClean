@@ -166,11 +166,28 @@ export function useUpdateAgent() {
   });
 }
 
+export type DeleteAgentOptions = {
+  id: string;
+  mode?: "agent_only" | "with_data" | "strict";
+  force?: boolean;
+};
+
 export function useDeleteAgent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiFetch<{ deleted: boolean }>(`/admin/agents/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.agents }),
+    mutationFn: (args: string | DeleteAgentOptions) => {
+      const id = typeof args === "string" ? args : args.id;
+      const mode = typeof args === "object" ? (args.mode || (args.force ? "agent_only" : "strict")) : "strict";
+      return apiFetch<{ deleted: boolean }>(`/admin/agents/${id}?mode=${mode}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.agents });
+      qc.invalidateQueries({ queryKey: keys.bookings });
+      qc.invalidateQueries({ queryKey: keys.payments });
+      qc.invalidateQueries({ queryKey: keys.dashboardStats });
+    },
   });
 }
 

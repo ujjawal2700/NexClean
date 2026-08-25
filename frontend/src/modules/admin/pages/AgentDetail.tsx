@@ -328,14 +328,27 @@ export function AgentDetail() {
         pending={deleteAgent.isPending}
         error={formError}
         onClose={() => { setDeleting(false); setFormError(""); }}
-        onConfirm={() => {
+        onDeleteAgentOnly={() => {
           setFormError("");
-          deleteAgent.mutate(agent.id, {
-            // The record this page is built on is gone, so go back to the list
-            // rather than leaving a detail view of something that no longer exists.
-            onSuccess: () => navigate("/admin/agents"),
-            onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent"),
-          });
+          deleteAgent.mutate(
+            { id: agent.id, mode: "agent_only" },
+            {
+              // The record this page is built on is gone, so go back to the list
+              // rather than leaving a detail view of something that no longer exists.
+              onSuccess: () => navigate("/admin/agents"),
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent"),
+            },
+          );
+        }}
+        onDeleteWithData={() => {
+          setFormError("");
+          deleteAgent.mutate(
+            { id: agent.id, mode: "with_data" },
+            {
+              onSuccess: () => navigate("/admin/agents"),
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent with data"),
+            },
+          );
         }}
       />
     </div>

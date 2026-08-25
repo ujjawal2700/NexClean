@@ -280,13 +280,27 @@ export function Agents() {
         pending={deleteAgent.isPending}
         error={formError}
         onClose={closeDelete}
-        onConfirm={() => {
+        onDeleteAgentOnly={() => {
           if (!deleting) return;
           setFormError("");
-          deleteAgent.mutate(deleting.id, {
-            onSuccess: closeDelete,
-            onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent"),
-          });
+          deleteAgent.mutate(
+            { id: deleting.id, mode: "agent_only" },
+            {
+              onSuccess: closeDelete,
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent"),
+            },
+          );
+        }}
+        onDeleteWithData={() => {
+          if (!deleting) return;
+          setFormError("");
+          deleteAgent.mutate(
+            { id: deleting.id, mode: "with_data" },
+            {
+              onSuccess: closeDelete,
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent with data"),
+            },
+          );
         }}
       />
     </div>

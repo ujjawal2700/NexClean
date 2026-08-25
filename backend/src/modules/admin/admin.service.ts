@@ -5,6 +5,7 @@ import { Payment, type PaymentDocument } from "../payment/payment.model";
 import { createRazorpayRefund, paymentsLive } from "../payment/razorpay";
 import { Campaign } from "./campaign.model";
 import { TriggeredAlert } from "../area-alert/areaAlert.model";
+import { SupportTicket } from "../chat/ticket.model";
 import { notifyUser, pushToUser } from "../notification/notification.service";
 import { maybeCreditReferrer } from "../promotions/referral.service";
 import { ApiError } from "../../shared/utils/ApiError";
@@ -625,12 +626,89 @@ export async function updateAgent(id: string, input: Partial<AgentInput>) {
   return mapAgent(agent);
 }
 
-export async function deleteAgent(id: string) {
+export type DeleteAgentMode = "strict" | "agent_only" | "with_data";
+
+export async function deleteAgent(id: string, mode: DeleteAgentMode = "strict") {
   const agent = await User.findOne({ _id: id, role: "agent" });
   if (!agent) throw ApiError.notFound("Agent not found");
-  await assertDeletable(id, "agent");
+
+  if (mode === "strict") {
+    await assertDeletable(id, "agent");
+  } else if (mode === "agent_only") {
+    const deletedName = `${agent.name} (deleted)`;
+
+    // Update all bookings where this agent was assigned or recorded
+    await Booking.updateMany(
+      { assignedAgent: id },
+      {
+        $set: {
+          agentName: deletedName,
+          assignedAgent: null,
+        },
+      },
+    );
+
+    // Also update any bookings that had agentName as this agent's exact name
+    await Booking.updateMany(
+      { agentName: agent.name },
+      {
+        $set: {
+          agentName: deletedName,
+          assignedAgent: null,
+        },
+      },
+    );
+
+    // Clear any pending offers to this agent
+    await Booking.updateMany(
+      { currentOfferAgent: id },
+      {
+        $set: {
+          currentOfferAgent: null,
+          offerExpiresAt: null,
+        },
+      },
+    );
+
+    // Unassign agent from support tickets
+    await SupportTicket.updateMany(
+      { assignedAgent: id },
+      { $set: { assignedAgent: null } },
+    );
+  } else if (mode === "with_data") {
+    // 1. Find all bookings assigned to or named with this agent
+    const bookings = await Booking.find({
+      $or: [{ assignedAgent: id }, { agentName: agent.name }],
+    }).select("_id");
+    const bookingIds = bookings.map((b) => b._id);
+
+    // 2. Delete corresponding payments
+    if (bookingIds.length > 0) {
+      await Payment.deleteMany({ booking: { $in: bookingIds } });
+    }
+
+    // 3. Delete corresponding bookings
+    await Booking.deleteMany({
+      $or: [{ assignedAgent: id }, { agentName: agent.name }],
+    });
+
+    // 4. Clear any pending offers
+    await Booking.updateMany(
+      { currentOfferAgent: id },
+      {
+        $set: {
+          currentOfferAgent: null,
+          offerExpiresAt: null,
+        },
+      },
+    );
+
+    // 5. Delete tickets assigned to this agent
+    await SupportTicket.deleteMany({ assignedAgent: id });
+  }
+
   await User.deleteOne({ _id: id });
-  return { deleted: true, id };
+  return { deleted: true, id, mode };
 }
 
 export type CustomerInput = {
@@ -1239,7 +1317,14 @@ export async function getBookingDetail(id: string) {
           phone: agent.phone || null,
           email: agent.email || null,
         }
-      : null,
+      : booking.agentName
+        ? {
+            id: null,
+            name: booking.agentName,
+            phone: null,
+            email: null,
+          }
+        : null,
 
     vehicleType: booking.vehicleType,
     vehicleName: booking.vehicleName,
