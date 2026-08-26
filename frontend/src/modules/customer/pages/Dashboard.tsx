@@ -5,6 +5,7 @@ import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { Skeleton } from "@shared/ui/Skeleton";
 import { useMe, useBookings, usePromoBanners, useVehicleCategories, useCategoryLabel } from "../api/queries";
+import { useIsGuest } from "../store/sessionStore";
 import { PACKAGES } from "../data/catalog";
 import { formatDate, formatMoney, greeting } from "@shared/lib/format";
 import type { BannerType } from "../types";
@@ -26,8 +27,9 @@ export function Dashboard() {
   const { data: banners = [] } = usePromoBanners();
   const { data: categories = [] } = useVehicleCategories();
   const categoryLabel = useCategoryLabel();
+  const isGuest = useIsGuest();
 
-  const name = me?.name ?? "Member";
+  const name = isGuest ? "Guest" : me?.name ?? "Member";
   const vehicles = me?.vehicles ?? [];
   const activePlan = me?.activePlan ?? null;
   const next = bookings.filter((b) => b.status === "upcoming")[0];
@@ -39,7 +41,7 @@ export function Dashboard() {
       {/* greeting */}
       <div>
         <p className="text-sm text-muted">{greeting()},</p>
-        {meLoading ? (
+        {meLoading && !isGuest ? (
           <Skeleton className="mt-1 h-9 w-48" />
         ) : (
           <h1 className="text-2xl text-ink sm:text-3xl">{name || "Member"} 👋</h1>
@@ -157,7 +159,22 @@ export function Dashboard() {
       )}
 
 
-      {/* garage */}
+      {/* garage — a guest has none yet, so the slot sells the account instead */}
+      {isGuest ? (
+        <GlassCard className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <p className="font-display font-semibold text-ink">Your garage</p>
+            <p className="mt-1 text-sm text-muted">
+              Log in to add your vehicles, save addresses and book a doorstep wash.
+            </p>
+          </div>
+          <Button asChild size="sm">
+            <Link to="/app/login">
+              Log in or sign up <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+        </GlassCard>
+      ) : (
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold text-ink">Your garage</h2>
@@ -192,6 +209,7 @@ export function Dashboard() {
               ))}
         </div>
       </section>
+      )}
 
       {/* plan strip */}
       <GlassCard className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">

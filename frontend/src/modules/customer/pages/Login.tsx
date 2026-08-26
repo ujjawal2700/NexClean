@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
-import { useNavigate, Link, Navigate } from "react-router-dom";
+import { useNavigate, useLocation, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2, UserX, UserPlus, Mail, MapPin, X } from "lucide-react";
+import { Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2, UserX, Mail, MapPin, X, Compass } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Badge } from "@shared/ui/Badge";
 import { Input } from "@shared/ui/Input";
@@ -19,9 +19,15 @@ const DEMO_OTP = "123456";
 
 export function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const qc = useQueryClient();
   const authenticated = useSessionStore((s) => s.authenticated);
   const setToken = useSessionStore((s) => s.setToken);
+  const startGuest = useSessionStore((s) => s.startGuest);
+
+  // Where to land after a successful login: the screen a guest was bounced
+  // from, otherwise the dashboard.
+  const redirectTo = (location.state as { from?: string } | null)?.from ?? "/app";
   const sendLoginOtp = useSendLoginOtp();
   const verifyOtp = useVerifyOtp();
 
@@ -33,7 +39,7 @@ export function Login() {
   const [showNotRegisteredModal, setShowNotRegisteredModal] = useState(false);
   const phoneRef = useRef("");
 
-  if (authenticated) return <Navigate to="/app" replace />;
+  if (authenticated) return <Navigate to={redirectTo} replace />;
 
   const send = async () => {
     if (!/^\d{10}$/.test(phone)) {
@@ -72,7 +78,7 @@ export function Login() {
       }
       setToken(token);
       qc.setQueryData(meKey, user);
-      navigate("/app", { replace: true });
+      navigate(redirectTo, { replace: true });
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
       if (msg.includes("NOT_REGISTERED") || msg.toLowerCase().includes("not registered")) {
@@ -167,6 +173,29 @@ export function Login() {
           <p className="mt-6 flex items-center justify-center gap-2 text-xs text-muted">
             <ShieldCheck className="size-3.5 text-primary" /> Secured with end-to-end verification
           </p>
+
+          {step === "phone" && (
+            <>
+              <div className="my-5 flex items-center gap-3">
+                <span className="h-px flex-1 bg-line" />
+                <span className="text-[11px] uppercase tracking-wider text-muted">or</span>
+                <span className="h-px flex-1 bg-line" />
+              </div>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  startGuest();
+                  navigate("/app", { replace: true });
+                }}
+              >
+                <Compass className="size-4" /> Skip for now, just browse
+              </Button>
+              <p className="mt-2 text-center text-[11px] text-muted">
+                You can view the dashboard and plans. Booking, your bookings and profile need an account.
+              </p>
+            </>
+          )}
         </div>
 
         <p className="mt-6 text-center text-sm text-muted">

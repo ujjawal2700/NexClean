@@ -35,6 +35,7 @@ import {
   useRescheduleSubscriptionWash,
   useCancelBooking,
 } from "../api/mutations";
+import { useIsGuest } from "../store/sessionStore";
 import type { SubscriptionPreview } from "../api/mutations";
 import { TIME_SLOTS } from "../data/catalog";
 import type { CarType, CatalogPlan, Booking } from "../types";
@@ -63,6 +64,7 @@ function washesLabel(washesPerMonth: number): string {
 
 export function Subscriptions() {
   const navigate = useNavigate();
+  const isGuest = useIsGuest();
   const { data: me } = useMe();
   const { data: plans = [], isLoading: plansLoading } = usePlans();
   const categoryLabel = useCategoryLabel();
@@ -122,6 +124,12 @@ export function Subscriptions() {
   const [checkoutError, setCheckoutError] = useState("");
 
   const openCheckout = (plan: CatalogPlan) => {
+    // Guests can read the catalog but not buy: send them to the login and bring
+    // them back to plans once they're in.
+    if (isGuest) {
+      navigate("/app/login", { state: { from: "/app/plans" } });
+      return;
+    }
     setCheckoutPlan(plan);
     setSubUseCoins(false);
     setSubQuote(null);
@@ -781,7 +789,9 @@ export function Subscriptions() {
         )
       ) : (
         <p className="mb-6 text-sm text-muted">
-          Add a vehicle in your profile to see its exact price — showing the lowest tier for now.
+          {isGuest
+            ? "Log in and add a vehicle to see its exact price — showing the lowest tier for now."
+            : "Add a vehicle in your profile to see its exact price — showing the lowest tier for now."}
         </p>
       )}
 
@@ -857,7 +867,7 @@ export function Subscriptions() {
                     disabled={busy}
                     onClick={() => openCheckout(plan)}
                   >
-                    Choose {plan.name}
+                    {isGuest ? `Log in to choose ${plan.name}` : `Choose ${plan.name}`}
                   </Button>
                 )}
               </div>

@@ -22,6 +22,11 @@ import { TrackBooking } from "./pages/tracking/TrackBooking";
 /**
  * Customer module router (base path /app). Login is public; everything else
  * is wrapped in CustomerLayout behind the auth guard.
+ *
+ * Two guarded groups share the same layout: the browse group (dashboard,
+ * plans) also admits the "skip login" guest, while the account group —
+ * booking, bookings, profile and everything under it — always requires a
+ * real session and bounces a guest to the login.
  */
 export function CustomerApp() {
   return (
@@ -40,6 +45,21 @@ export function CustomerApp() {
           }
         />
 
+        {/* Browsable without an account */}
+        <Route
+          element={
+            <ProtectedRoute allowGuest>
+              <CustomerLayout>
+                <Outlet />
+              </CustomerLayout>
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="plans" element={<Subscriptions />} />
+        </Route>
+
+        {/* Account-only */}
         <Route
           element={
             <ProtectedRoute>
@@ -49,10 +69,8 @@ export function CustomerApp() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Dashboard />} />
           <Route path="book" element={<BookingFlow />} />
           <Route path="bookings" element={<Bookings />} />
-          <Route path="plans" element={<Subscriptions />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
           <Route path="profile/edit" element={<EditProfile />} />
