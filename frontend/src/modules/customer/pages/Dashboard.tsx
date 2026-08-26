@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, CalendarPlus, MapPin, Sparkles, Plus, CreditCard } from "lucide-react";
+import { ArrowRight, CalendarPlus, MapPin, Sparkles, Plus, CreditCard, Bell } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { Skeleton } from "@shared/ui/Skeleton";
-import { useMe, useBookings, usePromoBanners, useVehicleCategories, useCategoryLabel } from "../api/queries";
+import { useMe, useBookings, usePromoBanners, useVehicleCategories, useCategoryLabel, useNotifications } from "../api/queries";
 import { useIsGuest } from "../store/sessionStore";
 import { PACKAGES } from "../data/catalog";
 import { formatDate, formatMoney, greeting } from "@shared/lib/format";
@@ -26,8 +26,12 @@ export function Dashboard() {
   const { data: bookings = [], isLoading: bookingsLoading } = useBookings();
   const { data: banners = [] } = usePromoBanners();
   const { data: categories = [] } = useVehicleCategories();
+  const { data: notifications = [] } = useNotifications();
   const categoryLabel = useCategoryLabel();
   const isGuest = useIsGuest();
+
+  const unread = notifications.filter((n) => !n.read).length;
+  const unreadNotification = notifications.find((n) => !n.read);
 
   const name = isGuest ? "Guest" : me?.name ?? "Member";
   const vehicles = me?.vehicles ?? [];
@@ -38,15 +42,63 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8">
-      {/* greeting */}
-      <div>
-        <p className="text-sm text-muted">{greeting()},</p>
-        {meLoading && !isGuest ? (
-          <Skeleton className="mt-1 h-9 w-48" />
-        ) : (
-          <h1 className="text-2xl text-ink sm:text-3xl">{name || "Member"} 👋</h1>
+      {/* greeting & notification button */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm text-muted">{greeting()},</p>
+          {meLoading && !isGuest ? (
+            <Skeleton className="mt-1 h-9 w-48" />
+          ) : (
+            <h1 className="text-2xl text-ink sm:text-3xl">{name || "Member"} 👋</h1>
+          )}
+        </div>
+
+        {!isGuest && (
+          <Link
+            to="/app/notifications"
+            className="relative grid size-11 shrink-0 place-items-center rounded-2xl border border-line bg-surface text-ink-soft shadow-xs transition-all hover:border-primary/40 hover:bg-surface-muted hover:text-primary active:scale-95 cursor-pointer"
+            aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+          >
+            <Bell className="size-5" />
+            {unread > 0 && (
+              <span className="absolute -right-1 -top-1 grid min-w-5 h-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-white shadow-xs">
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
+          </Link>
         )}
       </div>
+
+      {/* In-app notification alert banner if unread */}
+      {!isGuest && unread > 0 && unreadNotification && (
+        <Link
+          to="/app/notifications"
+          className="group -mt-4 flex items-center justify-between gap-3 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-primary/5 to-surface p-3.5 shadow-xs transition-all hover:border-primary/40 hover:shadow-sm"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+              <Bell className="size-4.5" />
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-white">
+                  {unread} New Alert{unread > 1 ? "s" : ""}
+                </span>
+                <p className="font-medium text-xs text-ink truncate">
+                  {unreadNotification.title}
+                </p>
+              </div>
+              <p className="text-xs text-muted truncate mt-0.5">
+                {unreadNotification.body}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-xs font-semibold text-primary shrink-0">
+            <span>View</span>
+            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+          </div>
+        </Link>
+      )}
 
       {/* hero CTA + next booking */}
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
