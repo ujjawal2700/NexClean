@@ -5,7 +5,7 @@
  */
 
 /** How long a single cleaner has to accept an offer before it moves on. */
-export const OFFER_TTL_MS = Number(process.env.DISPATCH_OFFER_TTL_MS ?? 25_000);
+export const OFFER_TTL_MS = Number(process.env.DISPATCH_OFFER_TTL_MS ?? 60_000);
 
 /**
  * Search radii (metres). Dispatch starts at the first radius; once every
