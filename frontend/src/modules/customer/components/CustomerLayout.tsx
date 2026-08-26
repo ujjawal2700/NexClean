@@ -78,7 +78,7 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh overflow-x-hidden bg-bg">
       {/* top bar */}
-      <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 hidden border-b border-line/70 bg-surface/80 backdrop-blur-xl md:block">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-5">
           <button onClick={() => navigate("/app")} className="text-[1.1rem] cursor-pointer" aria-label="Dashboard">
             <Logo variant="full" />

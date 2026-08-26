@@ -137,7 +137,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
       <OfferOverlay dispatch={dispatch} />
 
       {/* Header top bar */}
-      <header className="sticky top-0 z-30 border-b border-line/70 bg-surface/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 hidden border-b border-line/70 bg-surface/80 backdrop-blur-xl md:block">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
           <button onClick={() => navigate("/agent")} className="flex items-center gap-2 text-[1.05rem] cursor-pointer" aria-label="Dashboard">
             <Logo variant="full" />
