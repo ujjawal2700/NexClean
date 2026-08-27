@@ -251,6 +251,8 @@ export async function rescheduleSubscriptionWash(
 
   booking.date = new Date(input.date);
   booking.slot = input.slot;
+  // New slot, new reminder windows — the ones already sent were for the old time.
+  booking.remindersSent = [];
   await booking.save();
   return booking;
 }

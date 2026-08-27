@@ -11,6 +11,8 @@
  * sending them) — nothing breaks either way.
  */
 
+import { resolveNotificationPath } from "./notificationLink";
+
 const KEY = "nexclean-device-token";
 
 /** A stable per-device synthetic token (fallback / mock mode). */
@@ -144,7 +146,15 @@ export async function getPushToken(options?: { requestPermission?: boolean }): P
       messaging.onMessage((payload: any) => {
         const n = payload?.notification;
         if (n && Notification.permission === "granted") {
-          new Notification(n.title || "NexClean", { body: n.body || "", data: payload.data });
+          const notif = new Notification(n.title || "NexClean", { body: n.body || "", data: payload.data });
+          // Foreground push still needs to deep-link on click — the tab is
+          // already open, so there's no service worker in the loop to do it.
+          notif.onclick = () => {
+            const path = resolveNotificationPath(payload.data);
+            window.focus();
+            if (path) window.location.assign(path);
+            notif.close();
+          };
         }
       });
     }

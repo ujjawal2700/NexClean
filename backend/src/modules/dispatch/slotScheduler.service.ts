@@ -184,6 +184,8 @@ export async function sweepAndRescheduleMissedSlots(): Promise<{ processed: numb
     // Update booking with new date & slot
     b.date = nextDate;
     b.slot = nextSlot;
+    // New slot, new reminder windows — the ones already sent were for the old time.
+    b.remindersSent = [];
     b.rescheduleCount = currentRescheduleCount + 1;
     b.lastRescheduledAt = new Date();
     b.autoRescheduled = true;

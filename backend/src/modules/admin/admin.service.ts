@@ -24,6 +24,7 @@ import { generateUniqueReferralCode } from "../user/user.service";
 import { payoutCalculator, computePayout, getPayoutConfig } from "../payout/payoutConfig.service";
 import { evaluateReschedule } from "../booking/reschedule.service";
 import { syncCashLedgerAmount } from "../payment/ledger.service";
+import { broadcastJobStatus, forgetAgentBookings } from "../tracking/tracking.service";
 
 type BookingDoc = BookingDocument;
 type DisplayStatus = "upcoming" | "in_progress" | "completed" | "cancelled";
@@ -128,6 +129,19 @@ export async function cancelBooking(id: string) {
   }
   dispatch.emitDispatchUpdate();
 
+  // Nothing else tells the customer an admin cancelled their booking — their
+  // tracking screen (if open) needs the socket event, and their device needs
+  // the push, or they never find out.
+  forgetAgentBookings(booking.assignedAgent ? String(booking.assignedAgent) : null);
+  broadcastJobStatus(booking);
+  const cancelledCustomerId = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
+  void notifyUser(cancelledCustomerId, {
+    type: "booking",
+    title: "❌ Booking cancelled",
+    body: `Your ${booking.packageName} for ${booking.slot} was cancelled.`,
+    data: { bookingId: String(booking._id), url: `/app/track/${booking._id}` },
+  }).catch((err) => console.error("cancel notification failed:", (err as Error).message));
+
   return mapBooking(booking);
 }
 
@@ -169,6 +183,8 @@ export async function rescheduleBooking(
 
   booking.date = new Date(input.date);
   booking.slot = input.slot;
+  // New slot, new reminder windows — the ones already sent were for the old time.
+  booking.remindersSent = [];
   booking.status = "upcoming";
   booking.dispatchStatus = "searching";
   booking.rescheduleCount = 0;
@@ -246,10 +262,24 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
 
   await booking.save();
 
-  // For cancellation: release any offer lock + dismiss agent popup.
-  if (status === "cancelled" && prevOfferAgent) {
-    await User.updateOne({ _id: prevOfferAgent, currentOfferBooking: id }, { currentOfferBooking: null });
-    dispatch.emitCancelToAgent(prevOfferAgent, id);
+  if (status === "cancelled") {
+    // Release any offer lock + dismiss agent popup.
+    if (prevOfferAgent) {
+      await User.updateOne({ _id: prevOfferAgent, currentOfferBooking: id }, { currentOfferBooking: null });
+      dispatch.emitCancelToAgent(prevOfferAgent, id);
+    }
+    // Nothing else tells the customer an admin cancelled their booking — their
+    // tracking screen (if open) needs the socket event, and their device needs
+    // the push, or they never find out.
+    forgetAgentBookings(booking.assignedAgent ? String(booking.assignedAgent) : null);
+    broadcastJobStatus(booking);
+    const cancelledCustomerId = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
+    void notifyUser(cancelledCustomerId, {
+      type: "booking",
+      title: "❌ Booking cancelled",
+      body: `Your ${booking.packageName} for ${booking.slot} was cancelled.`,
+      data: { bookingId: String(booking._id), url: `/app/track/${booking._id}` },
+    }).catch((err) => console.error("cancel notification failed:", (err as Error).message));
   }
 
   // Always refresh the admin dispatch console.

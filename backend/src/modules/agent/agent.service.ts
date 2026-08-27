@@ -141,10 +141,43 @@ export async function advanceStatus(agentId: string, bookingId: string) {
   forgetAgentBookings(agentId);
   broadcastJobStatus(booking);
 
+  const customerId = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
+
+  // Push + in-app feed entry for every customer-visible milestone, each deep
+  // linking straight back to the tracking screen. The socket event above
+  // covers the tab that's already open on that screen; this is what reaches
+  // the customer when it isn't.
+  const STATUS_NOTICE: Partial<Record<JobStatus, { title: string; body: string }>> = {
+    enroute: {
+      title: "🚗 Your cleaner is on the way",
+      body: `${booking.agentName ?? "Your cleaner"} is heading to you for the ${booking.packageName}.`,
+    },
+    arrived: {
+      title: "📍 Your cleaner has arrived",
+      body: `${booking.agentName ?? "Your cleaner"} has arrived and will begin shortly.`,
+    },
+    in_progress: {
+      title: "🧽 Service started",
+      body: `Your ${booking.vehicleName} wash is now in progress.`,
+    },
+    completed: {
+      title: "✅ Service completed",
+      body: `Your ${booking.vehicleName} is sparkling clean! Tap to view the before/after photos.`,
+    },
+  };
+  const notice = STATUS_NOTICE[next];
+  if (notice) {
+    void notifyUser(customerId, {
+      type: "booking",
+      title: notice.title,
+      body: notice.body,
+      data: { bookingId: String(booking._id), url: `/app/track/${booking._id}` },
+    }).catch((err) => console.error("status notification failed:", (err as Error).message));
+  }
+
   // A completed service is a qualifying referral milestone for the customer.
   // Fire-and-forget: never block job completion on the reward.
   if (next === "completed") {
-    const customerId = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
     void maybeCreditReferrer(customerId).catch((err) =>
       console.error("referral credit failed:", (err as Error).message),
     );

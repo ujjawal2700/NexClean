@@ -141,6 +141,16 @@ const bookingSchema = new Schema(
     rescheduleCount: { type: Number, default: 0 },
     lastRescheduledAt: { type: Date, default: null },
     autoRescheduled: { type: Boolean, default: false },
+
+    /**
+     * Which pre-service reminder pushes ("60m" | "30m" | "5m") have already
+     * gone out for this booking's current slot. The reminder sweep runs on a
+     * short tick and re-derives "is a window due?" from the clock every time,
+     * so without a persisted marker a slow tick or a restart would re-fire a
+     * reminder the customer already got. Rescheduling clears it (a new slot
+     * time means the old windows no longer apply).
+     */
+    remindersSent: { type: [String], default: [] },
   },
   {
     timestamps: true,

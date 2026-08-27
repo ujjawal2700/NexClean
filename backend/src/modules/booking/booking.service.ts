@@ -324,6 +324,8 @@ export async function rescheduleOwnBooking(
   booking.date = newDate;
   booking.slot = input.slot;
   booking.lastRescheduledAt = new Date();
+  // New slot, new reminder windows — the ones already sent were for the old time.
+  booking.remindersSent = [];
 
   // Re-enter dispatch exactly as the admin path does: the old offer is void and
   // the agent lock has to be released, or the cleaner keeps a job at a time the
@@ -398,5 +400,15 @@ export async function cancelBooking(userId: string, bookingId: string) {
       data: { bookingId: String(booking._id), role: "agent" },
     }).catch((err) => console.error("cancel notification failed:", (err as Error).message));
   }
+
+  // The customer's own receipt of the cancellation, and so a second signed-in
+  // device stays in sync without needing to reopen the tracking screen.
+  void notifyUser(userId, {
+    type: "booking",
+    title: "❌ Booking cancelled",
+    body: `Your ${booking.packageName} for ${booking.slot} has been cancelled.`,
+    data: { bookingId: String(booking._id), url: `/app/track/${booking._id}` },
+  }).catch((err) => console.error("cancel notification failed:", (err as Error).message));
+
   return booking;
 }

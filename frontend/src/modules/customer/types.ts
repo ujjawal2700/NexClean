@@ -198,6 +198,9 @@ export type AppNotification = {
   body: string;
   read: boolean;
   createdAt: string;
+  // Deep-link hint the backend attaches to booking-flow events (assignment,
+  // status updates, reminders) — see resolveNotificationPath.
+  data?: Record<string, string>;
 };
 
 export type SubscriptionScheduleResponse = {

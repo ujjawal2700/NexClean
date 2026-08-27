@@ -20,7 +20,9 @@ import {
   OFFER_BATCH,
   SWEEP_INTERVAL_MS,
   SUBSCRIPTION_LEAD_MS,
+  REMINDER_TICK_MS,
 } from "./dispatch.config";
+import { runBookingReminders } from "../booking/reminder.service";
 
 /* ----------------------------- helpers ---------------------------------- */
 
@@ -551,6 +553,7 @@ import { sweepAndRescheduleMissedSlots } from "./slotScheduler.service";
 
 let workerHandle: NodeJS.Timeout | null = null;
 let lastSubscriptionRun = 0;
+let lastReminderRun = 0;
 const SUBSCRIPTION_TICK_MS = 30_000;
 
 export function startDispatchWorker() {
@@ -565,6 +568,12 @@ export function startDispatchWorker() {
         if (Date.now() - lastSubscriptionRun >= SUBSCRIPTION_TICK_MS) {
           lastSubscriptionRun = Date.now();
           await runSubscriptionScheduler();
+        }
+        if (Date.now() - lastReminderRun >= REMINDER_TICK_MS) {
+          lastReminderRun = Date.now();
+          await runBookingReminders().catch((err) =>
+            console.error("booking reminder sweep failed:", (err as Error).message),
+          );
         }
       } catch (err) {
         console.error("dispatch worker tick failed:", (err as Error).message);
