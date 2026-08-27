@@ -92,14 +92,29 @@ export async function initSocket(server: any) {
     forgetAgentBookingsLocal(agentId);
   });
 
-  /** Pull whichever role session cookie is present off the handshake headers. */
-  const readTokenFromCookieHeader = (header?: string): string | null => {
+  /** Pull the requested (or whichever available) role session cookie off the handshake headers. */
+  const readTokenFromCookieHeader = (header?: string, roleHint?: string): string | null => {
     if (!header) return null;
+    const cookies: Record<string, string> = {};
     for (const part of header.split(";")) {
       const eq = part.indexOf("=");
       if (eq < 0) continue;
       const name = part.slice(0, eq).trim();
-      if (name.startsWith("nc_session_")) return decodeURIComponent(part.slice(eq + 1).trim());
+      if (name) cookies[name] = decodeURIComponent(part.slice(eq + 1).trim());
+    }
+
+    const normalizedRole = roleHint?.toLowerCase();
+    if (normalizedRole && cookies[`nc_session_${normalizedRole}`]) {
+      return cookies[`nc_session_${normalizedRole}`];
+    }
+
+    // Default fallback order if role hint not provided or not found
+    if (cookies["nc_session_agent"]) return cookies["nc_session_agent"];
+    if (cookies["nc_session_customer"]) return cookies["nc_session_customer"];
+    if (cookies["nc_session_admin"]) return cookies["nc_session_admin"];
+
+    for (const [name, val] of Object.entries(cookies)) {
+      if (name.startsWith("nc_session_")) return val;
     }
     return null;
   };
@@ -110,10 +125,16 @@ export async function initSocket(server: any) {
     // handshake carries when the client sets withCredentials — they can no
     // longer read a token to pass explicitly. auth/query are kept for
     // non-browser clients and pre-migration sessions.
+    const roleHint = (
+      socket.handshake.auth?.role ||
+      socket.handshake.query?.role ||
+      socket.handshake.headers?.["x-session-role"]
+    ) as string | undefined;
+
     const token =
-      socket.handshake.auth.token ||
-      socket.handshake.query.token ||
-      readTokenFromCookieHeader(socket.handshake.headers.cookie);
+      socket.handshake.auth?.token ||
+      socket.handshake.query?.token ||
+      readTokenFromCookieHeader(socket.handshake.headers.cookie, roleHint);
     if (!token) {
       return next(new Error("Authentication error: No token provided"));
     }

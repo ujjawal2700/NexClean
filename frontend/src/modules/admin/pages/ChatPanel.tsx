@@ -83,6 +83,7 @@ export function ChatPanel() {
     const socket = io(SOCKET_URL, {
       withCredentials: true,
       transports: ["websocket"],
+      auth: { role: "admin" },
     });
 
     socketRef.current = socket;

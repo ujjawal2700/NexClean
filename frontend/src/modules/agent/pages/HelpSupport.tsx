@@ -84,6 +84,7 @@ export function HelpSupport() {
     const socket = io(SOCKET_URL, {
       withCredentials: true,
       transports: ["websocket"],
+      auth: { role: "agent" },
     });
 
     socketRef.current = socket;

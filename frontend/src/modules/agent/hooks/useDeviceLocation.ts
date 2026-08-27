@@ -69,21 +69,30 @@ function startWatch() {
     publish();
   };
 
-  const onError = (err: GeolocationPositionError) => {
-    lastError = describeError(err);
-    publish();
+  const onInitialError = (err: GeolocationPositionError) => {
+    if (err.code === err.PERMISSION_DENIED) {
+      lastError = describeError(err);
+      publish();
+      return;
+    }
+    // Fallback to standard accuracy for desktop / laptop browsers without dedicated GPS hardware
+    navigator.geolocation.getCurrentPosition(onFix, onError, {
+      enableHighAccuracy: false,
+      timeout: 15_000,
+      maximumAge: 60_000,
+    });
   };
 
   // An immediate read alongside the watch: `watchPosition` alone can take
   // seconds to produce its first callback, and the map should not sit empty
   // through that when a cached fix would do.
-  navigator.geolocation.getCurrentPosition(onFix, onError, {
+  navigator.geolocation.getCurrentPosition(onFix, onInitialError, {
     enableHighAccuracy: true,
-    timeout: 10_000,
+    timeout: 8_000,
   });
   // maximumAge 0 — a fix cached from before this job started would put the
   // cleaner where they were, not where they are.
-  watchId = navigator.geolocation.watchPosition(onFix, onError, {
+  watchId = navigator.geolocation.watchPosition(onFix, onInitialError, {
     enableHighAccuracy: true,
     maximumAge: 0,
   });

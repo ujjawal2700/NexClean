@@ -89,7 +89,11 @@ export function useAgentDispatch(): AgentDispatch {
   // Socket connection + offer events.
   useEffect(() => {
     if (!authenticated) return;
-    const socket = io(SOCKET_URL, { withCredentials: true, transports: ["websocket"] });
+    const socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ["websocket"],
+      auth: { role: "agent" },
+    });
     socketRef.current = socket;
 
     socket.on("job_offer", (o: JobOffer) => {
@@ -119,14 +123,23 @@ export function useAgentDispatch(): AgentDispatch {
     };
   }, [authenticated, qc]);
 
-  // Restore a live offer that arrived while the app was closed/reconnecting.
+  // Restore a live offer that arrived while the app was closed/reconnecting or on tab focus.
   useEffect(() => {
     if (!authenticated) return;
-    fetchCurrentOffer()
-      .then((o) => {
-        if (o) setOffer(o);
-      })
-      .catch(() => {});
+    const checkOffer = () => {
+      fetchCurrentOffer()
+        .then((o) => {
+          if (o) setOffer(o);
+        })
+        .catch(() => {});
+    };
+    checkOffer();
+    window.addEventListener("focus", checkOffer);
+    document.addEventListener("visibilitychange", checkOffer);
+    return () => {
+      window.removeEventListener("focus", checkOffer);
+      document.removeEventListener("visibilitychange", checkOffer);
+    };
   }, [authenticated]);
 
   // Stream GPS so dispatch can rank by real distance and the customer's live

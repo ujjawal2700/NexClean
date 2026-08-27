@@ -58,7 +58,11 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   // Live: refresh bookings/notifications the moment an update or notification occurs.
   useEffect(() => {
     if (!authenticated) return;
-    const socket: Socket = io(SOCKET_URL, { withCredentials: true, transports: ["websocket"] });
+    const socket: Socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ["websocket"],
+      auth: { role: "customer" },
+    });
     socket.on("booking_assigned", () => {
       qc.invalidateQueries({ queryKey: bookingsKey });
       qc.invalidateQueries({ queryKey: notificationsKey });
