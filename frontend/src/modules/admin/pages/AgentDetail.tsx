@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Phone, MapPin, Star, BadgeCheck, Ban, RotateCcw, CreditCard, Eye, EyeOff, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Phone, MapPin, Star, BadgeCheck, Ban, RotateCcw, CreditCard, Eye, EyeOff, Pencil, Trash2, Radio } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -16,6 +16,7 @@ import {
   useDeleteAgent,
 } from "../api/admin.api";
 import { PersonFormModal, ConfirmDeleteModal, ConfirmActionModal } from "../components/PersonFormModal";
+import { AgentLocationModal } from "../components/AgentLocationModal";
 import { AGENT_STATUS_STYLE, BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
 
 export function AgentDetail() {
@@ -31,6 +32,7 @@ export function AgentDetail() {
   const [showDocs, setShowDocs] = useState(false);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [trackingLocation, setTrackingLocation] = useState(false);
   const [formError, setFormError] = useState("");
   // Pending verification change, held until the admin confirms it.
   const [statusChange, setStatusChange] = useState<"verified" | "pending" | "suspended" | null>(null);
@@ -71,6 +73,9 @@ export function AgentDetail() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => setTrackingLocation(true)}>
+            <Radio className="size-4" /> Live location
+          </Button>
           <Button size="sm" variant="outline" onClick={() => { setFormError(""); setEditing(true); }}>
             <Pencil className="size-4" /> Edit
           </Button>
@@ -255,6 +260,14 @@ export function AgentDetail() {
         </table>
         <Pagination page={bookings.page} totalPages={bookings.totalPages} onPageChange={bookings.setPage} />
       </GlassCard>
+      {trackingLocation && (
+        <AgentLocationModal
+          agentId={agent.id}
+          agentName={agent.name}
+          onClose={() => setTrackingLocation(false)}
+        />
+      )}
+
       <PersonFormModal
         open={editing}
         title="Edit agent"

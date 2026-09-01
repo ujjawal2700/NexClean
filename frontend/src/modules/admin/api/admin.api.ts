@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import type { SiteContent } from "@shared/types/content";
+import type { AgentLocationSnapshot } from "@shared/types/tracking";
 import { useAdminSession } from "../store/sessionStore";
 import type {
   AdminStats,
@@ -46,6 +47,8 @@ import type {
   AdminStaff,
   DispatchQueueItem,
   AssignableAgent,
+  AdminPayoutRequest,
+  PayoutRequestStatus,
 } from "../types";
 
 
@@ -56,6 +59,7 @@ const keys = {
   agents: ["admin", "agents"] as const,
   agent: (id: string) => ["admin", "agents", id] as const,
   agentActivity: (id: string) => ["admin", "agents", id, "activity"] as const,
+  agentLocation: (id: string) => ["admin", "agents", id, "location"] as const,
   pricing: ["admin", "pricing"] as const,
   plans: ["admin", "plans"] as const,
   campaigns: ["admin", "campaigns"] as const,
@@ -87,19 +91,20 @@ const keys = {
   staff: ["admin", "staff"] as const,
   dispatch: ["admin", "dispatch"] as const,
   assignable: (id: string) => ["admin", "bookings", id, "assignable"] as const,
+  payoutRequests: (status?: string) => ["admin", "payout-requests", status ?? "all"] as const,
 };
 
 
 function useAuthedQuery<T>(
   key: readonly unknown[],
   path: string,
-  opts?: { refetchInterval?: number | false; staleTime?: number },
+  opts?: { refetchInterval?: number | false; staleTime?: number; enabled?: boolean },
 ) {
   const authenticated = useAdminSession((s) => s.authenticated);
   return useQuery({
     queryKey: key,
     queryFn: () => apiFetch<T>(path),
-    enabled: authenticated,
+    enabled: authenticated && (opts?.enabled ?? true),
     staleTime: opts?.staleTime ?? 30_000,
     refetchInterval: opts?.refetchInterval,
   });
@@ -127,6 +132,13 @@ export const useAgents = () => useAuthedQuery<AdminAgent[]>(keys.agents, "/admin
 export const useAgent = (id: string) => useAuthedQuery<AdminAgentDetail>(keys.agent(id), `/admin/agents/${id}`);
 export const useAgentActivity = (id: string) =>
   useAuthedQuery<AgentActivity>(keys.agentActivity(id), `/admin/agents/${id}/activity`);
+/** Polled only while the live-location view is actually open — no point streaming an idle agent's GPS into a closed modal. */
+export const useAgentLocation = (id: string, enabled: boolean) =>
+  useAuthedQuery<AgentLocationSnapshot>(keys.agentLocation(id), `/tracking/agents/${id}`, {
+    enabled,
+    staleTime: 0,
+    refetchInterval: enabled ? 5_000 : false,
+  });
 export const usePricing = () => useAuthedQuery<Pricing>(keys.pricing, "/admin/pricing");
 export const usePlans = () => useAuthedQuery<AdminPlan[]>(keys.plans, "/admin/plans");
 export const useCampaigns = () => useAuthedQuery<Campaign[]>(keys.campaigns, "/admin/campaigns");
@@ -467,6 +479,52 @@ export function useSettlePayment() {
       qc.invalidateQueries({ queryKey: keys.payments });
       qc.invalidateQueries({ queryKey: keys.paymentStats });
     },
+  });
+}
+
+/* --------------------------- Agent payout requests ------------------------- */
+
+export const usePayoutRequests = (status?: PayoutRequestStatus | "all") =>
+  useAuthedQuery<AdminPayoutRequest[]>(
+    keys.payoutRequests(status === "all" ? undefined : status),
+    status && status !== "all" ? `/admin/payout-requests?status=${status}` : "/admin/payout-requests",
+    { refetchInterval: 20_000 },
+  );
+
+function invalidatePayoutRequests(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ["admin", "payout-requests"] });
+}
+
+export function useApprovePayoutRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<AdminPayoutRequest>(`/admin/payout-requests/${id}/approve`, { method: "PATCH" }),
+    onSuccess: () => invalidatePayoutRequests(qc),
+  });
+}
+
+export function useRejectPayoutRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; reason?: string }) =>
+      apiFetch<AdminPayoutRequest>(`/admin/payout-requests/${vars.id}/reject`, {
+        method: "PATCH",
+        body: { reason: vars.reason },
+      }),
+    onSuccess: () => invalidatePayoutRequests(qc),
+  });
+}
+
+export function useMarkPayoutRequestPaid() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; transactionRef?: string }) =>
+      apiFetch<AdminPayoutRequest>(`/admin/payout-requests/${vars.id}/paid`, {
+        method: "PATCH",
+        body: { transactionRef: vars.transactionRef },
+      }),
+    onSuccess: () => invalidatePayoutRequests(qc),
   });
 }
 

@@ -61,6 +61,14 @@ export type TrackingSnapshot = {
   afterPhotoUrl?: string | null;
 };
 
+/** One agent's current position, independent of any specific booking. */
+export type AgentLocationSnapshot = {
+  agentId: string;
+  name: string;
+  online: boolean;
+  agentLocation: LiveFix | null;
+};
+
 /** One in-flight job on the admin fleet map. */
 export type FleetJob = {
   bookingId: string;

@@ -10,4 +10,5 @@ export const trackingRouter = Router();
 trackingRouter.use(requireAuth);
 
 trackingRouter.get("/fleet", asyncHandler(controller.fleet));
+trackingRouter.get("/agents/:id", asyncHandler(controller.agentLocation));
 trackingRouter.get("/bookings/:id", asyncHandler(controller.snapshot));

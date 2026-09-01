@@ -31,6 +31,7 @@ const PERMISSION_SECTIONS = [
   { key: "leads", label: "Leads" },
   { key: "payments", label: "Payments & Refunds" },
   { key: "agent-payouts", label: "Agent Payouts" },
+  { key: "payout-requests", label: "Payout Requests" },
   { key: "pricing", label: "Pricing Packages" },
   { key: "plans", label: "Subscription Plans" },
   { key: "vehicle-categories", label: "Vehicle Categories" },

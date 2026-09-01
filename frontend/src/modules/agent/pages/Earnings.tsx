@@ -1,6 +1,7 @@
-import { useNavigate } from "react-router-dom";
-import { Wallet, TrendingUp, CheckCircle2, Briefcase, ArrowLeft } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import { Wallet, TrendingUp, CheckCircle2, Briefcase, ArrowLeft, ArrowRight } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
+import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { Skeleton, SkeletonStatCards } from "@shared/ui/Skeleton";
 import { formatDate, formatMoney } from "@shared/lib/format";
@@ -34,6 +35,18 @@ export function Earnings() {
         </button>
         <h1 className="font-display text-2xl text-ink sm:text-3xl">Earnings</h1>
       </div>
+
+      <GlassCard className="flex flex-wrap items-center justify-between gap-3 border-primary/30 bg-primary/5">
+        <div>
+          <p className="font-display font-semibold text-ink">Ready to cash out?</p>
+          <p className="mt-0.5 text-sm text-muted">Request a payout of what you've earned to your bank account.</p>
+        </div>
+        <Link to="/agent/payouts">
+          <Button size="sm">
+            <Wallet className="size-4" /> Payouts <ArrowRight className="size-4" />
+          </Button>
+        </Link>
+      </GlassCard>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {isLoading ? (

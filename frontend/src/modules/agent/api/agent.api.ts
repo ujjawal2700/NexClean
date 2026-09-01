@@ -8,6 +8,10 @@ import type {
   AgentSummary,
   AreaAlert,
   AgentNotification,
+  BankAccount,
+  IfscBranch,
+  WalletSummary,
+  PayoutRequest,
 } from "../types";
 
 export const meKey = ["agent", "me"] as const;
@@ -195,6 +199,61 @@ export function useRegisterToken() {
 export function useDeactivateAccount() {
   return useMutation({
     mutationFn: () => apiFetch<{ deactivated: boolean }>("/users/me/deactivate", { method: "POST" }),
+  });
+}
+
+/* --------------------------- Bank account + payouts ----------------------- */
+
+export const bankAccountKey = ["agent", "bank-account"] as const;
+export const walletKey = ["agent", "wallet"] as const;
+
+export function useBankAccount() {
+  const authenticated = useAgentSession((s) => s.authenticated);
+  return useQuery({
+    queryKey: bankAccountKey,
+    queryFn: () => apiFetch<BankAccount | null>("/agent/bank-account"),
+    enabled: authenticated,
+  });
+}
+
+export function useSaveBankAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      holderName: string;
+      bankName: string;
+      accountNumber: string;
+      confirmAccountNumber: string;
+      ifsc: string;
+    }) => apiFetch<BankAccount>("/agent/bank-account", { method: "PUT", body: vars }),
+    onSuccess: (account) => qc.setQueryData(bankAccountKey, account),
+  });
+}
+
+/**
+ * On-demand IFSC lookup — not a query hook, since it fires on blur/debounce
+ * rather than being tied to a component's mount, and a failed/unknown code is
+ * an expected outcome the caller handles inline rather than an error state.
+ */
+export function lookupIfsc(code: string): Promise<IfscBranch> {
+  return apiFetch<IfscBranch>(`/agent/bank-account/ifsc/${encodeURIComponent(code)}`);
+}
+
+export function useWallet() {
+  const authenticated = useAgentSession((s) => s.authenticated);
+  return useQuery({
+    queryKey: walletKey,
+    queryFn: () => apiFetch<WalletSummary>("/agent/wallet"),
+    enabled: authenticated,
+  });
+}
+
+export function useRequestPayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (amount: number) =>
+      apiFetch<PayoutRequest>("/agent/payout-requests", { method: "POST", body: { amount } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: walletKey }),
   });
 }
 

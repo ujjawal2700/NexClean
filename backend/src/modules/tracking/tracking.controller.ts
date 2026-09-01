@@ -17,3 +17,8 @@ export async function fleet(req: Request, res: Response): Promise<Response> {
   if (req.userRole !== "admin") throw ApiError.forbidden("Admins only");
   return ok(res, await service.getFleetSnapshot());
 }
+
+/** GET /tracking/agents/:id — one agent's current position (admin only). */
+export async function agentLocation(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.getAgentLocationSnapshot(String(req.params.id), viewer(req)));
+}

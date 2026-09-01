@@ -306,7 +306,7 @@ export function fallbackEtaMinutes(distanceM: number): number {
  */
 type StoredLocation = { liveLocation?: unknown; locationUpdatedAt?: Date | null } | null;
 
-async function agentFix(agentId: string, preloaded?: StoredLocation): Promise<LiveFix | null> {
+export async function agentFix(agentId: string, preloaded?: StoredLocation): Promise<LiveFix | null> {
   const cached = agentFixCache.get(agentId);
   if (cached && Date.now() - cached.at <= LOCATION_STALE_MS) {
     return {
@@ -423,6 +423,43 @@ export async function getTrackingSnapshot(bookingId: string, viewer: Viewer) {
           : [],
     beforePhotoUrl: b.beforePhotoUrl || (b.beforePhotos?.[0] ?? null),
     afterPhotoUrl: b.afterPhotoUrl || (b.afterPhotos?.[0] ?? null),
+  };
+}
+
+export type AgentLocationSnapshot = {
+  agentId: string;
+  name: string;
+  online: boolean;
+  agentLocation: LiveFix | null;
+};
+
+/**
+ * One agent's current position, independent of any specific booking — backs
+ * the admin's "live location" button on the agent's profile page.
+ *
+ * Deliberately admin-only. `assertCanTrack` above grants a customer or the
+ * assigned agent a view of a *booking's* tracking feed, which is scoped to a
+ * job both of them are already party to; an agent's whereabouts while they
+ * are not working a customer's job is nobody else's business.
+ */
+export async function getAgentLocationSnapshot(agentId: string, viewer: Viewer): Promise<AgentLocationSnapshot> {
+  if (viewer.role !== "admin") throw ApiError.forbidden("Admins only");
+  if (!Types.ObjectId.isValid(agentId)) throw ApiError.notFound("Agent not found");
+
+  const agent = await User.findOne({ _id: agentId, role: "agent" })
+    .select("name online liveLocation locationUpdatedAt")
+    .lean();
+  if (!agent) throw ApiError.notFound("Agent not found");
+
+  return {
+    agentId,
+    name: agent.name,
+    online: agent.online ?? false,
+    // Reuses the exact same freshness rule a customer's tracking screen uses
+    // (in-memory fix when this worker is streaming it, else the stored one,
+    // null once it's stale) — an idle agent's last-known point is only worth
+    // showing while it's still plausibly where they are.
+    agentLocation: await agentFix(agentId, agent),
   };
 }
 

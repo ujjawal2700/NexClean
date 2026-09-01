@@ -48,6 +48,11 @@ adminRouter.get("/payments/stats", requirePermission("payments"), asyncHandler(c
 adminRouter.patch("/payments/:id/refund", requirePermission("payments"), asyncHandler(c.refundPayment));
 adminRouter.patch("/payments/:id/settle", requirePermission("payments"), asyncHandler(c.settlePayment));
 
+adminRouter.get("/payout-requests", requirePermission("payout-requests"), asyncHandler(c.payoutRequests));
+adminRouter.patch("/payout-requests/:id/approve", requirePermission("payout-requests"), asyncHandler(c.approvePayoutRequest));
+adminRouter.patch("/payout-requests/:id/reject", requirePermission("payout-requests"), asyncHandler(c.rejectPayoutRequest));
+adminRouter.patch("/payout-requests/:id/paid", requirePermission("payout-requests"), asyncHandler(c.markPayoutRequestPaid));
+
 adminRouter.get("/pricing", requirePermission("pricing"), asyncHandler(c.pricing));
 adminRouter.put("/pricing", requirePermission("pricing"), asyncHandler(c.updatePricingCtl));
 

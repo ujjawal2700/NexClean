@@ -319,6 +319,28 @@ export type AdminPayment = {
   createdAt: string;
 };
 
+export type PayoutRequestStatus = "pending" | "approved" | "rejected" | "paid";
+
+export type PayoutBankSnapshot = {
+  holderName: string;
+  bankName: string;
+  accountNumber: string;
+  ifsc: string;
+  branch: string;
+};
+
+export type AdminPayoutRequest = {
+  id: string;
+  agent: { id: string; name: string; phone: string } | null;
+  amount: number;
+  status: PayoutRequestStatus;
+  bankSnapshot: PayoutBankSnapshot;
+  rejectionReason: string;
+  transactionRef: string;
+  processedAt: string | null;
+  createdAt: string;
+};
+
 export type PaymentStats = {
   totalCollected: number;
   totalRefunded: number;

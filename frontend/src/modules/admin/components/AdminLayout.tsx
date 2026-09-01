@@ -30,6 +30,7 @@ import {
   HandCoins,
   ChevronDown,
   Clock,
+  Banknote,
 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -83,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/admin/payments", label: "Payments", icon: Wallet, permission: "payments" },
       { to: "/admin/agent-payouts", label: "Agent Payouts", icon: HandCoins, permission: "agent-payouts" },
+      { to: "/admin/payout-requests", label: "Payout Requests", icon: Banknote, permission: "payout-requests" },
       { to: "/admin/pricing", label: "Pricing", icon: Tag, permission: "pricing" },
       { to: "/admin/plans", label: "Plans", icon: CreditCard, permission: "plans" },
     ],

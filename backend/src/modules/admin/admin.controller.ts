@@ -13,6 +13,7 @@ import { getReferralConfig, updateReferralConfig } from "../promotions/referralC
 import { getOffPeakHoursConfig, updateOffPeakHoursConfig } from "../promotions/offPeakHours.service";
 import { suggestOffPeakWindows } from "../promotions/offPeakSuggest.service";
 import { getPayoutConfig, updatePayoutConfig } from "../payout/payoutConfig.service";
+import * as payoutRequestService from "../payout/payoutRequest.service";
 import * as promoBannerService from "../promotions/promoBanner.service";
 import { BANNER_TYPES } from "../promotions/promoBanner.model";
 import * as service from "./admin.service";
@@ -783,6 +784,43 @@ export async function refundPayment(req: Request, res: Response): Promise<Respon
 
 export async function settlePayment(req: Request, res: Response): Promise<Response> {
   return ok(res, await service.settlePayment(String(req.params.id)), "Payment settled");
+}
+
+// ── Agent payout requests ───────────────────────────────────────────────────
+
+export async function payoutRequests(req: Request, res: Response): Promise<Response> {
+  const status = typeof req.query.status === "string" ? req.query.status : undefined;
+  return ok(res, await payoutRequestService.listAllPayoutRequests(status));
+}
+
+export async function approvePayoutRequest(req: Request, res: Response): Promise<Response> {
+  return ok(
+    res,
+    await payoutRequestService.approvePayoutRequest(String(req.params.id), req.userId!),
+    "Payout request approved",
+  );
+}
+
+const rejectPayoutSchema = z.object({ reason: z.string().optional() });
+export async function rejectPayoutRequest(req: Request, res: Response): Promise<Response> {
+  const parsed = rejectPayoutSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid request");
+  return ok(
+    res,
+    await payoutRequestService.rejectPayoutRequest(String(req.params.id), req.userId!, parsed.data.reason ?? ""),
+    "Payout request declined",
+  );
+}
+
+const markPaidSchema = z.object({ transactionRef: z.string().optional() });
+export async function markPayoutRequestPaid(req: Request, res: Response): Promise<Response> {
+  const parsed = markPaidSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid request");
+  return ok(
+    res,
+    await payoutRequestService.markPayoutRequestPaid(String(req.params.id), req.userId!, parsed.data.transactionRef),
+    "Payout marked as paid",
+  );
 }
 
 // ── Site content (footer + landing pages) ──────────────────────────────────

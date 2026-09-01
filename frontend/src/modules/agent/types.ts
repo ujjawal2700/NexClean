@@ -113,6 +113,47 @@ export type AgentSummary = {
   potentialToday: number;
 };
 
+/** Where a payout gets sent. `branch`/`address` are resolved server-side from `ifsc`, never typed in. */
+export type BankAccount = {
+  holderName: string;
+  bankName: string;
+  accountNumber: string;
+  ifsc: string;
+  branch: string;
+  address: string;
+  verifiedAt: string;
+};
+
+/** Result of looking up an IFSC code, before it's saved as part of a bank account. */
+export type IfscBranch = {
+  bank: string;
+  ifsc: string;
+  branch: string;
+  address: string;
+  city?: string;
+  state?: string;
+};
+
+export type PayoutRequestStatus = "pending" | "approved" | "rejected" | "paid";
+
+export type PayoutRequest = {
+  id: string;
+  amount: number;
+  status: PayoutRequestStatus;
+  bankSnapshot: { holderName: string; bankName: string; accountNumber: string; ifsc: string; branch: string };
+  rejectionReason: string;
+  transactionRef: string;
+  processedAt: string | null;
+  createdAt: string;
+};
+
+export type WalletSummary = {
+  totalEarned: number;
+  reserved: number;
+  available: number;
+  requests: PayoutRequest[];
+};
+
 /**
  * One row in the cleaner's inbox.
  *
