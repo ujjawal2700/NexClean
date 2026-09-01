@@ -17,6 +17,7 @@ import {
 } from "../api/admin.api";
 import { PersonFormModal, ConfirmDeleteModal, ConfirmActionModal } from "../components/PersonFormModal";
 import { AgentLocationModal } from "../components/AgentLocationModal";
+import { AgentLiveLocationSection } from "../components/AgentLiveLocationSection";
 import { AGENT_STATUS_STYLE, BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
 
 export function AgentDetail() {
@@ -167,6 +168,14 @@ export function AgentDetail() {
               : "Cannot take jobs until verified. Review the KYC documents below, then verify."}
         </p>
       </GlassCard>
+
+      <AgentLiveLocationSection
+        agentId={agent.id}
+        agentName={agent.name}
+        city={agent.city}
+        area={agent.area}
+        onOpenModal={() => setTrackingLocation(true)}
+      />
 
       <GlassCard>
         <div className="flex items-center justify-between">
