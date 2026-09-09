@@ -4,6 +4,12 @@ dist-ssr
 *.local
 .vite
 
+# tsc emit for vite.config.ts. These are build artifacts, and a committed
+# vite.config.js also SHADOWS vite.config.ts in Vite's config resolution
+# order, so a stale or tampered emit silently wins over the real config.
+vite.config.js
+vite.config.d.ts
+
 # Editor
 .vscode/*
 !.vscode/extensions.json

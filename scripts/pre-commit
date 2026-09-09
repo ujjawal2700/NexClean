@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blocks the config-appender loader (see scripts/scan-malware.mjs) from being
+# committed. Reinstall after a fresh clone: cp scripts/pre-commit .git/hooks/
+exec node "$(git rev-parse --show-toplevel)/scripts/scan-malware.mjs" --staged
