@@ -344,11 +344,11 @@ export function Profile() {
                 <UserX className="size-6" />
               </div>
               <h3 className="font-display text-lg font-bold text-ink">
-                Deactivate Account?
+                Delete Account?
               </h3>
               <p className="text-sm text-muted leading-relaxed">
-                Are you sure you want to deactivate your profile? You will be
-                logged out immediately. Once deactivated, only an admin can
+                Are you sure you want to delete your profile? You will be
+                logged out immediately. Once deleted, only an admin can
                 reactivate your profile.
               </p>
             </div>
@@ -368,7 +368,7 @@ export function Profile() {
                 {deactivateAccount.isPending ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  "Deactivate"
+                  "Delete account"
                 )}
               </Button>
             </div>

@@ -259,7 +259,7 @@ export function Profile() {
           className="w-full text-red-500 border-red-200 hover:bg-red-50/15 flex items-center justify-center gap-2 bg-surface"
         >
           <UserX className="size-[18px]" />
-          <span>Delete / Deactivate account</span>
+          <span>Delete account</span>
         </Button>
       </div>
 
@@ -304,9 +304,9 @@ export function Profile() {
               <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                 <UserX className="size-6" />
               </div>
-              <h3 className="font-display text-lg font-bold text-ink">Deactivate Account?</h3>
+              <h3 className="font-display text-lg font-bold text-ink">Delete Account?</h3>
               <p className="text-sm text-muted leading-relaxed">
-                Are you sure you want to deactivate your agent profile? You will be logged out immediately. Once deactivated, only an admin can reactivate your account.
+                Are you sure you want to delete your agent profile? You will be logged out immediately. Once deleted, only an admin can reactivate your account.
               </p>
             </div>
 
@@ -324,7 +324,7 @@ export function Profile() {
                 disabled={deactivateAccount.isPending}
                 className="flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white cursor-pointer"
               >
-                {deactivateAccount.isPending ? <Loader2 className="size-4 animate-spin" /> : "Deactivate"}
+                {deactivateAccount.isPending ? <Loader2 className="size-4 animate-spin" /> : "Delete account"}
               </Button>
             </div>
           </GlassCard>
