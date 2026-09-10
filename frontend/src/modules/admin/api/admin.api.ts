@@ -79,12 +79,12 @@ const keys = {
 };
 
 
-function useAuthedQuery<T>(key: readonly unknown[], path: string, opts?: { refetchInterval?: number; staleTime?: number }) {
+function useAuthedQuery<T>(key: readonly unknown[], path: string, opts?: { refetchInterval?: number; staleTime?: number; enabled?: boolean }) {
   const authenticated = useAdminSession((s) => s.authenticated);
   return useQuery({
     queryKey: key,
     queryFn: () => apiFetch<T>(path),
-    enabled: authenticated,
+    enabled: authenticated && (opts?.enabled !== false),
     staleTime: opts?.staleTime ?? 30_000,
     refetchInterval: opts?.refetchInterval,
   });
@@ -117,7 +117,7 @@ export const usePlans = () => useAuthedQuery<AdminPlan[]>(keys.plans, "/admin/pl
 export const useCampaigns = () => useAuthedQuery<Campaign[]>(keys.campaigns, "/admin/campaigns");
 export const useAlertSettings = () => useAuthedQuery<AlertSettings>(keys.settings, "/area-alerts/settings");
 export const useTriggered = () => useAuthedQuery<TriggeredAlert[]>(keys.triggered, "/area-alerts/triggered");
-export type AgentInput = { name: string; phone: string; email?: string; area?: string };
+export type AgentInput = { name: string; phone: string; email?: string; area?: string; zoneId?: string | null };
 export type CustomerInput = { name: string; phone: string; email?: string };
 
 export function useCreateAgent() {
@@ -436,10 +436,20 @@ export function useDeleteCity() {
   });
 }
 
+export const useZoneAgents = (zoneId: string | null) =>
+  useAuthedQuery<AdminAgent[]>(["admin", "zones", zoneId ?? "", "agents"], `/admin/zones/${zoneId}/agents`, { enabled: !!zoneId });
+
 export function useCreateZone() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { name: string; cityId: string }) =>
+    mutationFn: (vars: {
+      name: string;
+      cityId: string;
+      color?: string;
+      coordinates?: [number, number][];
+      pincodes?: string[];
+      active?: boolean;
+    }) =>
       apiFetch<ServiceZone>("/admin/zones", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.zones }),
   });
@@ -448,7 +458,15 @@ export function useCreateZone() {
 export function useUpdateZone() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { id: string; name?: string; active?: boolean; cityId?: string }) =>
+    mutationFn: (vars: {
+      id: string;
+      name?: string;
+      active?: boolean;
+      cityId?: string;
+      color?: string;
+      coordinates?: [number, number][];
+      pincodes?: string[];
+    }) =>
       apiFetch<ServiceZone>(`/admin/zones/${vars.id}`, { method: "PATCH", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.zones }),
   });

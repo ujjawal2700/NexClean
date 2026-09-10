@@ -119,6 +119,7 @@ const createAgentSchema = z.object({
   phone: personPhone,
   email: personEmail,
   area: z.string().trim().max(120).optional(),
+  zoneId: z.string().trim().optional().nullable(),
   agentStatus: z.enum(["verified", "pending", "suspended", "unverified"]).optional(),
 });
 const updateAgentSchema = z.object({
@@ -126,6 +127,7 @@ const updateAgentSchema = z.object({
   phone: personPhone.optional(),
   email: personEmail,
   area: z.string().trim().max(120).optional(),
+  zoneId: z.string().trim().optional().nullable(),
 });
 
 export async function createAgent(req: Request, res: Response): Promise<Response> {
@@ -272,7 +274,14 @@ export async function zones(_req: Request, res: Response): Promise<Response> {
   return ok(res, await locationService.listZones());
 }
 
-const createZoneSchema = z.object({ name: z.string().trim().min(1), cityId: z.string().min(1) });
+const createZoneSchema = z.object({
+  name: z.string().trim().min(1),
+  cityId: z.string().min(1),
+  color: z.string().trim().optional(),
+  coordinates: z.array(z.tuple([z.number(), z.number()])).optional(),
+  pincodes: z.array(z.string()).optional(),
+  active: z.boolean().optional(),
+});
 export async function createZone(req: Request, res: Response): Promise<Response> {
   const parsed = createZoneSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Zone name and city are required");
@@ -283,6 +292,9 @@ const updateZoneSchema = z.object({
   name: z.string().trim().min(1).optional(),
   active: z.boolean().optional(),
   cityId: z.string().min(1).optional(),
+  color: z.string().trim().optional(),
+  coordinates: z.array(z.tuple([z.number(), z.number()])).optional(),
+  pincodes: z.array(z.string()).optional(),
 });
 export async function updateZone(req: Request, res: Response): Promise<Response> {
   const parsed = updateZoneSchema.safeParse(req.body);
@@ -293,6 +305,10 @@ export async function updateZone(req: Request, res: Response): Promise<Response>
 export async function deleteZone(req: Request, res: Response): Promise<Response> {
   await locationService.deleteZone(String(req.params.id));
   return ok(res, null, "Zone deleted");
+}
+
+export async function zoneAgents(req: Request, res: Response): Promise<Response> {
+  return ok(res, await locationService.listAgentsInZone(String(req.params.id)));
 }
 
 /* --------------------------- Vehicle categories -------------------------- */
@@ -767,7 +783,7 @@ export async function createRole(req: Request, res: Response): Promise<Response>
   if (!name || typeof name !== "string") throw ApiError.badRequest("Role name is required");
   const existing = await AdminRole.findOne({ name: name.trim() });
   if (existing) throw ApiError.badRequest("Role with this name already exists");
-  
+
   const role = await AdminRole.create({
     name: name.trim(),
     permissions: Array.isArray(permissions) ? permissions : [],
@@ -779,10 +795,10 @@ export async function updateRole(req: Request, res: Response): Promise<Response>
   const { id } = req.params;
   const { name, permissions } = req.body;
   if (!name || typeof name !== "string") throw ApiError.badRequest("Role name is required");
-  
+
   const role = await AdminRole.findById(id);
   if (!role) throw ApiError.notFound("Role not found");
-  
+
   const existing = await AdminRole.findOne({ name: name.trim(), _id: { $ne: id } });
   if (existing) throw ApiError.badRequest("Another role with this name already exists");
 
@@ -796,7 +812,7 @@ export async function deleteRole(req: Request, res: Response): Promise<Response>
   const { id } = req.params;
   const role = await AdminRole.findById(id);
   if (!role) throw ApiError.notFound("Role not found");
-  
+
   // Verify if assigned to any staff
   const staffCount = await User.countDocuments({ adminRoleId: id });
   if (staffCount > 0) {

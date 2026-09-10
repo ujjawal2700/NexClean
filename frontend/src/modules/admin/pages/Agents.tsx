@@ -1,6 +1,19 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Star, MapPin, BadgeCheck, Ban, RotateCcw, CreditCard, Pencil, Check, X, Plus, Trash2 } from "lucide-react";
+import {
+  Search,
+  Star,
+  MapPin,
+  BadgeCheck,
+  Ban,
+  RotateCcw,
+  CreditCard,
+  Pencil,
+  Check,
+  X,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -10,12 +23,15 @@ import { usePagination } from "@shared/lib/usePagination";
 import {
   useAgents,
   useSetAgentStatus,
-  useUpdateAgentArea,
   useCreateAgent,
   useUpdateAgent,
   useDeleteAgent,
+  useZones,
 } from "../api/admin.api";
-import { PersonFormModal, ConfirmDeleteModal } from "../components/PersonFormModal";
+import {
+  PersonFormModal,
+  ConfirmDeleteModal,
+} from "../components/PersonFormModal";
 import { AGENT_STATUS_STYLE } from "../lib/status";
 import type { AdminAgent } from "../types";
 
@@ -26,45 +42,68 @@ const FILTERS: { id: "verified" | "suspended" | "all"; label: string }[] = [
 ];
 
 function AreaEditor({ agent }: { agent: AdminAgent }) {
-  const updateArea = useUpdateAgentArea();
+  const { data: zones = [] } = useZones();
+  const updateAgent = useUpdateAgent();
   const [editing, setEditing] = useState(false);
+  const [selectedZoneId, setSelectedZoneId] = useState(agent.zoneId || "");
   const [area, setArea] = useState(agent.area);
 
   if (!editing) {
     return (
       <p className="flex items-center gap-1.5 text-sm text-muted">
-        <MapPin className="size-4 text-primary" /> {agent.area}
+        <MapPin className="size-4 text-primary" /> {agent.area || "No zone set"}
         <button
           onClick={() => {
             setArea(agent.area);
+            setSelectedZoneId(agent.zoneId || "");
             setEditing(true);
           }}
           aria-label="Edit area"
-          className="ml-auto text-muted hover:text-ink"
-        >
+          className="ml-auto text-muted hover:text-ink">
           <Pencil className="size-3.5" />
         </button>
       </p>
     );
   }
 
+  const save = () => {
+    const found = zones.find((z) => z.id === selectedZoneId);
+    const finalArea = found ? found.name : area.trim();
+    updateAgent.mutate(
+      { id: agent.id, zoneId: selectedZoneId || null, area: finalArea },
+      { onSuccess: () => setEditing(false) },
+    );
+  };
+
   return (
     <div className="flex items-center gap-1.5">
       <MapPin className="size-4 shrink-0 text-primary" />
-      <input
-        value={area}
-        onChange={(e) => setArea(e.target.value)}
-        className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-sm text-ink outline-none focus:border-primary/50"
-      />
+      <select
+        value={selectedZoneId}
+        onChange={(e) => {
+          setSelectedZoneId(e.target.value);
+          const found = zones.find((z) => z.id === e.target.value);
+          if (found) setArea(found.name);
+        }}
+        className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-primary/50">
+        <option value="">Custom / No zone</option>
+        {zones.map((z) => (
+          <option key={z.id} value={z.id}>
+            {z.name} ({z.cityName})
+          </option>
+        ))}
+      </select>
       <button
-        disabled={updateArea.isPending || !area.trim()}
-        onClick={() => updateArea.mutate({ id: agent.id, area: area.trim() }, { onSuccess: () => setEditing(false) })}
+        disabled={updateAgent.isPending}
+        onClick={save}
         aria-label="Save area"
-        className="text-emerald-600 disabled:opacity-50"
-      >
+        className="text-emerald-600 disabled:opacity-50">
         <Check className="size-4" />
       </button>
-      <button onClick={() => setEditing(false)} aria-label="Cancel" className="text-muted hover:text-ink">
+      <button
+        onClick={() => setEditing(false)}
+        aria-label="Cancel"
+        className="text-muted hover:text-ink">
         <X className="size-4" />
       </button>
     </div>
@@ -85,8 +124,14 @@ export function Agents() {
   const [deleting, setDeleting] = useState<AdminAgent | null>(null);
   const [formError, setFormError] = useState("");
 
-  const closeForm = () => { setEditing(null); setFormError(""); };
-  const closeDelete = () => { setDeleting(null); setFormError(""); };
+  const closeForm = () => {
+    setEditing(null);
+    setFormError("");
+  };
+  const closeDelete = () => {
+    setDeleting(null);
+    setFormError("");
+  };
 
   const verifiedAgents = agents.filter((a) => a.status !== "pending");
   const online = verifiedAgents.filter((a) => a.online).length;
@@ -114,7 +159,11 @@ export function Agents() {
             {verifiedAgents.length} specialists · {online} online.
           </p>
         </div>
-        <Button onClick={() => { setFormError(""); setEditing("new"); }}>
+        <Button
+          onClick={() => {
+            setFormError("");
+            setEditing("new");
+          }}>
           <Plus className="size-4" /> Add agent
         </Button>
       </div>
@@ -127,9 +176,10 @@ export function Agents() {
               onClick={() => setFilter(f.id)}
               className={cn(
                 "rounded-pill px-3.5 py-1.5 text-sm font-medium transition-colors",
-                filter === f.id ? "bg-primary text-white" : "text-muted hover:text-ink",
-              )}
-            >
+                filter === f.id
+                  ? "bg-primary text-white"
+                  : "text-muted hover:text-ink",
+              )}>
               {f.label}
             </button>
           ))}
@@ -148,18 +198,33 @@ export function Agents() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {paginated.pageItems.map((a) => (
           <GlassCard key={a.id} className="flex flex-col">
-            <Link to={`/admin/agents/${a.id}`} className="flex items-start gap-3">
+            <Link
+              to={`/admin/agents/${a.id}`}
+              className="flex items-start gap-3">
               <span className="grid size-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display font-semibold text-white">
-                {a.name.split(" ").map((n) => n[0]).join("")}
+                {a.name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <p className="truncate font-display font-semibold text-ink hover:text-primary">{a.name}</p>
-                  {a.status === "verified" && <BadgeCheck className="size-4 shrink-0 text-primary" />}
+                  <p className="truncate font-display font-semibold text-ink hover:text-primary">
+                    {a.name}
+                  </p>
+                  {a.status === "verified" && (
+                    <BadgeCheck className="size-4 shrink-0 text-primary" />
+                  )}
                 </div>
-                <p className="text-xs text-muted">…{a.id.slice(-8)} · {a.phone}</p>
+                <p className="text-xs text-muted">
+                  …{a.id.slice(-8)} · {a.phone}
+                </p>
               </div>
-              <span className={cn("rounded-pill px-2.5 py-0.5 text-xs font-medium capitalize", AGENT_STATUS_STYLE[a.status])}>
+              <span
+                className={cn(
+                  "rounded-pill px-2.5 py-0.5 text-xs font-medium capitalize",
+                  AGENT_STATUS_STYLE[a.status],
+                )}>
                 {a.status}
               </span>
             </Link>
@@ -167,16 +232,23 @@ export function Agents() {
             <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-line bg-surface/60 p-3 text-center">
               <div>
                 <p className="flex items-center justify-center gap-1 font-display font-semibold text-ink">
-                  <Star className="size-3.5 fill-primary text-primary" /> {a.rating}
+                  <Star className="size-3.5 fill-primary text-primary" />{" "}
+                  {a.rating}
                 </p>
                 <p className="text-[11px] text-muted">Rating</p>
               </div>
               <div>
-                <p className="font-display font-semibold text-ink">{a.jobsDone}</p>
+                <p className="font-display font-semibold text-ink">
+                  {a.jobsDone}
+                </p>
                 <p className="text-[11px] text-muted">Jobs</p>
               </div>
               <div>
-                <p className={cn("font-display font-semibold", a.online ? "text-emerald-600" : "text-muted")}>
+                <p
+                  className={cn(
+                    "font-display font-semibold",
+                    a.online ? "text-emerald-600" : "text-muted",
+                  )}>
                   {a.online ? "Online" : "Off"}
                 </p>
                 <p className="text-[11px] text-muted">Now</p>
@@ -190,7 +262,8 @@ export function Agents() {
             {(a.aadharFrontUrl || a.aadharBackUrl) && (
               <div className="mt-3 rounded-2xl border border-line bg-surface/60 p-3">
                 <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                  <CreditCard className="size-3.5 text-primary" /> Aadhar {a.aadharNumber || "—"}
+                  <CreditCard className="size-3.5 text-primary" /> Aadhar{" "}
+                  {a.aadharNumber || "—"}
                 </p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   {[
@@ -204,9 +277,12 @@ export function Agents() {
                           href={doc.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="block overflow-hidden rounded-xl border border-line"
-                        >
-                          <img src={doc.url} alt={`Aadhar ${doc.label}`} className="aspect-[4/3] w-full object-cover" />
+                          className="block overflow-hidden rounded-xl border border-line">
+                          <img
+                            src={doc.url}
+                            alt={`Aadhar ${doc.label}`}
+                            className="aspect-[4/3] w-full object-cover"
+                          />
                         </a>
                       ),
                   )}
@@ -217,25 +293,46 @@ export function Agents() {
             <div className="mt-4 flex flex-wrap gap-2 border-t border-line/70 pt-4">
               {/* Names include the agent so they stay unambiguous next to the card's
                   "Edit area" control and across the other cards in the grid. */}
-              <Button size="sm" variant="outline" aria-label={`Edit ${a.name}`} onClick={() => { setFormError(""); setEditing(a); }}>
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label={`Edit ${a.name}`}
+                onClick={() => {
+                  setFormError("");
+                  setEditing(a);
+                }}>
                 <Pencil className="size-4" /> Edit
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 aria-label={`Delete ${a.name}`}
-                onClick={() => { setFormError(""); setDeleting(a); }}
-                className="text-red-600 hover:border-red-500/40 hover:bg-red-500/10"
-              >
+                onClick={() => {
+                  setFormError("");
+                  setDeleting(a);
+                }}
+                className="text-red-600 hover:border-red-500/40 hover:bg-red-500/10">
                 <Trash2 className="size-4" /> Delete
               </Button>
               {a.status === "verified" && (
-                <Button size="sm" variant="outline" className="flex-1" onClick={() => setAgentStatus.mutate({ id: a.id, status: "suspended" })}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() =>
+                    setAgentStatus.mutate({ id: a.id, status: "suspended" })
+                  }>
                   <Ban className="size-4" /> Suspend
                 </Button>
               )}
               {a.status === "suspended" && (
-                <Button size="sm" variant="outline" className="flex-1" onClick={() => setAgentStatus.mutate({ id: a.id, status: "verified" })}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() =>
+                    setAgentStatus.mutate({ id: a.id, status: "verified" })
+                  }>
                   <RotateCcw className="size-4" /> Reinstate
                 </Button>
               )}
@@ -243,7 +340,9 @@ export function Agents() {
           </GlassCard>
         ))}
         {list.length === 0 && (
-          <p className="col-span-full py-12 text-center text-muted">No agents match your search.</p>
+          <p className="col-span-full py-12 text-center text-muted">
+            No agents match your search.
+          </p>
         )}
       </div>
 
@@ -264,7 +363,11 @@ export function Agents() {
         onClose={closeForm}
         onSubmit={(v) => {
           setFormError("");
-          const done = { onSuccess: closeForm, onError: (e: unknown) => setFormError((e as Error)?.message ?? "Something went wrong") };
+          const done = {
+            onSuccess: closeForm,
+            onError: (e: unknown) =>
+              setFormError((e as Error)?.message ?? "Something went wrong"),
+          };
           if (editing === "new") createAgent.mutate(v, done);
           else if (editing) updateAgent.mutate({ id: editing.id, ...v }, done);
         }}
@@ -282,7 +385,10 @@ export function Agents() {
           setFormError("");
           deleteAgent.mutate(deleting.id, {
             onSuccess: closeDelete,
-            onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent"),
+            onError: (e: unknown) =>
+              setFormError(
+                (e as Error)?.message ?? "Couldn't delete this agent",
+              ),
           });
         }}
       />

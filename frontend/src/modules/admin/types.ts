@@ -77,6 +77,7 @@ export type AdminAgent = {
   phone: string;
   email: string;
   area: string;
+  zoneId?: string | null;
   rating: number;
   jobsDone: number;
   online: boolean;
@@ -180,6 +181,14 @@ export type ServiceZone = {
   cityId: string;
   cityName: string;
   active: boolean;
+  color?: string;
+  coordinates?: [number, number][];
+  boundary?: {
+    type: "Polygon";
+    coordinates: [number, number][][];
+  };
+  pincodes?: string[];
+  agentCount?: number;
 };
 
 export type AdminStats = {

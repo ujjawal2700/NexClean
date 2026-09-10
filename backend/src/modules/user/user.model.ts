@@ -74,6 +74,7 @@ const userSchema = new Schema(
 
     // Agent profile (only meaningful when role === "agent")
     area: { type: String, default: "" },
+    zoneId: { type: Schema.Types.ObjectId, ref: "ServiceZone", default: null },
     rating: { type: Number, default: 4.8 },
     jobsDone: { type: Number, default: 0 },
     online: { type: Boolean, default: true },

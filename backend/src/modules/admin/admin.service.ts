@@ -241,6 +241,7 @@ function mapAgent(a: UserDoc) {
     phone: a.phone,
     email: a.email ?? "",
     area: a.area ?? "",
+    zoneId: a.zoneId ? String(a.zoneId) : null,
     rating: a.rating ?? 0,
     jobsDone: a.jobsDone ?? 0,
     online: isAgentLive(a),
@@ -476,17 +477,24 @@ async function assertPhoneFree(phone: string, exceptUserId?: string) {
 }
 
 export async function createAgent(input: {
-  name: string; phone: string; email?: string; area?: string;
+  name: string; phone: string; email?: string; area?: string; zoneId?: string | null;
   agentStatus?: "verified" | "pending" | "suspended" | "unverified";
 }) {
   const phone = normalizePhone(input.phone);
   await assertPhoneFree(phone);
+  let area = input.area?.trim() ?? "";
+  let zoneId = input.zoneId || null;
+  if (zoneId) {
+    const z = await ServiceZone.findById(zoneId);
+    if (z) area = z.name;
+  }
   const agent = await User.create({
     name: input.name.trim(),
     phone,
     email: input.email?.trim() ?? "",
     role: "agent",
-    area: input.area?.trim() ?? "",
+    area,
+    zoneId,
     // Admin-created cleaners are trusted by default — an admin adding someone
     // by hand has already vetted them, and "pending" would strand them behind
     // a KYC screen they never went through.
@@ -497,7 +505,7 @@ export async function createAgent(input: {
 }
 
 export async function updateAgent(id: string, input: {
-  name?: string; phone?: string; email?: string; area?: string;
+  name?: string; phone?: string; email?: string; area?: string; zoneId?: string | null;
 }) {
   const agent = await User.findOne({ _id: id, role: "agent" });
   if (!agent) throw ApiError.notFound("Agent not found");
@@ -513,7 +521,19 @@ export async function updateAgent(id: string, input: {
   }
   if (input.name !== undefined) agent.name = input.name.trim();
   if (input.email !== undefined) agent.email = input.email.trim();
-  if (input.area !== undefined) agent.area = input.area.trim();
+  if (input.zoneId !== undefined) {
+    if (input.zoneId) {
+      const z = await ServiceZone.findById(input.zoneId);
+      if (z) {
+        agent.zoneId = z._id as any;
+        agent.area = z.name;
+      }
+    } else {
+      agent.zoneId = null as any;
+    }
+  } else if (input.area !== undefined) {
+    agent.area = input.area.trim();
+  }
 
   await agent.save();
   return mapAgent(agent);
@@ -943,7 +963,7 @@ export async function listReferralLogs() {
     users.map(async (u) => {
       const referrer = u.referredBy as unknown as { name?: string; phone?: string; referralCode?: string } | null;
       const bookingCount = await Booking.countDocuments({ user: u._id, status: "completed" });
-      
+
       let status = "Joined";
       if (u.activePlan) {
         status = "Subscribed";

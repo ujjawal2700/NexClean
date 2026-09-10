@@ -9,10 +9,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.app.json --noEmit"
-
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.5",
+    "@react-google-maps/api": "^2.20.8",
     "@tanstack/react-query": "^5.101.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

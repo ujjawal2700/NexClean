@@ -63,6 +63,7 @@ adminRouter.get("/zones", requirePermission("locations"), asyncHandler(c.zones))
 adminRouter.post("/zones", requirePermission("locations"), asyncHandler(c.createZone));
 adminRouter.patch("/zones/:id", requirePermission("locations"), asyncHandler(c.updateZone));
 adminRouter.delete("/zones/:id", requirePermission("locations"), asyncHandler(c.deleteZone));
+adminRouter.get("/zones/:id/agents", requirePermission("locations"), asyncHandler(c.zoneAgents));
 
 adminRouter.get("/vehicle-categories", requirePermission("vehicle-categories"), asyncHandler(c.vehicleCategories));
 adminRouter.post("/vehicle-categories", requirePermission("vehicle-categories"), asyncHandler(c.createVehicleCategory));
