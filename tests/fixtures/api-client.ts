@@ -45,8 +45,8 @@ async function unwrap<T>(res: { ok: () => boolean; json: () => Promise<unknown> 
   return body.data as T;
 }
 
-const API_BASE = (process.env.API_BASE_URL ?? "http://127.0.0.1:4000/api").replace("localhost", "127.0.0.1");
-function apiUrl(path: string): string {
+export const API_BASE = (process.env.API_BASE_URL ?? "http://127.0.0.1:4000/api").replace("localhost", "127.0.0.1");
+export function apiUrl(path: string): string {
   return path.startsWith("http") ? path.replace("localhost", "127.0.0.1") : `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 

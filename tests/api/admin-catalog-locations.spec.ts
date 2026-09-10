@@ -121,6 +121,76 @@ test.describe("Admin — zones", () => {
     await request.delete(apiUrl(`/admin/zones/${zone.id}`), { headers: authHeader(token) });
     await request.delete(apiUrl(`/admin/cities/${city.id}`), { headers: authHeader(token) });
   });
+
+  test("geofence polygon lifecycle: create zone with coordinates → verify boundary → reshape boundary → verify update → delete", async ({ request }) => {
+    const { token } = await loginAsAdminApi(request);
+    const cityName = `GeoCity ${Date.now()}`;
+    const city = (await (await request.post(apiUrl("/admin/cities"), { headers: authHeader(token), data: { name: cityName } })).json()).data;
+
+    // Initial polygon (Bengaluru Koramangala area coordinates: [lng, lat])
+    const initialCoords: [number, number][] = [
+      [77.615, 12.935],
+      [77.625, 12.935],
+      [77.625, 12.945],
+      [77.615, 12.945],
+      [77.615, 12.935],
+    ];
+
+    const zoneName = `GeoZone ${Date.now()}`;
+    const create = await request.post(apiUrl("/admin/zones"), {
+      headers: authHeader(token),
+      data: {
+        name: zoneName,
+        cityId: city.id,
+        color: "#10B981",
+        coordinates: initialCoords,
+        pincodes: ["560034", "560095"],
+      },
+    });
+    expect(create.status()).toBe(201);
+    const zone = (await create.json()).data;
+    expect(zone.name).toBe(zoneName);
+    expect(zone.color).toBe("#10B981");
+    expect(zone.pincodes).toContain("560034");
+    expect(zone.boundary).toBeDefined();
+    expect(zone.boundary.type).toBe("Polygon");
+    expect(zone.boundary.coordinates[0].length).toBeGreaterThanOrEqual(4);
+
+    // Fetch zone from list and verify boundary is returned
+    const listRes = await request.get(apiUrl("/admin/zones"), { headers: authHeader(token) });
+    expect(listRes.ok()).toBeTruthy();
+    const listData = (await listRes.json()).data;
+    const foundZone = listData.find((z: { id: string }) => z.id === zone.id);
+    expect(foundZone).toBeTruthy();
+    expect(foundZone.boundary?.type).toBe("Polygon");
+    expect(foundZone.boundary?.coordinates?.[0]?.length).toBeGreaterThanOrEqual(4);
+
+    // Reshape boundary: update coordinates via PATCH
+    const updatedCoords: [number, number][] = [
+      [77.610, 12.930],
+      [77.630, 12.930],
+      [77.630, 12.950],
+      [77.610, 12.950],
+      [77.610, 12.930],
+    ];
+    const updateRes = await request.patch(apiUrl(`/admin/zones/${zone.id}`), {
+      headers: authHeader(token),
+      data: {
+        coordinates: updatedCoords,
+        pincodes: ["560034", "560095", "560047"],
+      },
+    });
+    expect(updateRes.ok()).toBeTruthy();
+    const updatedZone = (await updateRes.json()).data;
+    expect(updatedZone.boundary?.coordinates?.[0]?.[0]?.[0]).toBeCloseTo(77.610, 2);
+    expect(updatedZone.pincodes).toContain("560047");
+
+    // Clean up
+    const delZone = await request.delete(apiUrl(`/admin/zones/${zone.id}`), { headers: authHeader(token) });
+    expect(delZone.ok()).toBeTruthy();
+    const delCity = await request.delete(apiUrl(`/admin/cities/${city.id}`), { headers: authHeader(token) });
+    expect(delCity.ok()).toBeTruthy();
+  });
 });
 
 test.describe("Admin — vehicle categories", () => {

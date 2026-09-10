@@ -19,8 +19,9 @@ import {
 import {
   GoogleMap,
   useJsApiLoader,
-  DrawingManager,
   Polygon,
+  Polyline,
+  Marker,
   Autocomplete,
 } from "@react-google-maps/api";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -247,8 +248,9 @@ export function Locations() {
   const [isBoundaryEditing, setIsBoundaryEditing] = useState(false);
   const [liveVertexCount, setLiveVertexCount] = useState(0);
 
-  // Drawing manager mode (null | 'polygon')
+  // Drawing mode (null | 'polygon') and clicked vertices
   const [drawingMode, setDrawingMode] = useState<string | null>(null);
+  const [drawingPoints, setDrawingPoints] = useState<{ lat: number; lng: number }[]>([]);
 
   // Search filter for zone list
   const [zoneSearch, setZoneSearch] = useState("");
@@ -505,18 +507,28 @@ export function Locations() {
     );
   };
 
+  // Map click handler for custom polygon drawing
+  const handleMapClick = (e: google.maps.MapMouseEvent) => {
+    if (!drawingMode || !e.latLng) return;
+    const newPt = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+    setDrawingPoints((prev) => [...prev, newPt]);
+  };
+
   // Drawing finished: user completed drawing a new polygon on map
-  const onPolygonComplete = async (poly: google.maps.Polygon) => {
-    if (!poly || typeof poly.getPath !== "function") return;
-    const path = poly.getPath();
-    if (!path || typeof path.getLength !== "function" || path.getLength() < 3) return;
+  const finishDrawing = async (pointsToComplete?: { lat: number; lng: number }[]) => {
+    const pts = pointsToComplete || drawingPoints;
+    if (!pts || pts.length < 3) {
+      showToast("A zone requires at least 3 points to form a polygon", "error");
+      return;
+    }
+
     const coordinates: [number, number][] = [];
     const googlePath: google.maps.LatLng[] = [];
 
-    for (let i = 0; i < path.getLength(); i++) {
-      const pt = path.getAt(i);
-      coordinates.push([pt.lng(), pt.lat()]);
-      googlePath.push(new window.google.maps.LatLng(pt.lat(), pt.lng()));
+    for (let i = 0; i < pts.length; i++) {
+      const pt = pts[i];
+      coordinates.push([pt.lng, pt.lat]);
+      googlePath.push(new window.google.maps.LatLng(pt.lat, pt.lng));
     }
     // Close polygon
     coordinates.push([coordinates[0][0], coordinates[0][1]]);
@@ -548,7 +560,6 @@ export function Locations() {
           "Overlap detected! Zone intersects an existing service area.",
           "error",
         );
-        poly.setMap(null);
         return;
       }
     }
@@ -579,8 +590,8 @@ export function Locations() {
       } catch (_) {}
     }
 
-    poly.setMap(null);
     setDrawingMode(null);
+    setDrawingPoints([]);
 
     const defaultCity = cities.find((c) => c.active) || cities[0];
     const color = ZONE_COLORS[zones.length % ZONE_COLORS.length];
@@ -1229,6 +1240,7 @@ export function Locations() {
               onClick={() => {
                 setSelectedZone(null);
                 setIsBoundaryEditing(false);
+                setDrawingPoints([]);
                 setDrawingMode(drawingMode ? null : "polygon");
               }}
               variant={drawingMode ? "outline" : "primary"}
@@ -1288,6 +1300,7 @@ export function Locations() {
                 mapContainerStyle={mapContainerStyle}
                 center={defaultCenter}
                 zoom={12}
+                onClick={handleMapClick}
                 onLoad={(map) => {
                   mapRef.current = map;
                   if (zones.length > 0) {
@@ -1303,6 +1316,8 @@ export function Locations() {
                   streetViewControl: false,
                   mapTypeControl: false,
                   fullscreenControl: true,
+                  clickableIcons: false,
+                  draggableCursor: drawingMode ? "crosshair" : undefined,
                 }}>
                 {/* Autocomplete Search Overlay */}
                 <Autocomplete
@@ -1322,23 +1337,44 @@ export function Locations() {
 
                 {/* Drawing Mode Active Overlay Banner */}
                 {drawingMode && (
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
                     <div className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-surface/95 px-5 py-3 shadow-[var(--shadow-lift)] backdrop-blur-md">
                       <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
                         <Plus className="size-4" />
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-ink">
-                          Drawing Mode Active
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-semibold text-ink">
+                            Drawing Zone Boundary
+                          </p>
+                          <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                            {drawingPoints.length} point{drawingPoints.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
                         <p className="text-[10px] text-muted">
-                          Click map to place corners · Double-click to close
-                          boundary
+                          Click on map to place corners (min 3 points)
                         </p>
                       </div>
+                      {drawingPoints.length > 0 && (
+                        <button
+                          onClick={() => setDrawingPoints((pts) => pts.slice(0, -1))}
+                          className="rounded-xl border border-line bg-surface px-2.5 py-1.5 text-[11px] font-medium text-ink hover:bg-surface-muted transition-all cursor-pointer">
+                          Undo
+                        </button>
+                      )}
+                      {drawingPoints.length >= 3 && (
+                        <button
+                          onClick={() => finishDrawing(drawingPoints)}
+                          className="rounded-xl bg-primary px-3.5 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-soft transition-all shadow-xs cursor-pointer">
+                          Complete Zone
+                        </button>
+                      )}
                       <button
-                        onClick={() => setDrawingMode(null)}
-                        className="pointer-events-auto ml-2 rounded-xl bg-ink px-3 py-1.5 text-[11px] font-semibold text-surface hover:bg-ink-soft transition-all">
+                        onClick={() => {
+                          setDrawingMode(null);
+                          setDrawingPoints([]);
+                        }}
+                        className="rounded-xl bg-ink px-3 py-1.5 text-[11px] font-semibold text-surface hover:bg-ink-soft transition-all cursor-pointer">
                         Cancel
                       </button>
                     </div>
@@ -1368,34 +1404,74 @@ export function Locations() {
                       </div>
                       <button
                         onClick={toggleBoundaryEditing}
-                        className="ml-2 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-soft transition-all shadow-xs">
+                        className="ml-2 rounded-xl bg-primary px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary-soft transition-all shadow-xs cursor-pointer">
                         Done Reshaping
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* Drawing Manager */}
-                {drawingMode && (
-                  <DrawingManager
-                    onPolygonComplete={onPolygonComplete}
-                    drawingMode={
-                      window.google?.maps?.drawing?.OverlayType?.POLYGON ||
-                      ("polygon" as any)
-                    }
-                    options={{
-                      drawingControl: false,
-                      polygonOptions: {
-                        fillColor: "#4F7CFF",
-                        fillOpacity: 0.25,
-                        strokeWeight: 2.5,
-                        strokeColor: "#4F7CFF",
-                        clickable: false,
-                        editable: true,
-                        zIndex: 1,
-                      },
-                    }}
-                  />
+                {/* Native Drawing Mode Live Renderers */}
+                {drawingMode && drawingPoints.length > 0 && (
+                  <>
+                    {/* Vertex Markers */}
+                    {drawingPoints.map((pt, idx) => (
+                      <Marker
+                        key={`draw-pt-${idx}`}
+                        position={pt}
+                        label={
+                          idx === 0 && drawingPoints.length >= 3
+                            ? {
+                                text: "✓",
+                                color: "#ffffff",
+                                fontSize: "11px",
+                                fontWeight: "bold",
+                              }
+                            : {
+                                text: `${idx + 1}`,
+                                color: "#ffffff",
+                                fontSize: "10px",
+                              }
+                        }
+                        title={
+                          idx === 0 && drawingPoints.length >= 3
+                            ? "Click to complete zone"
+                            : `Point ${idx + 1}`
+                        }
+                        onClick={() => {
+                          if (idx === 0 && drawingPoints.length >= 3) {
+                            finishDrawing(drawingPoints);
+                          }
+                        }}
+                      />
+                    ))}
+
+                    {/* Connecting Polyline */}
+                    {drawingPoints.length >= 2 && (
+                      <Polyline
+                        path={drawingPoints}
+                        options={{
+                          strokeColor: "#4F7CFF",
+                          strokeWeight: 2.5,
+                          strokeOpacity: 0.9,
+                        }}
+                      />
+                    )}
+
+                    {/* Preview Polygon */}
+                    {drawingPoints.length >= 3 && (
+                      <Polygon
+                        paths={drawingPoints}
+                        options={{
+                          fillColor: "#4F7CFF",
+                          fillOpacity: 0.2,
+                          strokeColor: "#4F7CFF",
+                          strokeWeight: 2,
+                          clickable: false,
+                        }}
+                      />
+                    )}
+                  </>
                 )}
 
                 {/* Render Existing Zones Polygons */}
@@ -1505,7 +1581,11 @@ export function Locations() {
                         strokeOpacity: 0.9,
                         zIndex: isEditing ? 10 : isSelected ? 5 : 1,
                       }}
-                      onClick={() => {
+                      onClick={(e) => {
+                        if (drawingMode) {
+                          handleMapClick(e);
+                          return;
+                        }
                         if (!isBoundaryEditing) {
                           handleEditDetails(zone);
                         }

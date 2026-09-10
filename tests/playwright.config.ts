@@ -25,6 +25,10 @@ export default defineConfig({
   },
   projects: [
     {
+      name: "unit",
+      testDir: "./unit",
+    },
+    {
       name: "api",
       testDir: "./api",
       use: { baseURL: API_BASE_URL },
