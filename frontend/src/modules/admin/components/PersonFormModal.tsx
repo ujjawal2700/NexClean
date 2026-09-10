@@ -46,11 +46,19 @@ export type PersonInitial = {
   vehicles?: { type?: string; name?: string; plate?: string }[];
 };
 
-const AGENT_STATUS_OPTIONS: { value: AgentStatus; label: string; hint: string }[] = [
+const AGENT_STATUS_OPTIONS: {
+  value: AgentStatus;
+  label: string;
+  hint: string;
+}[] = [
   { value: "verified", label: "Verified", hint: "Can take jobs" },
   // The Agents list deliberately excludes pending cleaners — they queue on the
   // Agent Verification page — so say so, or they look like they vanished.
-  { value: "pending", label: "Pending review", hint: "Queues under Agent Verification, not the Agents list" },
+  {
+    value: "pending",
+    label: "Pending review",
+    hint: "Queues under Agent Verification, not the Agents list",
+  },
   { value: "unverified", label: "Unverified", hint: "Has not submitted KYC" },
   { value: "suspended", label: "Suspended", hint: "Blocked from signing in" },
 ];
@@ -58,10 +66,20 @@ const AGENT_STATUS_OPTIONS: { value: AgentStatus; label: string; hint: string }[
 const selectClass =
   "h-11 w-full rounded-2xl border border-line bg-surface px-3 text-ink outline-none transition-colors focus:border-primary/50";
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-ink">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-ink">
+        {label}
+      </label>
       {children}
       {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
     </div>
@@ -69,10 +87,20 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 /** Visual grouping for the optional blocks, so the dialog reads as sections. */
-function Fieldset({ legend, note, children }: { legend: string; note?: string; children: ReactNode }) {
+function Fieldset({
+  legend,
+  note,
+  children,
+}: {
+  legend: string;
+  note?: string;
+  children: ReactNode;
+}) {
   return (
     <fieldset className="rounded-2xl border border-line/70 p-3">
-      <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted">{legend}</legend>
+      <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted">
+        {legend}
+      </legend>
       {note && <p className="mb-2 text-xs text-muted">{note}</p>}
       <div className="space-y-3">{children}</div>
     </fieldset>
@@ -115,7 +143,11 @@ export function PersonFormModal({
   const { data: cities = [] } = useCities();
   const { data: allZones = [] } = useZones();
 
-  const [values, setValues] = useState<PersonValues>({ name: "", phone: "", email: "" });
+  const [values, setValues] = useState<PersonValues>({
+    name: "",
+    phone: "",
+    email: "",
+  });
   const [touched, setTouched] = useState(false);
 
   // Re-seed whenever the dialog opens, so "edit" always starts from the record's
@@ -133,16 +165,34 @@ export function PersonFormModal({
       city: initial?.city ?? "",
       area: initial?.area ?? "",
       zoneId: initial?.zoneId ?? null,
-      agentStatus: (initial?.agentStatus ?? initial?.status ?? "verified") as AgentStatus,
+      agentStatus: (initial?.agentStatus ??
+        initial?.status ??
+        "verified") as AgentStatus,
       aadharNumber: initial?.aadharNumber ?? "",
-      rating: initial?.rating !== undefined ? Number(initial.rating) : undefined,
+      rating:
+        initial?.rating !== undefined ? Number(initial.rating) : undefined,
       status: initial?.status === "suspended" ? "suspended" : "active",
-      address: { label: address?.label ?? "", line: address?.line ?? "", society: address?.society ?? "" },
-      vehicle: { type: vehicle?.type ?? "", name: vehicle?.name ?? "", plate: vehicle?.plate ?? "" },
+      address: {
+        label: address?.label ?? "",
+        line: address?.line ?? "",
+        society: address?.society ?? "",
+      },
+      vehicle: {
+        type: vehicle?.type ?? "",
+        name: vehicle?.name ?? "",
+        plate: vehicle?.plate ?? "",
+      },
     });
     setTouched(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initial?.name, initial?.phone, initial?.email, initial?.rating, initial?.zoneId]);
+  }, [
+    open,
+    initial?.name,
+    initial?.phone,
+    initial?.email,
+    initial?.rating,
+    initial?.zoneId,
+  ]);
 
   if (!open) return null;
 
@@ -154,15 +204,24 @@ export function PersonFormModal({
 
   const nameOk = /^[\p{L}\p{M}\s.'-]{2,60}$/u.test(values.name.trim());
   const phoneOk = /^\d{10}$/.test(values.phone.trim());
-  const emailOk = !values.email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim());
-  const aadharOk = !values.aadharNumber?.trim() || /^\d{12}$/.test(values.aadharNumber.trim());
-  const ratingOk = values.rating === undefined || (values.rating >= 0 && values.rating <= 5);
-  const valid = nameOk && phoneOk && emailOk && (!isAgent || (aadharOk && ratingOk));
+  const emailOk =
+    !values.email.trim() ||
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email.trim());
+  const aadharOk =
+    !values.aadharNumber?.trim() || /^\d{12}$/.test(values.aadharNumber.trim());
+  const ratingOk =
+    values.rating === undefined || (values.rating >= 0 && values.rating <= 5);
+  const valid =
+    nameOk && phoneOk && emailOk && (!isAgent || (aadharOk && ratingOk));
 
   const submit = () => {
     setTouched(true);
     if (!valid || pending) return;
-    const base = { name: values.name.trim(), phone: values.phone.trim(), email: values.email.trim() };
+    const base = {
+      name: values.name.trim(),
+      phone: values.phone.trim(),
+      email: values.email.trim(),
+    };
     onSubmit(
       isAgent
         ? {
@@ -172,14 +231,23 @@ export function PersonFormModal({
             zoneId: values.zoneId ?? null,
             agentStatus: values.agentStatus,
             aadharNumber: values.aadharNumber?.trim() ?? "",
-            rating: values.rating !== undefined ? Number(values.rating) : undefined,
+            rating:
+              values.rating !== undefined ? Number(values.rating) : undefined,
           }
-        : { ...base, status: values.status, address: values.address, vehicle: values.vehicle },
+        : {
+            ...base,
+            status: values.status,
+            address: values.address,
+            vehicle: values.vehicle,
+          },
     );
   };
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true">
       <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-card border border-line bg-surface p-6 shadow-[var(--shadow-lift)]">
         <div className="mb-5 flex items-start justify-between gap-3">
           <h2 className="font-display text-xl text-ink">{title}</h2>
@@ -203,7 +271,11 @@ export function PersonFormModal({
             label="Full name"
             value={values.name}
             onChange={(e) => set("name", e.target.value)}
-            error={touched && !nameOk ? "Letters only, at least 2 characters" : undefined}
+            error={
+              touched && !nameOk
+                ? "Letters only, at least 2 characters"
+                : undefined
+            }
           />
           <Input
             name="personPhone"
@@ -211,8 +283,12 @@ export function PersonFormModal({
             inputMode="numeric"
             maxLength={10}
             value={values.phone}
-            onChange={(e) => set("phone", e.target.value.replace(/\D/g, "").slice(0, 10))}
-            error={touched && !phoneOk ? "Must be exactly 10 digits" : undefined}
+            onChange={(e) =>
+              set("phone", e.target.value.replace(/\D/g, "").slice(0, 10))
+            }
+            error={
+              touched && !phoneOk ? "Must be exactly 10 digits" : undefined
+            }
           />
           <Input
             name="personEmail"
@@ -220,7 +296,9 @@ export function PersonFormModal({
             type="email"
             value={values.email}
             onChange={(e) => set("email", e.target.value)}
-            error={touched && !emailOk ? "Enter a valid email address" : undefined}
+            error={
+              touched && !emailOk ? "Enter a valid email address" : undefined
+            }
           />
 
           {isAgent ? (
@@ -242,8 +320,14 @@ export function PersonFormModal({
                       name="personCity"
                       className={selectClass}
                       value={values.city ?? ""}
-                      onChange={(e) => setValues((v) => ({ ...v, city: e.target.value, area: "", zoneId: null }))}
-                    >
+                      onChange={(e) =>
+                        setValues((v) => ({
+                          ...v,
+                          city: e.target.value,
+                          area: "",
+                          zoneId: null,
+                        }))
+                      }>
                       <option value="">Select a city…</option>
                       {cities.map((c) => (
                         <option key={c.id} value={c.name}>
@@ -254,8 +338,11 @@ export function PersonFormModal({
                   </Field>
                   <Field
                     label="Area"
-                    hint={values.city && cityZones.length === 0 ? `No areas listed for ${values.city} yet.` : undefined}
-                  >
+                    hint={
+                      values.city && cityZones.length === 0
+                        ? `No areas listed for ${values.city} yet.`
+                        : undefined
+                    }>
                     <select
                       name="personArea"
                       className={selectClass}
@@ -263,15 +350,20 @@ export function PersonFormModal({
                       disabled={!values.city}
                       onChange={(e) => {
                         const areaName = e.target.value;
-                        const matchingZone = cityZones.find((z) => z.name === areaName);
+                        const matchingZone = cityZones.find(
+                          (z) => z.name === areaName,
+                        );
                         setValues((v) => ({
                           ...v,
                           area: areaName,
                           zoneId: matchingZone ? matchingZone.id : null,
                         }));
-                      }}
-                    >
-                      <option value="">{values.city ? "Select an area…" : "Choose a city first"}</option>
+                      }}>
+                      <option value="">
+                        {values.city
+                          ? "Select an area…"
+                          : "Choose a city first"}
+                      </option>
                       {cityZones.map((z) => (
                         <option key={z.id} value={z.name}>
                           {z.name}
@@ -283,14 +375,18 @@ export function PersonFormModal({
               )}
               <Field
                 label="Verification status"
-                hint={AGENT_STATUS_OPTIONS.find((o) => o.value === values.agentStatus)?.hint}
-              >
+                hint={
+                  AGENT_STATUS_OPTIONS.find(
+                    (o) => o.value === values.agentStatus,
+                  )?.hint
+                }>
                 <select
                   name="personAgentStatus"
                   className={selectClass}
                   value={values.agentStatus}
-                  onChange={(e) => set("agentStatus", e.target.value as AgentStatus)}
-                >
+                  onChange={(e) =>
+                    set("agentStatus", e.target.value as AgentStatus)
+                  }>
                   {AGENT_STATUS_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
@@ -304,8 +400,15 @@ export function PersonFormModal({
                 inputMode="numeric"
                 maxLength={12}
                 value={values.aadharNumber ?? ""}
-                onChange={(e) => set("aadharNumber", e.target.value.replace(/\D/g, "").slice(0, 12))}
-                error={touched && !aadharOk ? "Must be exactly 12 digits" : undefined}
+                onChange={(e) =>
+                  set(
+                    "aadharNumber",
+                    e.target.value.replace(/\D/g, "").slice(0, 12),
+                  )
+                }
+                error={
+                  touched && !aadharOk ? "Must be exactly 12 digits" : undefined
+                }
               />
               <Input
                 name="personRating"
@@ -315,55 +418,90 @@ export function PersonFormModal({
                 min="0"
                 max="5"
                 value={values.rating !== undefined ? values.rating : ""}
-                onChange={(e) => set("rating", e.target.value !== "" ? parseFloat(e.target.value) : undefined)}
+                onChange={(e) =>
+                  set(
+                    "rating",
+                    e.target.value !== ""
+                      ? parseFloat(e.target.value)
+                      : undefined,
+                  )
+                }
                 placeholder="e.g. 4.8"
-                error={touched && !ratingOk ? "Rating must be between 0 and 5.0" : undefined}
+                error={
+                  touched && !ratingOk
+                    ? "Rating must be between 0 and 5.0"
+                    : undefined
+                }
               />
             </>
           ) : (
             <>
-              <Field label="Account status" hint={values.status === "suspended" ? "Blocked from signing in" : "Can book normally"}>
+              <Field
+                label="Account status"
+                hint={
+                  values.status === "suspended"
+                    ? "Blocked from signing in"
+                    : "Can book normally"
+                }>
                 <select
                   name="personStatus"
                   className={selectClass}
                   value={values.status}
-                  onChange={(e) => set("status", e.target.value as "active" | "suspended")}
-                >
+                  onChange={(e) =>
+                    set("status", e.target.value as "active" | "suspended")
+                  }>
                   <option value="active">Active</option>
                   <option value="suspended">Suspended</option>
                 </select>
               </Field>
 
-              <Fieldset legend="Address" note="Optional. Leave blank to keep whatever the customer already saved.">
+              <Fieldset
+                legend="Address"
+                note="Optional. Leave blank to keep whatever the customer already saved.">
                 <Input
                   name="personAddressLabel"
                   label="Label"
                   placeholder="Home"
                   value={values.address?.label ?? ""}
-                  onChange={(e) => set("address", { ...values.address, label: e.target.value })}
+                  onChange={(e) =>
+                    set("address", { ...values.address, label: e.target.value })
+                  }
                 />
                 <Input
                   name="personAddressLine"
                   label="Street address"
                   value={values.address?.line ?? ""}
-                  onChange={(e) => set("address", { ...values.address, line: e.target.value })}
+                  onChange={(e) =>
+                    set("address", { ...values.address, line: e.target.value })
+                  }
                 />
                 <Input
                   name="personAddressSociety"
                   label="Society"
                   value={values.address?.society ?? ""}
-                  onChange={(e) => set("address", { ...values.address, society: e.target.value })}
+                  onChange={(e) =>
+                    set("address", {
+                      ...values.address,
+                      society: e.target.value,
+                    })
+                  }
                 />
               </Fieldset>
 
-              <Fieldset legend="Vehicle" note="Optional. Leave blank to keep whatever the customer already saved.">
+              <Fieldset
+                legend="Vehicle"
+                note="Optional. Leave blank to keep whatever the customer already saved.">
                 <Field label="Type">
                   <select
                     name="personVehicleType"
                     className={selectClass}
                     value={values.vehicle?.type ?? ""}
-                    onChange={(e) => set("vehicle", { ...values.vehicle, type: e.target.value })}
-                  >
+                    onChange={(e) =>
+                      set("vehicle", {
+                        ...values.vehicle,
+                        type: e.target.value,
+                      })
+                    }>
                     <option value="">Select a type…</option>
                     {categories.map((c) => (
                       <option key={c.key} value={c.key}>
@@ -377,13 +515,17 @@ export function PersonFormModal({
                   label="Vehicle name"
                   placeholder="Swift VXi"
                   value={values.vehicle?.name ?? ""}
-                  onChange={(e) => set("vehicle", { ...values.vehicle, name: e.target.value })}
+                  onChange={(e) =>
+                    set("vehicle", { ...values.vehicle, name: e.target.value })
+                  }
                 />
                 <Input
                   name="personVehiclePlate"
                   label="Number plate"
                   value={values.vehicle?.plate ?? ""}
-                  onChange={(e) => set("vehicle", { ...values.vehicle, plate: e.target.value })}
+                  onChange={(e) =>
+                    set("vehicle", { ...values.vehicle, plate: e.target.value })
+                  }
                 />
               </Fieldset>
             </>
@@ -430,7 +572,9 @@ export function ConfirmDeleteModal({
   onDeleteWithData?: () => void;
   onClose: () => void;
 }) {
-  const [confirmStep, setConfirmStep] = useState<"only" | "with_data" | null>(null);
+  const [confirmStep, setConfirmStep] = useState<"only" | "with_data" | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!open) setConfirmStep(null);
@@ -438,7 +582,9 @@ export function ConfirmDeleteModal({
 
   if (!open) return null;
 
-  const handleDeleteOnlyAction = onDeletePersonOnly || (kind === "agent" ? onDeleteAgentOnly : onDeleteCustomerOnly);
+  const handleDeleteOnlyAction =
+    onDeletePersonOnly ||
+    (kind === "agent" ? onDeleteAgentOnly : onDeleteCustomerOnly);
   const isMultiOption = !!(handleDeleteOnlyAction || onDeleteWithData);
   const labelKind = kind === "agent" ? "Agent" : "Customer";
 
@@ -448,7 +594,10 @@ export function ConfirmDeleteModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true">
       <div className="w-full max-w-xl rounded-3xl border border-line bg-surface p-6 shadow-2xl">
         {/* Step 2: Confirmation for Delete Person Only */}
         {confirmStep === "only" ? (
@@ -458,20 +607,29 @@ export function ConfirmDeleteModal({
                 <AlertTriangle className="size-5" />
               </span>
               <div>
-                <h2 className="font-display text-lg font-semibold text-ink">Confirm: Delete {labelKind} Only?</h2>
+                <h2 className="font-display text-lg font-semibold text-ink">
+                  Confirm: Delete {labelKind} Only?
+                </h2>
                 <p className="text-xs text-muted">Please confirm this action</p>
               </div>
             </div>
 
             <div className="mt-4 rounded-2xl border border-line bg-surface-muted/50 p-4 text-xs text-ink-soft space-y-2 leading-relaxed">
               <p>
-                Are you sure you want to delete <span className="font-semibold text-ink">{name}</span>?
+                Are you sure you want to delete{" "}
+                <span className="font-semibold text-ink">{name}</span>?
               </p>
               <p>
-                • The {kind} account will be deleted permanently and can no longer log in.
+                • The {kind} account will be deleted permanently and can no
+                longer log in.
               </p>
               <p>
-                • All historical bookings, payments, and receipts will be <strong>safely preserved</strong> and marked as <span className="font-semibold text-ink">"{name} (deleted)"</span>.
+                • All historical bookings, payments, and receipts will be{" "}
+                <strong>safely preserved</strong> and marked as{" "}
+                <span className="font-semibold text-ink">
+                  "{name} (deleted)"
+                </span>
+                .
               </p>
             </div>
 
@@ -483,10 +641,18 @@ export function ConfirmDeleteModal({
 
             <div className="mt-6 flex items-center justify-between gap-3 border-t border-line/60 pt-4">
               <div className="flex items-center gap-1.5">
-                <Button variant="ghost" size="sm" onClick={() => setConfirmStep(null)} disabled={pending}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmStep(null)}
+                  disabled={pending}>
                   Back
                 </Button>
-                <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClose}
+                  disabled={pending}>
                   Cancel
                 </Button>
               </div>
@@ -495,8 +661,7 @@ export function ConfirmDeleteModal({
                 onClick={handleDeleteOnlyAction}
                 disabled={pending}
                 className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-xs sm:text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-                data-testid={`confirm-delete-${kind}-only-btn`}
-              >
+                data-testid={`confirm-delete-${kind}-only-btn`}>
                 {pending && <Loader2 className="size-4 animate-spin" />}
                 Yes, Delete {labelKind} Only
               </button>
@@ -510,17 +675,24 @@ export function ConfirmDeleteModal({
                 <AlertTriangle className="size-5" />
               </span>
               <div>
-                <h2 className="font-display text-lg font-semibold text-red-600">Confirm: Delete {labelKind} & All Data?</h2>
-                <p className="text-xs text-muted">Irreversible destructive action</p>
+                <h2 className="font-display text-lg font-semibold text-red-600">
+                  Confirm: Delete {labelKind} & All Data?
+                </h2>
+                <p className="text-xs text-muted">
+                  Irreversible destructive action
+                </p>
               </div>
             </div>
 
             <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-xs text-red-700 space-y-2 leading-relaxed">
               <p className="font-semibold">
-                ⚠️ Warning: You are about to permanently delete <span className="underline">{name}</span> AND ALL their assigned bookings, payments, and related records!
+                ⚠️ Warning: You are about to permanently delete{" "}
+                <span className="underline">{name}</span> AND ALL their assigned
+                bookings, payments, and related records!
               </p>
               <p>
-                • This will permanently remove all booking history, payments, and receipts associated with this {kind}.
+                • This will permanently remove all booking history, payments,
+                and receipts associated with this {kind}.
               </p>
               <p>
                 • This action <strong>cannot be undone</strong>.
@@ -535,10 +707,18 @@ export function ConfirmDeleteModal({
 
             <div className="mt-6 flex items-center justify-between gap-3 border-t border-line/60 pt-4">
               <div className="flex items-center gap-1.5">
-                <Button variant="ghost" size="sm" onClick={() => setConfirmStep(null)} disabled={pending}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmStep(null)}
+                  disabled={pending}>
                   Back
                 </Button>
-                <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClose}
+                  disabled={pending}>
                   Cancel
                 </Button>
               </div>
@@ -547,8 +727,7 @@ export function ConfirmDeleteModal({
                 onClick={onDeleteWithData}
                 disabled={pending}
                 className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-xs sm:text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-                data-testid={`confirm-delete-${kind}-with-data-btn`}
-              >
+                data-testid={`confirm-delete-${kind}-with-data-btn`}>
                 {pending && <Loader2 className="size-4 animate-spin" />}
                 Yes, Delete {labelKind} & All Data
               </button>
@@ -559,7 +738,8 @@ export function ConfirmDeleteModal({
           <div>
             <h2 className="font-display text-xl text-ink">Delete {kind}?</h2>
             <p className="mt-2 text-sm text-muted">
-              <span className="font-semibold text-ink">{name}</span> will be removed.
+              <span className="font-semibold text-ink">{name}</span> will be
+              removed.
             </p>
 
             {isMultiOption ? (
@@ -570,7 +750,9 @@ export function ConfirmDeleteModal({
                     1. Delete {labelKind} Only
                   </div>
                   <p className="mt-1 pl-4 leading-relaxed text-ink-soft">
-                    Removes the {kind} account while keeping all historical bookings and financial records intact, marked as <strong className="text-ink">"{name} (deleted)"</strong>.
+                    Removes the {kind} account while keeping all historical
+                    bookings and financial records intact, marked as{" "}
+                    <strong className="text-ink">"{name} (deleted)"</strong>.
                   </p>
                 </div>
 
@@ -580,13 +762,16 @@ export function ConfirmDeleteModal({
                     2. Delete {labelKind} with Data
                   </div>
                   <p className="mt-1 pl-4 leading-relaxed text-red-700/90">
-                    Permanently deletes the {kind} along with all their assigned bookings, payments, and related records.
+                    Permanently deletes the {kind} along with all their assigned
+                    bookings, payments, and related records.
                   </p>
                 </div>
               </div>
             ) : (
               <p className="mt-2 text-sm text-muted">
-                Accounts with bookings or payments can't be deleted — suspend them instead, which blocks all access and keeps the records intact.
+                Accounts with bookings or payments can't be deleted — suspend
+                them instead, which blocks all access and keeps the records
+                intact.
               </p>
             )}
 
@@ -597,7 +782,11 @@ export function ConfirmDeleteModal({
             )}
 
             <div className="mt-6 flex items-center justify-between gap-3 border-t border-line/60 pt-4">
-              <Button variant="ghost" size="sm" onClick={handleClose} disabled={pending}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClose}
+                disabled={pending}>
                 Cancel
               </Button>
 
@@ -609,8 +798,7 @@ export function ConfirmDeleteModal({
                       onClick={() => setConfirmStep("only")}
                       disabled={pending}
                       className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-xs sm:text-sm font-medium border border-line bg-surface text-ink hover:bg-surface-muted hover:border-primary/40 hover:text-primary transition-all cursor-pointer disabled:opacity-50"
-                      data-testid={`delete-${kind}-only-btn`}
-                    >
+                      data-testid={`delete-${kind}-only-btn`}>
                       Delete {labelKind} Only
                     </button>
                   )}
@@ -620,8 +808,7 @@ export function ConfirmDeleteModal({
                       onClick={() => setConfirmStep("with_data")}
                       disabled={pending}
                       className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-xs sm:text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-                      data-testid={`delete-${kind}-with-data-btn`}
-                    >
+                      data-testid={`delete-${kind}-with-data-btn`}>
                       Delete {labelKind} with Data
                     </button>
                   )}
@@ -632,8 +819,7 @@ export function ConfirmDeleteModal({
                   onClick={onConfirm}
                   disabled={pending}
                   className="inline-flex items-center justify-center gap-2 rounded-pill px-4 py-2 text-xs sm:text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
-                  data-testid="delete-btn"
-                >
+                  data-testid="delete-btn">
                   {pending && <Loader2 className="size-4 animate-spin" />}
                   Delete
                 </button>
@@ -696,8 +882,11 @@ export function ConfirmActionModal({
           <Button
             onClick={onConfirm}
             disabled={pending}
-            className={destructive ? "bg-red-500 text-white hover:bg-red-600 focus-visible:outline-red-500" : undefined}
-          >
+            className={
+              destructive
+                ? "bg-red-500 text-white hover:bg-red-600 focus-visible:outline-red-500"
+                : undefined
+            }>
             {pending && <Loader2 className="size-4 animate-spin" />}
             {confirmLabel}
           </Button>

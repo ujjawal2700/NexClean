@@ -233,7 +233,8 @@ export function Agents() {
             <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-line bg-surface/60 p-3 text-center">
               <div>
                 <p className="flex items-center justify-center gap-1 font-display font-semibold text-ink">
-                  <Star className="size-3.5 fill-primary text-primary" /> {a.rating > 0 ? Number(a.rating).toFixed(1) : "New"}
+                  <Star className="size-3.5 fill-primary text-primary" />{" "}
+                  {a.rating > 0 ? Number(a.rating).toFixed(1) : "New"}
                 </p>
                 <p className="text-[11px] text-muted">Rating</p>
               </div>
@@ -387,7 +388,10 @@ export function Agents() {
             { id: deleting.id, mode: "agent_only" },
             {
               onSuccess: closeDelete,
-              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent"),
+              onError: (e: unknown) =>
+                setFormError(
+                  (e as Error)?.message ?? "Couldn't delete this agent",
+                ),
             },
           );
         }}
@@ -398,7 +402,11 @@ export function Agents() {
             { id: deleting.id, mode: "with_data" },
             {
               onSuccess: closeDelete,
-              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent with data"),
+              onError: (e: unknown) =>
+                setFormError(
+                  (e as Error)?.message ??
+                    "Couldn't delete this agent with data",
+                ),
             },
           );
         }}

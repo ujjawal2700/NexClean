@@ -1410,9 +1410,9 @@ export async function getBookingDetail(id: string) {
   const durationMinutes =
     startedAt && completedAt
       ? Math.max(0, Math.round((completedAt.getTime() - startedAt.getTime()) / 60000))
-    : startedAt
-      ? Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 60000))
-      : null;
+      : startedAt
+        ? Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 60000))
+        : null;
 
   // [lng, lat] in the document; the map wants { lat, lng }.
   const coords = (booking.location as unknown as { coordinates?: number[] } | undefined)?.coordinates;
@@ -1439,18 +1439,18 @@ export async function getBookingDetail(id: string) {
     },
     agent: agent
       ? {
-          id: agent._id ? String(agent._id) : null,
-          name: agent.name || booking.agentName || "Agent",
-          phone: agent.phone || null,
-          email: agent.email || null,
-        }
+        id: agent._id ? String(agent._id) : null,
+        name: agent.name || booking.agentName || "Agent",
+        phone: agent.phone || null,
+        email: agent.email || null,
+      }
       : booking.agentName
         ? {
-            id: null,
-            name: booking.agentName,
-            phone: null,
-            email: null,
-          }
+          id: null,
+          name: booking.agentName,
+          phone: null,
+          email: null,
+        }
         : null,
 
     vehicleType: booking.vehicleType,
