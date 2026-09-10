@@ -17,10 +17,11 @@ import {
   UserX,
   Calendar,
   Loader2,
+  Bell,
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
-import { useMe } from "../api/queries";
+import { useMe, useNotifications } from "../api/queries";
 import { useDeactivateAccount } from "../api/mutations";
 
 export function Profile() {
@@ -28,10 +29,12 @@ export function Profile() {
   const qc = useQueryClient();
   const clear = useSessionStore((s) => s.clear);
   const { data: me } = useMe();
+  const { data: notifications = [] } = useNotifications();
   const deactivateAccount = useDeactivateAccount();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
 
+  const unread = notifications.filter((n) => !n.read).length;
   const vehicles = me?.vehicles ?? [];
   const addresses = me?.addresses ?? [];
 
@@ -224,6 +227,35 @@ export function Profile() {
                 <p className="text-xs text-muted truncate">
                   {addresses.length} address{addresses.length === 1 ? "" : "es"}{" "}
                   saved
+                </p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </GlassCard>
+          </Link>
+
+          {/* Notifications Link */}
+          <Link to="/app/notifications">
+            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+              <span className="relative grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                <Bell className="size-4.5" />
+                {unread > 0 && (
+                  <span className="absolute -top-1 -right-1 flex size-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex size-3 rounded-full bg-primary" />
+                  </span>
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-display font-semibold text-ink text-sm sm:text-base">Notifications</p>
+                  {unread > 0 && (
+                    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                      {unread} new
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted truncate">
+                  {unread > 0 ? `${unread} unread update${unread > 1 ? "s" : ""}` : "Alerts, offers & status"}
                 </p>
               </div>
               <ChevronRight className="size-4 shrink-0 text-muted" />

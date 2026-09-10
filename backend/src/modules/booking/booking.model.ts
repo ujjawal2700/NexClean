@@ -4,6 +4,7 @@ import { geoPointSchema } from "../../shared/geo";
 const bookingSchema = new Schema(
   {
     user: { type: Types.ObjectId, ref: "User", required: true, index: true },
+    customerName: { type: String, default: null },
     // Vehicle category key — admin-managed, not a fixed enum.
     vehicleType: { type: String, required: true },
     vehicleName: { type: String, required: true },
@@ -22,6 +23,59 @@ const bookingSchema = new Schema(
     // Coins the customer redeemed on this booking and the ₹ discount they bought.
     coinsRedeemed: { type: Number, default: 0 },
     coinDiscount: { type: Number, default: 0 },
+
+    /**
+     * Off-peak subsidy, snapshotted at booking time.
+     *
+     * `offPeakLocked` marks a booking that only got its price because it was
+     * placed in a quiet slot. Moving it into a peak slot later has to reclaim
+     * that subsidy, otherwise a customer can buy the cheap slot and walk the
+     * booking over to the expensive one.
+     *
+     * `offPeakDiscountAmount` is the rupees that subsidy was worth, and it is
+     * stored rather than recomputed for two reasons: the coupon may be edited or
+     * deleted before the reschedule happens, and a percentage coupon recomputed
+     * against a changed base price would reclaim a different number than the
+     * customer was ever given. Only the off-peak-gated portion goes in here —
+     * general coupons and redeemed coins are excluded by construction, so they
+     * can never be clawed back.
+     *
+     * Bookings created before this shipped have neither field; the defaults make
+     * them unlocked, which is deliberate — they move freely and are never
+     * charged for a rule that did not exist when they were made.
+     */
+    offPeakLocked: { type: Boolean, default: false },
+    offPeakDiscountAmount: { type: Number, default: 0 },
+
+    /**
+     * Fee collected for moving this booking into a peak slot.
+     *
+     * Kept apart from `price` on purpose: the cleaner's payout is a percentage
+     * of `price`, and this is a platform charge for the disruption, not service
+     * revenue. Folding it into `price` would quietly raise what the cleaner
+     * earns for identical work. It is also never refunded, so cancellation has
+     * to be able to tell the two apart.
+     */
+    peakUpgradeFeeCharged: { type: Number, default: 0 },
+
+    /**
+     * An admin let a peak upgrade through without charging for it.
+     *
+     * Recorded rather than silently applied: waiving is a goodwill decision with
+     * a rupee value, and "why is this booking in a peak slot at the off-peak
+     * price?" needs an answer that is not guesswork.
+     */
+    upgradeWaivedAmount: { type: Number, default: 0 },
+    upgradeWaivedBy: { type: Types.ObjectId, ref: "User", default: null },
+    upgradeWaivedAt: { type: Date, default: null },
+
+    /**
+     * How many times the *customer* has moved this booking. Separate from
+     * `rescheduleCount`, which the missed-slot sweep owns and resets — mixing
+     * them would let a customer's moves exhaust the sweep's retry budget, or a
+     * sweep reset hand back unlimited customer moves.
+     */
+    customerRescheduleCount: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["upcoming", "completed", "cancelled"],
@@ -39,12 +93,28 @@ const bookingSchema = new Schema(
       enum: ["assigned", "enroute", "arrived", "in_progress", "completed"],
       default: "assigned",
     },
+    /**
+     * When the cleaner actually started and finished the wash.
+     *
+     * jobStatus records where a job is but not when it got there, so the time
+     * a wash took could not be reported at all — only 'assigned' had a
+     * timestamp. Recorded at the transition rather than derived from
+     * updatedAt, which any later edit to the booking would overwrite.
+     * Bookings that completed before this shipped have neither, and are shown
+     * as unknown rather than guessed at.
+     */
+    jobStartedAt: { type: Date, default: null },
+    jobCompletedAt: { type: Date, default: null },
     hasBefore: { type: Boolean, default: false },
     hasAfter: { type: Boolean, default: false },
-    // The actual proof-of-service images. hasBefore/hasAfter used to be set by
-    // an empty POST with no image at all, so the "photos required before
-    // completing" gate was satisfiable without taking a single photo and
-    // nothing was retained to settle a damage or no-show dispute.
+    // What the cleaner actually earned, frozen at the moment the job completed.
+    // The payout rule is admin-editable, so computing it live would silently
+    // rewrite the earnings history of every past job the next time the rate
+    // changed. null = not completed yet, so quote it from the current rule.
+    agentPayout: { type: Number, default: null },
+    // The actual proof-of-service images (up to 8 before and 8 after).
+    beforePhotos: { type: [String], default: [] },
+    afterPhotos: { type: [String], default: [] },
     beforePhotoUrl: { type: String, default: "" },
     afterPhotoUrl: { type: String, default: "" },
 
@@ -71,6 +141,16 @@ const bookingSchema = new Schema(
     rescheduleCount: { type: Number, default: 0 },
     lastRescheduledAt: { type: Date, default: null },
     autoRescheduled: { type: Boolean, default: false },
+
+    /**
+     * Which pre-service reminder pushes ("60m" | "30m" | "5m") have already
+     * gone out for this booking's current slot. The reminder sweep runs on a
+     * short tick and re-derives "is a window due?" from the clock every time,
+     * so without a persisted marker a slow tick or a restart would re-fire a
+     * reminder the customer already got. Rescheduling clears it (a new slot
+     * time means the old windows no longer apply).
+     */
+    remindersSent: { type: [String], default: [] },
   },
   {
     timestamps: true,

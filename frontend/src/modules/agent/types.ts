@@ -49,11 +49,14 @@ export type Job = {
   addressLine: string;
   society: string;
   distanceKm: number | null;
+  coordinates?: { lat: number; lng: number } | null;
   price: number;
   payout: number;
   status: JobStatus;
   hasBefore: boolean;
   hasAfter: boolean;
+  beforePhotos: string[];
+  afterPhotos: string[];
 };
 
 /** A live dispatch offer pushed to the agent (Uber-style incoming request). */
@@ -88,6 +91,8 @@ export type AgentProfile = {
   phone: string;
   email?: string;
   role: string;
+  /** Chosen from the admin-managed Locations list at signup. */
+  city?: string;
   area: string;
   rating: number;
   jobsDone: number;
@@ -106,4 +111,61 @@ export type AgentSummary = {
   completedToday: number;
   earnedToday: number;
   potentialToday: number;
+};
+
+/** Where a payout gets sent. `branch`/`address` are resolved server-side from `ifsc`, never typed in. */
+export type BankAccount = {
+  holderName: string;
+  bankName: string;
+  accountNumber: string;
+  ifsc: string;
+  branch: string;
+  address: string;
+  verifiedAt: string;
+};
+
+/** Result of looking up an IFSC code, before it's saved as part of a bank account. */
+export type IfscBranch = {
+  bank: string;
+  ifsc: string;
+  branch: string;
+  address: string;
+  city?: string;
+  state?: string;
+};
+
+export type PayoutRequestStatus = "pending" | "approved" | "rejected" | "paid";
+
+export type PayoutRequest = {
+  id: string;
+  amount: number;
+  status: PayoutRequestStatus;
+  bankSnapshot: { holderName: string; bankName: string; accountNumber: string; ifsc: string; branch: string };
+  rejectionReason: string;
+  transactionRef: string;
+  processedAt: string | null;
+  createdAt: string;
+};
+
+export type WalletSummary = {
+  totalEarned: number;
+  reserved: number;
+  available: number;
+  requests: PayoutRequest[];
+};
+
+/**
+ * One row in the cleaner's inbox.
+ *
+ * Same shape the customer app uses — the API is role-agnostic, it is only the
+ * screens that differ — but declared here so the agent module doesn't import
+ * types across a module boundary it otherwise never crosses.
+ */
+export type AgentNotification = {
+  id: string;
+  type: "booking" | "area_alert" | "system";
+  title: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
 };

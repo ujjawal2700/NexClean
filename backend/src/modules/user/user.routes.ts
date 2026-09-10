@@ -7,6 +7,7 @@ import {
   changePasswordSchema,
   addVehicleSchema,
   addAddressSchema,
+  updateAddressSchema,
   requestPhoneChangeSchema,
   confirmPhoneChangeSchema,
 } from "./user.validation";
@@ -38,6 +39,7 @@ userRouter.post("/me/vehicles", validateBody(addVehicleSchema), asyncHandler(use
 userRouter.delete("/me/vehicles/:id", asyncHandler(userController.removeVehicle));
 
 userRouter.post("/me/addresses", validateBody(addAddressSchema), asyncHandler(userController.addAddress));
+userRouter.patch("/me/addresses/:id", validateBody(updateAddressSchema), asyncHandler(userController.updateAddress));
 userRouter.delete("/me/addresses/:id", asyncHandler(userController.removeAddress));
 
 userRouter.get("/me/referrals", asyncHandler(userController.getReferralSummary));

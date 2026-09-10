@@ -87,8 +87,14 @@ export type Booking = {
   dispatchStatus?: DispatchStatus;
   agentName?: string | null;
   isSubscriptionWash?: boolean;
+  beforePhotos?: string[];
+  afterPhotos?: string[];
+  beforePhotoUrl?: string | null;
+  afterPhotoUrl?: string | null;
   createdAt: string;
 };
+
+export type BannerType = "promotional" | "discount" | "off-peak-hours" | "announcement";
 
 export type PromoBanner = {
   id: string;
@@ -97,7 +103,27 @@ export type PromoBanner = {
   imageUrl: string;
   ctaLabel: string;
   ctaLink: string;
+  type: BannerType;
   sortOrder: number;
+};
+
+/** 0 = Sunday, matching JS Date#getDay. */
+export type WeekdayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export type OffPeakWindow = {
+  day: WeekdayIndex;
+  /** 24-hour "HH:MM" in the config's timezone. */
+  start: string;
+  end: string;
+  label: string;
+  startMinutes: number;
+  endMinutes: number;
+};
+
+export type OffPeakHoursConfig = {
+  timezone: string;
+  active: boolean;
+  windows: OffPeakWindow[];
 };
 
 export type ReferredUser = {
@@ -172,6 +198,9 @@ export type AppNotification = {
   body: string;
   read: boolean;
   createdAt: string;
+  // Deep-link hint the backend attaches to booking-flow events (assignment,
+  // status updates, reminders) — see resolveNotificationPath.
+  data?: Record<string, string>;
 };
 
 export type SubscriptionScheduleResponse = {

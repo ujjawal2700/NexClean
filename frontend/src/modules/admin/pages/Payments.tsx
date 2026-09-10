@@ -7,9 +7,14 @@ import { Input } from "@shared/ui/Input";
 import { Pagination } from "@shared/ui/Pagination";
 import { formatMoney, formatDate } from "@shared/lib/format";
 import { usePagination } from "@shared/lib/usePagination";
-import { usePayments, usePaymentStats, useRefundPayment, useSettlePayment } from "../api/admin.api";
+import { usePayments, usePaymentStats, useRefundPayment, useSettlePayment, useAgents } from "../api/admin.api";
 import { StatCard } from "../components/StatCard";
-import { PAYMENT_STATUS_STYLE, PAYMENT_STATUS_LABEL, SETTLEMENT_STATUS_STYLE } from "../lib/status";
+import {
+  PAYMENT_STATUS_STYLE,
+  PAYMENT_STATUS_LABEL,
+  PAYMENT_STATUS_ORDER,
+  SETTLEMENT_STATUS_STYLE,
+} from "../lib/status";
 
 const isWithinDays = (dateStr: string | Date, days: number) => {
   const date = new Date(dateStr);
@@ -42,6 +47,7 @@ const isYesterday = (dateStr: string | Date) => {
 
 export function Payments() {
   const { data: rawPayments = [] } = usePayments();
+  const { data: agents = [] } = useAgents();
   const { data: stats } = usePaymentStats();
   const refund = useRefundPayment();
   const settle = useSettlePayment();
@@ -51,10 +57,22 @@ export function Payments() {
   const [dateFilter, setDateFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date-desc");
 
-  // Extract unique agent names for filter
-  const agentsList = Array.from(
-    new Set(rawPayments.map((p) => p.agentName).filter(Boolean)),
-  ) as string[];
+  /**
+   * Filter options come from the agents directory, not from the payment rows.
+   *
+   * Deriving them from `rawPayments` meant a cleaner only appeared in the
+   * dropdown once they already had a payment in the list — so newly added
+   * agents, and anyone whose payments fell outside the 200-row window the API
+   * returns, were simply missing from the filter. Sorted by name so the list is
+   * scannable regardless of the order the API happens to return.
+   */
+  const agentOptions = [...agents]
+    .map((a) => ({ id: a.id, name: a.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Payments still awaiting a cleaner are worth isolating: pay-to-cleaner rows
+  // start life unassigned, so this is the queue an admin actually chases.
+  const hasUnassigned = rawPayments.some((p) => !p.agentId);
 
   const list = rawPayments
     .filter((p) => {
@@ -70,7 +88,8 @@ export function Payments() {
         statusFilter === "all" || p.status === statusFilter;
 
       const matchesAgent =
-        agentFilter === "all" || p.agentName === agentFilter;
+        agentFilter === "all" ||
+        (agentFilter === "unassigned" ? !p.agentId : p.agentId === agentFilter);
 
       let matchesDate = true;
       if (dateFilter === "today") matchesDate = isToday(p.createdAt);
@@ -146,11 +165,15 @@ export function Payments() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="h-10 rounded-xl border border-line bg-surface/80 px-3 text-sm text-ink outline-none focus:border-primary/50 transition-colors cursor-pointer"
           >
+            {/* Built from the status map rather than hand-listed: the hardcoded
+                list had drifted, offering a "Pending" value no payment ever has
+                (the statuses are created/paid/mock/refunded) while omitting
+                "created" entirely — so that option always returned an empty
+                table, and unpaid bookings could not be filtered for at all. */}
             <option value="all">All Statuses</option>
-            <option value="paid">Paid</option>
-            <option value="pending">Pending</option>
-            <option value="refunded">Refunded</option>
-            <option value="mock">Mock</option>
+            {PAYMENT_STATUS_ORDER.map((s) => (
+              <option key={s} value={s}>{PAYMENT_STATUS_LABEL[s]}</option>
+            ))}
           </select>
         </div>
 
@@ -162,8 +185,9 @@ export function Payments() {
             className="h-10 rounded-xl border border-line bg-surface/80 px-3 text-sm text-ink outline-none focus:border-primary/50 transition-colors cursor-pointer"
           >
             <option value="all">All Agents</option>
-            {agentsList.map((name) => (
-              <option key={name} value={name}>{name}</option>
+            {hasUnassigned && <option value="unassigned">Unassigned</option>}
+            {agentOptions.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>
         </div>

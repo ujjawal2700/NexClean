@@ -29,3 +29,34 @@ export async function cancel(req: Request, res: Response): Promise<Response> {
   const booking = await bookingService.cancelBooking(req.userId!, String(req.params.id));
   return ok(res, booking, "Booking cancelled");
 }
+
+/** What moving this booking would cost. Read-only — nothing is changed. */
+export async function reschedulePreview(req: Request, res: Response): Promise<Response> {
+  const quote = await bookingService.previewReschedule(req.userId!, String(req.params.id), req.body);
+  return ok(res, quote);
+}
+
+/** Open a gateway order for an upcharge the customer wants to pay now. */
+export async function rescheduleOrder(req: Request, res: Response): Promise<Response> {
+  const order = await bookingService.createRescheduleUpgradeOrder(
+    req.userId!,
+    String(req.params.id),
+    req.body,
+  );
+  return ok(res, order);
+}
+
+export async function reschedule(req: Request, res: Response): Promise<Response> {
+  const { booking, quote } = await bookingService.rescheduleOwnBooking(
+    req.userId!,
+    String(req.params.id),
+    req.body,
+  );
+  return ok(
+    res,
+    booking,
+    quote.requiresPayment
+      ? `Booking moved. ₹${quote.totalDue} has been added to what you pay your cleaner.`
+      : "Booking moved",
+  );
+}

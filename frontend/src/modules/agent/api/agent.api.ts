@@ -1,7 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
-import type { Job, JobOffer, AgentProfile, AgentSummary, AreaAlert } from "../types";
+import type {
+  Job,
+  JobOffer,
+  AgentProfile,
+  AgentSummary,
+  AreaAlert,
+  AgentNotification,
+  BankAccount,
+  IfscBranch,
+  WalletSummary,
+  PayoutRequest,
+} from "../types";
 
 export const meKey = ["agent", "me"] as const;
 export const jobsKey = ["agent", "jobs"] as const;
@@ -40,7 +51,8 @@ export function useVerifyOtp() {
 export type AgentSignupBasicInput = {
   name: string;
   phone: string;
-  area: string;
+  city: string;
+  area?: string;
   code: string;
 };
 
@@ -54,7 +66,8 @@ export function useAgentSignupBasic() {
 export type AgentSignupInput = {
   name: string;
   phone: string;
-  area: string;
+  city?: string;
+  area?: string;
   aadharNumber: string;
   aadharFront: string;
   aadharBack: string;
@@ -102,11 +115,18 @@ export function useAdvanceJob() {
 }
 
 export function useJobPhoto() {
-  return useJobMutation((vars: { id: string; kind: "before" | "after"; image?: string }) =>
-    apiFetch<Job>(`/agent/jobs/${vars.id}/photo`, {
-      method: "POST",
-      body: { kind: vars.kind, image: vars.image },
-    }),
+  return useJobMutation(
+    (vars: {
+      id: string;
+      kind: "before" | "after";
+      image?: string;
+      action?: "add" | "remove";
+      index?: number;
+    }) =>
+      apiFetch<Job>(`/agent/jobs/${vars.id}/photo`, {
+        method: "POST",
+        body: { kind: vars.kind, image: vars.image, action: vars.action, index: vars.index },
+      }),
   );
 }
 
@@ -141,6 +161,33 @@ export function useNotifyArea() {
   });
 }
 
+export const notificationsKey = ["agent", "notifications"] as const;
+
+/**
+ * The cleaner's notification feed.
+ *
+ * Polls on the same cadence as the customer's inbox. The socket already pushes
+ * a "notification" event, but polling is the backstop that makes an unread
+ * badge correct after the app has been backgrounded or the socket has dropped.
+ */
+export function useAgentNotifications() {
+  const authenticated = useAgentSession((s) => s.authenticated);
+  return useQuery({
+    queryKey: notificationsKey,
+    queryFn: () => apiFetch<AgentNotification[]>("/notifications"),
+    enabled: authenticated,
+    refetchInterval: 20_000,
+  });
+}
+
+export function useMarkAgentNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch<{ ok: boolean }>("/notifications/read", { method: "PATCH" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: notificationsKey }),
+  });
+}
+
 /** Register this device's push token so the agent gets offer pings when backgrounded. */
 export function useRegisterToken() {
   return useMutation({
@@ -152,6 +199,61 @@ export function useRegisterToken() {
 export function useDeactivateAccount() {
   return useMutation({
     mutationFn: () => apiFetch<{ deactivated: boolean }>("/users/me/deactivate", { method: "POST" }),
+  });
+}
+
+/* --------------------------- Bank account + payouts ----------------------- */
+
+export const bankAccountKey = ["agent", "bank-account"] as const;
+export const walletKey = ["agent", "wallet"] as const;
+
+export function useBankAccount() {
+  const authenticated = useAgentSession((s) => s.authenticated);
+  return useQuery({
+    queryKey: bankAccountKey,
+    queryFn: () => apiFetch<BankAccount | null>("/agent/bank-account"),
+    enabled: authenticated,
+  });
+}
+
+export function useSaveBankAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      holderName: string;
+      bankName: string;
+      accountNumber: string;
+      confirmAccountNumber: string;
+      ifsc: string;
+    }) => apiFetch<BankAccount>("/agent/bank-account", { method: "PUT", body: vars }),
+    onSuccess: (account) => qc.setQueryData(bankAccountKey, account),
+  });
+}
+
+/**
+ * On-demand IFSC lookup — not a query hook, since it fires on blur/debounce
+ * rather than being tied to a component's mount, and a failed/unknown code is
+ * an expected outcome the caller handles inline rather than an error state.
+ */
+export function lookupIfsc(code: string): Promise<IfscBranch> {
+  return apiFetch<IfscBranch>(`/agent/bank-account/ifsc/${encodeURIComponent(code)}`);
+}
+
+export function useWallet() {
+  const authenticated = useAgentSession((s) => s.authenticated);
+  return useQuery({
+    queryKey: walletKey,
+    queryFn: () => apiFetch<WalletSummary>("/agent/wallet"),
+    enabled: authenticated,
+  });
+}
+
+export function useRequestPayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (amount: number) =>
+      apiFetch<PayoutRequest>("/agent/payout-requests", { method: "POST", body: { amount } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: walletKey }),
   });
 }
 

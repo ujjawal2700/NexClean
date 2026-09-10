@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Search, X, Wand2, Calendar, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Search, X, Wand2, Calendar, Loader2, Eye } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -15,6 +16,8 @@ import {
   useAssignBooking,
   useAutoAssignBooking,
   useRescheduleBooking,
+  useRescheduleQuote,
+  type AdminRescheduleQuote,
   useSetBookingStatus,
   useCategoryLabel,
 } from "../api/admin.api";
@@ -55,14 +58,33 @@ function RescheduleModal({
   onClose: () => void;
 }) {
   const reschedule = useRescheduleBooking();
+  const quoteReschedule = useRescheduleQuote();
   const initialDate = booking.date ? new Date(booking.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(initialDate);
   const [slot, setSlot] = useState(booking.slot || TIME_SLOTS[0]);
+  const [waive, setWaive] = useState(false);
+  const [quote, setQuote] = useState<AdminRescheduleQuote | null>(null);
+
+  // Price the move as the admin picks it, so the cost of a goodwill decision is
+  // visible before they make it rather than discovered afterwards.
+  useEffect(() => {
+    setQuote(null);
+    if (!date || !slot) return;
+    let cancelled = false;
+    quoteReschedule.mutate(
+      { id: booking.id, date, slot },
+      { onSuccess: (q) => !cancelled && setQuote(q) },
+    );
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, slot, booking.id]);
 
   const submit = () => {
     if (!date || !slot) return;
     reschedule.mutate(
-      { id: booking.id, date, slot },
+      { id: booking.id, date, slot, waiveUpgrade: waive || undefined },
       { onSuccess: () => onClose() }
     );
   };
@@ -113,12 +135,43 @@ function RescheduleModal({
           </div>
         </div>
 
+        {/* An admin move costs the customer the same as their own would, unless
+            it is explicitly waived — otherwise asking support becomes the free
+            way around the off-peak rule. */}
+        {quote?.requiresPayment && (
+          <div className="rounded-2xl border border-amber-300/50 bg-amber-50/50 p-3 text-sm">
+            <p className="font-medium text-ink">Peak slot — this change is chargeable</p>
+            <p className="mt-1 text-xs text-muted">
+              {formatMoney(quote.reclaim)} discount to reclaim + {formatMoney(quote.fee)} fee ={" "}
+              <span className="font-medium text-ink">{formatMoney(quote.totalDue)}</span> added to the
+              customer's bill.
+            </p>
+            <label className="mt-3 flex cursor-pointer items-start gap-2">
+              <input
+                type="checkbox"
+                checked={waive}
+                onChange={(e) => setWaive(e.target.checked)}
+                className="mt-0.5 size-4 accent-[color:var(--color-primary,#4F7CFF)]"
+              />
+              <span className="text-xs text-ink-soft">
+                Waive it — move at no extra cost. Recorded against this booking with your name.
+              </span>
+            </label>
+          </div>
+        )}
+
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>
           <Button size="sm" onClick={submit} disabled={reschedule.isPending || !date || !slot}>
-            {reschedule.isPending ? <Loader2 className="size-4 animate-spin" /> : "Save & Reschedule"}
+            {reschedule.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : quote?.requiresPayment && !waive ? (
+              `Charge ${formatMoney(quote.totalDue)} & reschedule`
+            ) : (
+              "Save & Reschedule"
+            )}
           </Button>
         </div>
       </div>
@@ -265,8 +318,24 @@ export function Bookings() {
             {!isLoading && paginated.pageItems.map((b) => (
               <tr key={b.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
-                  <p className="font-medium text-ink">{b.vehicleName}</p>
-                  <p className="text-xs text-muted">{categoryLabel(b.vehicleType)} · #{b.id}</p>
+                  <Link
+                    to={`/admin/bookings/${b.id}`}
+                    className="font-medium text-ink hover:text-primary transition-colors block"
+                    data-testid={`booking-link-${b.id}`}
+                  >
+                    {b.vehicleName}
+                  </Link>
+                  <p className="text-xs text-muted">
+                    {categoryLabel(b.vehicleType)} · <Link to={`/admin/bookings/${b.id}`} className="hover:underline hover:text-primary">#{b.id}</Link>
+                  </p>
+                  {b.offPeakLocked && (
+                    <span
+                      className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+                      title={`Discounted ${formatMoney(b.offPeakDiscountAmount)} for booking off-peak — moving to a peak slot is chargeable`}
+                    >
+                      Off-peak {formatMoney(b.offPeakDiscountAmount)}
+                    </span>
+                  )}
                 </td>
                 <td className="px-2 py-3 text-ink-soft">{b.customerName}</td>
                 <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)} · {b.slot}</td>
@@ -280,6 +349,11 @@ export function Bookings() {
                 <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(b.price)}</td>
                 <td className="px-2 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
+                    <Link to={`/admin/bookings/${b.id}`}>
+                      <Button variant="ghost" size="sm" title="View booking details and live tracking" data-testid={`view-booking-${b.id}`}>
+                        <Eye className="size-3.5" /> Details
+                      </Button>
+                    </Link>
                     {b.status === "upcoming" && (
                       <Button
                         variant="outline"

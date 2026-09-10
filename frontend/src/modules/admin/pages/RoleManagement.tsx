@@ -16,26 +16,33 @@ import {
 } from "../api/admin.api";
 import type { AdminRole, AdminStaff } from "../types";
 
-// Standard administrative sections that can be toggled as permissions
+// Administrative sections that can be toggled as permissions. Grouped and
+// ordered to mirror the sidebar, so granting access reads the same way it is
+// navigated. Every key here must match a `permission` in AdminLayout's NAV_GROUPS.
 const PERMISSION_SECTIONS = [
   { key: "dashboard", label: "Dashboard" },
-  { key: "bookings", label: "Bookings" },
+  { key: "reports", label: "Analytics Reports" },
+  { key: "bookings", label: "Bookings & Dispatch" },
+  { key: "off-peak-hours", label: "Off-Peak Hours" },
+  { key: "area-alerts", label: "Area Alerts" },
+  { key: "chat", label: "Support Chat" },
   { key: "customers", label: "Customers" },
   { key: "agents", label: "Agents & Verification" },
   { key: "leads", label: "Leads" },
   { key: "payments", label: "Payments & Refunds" },
+  { key: "agent-payouts", label: "Agent Payouts" },
+  { key: "payout-requests", label: "Payout Requests" },
   { key: "pricing", label: "Pricing Packages" },
   { key: "plans", label: "Subscription Plans" },
-  { key: "locations", label: "Cities & Zones" },
   { key: "vehicle-categories", label: "Vehicle Categories" },
   { key: "vehicle-brands", label: "Vehicle Brands" },
+  { key: "locations", label: "Cities & Zones" },
   { key: "promotions", label: "Coupons & Banners" },
   { key: "special-coupons", label: "Special Coupons" },
   { key: "referrals", label: "Referrals & Coins" },
+  { key: "notifications", label: "Notifications" },
   { key: "content", label: "Landing & Static Content" },
-  { key: "reports", label: "Analytics Reports" },
   { key: "roles", label: "Roles & Staff Management" },
-  { key: "chat", label: "Support Chat" },
 ];
 
 export function RoleManagement() {

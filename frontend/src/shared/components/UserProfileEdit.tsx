@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   User as UserIcon,
   Mail,
@@ -67,14 +67,24 @@ export function UserProfileEdit({
   const [passwordSuccess, setPasswordSuccess] = useState("");
 
 
+  /**
+   * Seed the form once per account, not on every `user` change.
+   *
+   * This effect used to run for any new `user` object, including a routine
+   * background refetch. A GET /auth/me that was already in flight when you hit
+   * Save resolves *after* the PATCH updated the cache, carrying the old values —
+   * and this effect then wrote them straight back over what you had just typed.
+   * The save had succeeded; only the screen lied, which is the worse failure.
+   */
+  const seededFor = useRef<string | null>(null);
   useEffect(() => {
-    if (user) {
-      // Strip numbers if legacy name had numbers or clean up phone
-      setName((user.name || "").replace(NON_NAME_CHARS, ""));
-      setEmail(user.email || "");
-      const digits = (user.phone || "").replace(/\D/g, "").slice(0, 10);
-      setPhone(digits);
-    }
+    if (!user || seededFor.current === user.id) return;
+    seededFor.current = user.id;
+    // Strip numbers if legacy name had numbers or clean up phone
+    setName((user.name || "").replace(NON_NAME_CHARS, ""));
+    setEmail(user.email || "");
+    const digits = (user.phone || "").replace(/\D/g, "").slice(0, 10);
+    setPhone(digits);
   }, [user]);
 
   // Derived role badge text

@@ -40,6 +40,13 @@ export function useSendOtp() {
   });
 }
 
+export function useSendLoginOtp() {
+  return useMutation({
+    mutationFn: (phone: string) =>
+      apiFetch<{ sent: boolean }>("/auth/send-login-otp", { method: "POST", body: { phone } }),
+  });
+}
+
 export function useVerifyOtp() {
   return useMutation({
     mutationFn: (vars: { phone: string; code: string }) =>
@@ -104,6 +111,13 @@ export function useAddAddress() {
   return useUserMutation(
     (a: { label: string; line: string; society?: string; lat?: number; lng?: number; placeId?: string }) =>
       apiFetch<User>("/users/me/addresses", { method: "POST", body: a }),
+  );
+}
+
+export function useUpdateAddress() {
+  return useUserMutation(
+    (vars: { id: string; data: { label?: string; line?: string; society?: string; lat?: number; lng?: number; placeId?: string } }) =>
+      apiFetch<User>(`/users/me/addresses/${vars.id}`, { method: "PATCH", body: vars.data }),
   );
 }
 
@@ -217,8 +231,17 @@ export type PreviewAmountResponse = {
 /** Validate a discount code / coin redemption and preview the final total before paying. */
 export function usePreviewDiscount() {
   return useMutation({
-    mutationFn: (vars: { vehicleType: CarType; packageId: string; discountCode?: string; coinsToRedeem?: number }) =>
-      apiFetch<PreviewAmountResponse>("/payments/preview", { method: "POST", body: vars }),
+    mutationFn: (vars: {
+      vehicleType: CarType;
+      packageId: string;
+      discountCode?: string;
+      coinsToRedeem?: number;
+      // The slot being quoted for. Peak-hours-only codes are validated against
+      // it, so sending it keeps the quote identical to what booking creation
+      // will compute — omit it and such a code is refused rather than mis-quoted.
+      date?: string;
+      slot?: string;
+    }) => apiFetch<PreviewAmountResponse>("/payments/preview", { method: "POST", body: vars }),
   });
 }
 
@@ -238,6 +261,66 @@ export function useVerifyPayment() {
       qc.invalidateQueries({ queryKey: bookingsKey });
       qc.invalidateQueries({ queryKey: walletKey });
       qc.invalidateQueries({ queryKey: referralsKey });
+    },
+  });
+}
+
+/** What moving a booking to another slot would cost. Read-only. */
+export type RescheduleQuote = {
+  targetIsOffPeak: boolean;
+  requiresPayment: boolean;
+  exempt: boolean;
+  reclaim: number;
+  fee: number;
+  totalDue: number;
+  newPrice: number;
+  reason: string;
+  /** False when no gateway is configured — the screen must not offer "pay now". */
+  onlinePaymentAvailable: boolean;
+};
+
+export function usePreviewReschedule() {
+  return useMutation({
+    mutationFn: (vars: { id: string; date: string; slot: string }) =>
+      apiFetch<RescheduleQuote>(`/bookings/${vars.id}/reschedule/preview`, {
+        method: "POST",
+        body: { date: vars.date, slot: vars.slot },
+      }),
+  });
+}
+
+/**
+ * Open a gateway order for a peak-upgrade charge. Nothing about the booking
+ * changes here — the move happens on commit, once the signature verifies.
+ */
+export function useRescheduleOrder() {
+  return useMutation({
+    mutationFn: (vars: { id: string; date: string; slot: string }) =>
+      apiFetch<{ orderId: string; amount: number; currency: string; keyId: string }>(
+        `/bookings/${vars.id}/reschedule/order`,
+        { method: "POST", body: { date: vars.date, slot: vars.slot } },
+      ),
+  });
+}
+
+export function useRescheduleBooking() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      id: string;
+      date: string;
+      slot: string;
+      paymentMethod?: "cash" | "online";
+      razorpay_order_id?: string;
+      razorpay_payment_id?: string;
+      razorpay_signature?: string;
+    }) => {
+      const { id, ...body } = vars;
+      return apiFetch<Booking>(`/bookings/${id}/reschedule`, { method: "PATCH", body });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: bookingsKey });
+      qc.invalidateQueries({ queryKey: ["subscription", "schedule"] });
     },
   });
 }

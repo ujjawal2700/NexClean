@@ -40,15 +40,36 @@ if (config.apiKey && config.projectId && config.messagingSenderId && config.appI
   });
 }
 
-// Focus the app (or open it) when a push is tapped.
+// Where a notification's data should take the viewer. Mirrors
+// frontend/src/shared/lib/notificationLink.ts — this file runs outside the
+// bundler (a service worker can't import it), so the logic is duplicated
+// rather than shared. Keep the two in sync.
+function resolveNotificationPath(data) {
+  if (!data) return null;
+  if (data.url) return data.url;
+  if (data.bookingId) {
+    return data.role === "agent" ? `/agent/jobs/${data.bookingId}` : `/app/track/${data.bookingId}`;
+  }
+  return null;
+}
+
+// Deep-link into the right booking screen when a push is tapped: focus (and
+// navigate) an already-open tab if there is one, otherwise open a new one
+// straight at the target instead of the app root.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const path = resolveNotificationPath(event.notification.data);
+  const target = path ? new URL(path, self.location.origin).href : self.location.origin;
+
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if ("focus" in client) return client.focus();
+        if ("focus" in client) {
+          if (path && "navigate" in client) client.navigate(target).catch(() => {});
+          return client.focus();
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow("/");
+      if (self.clients.openWindow) return self.clients.openWindow(target);
     }),
   );
 });

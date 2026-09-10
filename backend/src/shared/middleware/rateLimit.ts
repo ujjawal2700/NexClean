@@ -14,8 +14,8 @@ import { ApiError } from "../utils/ApiError";
  * configured for the Socket.IO adapter.
  */
 
-/** Tests hammer these endpoints deliberately; limiting them there is noise. */
-const disabled = env.nodeEnv === "test";
+/** Tests and dev hammer these endpoints deliberately; limiting them there is noise. */
+const disabled = env.nodeEnv === "test" || env.nodeEnv === "development" || env.allowDemoLogin;
 
 function base(opts: { windowMs: number; limit: number; message: string; keyGenerator?: Options["keyGenerator"] }) {
   return rateLimit({

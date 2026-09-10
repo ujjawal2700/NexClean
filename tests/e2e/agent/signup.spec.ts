@@ -1,11 +1,44 @@
-import { test, expect } from "@playwright/test";
-import { DEMO_OTP, freshPhone, loginByPhone } from "../../fixtures/api-client";
+import { test, expect, type APIRequestContext } from "@playwright/test";
+import { DEMO_OTP, freshPhone, loginByPhone, authHeader } from "../../fixtures/api-client";
 import { tinyPngFile } from "../../fixtures/agent-e2e-helpers";
+import { apiUrl, loginAsAdminApi } from "../../fixtures/admin-api-helpers";
+
+/** The city/area the signup form should offer. Seeded so the picker is deterministic. */
+const TEST_CITY = "Indore";
+const TEST_AREA = "Green Valley Society";
+
+/**
+ * Make sure the admin Locations list has a city and area to choose from.
+ *
+ * Signup no longer takes free text — it offers the admin-managed list, and
+ * falls back to a text box only when no cities exist at all. Seeding here keeps
+ * the form in one predictable shape regardless of what other specs have created.
+ */
+async function seedLocation(request: APIRequestContext) {
+  const { token } = await loginAsAdminApi(request);
+  const cities = (await (await request.get(apiUrl("/admin/cities"), { headers: authHeader(token) })).json()).data as
+    { id: string; name: string }[];
+  let city = cities.find((c) => c.name === TEST_CITY);
+  if (!city) {
+    const res = await request.post(apiUrl("/admin/cities"), { headers: authHeader(token), data: { name: TEST_CITY } });
+    city = (await res.json()).data as { id: string; name: string };
+  }
+
+  const zones = (await (await request.get(apiUrl("/admin/zones"), { headers: authHeader(token) })).json()).data as
+    { name: string; cityName: string }[];
+  if (!zones.some((z) => z.name === TEST_AREA && z.cityName === TEST_CITY)) {
+    await request.post(apiUrl("/admin/zones"), {
+      headers: authHeader(token),
+      data: { name: TEST_AREA, cityId: city.id },
+    });
+  }
+}
 
 async function fillDetails(page: import("@playwright/test").Page, opts: { name: string; phone: string; area: string }) {
   await page.locator('input[name="name"]').fill(opts.name);
   await page.locator('input[name="phone"]').fill(opts.phone);
-  await page.locator('input[name="area"]').fill(opts.area);
+  await page.locator('select[name="city"]').selectOption(TEST_CITY);
+  await page.locator('select[name="area"]').selectOption(opts.area);
 }
 
 /**
@@ -33,6 +66,10 @@ async function passOtpStep(page: import("@playwright/test").Page) {
 }
 
 test.describe("Agent signup", () => {
+  test.beforeEach(async ({ request }) => {
+    await seedLocation(request);
+  });
+
   test("details step: validates name, phone and area before proceeding", async ({ page }) => {
     await page.goto("/agent/signup");
     await expect(page.locator("h1")).toHaveText("Join as a cleaner");
@@ -47,10 +84,19 @@ test.describe("Agent signup", () => {
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Enter a valid 10-digit number")).toBeVisible();
 
-    // Valid name + phone, empty area -> area error.
+    // Valid name + phone, no city chosen -> city error.
     await page.locator('input[name="phone"]').fill(freshPhone());
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Enter the area / society you'll operate in")).toBeVisible();
+    await expect(page.getByText("Choose the city you'll work in")).toBeVisible();
+
+    // The area dropdown stays locked until a city is chosen.
+    const areaSelect = page.locator('select[name="area"]');
+    await expect(areaSelect).toBeDisabled();
+
+    await page.locator('select[name="city"]').selectOption(TEST_CITY);
+    await expect(areaSelect).toBeEnabled();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Choose the area you'll operate in")).toBeVisible();
 
     // Still on the details step throughout.
     await expect(page.locator("h1")).toHaveText("Join as a cleaner");
@@ -112,7 +158,7 @@ test.describe("Agent signup", () => {
     
     // 1. Start signup details
     await page.goto("/agent/signup");
-    await fillDetails(page, { name: "KYC Agent", phone, area: "KYC Society" });
+    await fillDetails(page, { name: "KYC Agent", phone, area: TEST_AREA });
     await continueToOtp(page);
 
     // 2. Verify OTP (which creates unverified agent & logs them in)

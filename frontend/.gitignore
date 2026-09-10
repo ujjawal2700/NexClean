@@ -4,9 +4,10 @@ dist-ssr
 *.local
 .vite
 
-# tsc emit for vite.config.ts. These are build artifacts, and a committed
-# vite.config.js also SHADOWS vite.config.ts in Vite's config resolution
-# order, so a stale or tampered emit silently wins over the real config.
+# Compiled output of vite.config.ts. Vite resolves vite.config.js BEFORE
+# vite.config.ts, so a stale emitted copy silently shadows the real config —
+# edits to the .ts then have no effect at all. tsconfig.node.json sets
+# noEmit, so these only appear from an ad-hoc `tsc`; keep them out of git.
 vite.config.js
 vite.config.d.ts
 

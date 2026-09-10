@@ -5,7 +5,7 @@
  */
 
 /** How long a single cleaner has to accept an offer before it moves on. */
-export const OFFER_TTL_MS = Number(process.env.DISPATCH_OFFER_TTL_MS ?? 25_000);
+export const OFFER_TTL_MS = Number(process.env.DISPATCH_OFFER_TTL_MS ?? 60_000);
 
 /**
  * Search radii (metres). Dispatch starts at the first radius; once every
@@ -34,5 +34,8 @@ export const SWEEP_INTERVAL_MS = Number(process.env.DISPATCH_SWEEP_INTERVAL_MS ?
 export const SUBSCRIPTION_LEAD_MS = Number(
   process.env.DISPATCH_SUBSCRIPTION_LEAD_MS ?? 2 * 60 * 60 * 1000,
 );
+
+/** How often the worker checks for booking reminder windows (60/30/5 min out) that are due. */
+export const REMINDER_TICK_MS = Number(process.env.DISPATCH_REMINDER_TICK_MS ?? 60_000);
 
 export const MAX_SEARCH_RADIUS_M = SEARCH_RADII_M[SEARCH_RADII_M.length - 1] ?? 12_000;

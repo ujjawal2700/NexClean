@@ -1,4 +1,4 @@
-import { PromoBanner, type PromoBannerDoc } from "./promoBanner.model";
+import { PromoBanner, type BannerType, type PromoBannerDoc } from "./promoBanner.model";
 import { ApiError } from "../../shared/utils/ApiError";
 
 function mapBanner(b: PromoBannerDoc) {
@@ -9,6 +9,9 @@ function mapBanner(b: PromoBannerDoc) {
     imageUrl: b.imageUrl,
     ctaLabel: b.ctaLabel,
     ctaLink: b.ctaLink,
+    // Banners created before `type` existed have no stored value; default them
+    // rather than emitting null and making every client null-check it.
+    type: (b.type ?? "promotional") as BannerType,
     sortOrder: b.sortOrder,
     active: b.active,
   };
@@ -30,6 +33,7 @@ export async function createPromoBanner(input: {
   imageUrl: string;
   ctaLabel?: string;
   ctaLink?: string;
+  type?: BannerType;
   sortOrder?: number;
 }) {
   return mapBanner(await PromoBanner.create(input));
@@ -43,6 +47,7 @@ export async function updatePromoBanner(
     imageUrl?: string;
     ctaLabel?: string;
     ctaLink?: string;
+    type?: BannerType;
     sortOrder?: number;
     active?: boolean;
   },

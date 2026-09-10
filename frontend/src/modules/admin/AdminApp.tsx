@@ -6,6 +6,7 @@ import { PermissionGuard } from "./components/PermissionGuard";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
+import { BookingDetail } from "./pages/BookingDetail";
 import { Dispatch } from "./pages/Dispatch";
 import { Agents } from "./pages/Agents";
 import { AgentVerification } from "./pages/AgentVerification";
@@ -13,6 +14,8 @@ import { AgentDetail } from "./pages/AgentDetail";
 import { Customers } from "./pages/Customers";
 import { CustomerDetail } from "./pages/CustomerDetail";
 import { Payments } from "./pages/Payments";
+import { AgentPayouts } from "./pages/AgentPayouts";
+import { PayoutRequests } from "./pages/PayoutRequests";
 import { Pricing } from "./pages/Pricing";
 import { AreaAlerts } from "./pages/AreaAlerts";
 import { Notifications } from "./pages/Notifications";
@@ -22,6 +25,7 @@ import { VehicleCategories } from "./pages/VehicleCategories";
 import { VehicleBrands } from "./pages/VehicleBrands";
 import { Promotions } from "./pages/Promotions";
 import { SpecialCoupons } from "./pages/SpecialCoupons";
+import { OffPeakHours } from "./pages/OffPeakHours";
 import { Reports } from "./pages/Reports";
 import { ContentManagement } from "./pages/ContentManagement";
 import { Leads } from "./pages/Leads";
@@ -51,6 +55,7 @@ export function AdminApp() {
           }>
           <Route index element={<PermissionGuard permission="dashboard"><Dashboard /></PermissionGuard>} />
           <Route path="bookings" element={<PermissionGuard permission="bookings"><Bookings /></PermissionGuard>} />
+          <Route path="bookings/:id" element={<PermissionGuard permission="bookings"><BookingDetail /></PermissionGuard>} />
           <Route path="dispatch" element={<PermissionGuard permission="bookings"><Dispatch /></PermissionGuard>} />
           <Route path="agents" element={<PermissionGuard permission="agents"><Agents /></PermissionGuard>} />
           <Route path="agent-verification" element={<PermissionGuard permission="agents"><AgentVerification /></PermissionGuard>} />
@@ -58,6 +63,8 @@ export function AdminApp() {
           <Route path="customers" element={<PermissionGuard permission="customers"><Customers /></PermissionGuard>} />
           <Route path="customers/:id" element={<PermissionGuard permission="customers"><CustomerDetail /></PermissionGuard>} />
           <Route path="payments" element={<PermissionGuard permission="payments"><Payments /></PermissionGuard>} />
+          <Route path="agent-payouts" element={<PermissionGuard permission="agent-payouts"><AgentPayouts /></PermissionGuard>} />
+          <Route path="payout-requests" element={<PermissionGuard permission="payout-requests"><PayoutRequests /></PermissionGuard>} />
           <Route path="pricing" element={<PermissionGuard permission="pricing"><Pricing /></PermissionGuard>} />
           <Route path="area-alerts" element={<PermissionGuard permission="area-alerts"><AreaAlerts /></PermissionGuard>} />
           <Route path="notifications" element={<PermissionGuard permission="notifications"><Notifications /></PermissionGuard>} />
@@ -67,6 +74,7 @@ export function AdminApp() {
           <Route path="vehicle-brands" element={<PermissionGuard permission="vehicle-brands"><VehicleBrands /></PermissionGuard>} />
           <Route path="promotions" element={<PermissionGuard permission="promotions"><Promotions /></PermissionGuard>} />
           <Route path="special-coupons" element={<PermissionGuard permission="special-coupons"><SpecialCoupons /></PermissionGuard>} />
+          <Route path="off-peak-hours" element={<PermissionGuard permission="off-peak-hours"><OffPeakHours /></PermissionGuard>} />
           <Route path="referrals" element={<PermissionGuard permission="referrals"><Referrals /></PermissionGuard>} />
           <Route path="content" element={<PermissionGuard permission="content"><ContentManagement /></PermissionGuard>} />
           <Route path="leads" element={<PermissionGuard permission="leads"><Leads /></PermissionGuard>} />

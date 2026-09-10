@@ -185,6 +185,27 @@ export async function addAddress(
   return getUser(userId);
 }
 
+export async function updateAddress(
+  userId: string,
+  addressId: string,
+  update: { label?: string; line?: string; society?: string; lat?: number; lng?: number; placeId?: string },
+) {
+  const user = await getUser(userId);
+  const target = user.addresses.id(addressId);
+  if (!target) throw ApiError.notFound("Address not found");
+
+  if (update.label !== undefined) target.label = update.label;
+  if (update.line !== undefined) target.line = update.line;
+  if (update.society !== undefined) target.society = update.society;
+  if (update.placeId !== undefined) target.placeId = update.placeId;
+  if (typeof update.lat === "number" && typeof update.lng === "number") {
+    target.coordinates = [update.lng, update.lat];
+  }
+
+  await user.save();
+  return user;
+}
+
 export async function removeAddress(userId: string, addressId: string) {
   const user = await getUser(userId);
   user.addresses.pull({ _id: addressId });

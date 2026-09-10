@@ -10,7 +10,12 @@ import * as categoryService from "../catalog/category.service";
 import * as discountCodeService from "../promotions/discountCode.service";
 import * as specialCouponService from "../promotions/specialCoupon.service";
 import { getReferralConfig, updateReferralConfig } from "../promotions/referralConfig.service";
+import { getOffPeakHoursConfig, updateOffPeakHoursConfig } from "../promotions/offPeakHours.service";
+import { suggestOffPeakWindows } from "../promotions/offPeakSuggest.service";
+import { getPayoutConfig, updatePayoutConfig } from "../payout/payoutConfig.service";
+import * as payoutRequestService from "../payout/payoutRequest.service";
 import * as promoBannerService from "../promotions/promoBanner.service";
+import { BANNER_TYPES } from "../promotions/promoBanner.model";
 import * as service from "./admin.service";
 import { getContent, updateContent } from "../content/content.service";
 import { AdminRole } from "./adminRole.model";
@@ -32,6 +37,10 @@ export async function reports(_req: Request, res: Response): Promise<Response> {
 
 export async function bookings(_req: Request, res: Response): Promise<Response> {
   return ok(res, await service.listBookings());
+}
+
+export async function bookingDetail(req: Request, res: Response): Promise<Response> {
+  return ok(res, await service.getBookingDetail(String(req.params.id)));
 }
 
 export async function cancelBooking(req: Request, res: Response): Promise<Response> {
@@ -61,17 +70,36 @@ export async function autoAssignBooking(req: Request, res: Response): Promise<Re
 const rescheduleSchema = z.object({
   date: z.string().min(1),
   slot: z.enum(TIME_SLOTS),
+  /** Let a peak upgrade through without charging — a recorded goodwill decision. */
+  waiveUpgrade: z.boolean().optional(),
 });
 export async function rescheduleBooking(req: Request, res: Response): Promise<Response> {
   const parsed = rescheduleSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest(`Date and a valid slot are required (one of: ${SLOT_LIST})`);
-  return ok(res, await service.rescheduleBooking(String(req.params.id), parsed.data), "Booking rescheduled successfully");
+  return ok(
+    res,
+    await service.rescheduleBooking(String(req.params.id), parsed.data, req.userId),
+    "Booking rescheduled successfully",
+  );
+}
+
+/**
+ * What moving this booking to a given slot would cost, without moving it.
+ *
+ * Read-only, so an admin can see the consequence before committing — and so the
+ * rule engine has one place to be exercised directly rather than only through
+ * whichever endpoint happens to call it.
+ */
+export async function rescheduleQuote(req: Request, res: Response): Promise<Response> {
+  const parsed = rescheduleSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest(`Date and a valid slot are required (one of: ${SLOT_LIST})`);
+  return ok(res, await service.quoteReschedule(String(req.params.id), parsed.data));
 }
 
 import { getRescheduleConfig, updateRescheduleConfig } from "../dispatch/slotScheduler.service";
 
 export async function getRescheduleConfigCtl(_req: Request, res: Response): Promise<Response> {
-  return ok(res, getRescheduleConfig());
+  return ok(res, await getRescheduleConfig());
 }
 
 const rescheduleConfigSchema = z.object({
@@ -81,7 +109,7 @@ const rescheduleConfigSchema = z.object({
 export async function updateRescheduleConfigCtl(req: Request, res: Response): Promise<Response> {
   const parsed = rescheduleConfigSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Invalid reschedule config");
-  return ok(res, updateRescheduleConfig(parsed.data), "Reschedule config updated");
+  return ok(res, await updateRescheduleConfig(parsed.data), "Reschedule config updated");
 }
 
 export async function dispatchQueue(_req: Request, res: Response): Promise<Response> {
@@ -114,20 +142,29 @@ const personName = z
 const personPhone = z.string().trim().regex(/^\d{10}$/, "Mobile number must be exactly 10 digits");
 const personEmail = z.string().trim().email("Enter a valid email address").max(120).optional().or(z.literal(""));
 
-const createAgentSchema = z.object({
-  name: personName,
-  phone: personPhone,
+const AGENT_STATUSES = ["verified", "pending", "suspended", "unverified"] as const;
+/** Optional because plenty of admin-added cleaners are onboarded before KYC. */
+const aadharNumber = z
+  .string()
+  .trim()
+  .regex(/^\d{12}$/, "Aadhaar number must be exactly 12 digits")
+  .optional()
+  .or(z.literal(""));
+
+const agentFields = {
   email: personEmail,
+  city: z.string().trim().max(80).optional(),
   area: z.string().trim().max(120).optional(),
   zoneId: z.string().trim().optional().nullable(),
-  agentStatus: z.enum(["verified", "pending", "suspended", "unverified"]).optional(),
-});
+  agentStatus: z.enum(AGENT_STATUSES).optional(),
+  aadharNumber,
+  rating: z.coerce.number().min(0).max(5).optional(),
+};
+const createAgentSchema = z.object({ name: personName, phone: personPhone, ...agentFields });
 const updateAgentSchema = z.object({
   name: personName.optional(),
   phone: personPhone.optional(),
-  email: personEmail,
-  area: z.string().trim().max(120).optional(),
-  zoneId: z.string().trim().optional().nullable(),
+  ...agentFields,
 });
 
 export async function createAgent(req: Request, res: Response): Promise<Response> {
@@ -143,14 +180,54 @@ export async function updateAgent(req: Request, res: Response): Promise<Response
 }
 
 export async function deleteAgent(req: Request, res: Response): Promise<Response> {
-  return ok(res, await service.deleteAgent(String(req.params.id)), "Agent deleted");
+  const queryMode = req.query.mode as service.DeleteAgentMode | undefined;
+  const bodyMode = req.body?.mode as service.DeleteAgentMode | undefined;
+  const isForce = req.query.force === "true" || req.body?.force === true;
+
+  let mode: service.DeleteAgentMode = "strict";
+  if (queryMode === "agent_only" || queryMode === "with_data" || queryMode === "strict") {
+    mode = queryMode;
+  } else if (bodyMode === "agent_only" || bodyMode === "with_data" || bodyMode === "strict") {
+    mode = bodyMode;
+  } else if (isForce) {
+    mode = "agent_only";
+  }
+
+  return ok(res, await service.deleteAgent(String(req.params.id), mode), "Agent deleted");
 }
 
-const createCustomerSchema = z.object({ name: personName, phone: personPhone, email: personEmail });
+/**
+ * A customer's first address and vehicle, so an admin taking a booking over the
+ * phone can capture everything in one go. Both are optional and both are
+ * all-or-nothing: an address without a line, or a vehicle without a name, is
+ * not worth storing.
+ */
+const addressInput = z
+  .object({
+    label: z.string().trim().max(40).optional(),
+    line: z.string().trim().max(200).optional(),
+    society: z.string().trim().max(120).optional(),
+  })
+  .optional();
+const vehicleInput = z
+  .object({
+    type: z.string().trim().max(60).optional(),
+    name: z.string().trim().max(60).optional(),
+    plate: z.string().trim().max(20).optional(),
+  })
+  .optional();
+
+const customerFields = {
+  email: personEmail,
+  status: z.enum(["active", "suspended"]).optional(),
+  address: addressInput,
+  vehicle: vehicleInput,
+};
+const createCustomerSchema = z.object({ name: personName, phone: personPhone, ...customerFields });
 const updateCustomerSchema = z.object({
   name: personName.optional(),
   phone: personPhone.optional(),
-  email: personEmail,
+  ...customerFields,
 });
 
 export async function createCustomer(req: Request, res: Response): Promise<Response> {
@@ -166,7 +243,20 @@ export async function updateCustomer(req: Request, res: Response): Promise<Respo
 }
 
 export async function deleteCustomer(req: Request, res: Response): Promise<Response> {
-  return ok(res, await service.deleteCustomer(String(req.params.id)), "Customer deleted");
+  const queryMode = req.query.mode as service.DeleteCustomerMode | undefined;
+  const bodyMode = req.body?.mode as service.DeleteCustomerMode | undefined;
+  const isForce = req.query.force === "true" || req.body?.force === true;
+
+  let mode: service.DeleteCustomerMode = "strict";
+  if (queryMode === "customer_only" || queryMode === "with_data" || queryMode === "strict") {
+    mode = queryMode;
+  } else if (bodyMode === "customer_only" || bodyMode === "with_data" || bodyMode === "strict") {
+    mode = bodyMode;
+  } else if (isForce) {
+    mode = "customer_only";
+  }
+
+  return ok(res, await service.deleteCustomer(String(req.params.id), mode), "Customer deleted");
 }
 
 const agentStatusSchema = z.object({ status: z.enum(["verified", "pending", "suspended"]) });
@@ -416,6 +506,7 @@ const createDiscountCodeSchema = z.object({
   maxDiscount: z.number().min(0).nullable().optional(),
   usageLimit: z.number().int().positive().nullable().optional(),
   validTill: z.coerce.date().nullable().optional(),
+  offPeakOnly: z.boolean().optional(),
 });
 export async function createDiscountCode(req: Request, res: Response): Promise<Response> {
   const parsed = createDiscountCodeSchema.safeParse(req.body);
@@ -431,6 +522,7 @@ const updateDiscountCodeSchema = z.object({
   usageLimit: z.number().int().positive().nullable().optional(),
   validTill: z.coerce.date().nullable().optional(),
   active: z.boolean().optional(),
+  offPeakOnly: z.boolean().optional(),
 });
 export async function updateDiscountCode(req: Request, res: Response): Promise<Response> {
   const parsed = updateDiscountCodeSchema.safeParse(req.body);
@@ -455,6 +547,7 @@ const generateSpecialCouponsSchema = z.object({
   maxDiscount: z.number().min(0).nullable().optional(),
   validFrom: z.coerce.date().nullable().optional(),
   validTill: z.coerce.date().nullable().optional(),
+  offPeakOnly: z.boolean().optional(),
 });
 export async function generateSpecialCoupons(req: Request, res: Response): Promise<Response> {
   const parsed = generateSpecialCouponsSchema.safeParse(req.body);
@@ -505,6 +598,106 @@ export async function updateReferralConfigHandler(req: Request, res: Response): 
   return ok(res, await updateReferralConfig(parsed.data), "Referral settings updated");
 }
 
+/* ------------------------------ Off-peak hours --------------------------- */
+
+export async function offPeakHours(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await getOffPeakHoursConfig());
+}
+
+const suggestQuerySchema = z.object({
+  weeks: z.coerce.number().int().min(1).max(104).optional(),
+  sensitivity: z.coerce.number().min(0.1).max(3).optional(),
+  minSamples: z.coerce.number().int().min(0).optional(),
+});
+/**
+ * Propose off-peak windows from booking history. Read-only by design — it hands
+ * back a draft plus the numbers behind it, and the admin saves through the
+ * normal PUT if they agree.
+ */
+export async function suggestOffPeakHours(req: Request, res: Response): Promise<Response> {
+  const parsed = suggestQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw ApiError.badRequest(issue ? `${issue.path.join(".")}: ${issue.message}` : "Invalid suggestion options");
+  }
+  return ok(
+    res,
+    await suggestOffPeakWindows({
+      lookbackWeeks: parsed.data.weeks,
+      sensitivity: parsed.data.sensitivity,
+      minSamplesPerDay: parsed.data.minSamples,
+    }),
+  );
+}
+
+const offPeakWindowSchema = z.object({
+  day: z.number().int().min(0).max(6),
+  start: z.string().trim().min(1),
+  end: z.string().trim().min(1),
+  label: z.string().trim().max(60).optional(),
+});
+const updateOffPeakHoursSchema = z.object({
+  timezone: z.string().trim().min(1).optional(),
+  // Capped so one request can't store an unbounded document; 7 days × a
+  // generous number of windows each is far beyond any real configuration.
+  windows: z.array(offPeakWindowSchema).max(70).optional(),
+  peakUpgradeFee: z.number().min(0).optional(),
+  active: z.boolean().optional(),
+});
+export async function updateOffPeakHoursHandler(req: Request, res: Response): Promise<Response> {
+  const parsed = updateOffPeakHoursSchema.safeParse(req.body);
+  // Unlike the sibling handlers, the specific message from the service layer is
+  // worth surfacing here — "end must be after start" tells an admin what to fix,
+  // where a flat "invalid update" would leave them guessing which row is wrong.
+  // The field path is prefixed because zod's bare "Required" says nothing about
+  // *which* of several windows is missing a field.
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const where = issue?.path.length ? `${issue.path.join(".")}: ` : "";
+    throw ApiError.badRequest(issue ? `${where}${issue.message}` : "Invalid off-peak hours update");
+  }
+  return ok(res, await updateOffPeakHoursConfig(parsed.data), "Off-peak hours updated");
+}
+
+/* ---------------------------- Agent payouts ------------------------------ */
+
+export async function payoutConfig(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await getPayoutConfig());
+}
+
+const updatePayoutConfigSchema = z
+  .object({
+    mode: z.enum(["percent", "flat"]).optional(),
+    percent: z.number().min(0).max(100).optional(),
+    flatAmount: z.number().min(0).optional(),
+    minPayout: z.number().min(0).optional(),
+    maxPayout: z.number().min(0).optional(),
+  })
+  .refine((v) => v.maxPayout === undefined || v.minPayout === undefined || v.maxPayout === 0 || v.maxPayout >= v.minPayout, {
+    message: "Maximum payout cannot be below the minimum payout",
+  });
+export async function updatePayoutConfigHandler(req: Request, res: Response): Promise<Response> {
+  const parsed = updatePayoutConfigSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "Invalid payout settings");
+  }
+  // A saved rule must be usable on its own: switching to "flat" without an
+  // amount, or to "percent" with 0%, would quietly zero out every cleaner's
+  // earnings on the next job.
+  const current = await getPayoutConfig();
+  const next = { ...current, ...parsed.data };
+  if (next.mode === "flat" && next.flatAmount <= 0) {
+    throw ApiError.badRequest("Set a flat amount above ₹0 before switching to flat payouts");
+  }
+  if (next.mode === "percent" && next.percent <= 0) {
+    throw ApiError.badRequest("Set a percentage above 0% before saving");
+  }
+  if (next.maxPayout > 0 && next.maxPayout < next.minPayout) {
+    throw ApiError.badRequest("Maximum payout cannot be below the minimum payout");
+  }
+  return ok(res, await updatePayoutConfig(parsed.data), "Agent payout settings updated");
+}
+
 export async function promoBanners(_req: Request, res: Response): Promise<Response> {
   return ok(res, await promoBannerService.listPromoBanners());
 }
@@ -515,6 +708,7 @@ const createPromoBannerSchema = z.object({
   imageUrl: z.string().trim().min(1),
   ctaLabel: z.string().trim().optional(),
   ctaLink: z.string().trim().optional(),
+  type: z.enum(BANNER_TYPES).optional(),
   sortOrder: z.number().optional(),
 });
 export async function createPromoBanner(req: Request, res: Response): Promise<Response> {
@@ -529,6 +723,7 @@ const updatePromoBannerSchema = z.object({
   imageUrl: z.string().trim().min(1).optional(),
   ctaLabel: z.string().trim().optional(),
   ctaLink: z.string().trim().optional(),
+  type: z.enum(BANNER_TYPES).optional(),
   sortOrder: z.number().optional(),
   active: z.boolean().optional(),
 });
@@ -551,6 +746,11 @@ export async function campaignAudienceSizes(_req: Request, res: Response): Promi
   return ok(res, await service.audienceSizes());
 }
 
+/** The audience picker's options, grouped by app, so the UI isn't a hardcoded copy. */
+export async function campaignAudiences(_req: Request, res: Response): Promise<Response> {
+  return ok(res, service.AUDIENCE_GROUPS);
+}
+
 const campaignSchema = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
@@ -560,7 +760,7 @@ export async function sendCampaign(req: Request, res: Response): Promise<Respons
   const parsed = campaignSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Title, body and audience are required");
   const campaign = await service.sendCampaign(parsed.data);
-  return created(res, campaign, `Sent to ${campaign.sentCount} customer(s)`);
+  return created(res, campaign, `Sent to ${campaign.sentCount} recipient(s)`);
 }
 
 export async function customers(_req: Request, res: Response): Promise<Response> {
@@ -599,6 +799,43 @@ export async function refundPayment(req: Request, res: Response): Promise<Respon
 
 export async function settlePayment(req: Request, res: Response): Promise<Response> {
   return ok(res, await service.settlePayment(String(req.params.id)), "Payment settled");
+}
+
+// ── Agent payout requests ───────────────────────────────────────────────────
+
+export async function payoutRequests(req: Request, res: Response): Promise<Response> {
+  const status = typeof req.query.status === "string" ? req.query.status : undefined;
+  return ok(res, await payoutRequestService.listAllPayoutRequests(status));
+}
+
+export async function approvePayoutRequest(req: Request, res: Response): Promise<Response> {
+  return ok(
+    res,
+    await payoutRequestService.approvePayoutRequest(String(req.params.id), req.userId!),
+    "Payout request approved",
+  );
+}
+
+const rejectPayoutSchema = z.object({ reason: z.string().optional() });
+export async function rejectPayoutRequest(req: Request, res: Response): Promise<Response> {
+  const parsed = rejectPayoutSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid request");
+  return ok(
+    res,
+    await payoutRequestService.rejectPayoutRequest(String(req.params.id), req.userId!, parsed.data.reason ?? ""),
+    "Payout request declined",
+  );
+}
+
+const markPaidSchema = z.object({ transactionRef: z.string().optional() });
+export async function markPayoutRequestPaid(req: Request, res: Response): Promise<Response> {
+  const parsed = markPaidSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid request");
+  return ok(
+    res,
+    await payoutRequestService.markPayoutRequestPaid(String(req.params.id), req.userId!, parsed.data.transactionRef),
+    "Payout marked as paid",
+  );
 }
 
 // ── Site content (footer + landing pages) ──────────────────────────────────

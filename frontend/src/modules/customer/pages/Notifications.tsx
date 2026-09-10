@@ -6,6 +6,7 @@ import { Button } from "@shared/ui/Button";
 import { Skeleton } from "@shared/ui/Skeleton";
 import { cn } from "@shared/lib/utils";
 import { getPushToken, getNotificationPermission, saveDeviceToken } from "@shared/lib/push";
+import { resolveNotificationPath } from "@shared/lib/notificationLink";
 import { useNotifications } from "../api/queries";
 import { useMarkNotificationsRead, useRegisterToken } from "../api/mutations";
 import type { AppNotification } from "../types";
@@ -43,7 +44,10 @@ export function Notifications() {
   const enablePush = async () => {
     setEnabling(true);
     try {
-      const token = await getPushToken();
+      // requestPermission is what makes the browser actually prompt. Without
+      // it this resolves to the synthetic fallback token and the button looks
+      // like it worked while registering something FCM can never deliver to.
+      const token = await getPushToken({ requestPermission: true });
       saveDeviceToken(token);
       await registerToken.mutateAsync(token);
       setPermission(getNotificationPermission());
@@ -115,8 +119,17 @@ export function Notifications() {
         <div className="space-y-3">
           {items.map((n) => {
             const Icon = ICON[n.type];
+            const path = resolveNotificationPath(n.data);
             return (
-              <GlassCard key={n.id} className={cn("flex items-start gap-4", !n.read && "ring-1 ring-primary/20")}>
+              <GlassCard
+                key={n.id}
+                onClick={path ? () => navigate(path) : undefined}
+                className={cn(
+                  "flex items-start gap-4",
+                  !n.read && "ring-1 ring-primary/20",
+                  path && "cursor-pointer transition-colors hover:bg-surface-muted/60",
+                )}
+              >
                 <span
                   className={cn(
                     "grid size-11 shrink-0 place-items-center rounded-2xl",

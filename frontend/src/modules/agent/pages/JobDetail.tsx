@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft,
   MapPin,
@@ -10,9 +10,15 @@ import {
   Camera,
   Check,
   CheckCircle2,
-  ImageIcon,
+  Loader2,
+  Trash2,
+  X,
+  Eye,
+  ShieldAlert,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
+import { ApiError } from "@shared/lib/api";
+import { fileToCompressedDataUri } from "@shared/lib/imageUtils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
@@ -26,16 +32,23 @@ import {
   type JobStatus,
 } from "../types";
 import { AreaAlertCard } from "../components/AreaAlertCard";
+import { JobNavigationCard } from "../components/JobNavigationCard";
 
-/** Read a picked file into a base64 data URL for the upload endpoint. */
-function readAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
+type PhotoKind = "before" | "after";
+
+const MANDATORY_COUNT = 4;
+const MAX_COUNT = 8;
+
+const SUGGESTED_SLOTS = [
+  "1. Front View",
+  "2. Rear View",
+  "3. Left Side",
+  "4. Right Side",
+  "5. Interior Front",
+  "6. Interior Rear",
+  "7. Wheels / Rims",
+  "8. Extra / Detail",
+];
 
 export function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -45,7 +58,13 @@ export function JobDetail() {
   const jobPhoto = useJobPhoto();
   const job = jobs.find((j) => j.id === id);
 
-  const [previews, setPreviews] = useState<{ before?: string; after?: string }>({});
+  const [uploadingKind, setUploadingKind] = useState<PhotoKind | null>(null);
+  const [uploadError, setUploadError] = useState("");
+  const [advanceError, setAdvanceError] = useState("");
+  const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null);
+
+  const beforeFileInputRef = useRef<HTMLInputElement>(null);
+  const afterFileInputRef = useRef<HTMLInputElement>(null);
 
   if (!job) {
     return (
@@ -58,17 +77,67 @@ export function JobDetail() {
     );
   }
 
+  const beforePhotos = job.beforePhotos || [];
+  const afterPhotos = job.afterPhotos || [];
+
+  const beforeCount = beforePhotos.length;
+  const afterCount = afterPhotos.length;
+
   const stepIndex = STATUS_FLOW.indexOf(job.status);
-  const needsPhotos = job.status === "in_progress" && !(job.hasBefore && job.hasAfter);
   const action = NEXT_ACTION[job.status];
 
-  const onPhoto = async (kind: "before" | "after", file?: File) => {
-    if (!file) return;
-    setPreviews((p) => ({ ...p, [kind]: URL.createObjectURL(file) }));
-    // Upload the actual image, not just the "a photo exists" flag — it's the
-    // only evidence available if the customer later disputes the work.
-    const image = await readAsDataUrl(file);
-    jobPhoto.mutate({ id: job.id, kind, image });
+  // Gating requirements
+  const needsBeforePhotos = job.status === "arrived" && beforeCount < MANDATORY_COUNT && !job.hasBefore;
+  const needsAfterPhotos = job.status === "in_progress" && afterCount < MANDATORY_COUNT && !job.hasAfter;
+  const isButtonDisabled =
+    needsBeforePhotos ||
+    needsAfterPhotos ||
+    uploadingKind !== null ||
+    advance.isPending;
+
+  const triggerUpload = (kind: PhotoKind) => {
+    setUploadError("");
+    if (kind === "before") {
+      beforeFileInputRef.current?.click();
+    } else {
+      afterFileInputRef.current?.click();
+    }
+  };
+
+  const handleFilePicked = async (kind: PhotoKind, file?: File) => {
+    if (!file || !job) return;
+    const currentCount = kind === "before" ? beforeCount : afterCount;
+    if (currentCount >= MAX_COUNT) {
+      setUploadError(`Maximum ${MAX_COUNT} ${kind} photos allowed.`);
+      return;
+    }
+
+    setUploadingKind(kind);
+    setUploadError("");
+
+    try {
+      const image = await fileToCompressedDataUri(file, 1400, 0.75);
+      await jobPhoto.mutateAsync({ id: job.id, kind, image, action: "add" });
+    } catch (e) {
+      setUploadError(
+        e instanceof ApiError
+          ? e.message
+          : "Photo upload failed. Check your connection and try again.",
+      );
+    } finally {
+      setUploadingKind(null);
+      if (kind === "before" && beforeFileInputRef.current) beforeFileInputRef.current.value = "";
+      if (kind === "after" && afterFileInputRef.current) afterFileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemovePhoto = async (kind: PhotoKind, index: number) => {
+    if (!job) return;
+    try {
+      await jobPhoto.mutateAsync({ id: job.id, kind, action: "remove", index });
+    } catch (e) {
+      setUploadError(e instanceof ApiError ? e.message : "Could not remove photo.");
+    }
   };
 
   return (
@@ -77,7 +146,7 @@ export function JobDetail() {
         <ArrowLeft className="size-4" /> All jobs
       </Button>
 
-      {/* header */}
+      {/* Header */}
       <GlassCard className="flex flex-col gap-5 sm:flex-row sm:items-center">
         <div className="w-28 shrink-0">
           <CarSilhouette type={job.vehicleType} uid={`detail-${job.id}`} />
@@ -99,7 +168,7 @@ export function JobDetail() {
         </div>
       </GlassCard>
 
-      {/* status progress */}
+      {/* Status progress */}
       <GlassCard>
         <ol className="flex items-center gap-2">
           {STATUS_FLOW.map((s, i) => {
@@ -131,7 +200,17 @@ export function JobDetail() {
         </ol>
       </GlassCard>
 
-      {/* customer + location */}
+      {/* Live navigation */}
+      {job.status !== "completed" && (
+        <JobNavigationCard
+          jobId={job.id}
+          status={job.status}
+          fallbackAddress={job.addressLine}
+          initialDestination={job.coordinates}
+        />
+      )}
+
+      {/* Customer + location */}
       <GlassCard className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -153,15 +232,31 @@ export function JobDetail() {
             <div className="flex items-start gap-2.5">
               <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
-                <p className="text-sm font-medium text-ink">{job.addressLabel}</p>
-                <p className="text-sm text-muted">{job.addressLine}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-ink">{job.addressLabel}</p>
+                  {job.coordinates && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-pill bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600"
+                      data-testid="job-coordinates-badge"
+                    >
+                      <Navigation className="size-2.5" />
+                      {job.coordinates.lat.toFixed(5)}, {job.coordinates.lng.toFixed(5)}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-muted break-words">{job.addressLine}</p>
               </div>
             </div>
             <Button asChild variant="ghost" size="sm">
               <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.addressLine)}`}
+                href={
+                  job.coordinates
+                    ? `https://www.google.com/maps/dir/?api=1&destination=${job.coordinates.lat},${job.coordinates.lng}`
+                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.addressLine)}`
+                }
                 target="_blank"
                 rel="noreferrer"
+                data-testid="job-direct-navigate"
               >
                 <Navigation className="size-4" /> Navigate
               </a>
@@ -178,36 +273,87 @@ export function JobDetail() {
         </div>
       </GlassCard>
 
-      {/* photos — shown once on the way / cleaning */}
-      {job.status !== "assigned" && (
-        <GlassCard>
-          <p className="font-display text-lg font-semibold text-ink">Before &amp; after</p>
-          <p className="mt-1 text-sm text-muted">
-            Capture photos to document your work. Both are required to complete the job.
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <PhotoTile
-              label="Before"
-              done={job.hasBefore}
-              preview={previews.before}
-              onPick={(f) => onPhoto("before", f)}
-            />
-            <PhotoTile
-              label="After"
-              done={job.hasAfter}
-              preview={previews.after}
-              onPick={(f) => onPhoto("after", f)}
-            />
+      {/* ── BEFORE PHOTOS SECTION (When arrived or in progress or completed) ── */}
+      {(job.status === "arrived" || job.status === "in_progress" || job.status === "completed") && (
+        <GlassCard className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="font-display text-lg font-semibold text-ink">Before Wash Photos</p>
+              <p className="text-sm text-muted">
+                {MANDATORY_COUNT} mandatory photos required before starting wash (Max {MAX_COUNT} photos).
+              </p>
+            </div>
+            <span
+              className={cn(
+                "rounded-pill px-3 py-1 text-xs font-semibold",
+                beforeCount >= MANDATORY_COUNT
+                  ? "bg-emerald-500/10 text-emerald-600"
+                  : "bg-amber-500/10 text-amber-600",
+              )}
+            >
+              {Math.min(beforeCount, MANDATORY_COUNT)}/{MANDATORY_COUNT} Mandatory ({beforeCount}/{MAX_COUNT} Total)
+            </span>
           </div>
+
+          <PhotoGrid
+            kind="before"
+            photos={beforePhotos}
+            isEditable={job.status === "arrived" || job.status === "in_progress"}
+            uploading={uploadingKind === "before"}
+            onAdd={() => triggerUpload("before")}
+            onRemove={(i) => void handleRemovePhoto("before", i)}
+            onView={(url) => setLightbox({ url, label: "Before Photo" })}
+          />
         </GlassCard>
       )}
 
-      {/* area alert while servicing */}
+      {/* ── AFTER PHOTOS SECTION (When in progress or completed) ── */}
+      {(job.status === "in_progress" || job.status === "completed") && (
+        <GlassCard className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="font-display text-lg font-semibold text-ink">After Wash Photos</p>
+              <p className="text-sm text-muted">
+                {MANDATORY_COUNT} mandatory photos required to mark complete (Max {MAX_COUNT} photos).
+              </p>
+            </div>
+            <span
+              className={cn(
+                "rounded-pill px-3 py-1 text-xs font-semibold",
+                afterCount >= MANDATORY_COUNT
+                  ? "bg-emerald-500/10 text-emerald-600"
+                  : "bg-amber-500/10 text-amber-600",
+              )}
+            >
+              {Math.min(afterCount, MANDATORY_COUNT)}/{MANDATORY_COUNT} Mandatory ({afterCount}/{MAX_COUNT} Total)
+            </span>
+          </div>
+
+          <PhotoGrid
+            kind="after"
+            photos={afterPhotos}
+            isEditable={job.status === "in_progress"}
+            uploading={uploadingKind === "after"}
+            onAdd={() => triggerUpload("after")}
+            onRemove={(i) => void handleRemovePhoto("after", i)}
+            onView={(url) => setLightbox({ url, label: "After Photo" })}
+          />
+        </GlassCard>
+      )}
+
+      {uploadError && (
+        <div className="flex items-center gap-2 rounded-xl bg-red-50 p-3 text-sm text-red-600">
+          <ShieldAlert className="size-4 shrink-0" />
+          <span>{uploadError}</span>
+        </div>
+      )}
+
+      {/* Area alert */}
       {(job.status === "arrived" || job.status === "in_progress") && (
         <AreaAlertCard society={job.society} />
       )}
 
-      {/* primary action */}
+      {/* Primary action bar */}
       {job.status === "completed" ? (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -225,69 +371,192 @@ export function JobDetail() {
           <Button
             className="w-full"
             size="lg"
-            disabled={needsPhotos || advance.isPending}
-            onClick={() => advance.mutate(job.id)}
+            disabled={isButtonDisabled}
+            onClick={() => {
+              setAdvanceError("");
+              advance.mutate(job.id, {
+                onError: (e) =>
+                  setAdvanceError(e instanceof ApiError ? e.message : "Couldn't update the job — try again"),
+              });
+            }}
           >
-            {action}
+            {advance.isPending ? <Loader2 className="size-4 animate-spin" /> : action}
           </Button>
-          {needsPhotos && (
-            <p className="mt-2 text-center text-xs text-muted">
-              Add both before &amp; after photos to mark complete.
+
+          {needsBeforePhotos && (
+            <p className="mt-2 text-center text-xs font-medium text-amber-600">
+              Upload {MANDATORY_COUNT - beforeCount} more mandatory before photo(s) to start cleaning.
             </p>
           )}
+
+          {needsAfterPhotos && (
+            <p className="mt-2 text-center text-xs font-medium text-amber-600">
+              Upload {MANDATORY_COUNT - afterCount} more mandatory after photo(s) to mark complete.
+            </p>
+          )}
+
+          {advanceError && <p className="mt-2 text-center text-xs text-red-600">{advanceError}</p>}
         </div>
       )}
+
+      {/* Fullscreen Lightbox Modal */}
+      <AnimatePresence>
+        {lightbox && (
+          <div
+            className="fixed inset-0 z-[100] grid place-items-center bg-black/80 p-4 backdrop-blur-sm"
+            onClick={() => setLightbox(null)}
+            role="dialog"
+            aria-modal="true"
+          >
+            <button
+              onClick={() => setLightbox(null)}
+              aria-label="Close"
+              className="absolute right-5 top-5 grid size-10 place-items-center rounded-xl bg-white/20 text-white hover:bg-white/30 cursor-pointer"
+            >
+              <X className="size-5" />
+            </button>
+            <img
+              src={lightbox.url}
+              alt={lightbox.label}
+              className="max-h-[85dvh] max-w-full rounded-2xl object-contain shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Hidden file inputs for photo capture */}
+      <input
+        ref={beforeFileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        data-testid="upload-before-input"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleFilePicked("before", file);
+        }}
+      />
+      <input
+        ref={afterFileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        data-testid="upload-after-input"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleFilePicked("after", file);
+        }}
+      />
     </div>
   );
 }
 
-function PhotoTile({
-  label,
-  done,
-  preview,
-  onPick,
+function PhotoGrid({
+  kind,
+  photos,
+  isEditable,
+  uploading,
+  onAdd,
+  onRemove,
+  onView,
 }: {
-  label: string;
-  done: boolean;
-  preview?: string;
-  onPick: (file?: File) => void;
+  kind: PhotoKind;
+  photos: string[];
+  isEditable: boolean;
+  uploading: boolean;
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+  onView: (url: string) => void;
 }) {
-  const ref = useRef<HTMLInputElement>(null);
+  const count = photos.length;
+  // Always render slots: first 4 mandatory slots + any uploaded optional slots + 1 add button if < 8
+  const slotsCount = Math.max(MANDATORY_COUNT, Math.min(count + (isEditable ? 1 : 0), MAX_COUNT));
+  const slots = Array.from({ length: slotsCount });
+
   return (
-    <button
-      type="button"
-      onClick={() => ref.current?.click()}
-      className={cn(
-        "relative grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors",
-        done ? "border-primary/40 bg-primary/5" : "border-line bg-surface hover:border-primary/40",
-      )}
-    >
-      {preview ? (
-        <img src={preview} alt={`${label} preview`} className="absolute inset-0 size-full object-cover" />
-      ) : done ? (
-        <div className="text-center text-primary">
-          <ImageIcon className="mx-auto size-6" />
-          <p className="mt-1 text-xs font-medium">{label} uploaded</p>
-        </div>
-      ) : (
-        <div className="text-center text-muted">
-          <Camera className="mx-auto size-6" />
-          <p className="mt-1 text-xs font-medium">Add {label.toLowerCase()} photo</p>
-        </div>
-      )}
-      {(done || preview) && (
-        <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-white">
-          <Check className="size-3.5" />
-        </span>
-      )}
-      <input
-        ref={ref}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => onPick(e.target.files?.[0])}
-      />
-    </button>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {slots.map((_, i) => {
+        const photoUrl = photos[i];
+        const isMandatory = i < MANDATORY_COUNT;
+        const slotLabel = SUGGESTED_SLOTS[i] || `Photo ${i + 1}`;
+
+        if (photoUrl) {
+          return (
+            <div
+              key={i}
+              className="group relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-line bg-surface shadow-sm"
+            >
+              <img
+                src={photoUrl}
+                alt={`${kind} ${i + 1}`}
+                className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+              <span className="absolute left-2 top-2 rounded-pill bg-ink/75 px-2 py-0.5 text-[10px] font-semibold text-white">
+                #{i + 1} {isMandatory ? "Mandatory" : "Optional"}
+              </span>
+
+              {/* Action overlay */}
+              <div className="absolute inset-0 flex items-center justify-center gap-2 bg-ink/40 opacity-0 transition-opacity group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => onView(photoUrl)}
+                  className="grid size-8 place-items-center rounded-full bg-white/90 text-ink shadow hover:bg-white cursor-pointer"
+                  title="View full image"
+                >
+                  <Eye className="size-4" />
+                </button>
+                {isEditable && (
+                  <button
+                    type="button"
+                    onClick={() => onRemove(i)}
+                    className="grid size-8 place-items-center rounded-full bg-red-600 text-white shadow hover:bg-red-700 cursor-pointer"
+                    title="Delete photo"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        // Upload Slot
+        if (!isEditable) {
+          return null;
+        }
+
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={onAdd}
+            disabled={uploading}
+            className={cn(
+              "relative grid aspect-[4/3] w-full place-items-center rounded-2xl border-2 border-dashed p-2 text-center transition-all cursor-pointer",
+              isMandatory
+                ? "border-primary/40 bg-primary/5 hover:border-primary hover:bg-primary/10"
+                : "border-line bg-surface hover:border-primary/40",
+            )}
+          >
+            {uploading ? (
+              <Loader2 className="size-6 animate-spin text-primary" />
+            ) : (
+              <div>
+                <Camera className={cn("mx-auto size-5", isMandatory ? "text-primary" : "text-muted")} />
+                <p className="mt-1 text-xs font-semibold text-ink">{slotLabel}</p>
+                <span
+                  className={cn(
+                    "mt-0.5 inline-block rounded-pill px-1.5 py-0.2 text-[9px] font-bold uppercase",
+                    isMandatory ? "bg-primary/15 text-primary" : "bg-surface-muted text-muted",
+                  )}
+                >
+                  {isMandatory ? "Required" : "Optional"}
+                </span>
+              </div>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }

@@ -29,7 +29,9 @@ const dataUri = z.string().regex(/^data:image\/[a-zA-Z+]+;base64,/, "Upload a va
 export const agentSignupSchema = z.object({
   name: z.string().trim().min(2, "Enter your full name"),
   phone: z.string().regex(/^\+?[\d\s]{10,15}$/, "Enter a valid phone number"),
-  area: z.string().trim().min(2, "Enter the area / society you'll operate in"),
+  city: z.string().trim().max(80).optional(),
+  // Optional because a city may legitimately have no zones listed yet.
+  area: z.string().trim().max(120).optional(),
   aadharNumber: z.string().regex(/^\d{12}$/, "Aadhar number must be 12 digits"),
   aadharFront: dataUri,
   aadharBack: dataUri,
@@ -38,7 +40,8 @@ export const agentSignupSchema = z.object({
 export const agentSignupBasicSchema = z.object({
   name: z.string().trim().min(2, "Enter your full name"),
   phone: z.string().regex(/^\+?[\d\s]{10,15}$/, "Enter a valid phone number"),
-  area: z.string().trim().min(2, "Enter the area / society you'll operate in"),
+  city: z.string().trim().min(2, "Choose the city you'll work in"),
+  area: z.string().trim().max(120).optional(),
   code: z.string().length(6, "Code must be 6 digits"),
 });
 

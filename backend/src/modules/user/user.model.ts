@@ -73,9 +73,14 @@ const userSchema = new Schema(
     coins: { type: Number, default: 0, min: 0 },
 
     // Agent profile (only meaningful when role === "agent")
+    // City and area are picked from the admin-managed Locations list at signup,
+    // stored as names rather than ids: everything downstream (area alerts,
+    // the admin agent list, dispatch copy) already matches on the society name,
+    // and a rename in Locations shouldn't silently re-home existing cleaners.
+    city: { type: String, default: "" },
     area: { type: String, default: "" },
     zoneId: { type: Schema.Types.ObjectId, ref: "ServiceZone", default: null },
-    rating: { type: Number, default: 4.8 },
+    rating: { type: Number, default: 0 },
     jobsDone: { type: Number, default: 0 },
     online: { type: Boolean, default: true },
     lastSeenAt: { type: Date, default: null },
@@ -91,6 +96,28 @@ const userSchema = new Schema(
     aadharNumber: { type: String, default: "" },
     aadharFrontUrl: { type: String, default: "" },
     aadharBackUrl: { type: String, default: "" },
+
+    /**
+     * Where an agent's payout requests get paid to. `branch` and `address` are
+     * never typed in by the agent — they're resolved from `ifsc` against the
+     * RBI IFSC master at save time, so what's on file always matches a real,
+     * currently-valid branch rather than whatever the agent could type.
+     */
+    bankAccount: {
+      type: new Schema(
+        {
+          holderName: { type: String, required: true, trim: true },
+          bankName: { type: String, required: true, trim: true },
+          accountNumber: { type: String, required: true },
+          ifsc: { type: String, required: true, uppercase: true },
+          branch: { type: String, required: true },
+          address: { type: String, required: true },
+          verifiedAt: { type: Date, required: true },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
   },
   {
     timestamps: true,
@@ -109,6 +136,11 @@ const userSchema = new Schema(
         delete ret.aadharNumber;
         delete ret.aadharFrontUrl;
         delete ret.aadharBackUrl;
+        // Same reasoning as Aadhaar above — a bank account number has no
+        // business riding along on every generic profile/session read. The
+        // agent's own bank-account screen reads it via a dedicated endpoint
+        // that selects the field explicitly.
+        delete ret.bankAccount;
         return ret;
       },
     },

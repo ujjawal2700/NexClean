@@ -29,6 +29,59 @@ export type AdminBooking = {
   dispatchStatus?: DispatchStatus;
   agentName: string | null;
   assignedAgentId: string | null;
+  /** Booked into a quiet slot with an off-peak coupon — moving it to a peak slot costs money. */
+  offPeakLocked: boolean;
+  /** The subsidy that would be reclaimed on such a move, in rupees. */
+  offPeakDiscountAmount: number;
+};
+
+/** One booking, in full — what the admin booking detail page renders. */
+export type AdminBookingDetail = {
+  id: string;
+  status: BookingStatus;
+  rawStatus: "upcoming" | "completed" | "cancelled";
+  jobStatus: "assigned" | "enroute" | "arrived" | "in_progress" | "completed";
+  dispatchStatus: DispatchStatus;
+  /** A cleaner is in the field right now — show the live map rather than the record. */
+  isLive: boolean;
+  customer: { id: string | null; name: string; phone: string | null; email: string | null };
+  agent: { id: string | null; name: string; phone: string | null; email: string | null } | null;
+  vehicleType: string;
+  vehicleName: string;
+  packageName: string;
+  isSubscriptionWash: boolean;
+  date: string;
+  slot: string;
+  createdAt: string;
+  assignedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  durationMinutes: number | null;
+  addressLabel: string;
+  addressLine: string;
+  society: string;
+  serviceLocation: { lat: number; lng: number } | null;
+  price: number;
+  discountCode: string | null;
+  discountAmount: number;
+  coinsRedeemed: number;
+  coinDiscount: number;
+  offPeakLocked: boolean;
+  offPeakDiscountAmount: number;
+  peakUpgradeFeeCharged: number;
+  upgradeWaivedAmount: number;
+  totalAmount: number;
+  /** null when no cleaner is assigned yet. Provisional until agentShareSettled. */
+  agentShare: number | null;
+  /** True once the job completed and the payout was frozen. */
+  agentShareSettled: boolean;
+  beforePhotos: string[];
+  afterPhotos: string[];
+  beforePhotoUrl: string | null;
+  afterPhotoUrl: string | null;
+  rescheduleCount: number;
+  customerRescheduleCount: number;
+  autoRescheduled: boolean;
 };
 
 export type DispatchStatus =
@@ -76,6 +129,7 @@ export type AdminAgent = {
   name: string;
   phone: string;
   email: string;
+  city: string;
   area: string;
   zoneId?: string | null;
   rating: number;
@@ -140,6 +194,9 @@ export type Campaign = {
 };
 
 export type AudienceSizes = Record<string, number>;
+
+/** Campaign audiences grouped by the app they reach ("Customers", "Agents"). */
+export type AudienceGroup = { label: string; audiences: string[] };
 
 export type PlanPrices = Record<CarType, number>;
 
@@ -255,6 +312,8 @@ export type AdminPayment = {
   bookingId: string | null;
   society: string;
   agentName: string | null;
+  /** The assigned cleaner's id, or null while the booking is unassigned. */
+  agentId: string | null;
   orderId: string;
   paymentId: string | null;
   amount: number;
@@ -266,6 +325,28 @@ export type AdminPayment = {
   agentPayout: number;
   settlementStatus: SettlementStatus;
   settledAt: string | null;
+  createdAt: string;
+};
+
+export type PayoutRequestStatus = "pending" | "approved" | "rejected" | "paid";
+
+export type PayoutBankSnapshot = {
+  holderName: string;
+  bankName: string;
+  accountNumber: string;
+  ifsc: string;
+  branch: string;
+};
+
+export type AdminPayoutRequest = {
+  id: string;
+  agent: { id: string; name: string; phone: string } | null;
+  amount: number;
+  status: PayoutRequestStatus;
+  bankSnapshot: PayoutBankSnapshot;
+  rejectionReason: string;
+  transactionRef: string;
+  processedAt: string | null;
   createdAt: string;
 };
 
@@ -314,6 +395,8 @@ export type DiscountCode = {
   usageCount: number;
   validTill: string | null;
   active: boolean;
+  /** Only redeemable on bookings whose slot falls in a configured off-peak (discounted) window. */
+  offPeakOnly: boolean;
 };
 
 export type SpecialCouponStatus = "active" | "used" | "inactive";
@@ -337,8 +420,19 @@ export type SpecialCoupon = {
   status: SpecialCouponStatus;
   assignedCustomer: { id: string; name: string; phone: string; email?: string } | null;
   batchId: string;
+  offPeakOnly: boolean;
   usageHistory: SpecialCouponUsageRecord[];
   createdAt: string;
+};
+
+/** What a cleaner earns per completed job. See the Agent Payouts admin page. */
+export type PayoutConfig = {
+  mode: "percent" | "flat";
+  percent: number;
+  flatAmount: number;
+  minPayout: number;
+  /** 0 means uncapped. */
+  maxPayout: number;
 };
 
 export type ReferralConfig = {
@@ -349,6 +443,9 @@ export type ReferralConfig = {
   active: boolean;
 };
 
+export const BANNER_TYPES = ["promotional", "discount", "off-peak-hours", "announcement"] as const;
+export type BannerType = (typeof BANNER_TYPES)[number];
+
 export type PromoBanner = {
   id: string;
   title: string;
@@ -356,8 +453,62 @@ export type PromoBanner = {
   imageUrl: string;
   ctaLabel: string;
   ctaLink: string;
+  type: BannerType;
   sortOrder: number;
   active: boolean;
+};
+
+/** 0 = Sunday, matching JS Date#getDay. */
+export type WeekdayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export type OffPeakWindow = {
+  day: WeekdayIndex;
+  /** 24-hour "HH:MM" in the config's timezone. */
+  start: string;
+  end: string;
+  label: string;
+  /** Server-derived minutes since midnight, so the client never re-parses "HH:MM". */
+  startMinutes: number;
+  endMinutes: number;
+};
+
+/** One weekday × slot cell of the demand grid behind a suggestion. */
+export type DemandCell = {
+  day: WeekdayIndex;
+  slot: string;
+  count: number;
+  offPeak: boolean;
+};
+
+export type DemandDaySummary = {
+  day: WeekdayIndex;
+  label: string;
+  total: number;
+  median: number;
+  /** False when the weekday has too little history to classify honestly. */
+  enoughData: boolean;
+};
+
+/** A proposal drawn from booking history — never applied until the admin saves. */
+export type OffPeakSuggestion = {
+  lookbackWeeks: number;
+  sensitivity: number;
+  minSamplesPerDay: number;
+  totalBookings: number;
+  /** Bookings left out because they were themselves won by an off-peak discount. */
+  excludedDiscounted: number;
+  days: DemandDaySummary[];
+  grid: DemandCell[];
+  windows: { day: WeekdayIndex; start: string; end: string; label: string }[];
+};
+
+export type OffPeakHoursConfig = {
+  /** IANA zone every window is interpreted in, e.g. "Asia/Kolkata". */
+  timezone: string;
+  active: boolean;
+  /** Flat charge for moving a subsidised booking into a peak slot. */
+  peakUpgradeFee: number;
+  windows: OffPeakWindow[];
 };
 
 export type AdminReports = {

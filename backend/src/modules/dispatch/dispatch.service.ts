@@ -4,16 +4,25 @@ import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { agentLiveSince, isAgentLive } from "../user/presence";
 import { notifyUser, pushToUser } from "../notification/notification.service";
-import { emitToUser, emitToAdmins } from "../../shared/services/socket";
+import { emitToUser, emitToAdmins, emitToRoom } from "../../shared/services/socket";
 import { haversineMeters, type LngLat } from "../../shared/geo";
 import { findNearestEligibleAgents, type NearbyAgent } from "./dispatch.query";
+import { payoutCalculator } from "../payout/payoutConfig.service";
+import {
+  broadcastJobStatus,
+  forgetAgentBookings,
+  bookingRoom,
+  revokeAgentTracking,
+} from "../tracking/tracking.service";
 import {
   OFFER_TTL_MS,
   SEARCH_RADII_M,
   OFFER_BATCH,
   SWEEP_INTERVAL_MS,
   SUBSCRIPTION_LEAD_MS,
+  REMINDER_TICK_MS,
 } from "./dispatch.config";
+import { runBookingReminders } from "../booking/reminder.service";
 
 /* ----------------------------- helpers ---------------------------------- */
 
@@ -28,7 +37,8 @@ function customerId(b: BookingDocument): string {
 }
 
 /** Payload the agent app renders in the incoming-offer popup. */
-function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
+async function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
+  const payoutOf = await payoutCalculator();
   return {
     bookingId: String(b._id),
     customerName: "Customer",
@@ -41,11 +51,28 @@ function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
     date: b.date,
     slot: b.slot,
     price: b.price,
-    payout: Math.round(b.price * 0.7),
+    payout: payoutOf(b.price),
     distanceKm: distanceM != null ? Number((distanceM / 1000).toFixed(1)) : null,
     isSubscriptionWash: b.isSubscriptionWash,
     expiresAt: b.offerExpiresAt,
   };
+}
+
+/**
+ * Push search progress to the waiting customer (and anyone watching the
+ * booking). Without this the customer's screen is a spinner that never says
+ * anything, which is exactly the moment they cancel.
+ */
+function emitSearchProgress(b: BookingDocument) {
+  const payload = {
+    bookingId: String(b._id),
+    dispatchStatus: b.dispatchStatus,
+    dispatchAttempts: b.dispatchAttempts ?? 0,
+    searchRadiusM: b.searchRadiusM ?? 0,
+    at: new Date().toISOString(),
+  };
+  emitToUser(customerId(b), "dispatch_progress", payload);
+  emitToRoom(bookingRoom(String(b._id)), "dispatch_progress", payload);
 }
 
 /** Live-updates the admin dispatch console. */
@@ -62,7 +89,7 @@ export function emitCancelToAgent(agentId: string, bookingId: string) {
 }
 
 async function sendOffer(b: BookingDocument, candidate: NearbyAgent) {
-  const payload = buildOfferPayload(b, candidate.distanceM);
+  const payload = await buildOfferPayload(b, candidate.distanceM);
   emitToUser(candidate.id, "job_offer", payload);
   // FCM backup so a backgrounded agent app still gets pinged. Push-only (no feed row).
   await pushToUser(candidate.id, {
@@ -77,6 +104,7 @@ async function moveToAdminQueue(b: BookingDocument) {
   b.currentOfferAgent = null;
   b.offerExpiresAt = null;
   await b.save();
+  emitSearchProgress(b);
   emitDispatchUpdate();
   emitToAdmins("dispatch_pending", { bookingId: String(b._id) });
 }
@@ -84,6 +112,11 @@ async function moveToAdminQueue(b: BookingDocument) {
 /** Notify the customer + refresh admin views once a cleaner is locked in. */
 async function onAssigned(b: BookingDocument, agent: { id: string; name: string }) {
   const cid = customerId(b);
+  // The job just entered the trackable window: invalidate the cached
+  // agent→bookings set so the very next GPS fix reaches this booking's room,
+  // and push the opening state to whoever is already watching.
+  forgetAgentBookings(agent.id);
+  broadcastJobStatus(b);
   emitToUser(cid, "booking_assigned", { bookingId: String(b._id), agentName: agent.name });
   await notifyUser(cid, {
     type: "booking",
@@ -107,6 +140,7 @@ export async function startDispatch(bookingId: string): Promise<void> {
   b.currentOfferAgent = null;
   b.offerExpiresAt = null;
   await b.save();
+  emitSearchProgress(b);
   await offerNext(bookingId);
 }
 
@@ -164,6 +198,7 @@ export async function offerNext(bookingId: string): Promise<void> {
       await b.save();
 
       await sendOffer(b, candidate);
+      emitSearchProgress(b);
       emitDispatchUpdate();
       return;
     }
@@ -230,6 +265,7 @@ export async function declineOffer(agentId: string, bookingId: string) {
   );
   await User.updateOne({ _id: agentId, currentOfferBooking: bookingId }, { currentOfferBooking: null });
   if (booking) {
+    revokeAgentTracking(agentId, bookingId);
     emitToUser(agentId, "offer_revoked", { bookingId });
     await offerNext(bookingId);
   }
@@ -268,6 +304,9 @@ export async function assignAgentToBooking(bookingId: string, agentId: string) {
   if (!booking) throw ApiError.notFound("Booking not found");
 
   const previousOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
+  // Captured before the overwrite: a reassignment has to revoke the previous
+  // cleaner's live feed, or they keep watching their replacement drive in.
+  const previousAssignedAgent = booking.assignedAgent ? String(booking.assignedAgent) : null;
 
   booking.assignedAgent = agent.id;
   booking.agentName = agent.name;
@@ -278,10 +317,16 @@ export async function assignAgentToBooking(bookingId: string, agentId: string) {
   booking.offerExpiresAt = null;
   await booking.save();
 
+  if (previousAssignedAgent && previousAssignedAgent !== String(agent._id)) {
+    revokeAgentTracking(previousAssignedAgent, String(booking._id));
+    forgetAgentBookings(previousAssignedAgent);
+  }
+
   // Release any offer locks tied to this booking.
   if (previousOfferAgent) {
     await User.updateOne({ _id: previousOfferAgent, currentOfferBooking: booking._id }, { currentOfferBooking: null });
     if (previousOfferAgent !== String(agent._id)) {
+      revokeAgentTracking(previousOfferAgent, String(booking._id));
       emitToUser(previousOfferAgent, "offer_revoked", { bookingId: String(booking._id) });
     }
   }
@@ -289,11 +334,16 @@ export async function assignAgentToBooking(bookingId: string, agentId: string) {
 
   // Tell the assigned cleaner.
   emitToUser(String(agent._id), "job_assigned", { bookingId: String(booking._id) });
-  await pushToUser(String(agent._id), {
+  // notifyUser rather than pushToUser: an offer is ephemeral and rightly stays
+  // out of the feed, but an assignment is work the cleaner is now accountable
+  // for. It has to survive a missed push and be readable later, which is
+  // exactly what a stored notification is for.
+  await notifyUser(String(agent._id), {
+    type: "booking",
     title: "🧽 New job assigned",
-    body: `${booking.packageName} · ${booking.slot}`,
-    data: { bookingId: String(booking._id) },
-  }).catch((err) => console.error("assign push failed:", (err as Error).message));
+    body: `${booking.packageName} · ${booking.vehicleName} · ${booking.slot}`,
+    data: { bookingId: String(booking._id), role: "agent" },
+  }).catch((err) => console.error("assign notification failed:", (err as Error).message));
 
   await onAssigned(booking, { id: String(agent._id), name: agent.name });
   return booking;
@@ -492,6 +542,7 @@ export async function sweepOffers(): Promise<void> {
     );
     if (agentId) {
       await User.updateOne({ _id: agentId, currentOfferBooking: b._id }, { currentOfferBooking: null });
+      revokeAgentTracking(agentId, String(b._id));
       emitToUser(agentId, "offer_revoked", { bookingId: String(b._id) });
     }
     await offerNext(String(b._id));
@@ -502,6 +553,7 @@ import { sweepAndRescheduleMissedSlots } from "./slotScheduler.service";
 
 let workerHandle: NodeJS.Timeout | null = null;
 let lastSubscriptionRun = 0;
+let lastReminderRun = 0;
 const SUBSCRIPTION_TICK_MS = 30_000;
 
 export function startDispatchWorker() {
@@ -516,6 +568,12 @@ export function startDispatchWorker() {
         if (Date.now() - lastSubscriptionRun >= SUBSCRIPTION_TICK_MS) {
           lastSubscriptionRun = Date.now();
           await runSubscriptionScheduler();
+        }
+        if (Date.now() - lastReminderRun >= REMINDER_TICK_MS) {
+          lastReminderRun = Date.now();
+          await runBookingReminders().catch((err) =>
+            console.error("booking reminder sweep failed:", (err as Error).message),
+          );
         }
       } catch (err) {
         console.error("dispatch worker tick failed:", (err as Error).message);

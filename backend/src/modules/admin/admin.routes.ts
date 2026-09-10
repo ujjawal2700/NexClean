@@ -13,10 +13,12 @@ adminRouter.get("/stats", requirePermission("dashboard"), asyncHandler(c.stats))
 adminRouter.get("/reports", requirePermission("reports"), asyncHandler(c.reports));
 
 adminRouter.get("/bookings", requirePermission("bookings"), asyncHandler(c.bookings));
+adminRouter.get("/bookings/:id", requirePermission("bookings"), asyncHandler(c.bookingDetail));
 adminRouter.patch("/bookings/:id/cancel", requirePermission("bookings"), asyncHandler(c.cancelBooking));
 adminRouter.patch("/bookings/:id/status", requirePermission("bookings"), asyncHandler(c.setBookingStatus));
 adminRouter.patch("/bookings/:id/assign", requirePermission("bookings"), asyncHandler(c.assignBooking));
 adminRouter.patch("/bookings/:id/reschedule", requirePermission("bookings"), asyncHandler(c.rescheduleBooking));
+adminRouter.post("/bookings/:id/reschedule/quote", requirePermission("bookings"), asyncHandler(c.rescheduleQuote));
 adminRouter.post("/bookings/:id/auto-assign", requirePermission("bookings"), asyncHandler(c.autoAssignBooking));
 adminRouter.get("/bookings/:id/assignable-agents", requirePermission("bookings"), asyncHandler(c.assignableAgents));
 adminRouter.get("/dispatch/queue", requirePermission("bookings"), asyncHandler(c.dispatchQueue));
@@ -45,6 +47,11 @@ adminRouter.get("/payments", requirePermission("payments"), asyncHandler(c.payme
 adminRouter.get("/payments/stats", requirePermission("payments"), asyncHandler(c.paymentStats));
 adminRouter.patch("/payments/:id/refund", requirePermission("payments"), asyncHandler(c.refundPayment));
 adminRouter.patch("/payments/:id/settle", requirePermission("payments"), asyncHandler(c.settlePayment));
+
+adminRouter.get("/payout-requests", requirePermission("payout-requests"), asyncHandler(c.payoutRequests));
+adminRouter.patch("/payout-requests/:id/approve", requirePermission("payout-requests"), asyncHandler(c.approvePayoutRequest));
+adminRouter.patch("/payout-requests/:id/reject", requirePermission("payout-requests"), asyncHandler(c.rejectPayoutRequest));
+adminRouter.patch("/payout-requests/:id/paid", requirePermission("payout-requests"), asyncHandler(c.markPayoutRequestPaid));
 
 adminRouter.get("/pricing", requirePermission("pricing"), asyncHandler(c.pricing));
 adminRouter.put("/pricing", requirePermission("pricing"), asyncHandler(c.updatePricingCtl));
@@ -96,8 +103,14 @@ adminRouter.post("/promo-banners", requirePermission("promotions"), asyncHandler
 adminRouter.patch("/promo-banners/:id", requirePermission("promotions"), asyncHandler(c.updatePromoBanner));
 adminRouter.delete("/promo-banners/:id", requirePermission("promotions"), asyncHandler(c.deletePromoBanner));
 
+// Off-peak hours — the quiet per-weekday windows that off-peak coupons key off
+adminRouter.get("/off-peak-hours", requirePermission("off-peak-hours"), asyncHandler(c.offPeakHours));
+adminRouter.get("/off-peak-hours/suggest", requirePermission("off-peak-hours"), asyncHandler(c.suggestOffPeakHours));
+adminRouter.put("/off-peak-hours", requirePermission("off-peak-hours"), asyncHandler(c.updateOffPeakHoursHandler));
+
 adminRouter.get("/campaigns", requirePermission("promotions"), asyncHandler(c.campaigns));
 adminRouter.get("/campaigns/audience-sizes", requirePermission("promotions"), asyncHandler(c.campaignAudienceSizes));
+adminRouter.get("/campaigns/audiences", requirePermission("promotions"), asyncHandler(c.campaignAudiences));
 adminRouter.post("/campaigns", requirePermission("promotions"), asyncHandler(c.sendCampaign));
 
 adminRouter.get("/content", requirePermission("content"), asyncHandler(c.content));
@@ -107,6 +120,10 @@ adminRouter.put("/content", requirePermission("content"), asyncHandler(c.updateC
 adminRouter.get("/leads", requirePermission("leads"), asyncHandler(listLeads));
 adminRouter.patch("/leads/:id/status", requirePermission("leads"), asyncHandler(updateLeadStatus));
 adminRouter.delete("/leads/:id", requirePermission("leads"), asyncHandler(deleteLead));
+
+// Agent payouts — what a cleaner earns per job (percent or flat)
+adminRouter.get("/payout-config", requirePermission("agent-payouts"), asyncHandler(c.payoutConfig));
+adminRouter.put("/payout-config", requirePermission("agent-payouts"), asyncHandler(c.updatePayoutConfigHandler));
 
 // Referrals — program config + logs
 adminRouter.get("/referral-config", requirePermission("referrals"), asyncHandler(c.referralConfig));

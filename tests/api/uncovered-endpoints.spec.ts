@@ -50,18 +50,39 @@ test.describe("Auth — agent signup-basic", () => {
     await request.post(apiUrl("/auth/send-signup-otp"), { data: { phone } });
 
     const res = await request.post(apiUrl("/auth/agent/signup-basic"), {
-      data: { name: "Basic Signup Cleaner", phone, area: "Green Valley Society", code: DEMO_OTP },
+      data: { name: "Basic Signup Cleaner", phone, city: "Indore", area: "Green Valley Society", code: DEMO_OTP },
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     // Must start unverified — the KYC step is what promotes them to "pending".
     expect(body.data.user.agentStatus).toBe("unverified");
     expect(body.data.token).toBeTruthy();
+    // The location the cleaner picked is what gets stored.
+    expect(body.data.user.city).toBe("Indore");
+    expect(body.data.user.area).toBe("Green Valley Society");
 
     const dup = await request.post(apiUrl("/auth/agent/signup-basic"), {
-      data: { name: "Someone Else", phone, area: "Tech Park", code: DEMO_OTP },
+      data: { name: "Someone Else", phone, city: "Indore", area: "Tech Park", code: DEMO_OTP },
     });
     expect(dup.status()).toBe(400);
+  });
+
+  test("requires a city, but tolerates a city that has no areas listed yet", async ({ request }) => {
+    const noCity = freshPhone();
+    await request.post(apiUrl("/auth/send-signup-otp"), { data: { phone: noCity } });
+    const missing = await request.post(apiUrl("/auth/agent/signup-basic"), {
+      data: { name: "No City Cleaner", phone: noCity, area: "Somewhere", code: DEMO_OTP },
+    });
+    expect(missing.status()).toBe(400);
+
+    // A freshly added city may have no zones yet — that must not block signup.
+    const phone = freshPhone();
+    await request.post(apiUrl("/auth/send-signup-otp"), { data: { phone } });
+    const res = await request.post(apiUrl("/auth/agent/signup-basic"), {
+      data: { name: "Arealess Cleaner", phone, city: "Bhopal", code: DEMO_OTP },
+    });
+    expect(res.ok()).toBeTruthy();
+    expect((await res.json()).data.user.city).toBe("Bhopal");
   });
 });
 

@@ -3,8 +3,17 @@ import { useQueryClient } from "@tanstack/react-query";
 import { io, type Socket } from "socket.io-client";
 import { SOCKET_URL, ApiError } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
-import { useAgentMe, jobsKey, summaryKey, fetchCurrentOffer, acceptOffer, declineOffer } from "../api/agent.api";
+import {
+  useAgentMe,
+  useJobs,
+  jobsKey,
+  summaryKey,
+  fetchCurrentOffer,
+  acceptOffer,
+  declineOffer,
+} from "../api/agent.api";
 import type { JobOffer } from "../types";
+import { useDeviceLocation } from "./useDeviceLocation";
 
 /** Short attention beep via WebAudio (no asset needed). Best-effort. */
 function playPing() {
@@ -55,8 +64,21 @@ export type AgentDispatch = {
 export function useAgentDispatch(): AgentDispatch {
   const authenticated = useAgentSession((s) => s.authenticated);
   const { data: me } = useAgentMe();
+  const { data: jobs = [] } = useJobs();
   const online = me?.online ?? false;
   const qc = useQueryClient();
+
+  /**
+   * A cleaner mid-job must keep streaming even if they toggle themselves
+   * offline — going offline means "send me no new work", not "stop showing the
+   * customer who is already waiting for me where I am". Without this, toggling
+   * offline en route freezes the customer's map on a stale position with no
+   * explanation.
+   */
+  const hasActiveJob = jobs.some(
+    (j) => j.status === "assigned" || j.status === "enroute" || j.status === "arrived" || j.status === "in_progress",
+  );
+  const shouldStream = online || hasActiveJob;
 
   const [offer, setOffer] = useState<JobOffer | null>(null);
   const [accepting, setAccepting] = useState(false);
@@ -67,7 +89,11 @@ export function useAgentDispatch(): AgentDispatch {
   // Socket connection + offer events.
   useEffect(() => {
     if (!authenticated) return;
-    const socket = io(SOCKET_URL, { withCredentials: true, transports: ["websocket"] });
+    const socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ["websocket"],
+      auth: { role: "agent" },
+    });
     socketRef.current = socket;
 
     socket.on("job_offer", (o: JobOffer) => {
@@ -97,37 +123,47 @@ export function useAgentDispatch(): AgentDispatch {
     };
   }, [authenticated, qc]);
 
-  // Restore a live offer that arrived while the app was closed/reconnecting.
+  // Restore a live offer that arrived while the app was closed/reconnecting or on tab focus.
   useEffect(() => {
     if (!authenticated) return;
-    fetchCurrentOffer()
-      .then((o) => {
-        if (o) setOffer(o);
-      })
-      .catch(() => {});
+    const checkOffer = () => {
+      fetchCurrentOffer()
+        .then((o) => {
+          if (o) setOffer(o);
+        })
+        .catch(() => {});
+    };
+    checkOffer();
+    window.addEventListener("focus", checkOffer);
+    document.addEventListener("visibilitychange", checkOffer);
+    return () => {
+      window.removeEventListener("focus", checkOffer);
+      document.removeEventListener("visibilitychange", checkOffer);
+    };
   }, [authenticated]);
 
-  // Stream GPS while online so dispatch can rank by real distance.
+  // Stream GPS so dispatch can rank by real distance and the customer's live
+  // map can follow the cleaner in. The fix comes from the app-wide watch, which
+  // the job map reads from too — see useDeviceLocation for why there is only one.
+  const { fix: deviceFix, error: deviceError } = useDeviceLocation(shouldStream);
+
   useEffect(() => {
-    if (!online || typeof navigator === "undefined" || !navigator.geolocation) {
+    if (!shouldStream || !deviceFix) {
       setLocating(false);
       return;
     }
-    const send = (pos: GeolocationPosition) => {
-      setLocating(true);
-      socketRef.current?.emit("agent_location", {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-      });
-    };
-    const onErr = () => setLocating(false);
-    navigator.geolocation.getCurrentPosition(send, onErr, { enableHighAccuracy: true, timeout: 10_000 });
-    const watchId = navigator.geolocation.watchPosition(send, onErr, {
-      enableHighAccuracy: true,
-      maximumAge: 10_000,
+    setLocating(true);
+    socketRef.current?.emit("agent_location", {
+      lat: deviceFix.lat,
+      lng: deviceFix.lng,
+      heading: deviceFix.heading,
+      speed: deviceFix.speed,
     });
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [online]);
+  }, [shouldStream, deviceFix]);
+
+  useEffect(() => {
+    if (deviceError) setLocating(false);
+  }, [deviceError]);
 
   const accept = useCallback(async () => {
     if (!offer) return;

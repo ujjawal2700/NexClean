@@ -24,7 +24,13 @@ test.describe("Agent dashboard + online toggle", () => {
     const toggle = page.locator("header").getByRole("button", { name: /Online|Offline/ });
     await expect(toggle).toBeVisible();
 
-    // Seeded agent starts online.
+    // Establish the starting state rather than inherit it. The seeded agent is
+    // shared with the API suite, which runs first and deliberately takes these
+    // agents offline while testing dispatch eligibility — so "starts online"
+    // held only by luck of ordering, and this failed whenever that luck ran out.
+    if ((await toggle.textContent())?.trim() === "Offline") {
+      await toggle.click();
+    }
     await expect(toggle).toHaveText("Online");
     await expect(page.getByText("You're offline", { exact: false })).not.toBeVisible();
 

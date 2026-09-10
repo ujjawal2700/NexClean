@@ -41,7 +41,6 @@ test.describe("Job detail: status flow, photos, area alert", () => {
     await page.goto(`/agent/jobs/${bookingId}`);
 
     const primaryButton = page.getByRole("button", { name: /Start — I'm on my way|I've arrived|Start cleaning|Mark complete/ });
-    // Status badge in the job header card (the status-progress stepper below also renders the label text).
     const statusBadge = page.getByText("Assigned", { exact: true }).first();
 
     await expect(statusBadge).toBeVisible();
@@ -54,6 +53,7 @@ test.describe("Job detail: status flow, photos, area alert", () => {
     await primaryButton.click();
     await expect(page.getByText("Arrived", { exact: true }).first()).toBeVisible();
     await expect(primaryButton).toHaveText("Start cleaning");
+    await expect(primaryButton).toBeDisabled(); // Gated on 4 before photos
 
     // Area alert card shows up once arrived, and sending it updates the CTA text.
     await expect(page.getByText("NexClean Nearby")).toBeVisible();
@@ -63,7 +63,7 @@ test.describe("Job detail: status flow, photos, area alert", () => {
     await expect(page.getByText(/Alert sent to \d+ nearby customer\(s\)/)).toBeVisible();
   });
 
-  test("blocks completion until both before/after photos are uploaded, then allows it", async ({ page, request }) => {
+  test("blocks start cleaning without 4 before photos, and blocks completion without 4 after photos", async ({ page, request }) => {
     const { bookingId } = await seedAssignedJob(request);
     await loginAgentUI(page, SEED_AGENT_PHONE);
     await page.goto(`/agent/jobs/${bookingId}`);
@@ -71,23 +71,42 @@ test.describe("Job detail: status flow, photos, area alert", () => {
     const primaryButton = page.getByRole("button", { name: /Start — I'm on my way|I've arrived|Start cleaning|Mark complete/ });
     await primaryButton.click(); // -> enroute
     await primaryButton.click(); // -> arrived
-    await primaryButton.click(); // -> in_progress
-    await expect(page.getByText("Cleaning", { exact: true })).toBeVisible();
-    await expect(primaryButton).toHaveText("Mark complete");
-
-    // Missing photos: the completion button is disabled and hints why.
+    await expect(primaryButton).toHaveText("Start cleaning");
     await expect(primaryButton).toBeDisabled();
-    await expect(page.getByText("Add both before & after photos to mark complete.")).toBeVisible();
+    await expect(page.getByText("Upload 4 more mandatory before photo(s) to start cleaning.")).toBeVisible();
 
-    // Upload before + after photos via the hidden file inputs.
-    const fileInputs = page.locator('input[type="file"][accept="image/*"]');
-    await expect(fileInputs).toHaveCount(2);
-    await fileInputs.nth(0).setInputFiles(tinyPngFile("before.png")); // Before tile
-    await fileInputs.nth(1).setInputFiles(tinyPngFile("after.png")); // After tile
+    const beforeInput = page.locator('input[data-testid="upload-before-input"]');
+    const afterInput = page.locator('input[data-testid="upload-after-input"]');
 
-    // Once both photos are recorded server-side (jobs query refetches), the button un-disables.
+    // Upload 4 before photos
+    for (let i = 0; i < 4; i++) {
+      const photoResp = page.waitForResponse(
+        (r) => r.url().includes(`/agent/jobs/${bookingId}/photo`) && r.status() === 200,
+      );
+      await beforeInput.setInputFiles(tinyPngFile(`before-${i}.png`));
+      await photoResp;
+    }
+
+    // Now start cleaning is unblocked
     await expect(primaryButton).toBeEnabled({ timeout: 10_000 });
+    await primaryButton.click(); // -> in_progress
 
+    await expect(page.getByText("Cleaning", { exact: true }).first()).toBeVisible();
+    await expect(primaryButton).toHaveText("Mark complete");
+    await expect(primaryButton).toBeDisabled();
+    await expect(page.getByText("Upload 4 more mandatory after photo(s) to mark complete.")).toBeVisible();
+
+    // Upload 4 after photos
+    for (let i = 0; i < 4; i++) {
+      const photoResp = page.waitForResponse(
+        (r) => r.url().includes(`/agent/jobs/${bookingId}/photo`) && r.status() === 200,
+      );
+      await afterInput.setInputFiles(tinyPngFile(`after-${i}.png`));
+      await photoResp;
+    }
+
+    // Now mark complete is unblocked
+    await expect(primaryButton).toBeEnabled({ timeout: 10_000 });
     await primaryButton.click(); // -> completed
     await expect(page.getByText("Job completed")).toBeVisible();
     await expect(page.getByText("added to your earnings", { exact: false })).toBeVisible();

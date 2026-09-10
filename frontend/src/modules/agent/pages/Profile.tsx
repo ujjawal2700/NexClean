@@ -15,6 +15,8 @@ import {
   Pencil,
   Power,
   Loader2,
+  Landmark,
+  Wallet,
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -85,7 +87,9 @@ export function Profile() {
           <p className="text-sm text-ink-soft truncate">{me?.phone}</p>
           <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-muted pt-1">
             <Star className="size-4 fill-primary text-primary" />
-            <span className="font-bold text-ink">{me?.rating ?? 0}</span>
+            <span className="font-bold text-ink">
+              {me?.rating ? Number(me.rating).toFixed(1) : "New"}
+            </span>
             <span>· {me?.jobsDone ?? 0} jobs done</span>
           </div>
         </div>
@@ -94,7 +98,9 @@ export function Profile() {
       {/* Account Summary Stats */}
       <div className="grid grid-cols-3 gap-3">
         <GlassCard className="p-4 text-center">
-          <p className="font-display text-xl font-bold text-primary">{me?.rating ?? 0}★</p>
+          <p className="font-display text-xl font-bold text-primary">
+            {me?.rating ? `${Number(me.rating).toFixed(1)}★` : "New"}
+          </p>
           <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">Rating</p>
         </GlassCard>
         <GlassCard className="p-4 text-center">
@@ -185,6 +191,34 @@ export function Profile() {
               </GlassCard>
             </Link>
           )}
+
+          {/* Payouts Link */}
+          <Link to="/agent/payouts">
+            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                <Wallet className="size-4.5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-semibold text-ink text-sm sm:text-base">Payouts</p>
+                <p className="text-xs text-muted truncate">Request a payout of your earnings</p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </GlassCard>
+          </Link>
+
+          {/* Bank Account Link */}
+          <Link to="/agent/profile/bank-account">
+            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                <Landmark className="size-4.5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-semibold text-ink text-sm sm:text-base">Bank account</p>
+                <p className="text-xs text-muted truncate">Where your payouts get sent</p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </GlassCard>
+          </Link>
 
           {/* Help & Support Link */}
           <Link to="/agent/help">

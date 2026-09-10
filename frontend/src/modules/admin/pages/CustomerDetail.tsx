@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Phone, Mail, MapPin, Car, Ban, RotateCcw, Download, Loader2, Gift, Users } from "lucide-react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { ArrowLeft, Phone, Mail, MapPin, Car, Ban, RotateCcw, Download, Loader2, Gift, Users, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -9,7 +9,15 @@ import { Pagination } from "@shared/ui/Pagination";
 import { formatMoney, formatDate, formatTime } from "@shared/lib/format";
 import { usePagination } from "@shared/lib/usePagination";
 import { downloadBookingReceipt, downloadPaymentReceipt } from "@shared/lib/receipt";
-import { useCustomer, useCustomerActivity, useCategoryLabel, useSetCustomerStatus } from "../api/admin.api";
+import {
+  useCustomer,
+  useCustomerActivity,
+  useCategoryLabel,
+  useSetCustomerStatus,
+  useUpdateCustomer,
+  useDeleteCustomer,
+} from "../api/admin.api";
+import { PersonFormModal, ConfirmDeleteModal } from "../components/PersonFormModal";
 import type { AdminBooking, AdminPayment } from "../types";
 import {
   BOOKING_STATUS_STYLE,
@@ -26,6 +34,11 @@ export function CustomerDetail() {
   const { data: activity } = useCustomerActivity(id ?? "");
   const categoryLabel = useCategoryLabel();
   const setCustomerStatus = useSetCustomerStatus();
+  const updateCustomer = useUpdateCustomer();
+  const deleteCustomer = useDeleteCustomer();
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [formError, setFormError] = useState("");
   const bookings = usePagination(activity?.bookings ?? [], 5);
   const payments = usePagination(activity?.payments ?? [], 5);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -85,6 +98,18 @@ export function CustomerDetail() {
           </div>
         </div>
 
+        <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onClick={() => { setFormError(""); setEditing(true); }}>
+          <Pencil className="size-4" /> Edit
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => { setFormError(""); setDeleting(true); }}
+          className="text-red-600 hover:border-red-500/40 hover:bg-red-500/10"
+        >
+          <Trash2 className="size-4" /> Delete
+        </Button>
         {customer.status === "active" ? (
           <Button
             size="sm"
@@ -104,6 +129,7 @@ export function CustomerDetail() {
             <RotateCcw className="size-4" /> Reactivate
           </Button>
         )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -247,8 +273,12 @@ export function CustomerDetail() {
             {bookings.pageItems.map((b) => (
               <tr key={b.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
-                  <p className="font-medium text-ink">{b.vehicleName}</p>
-                  <p className="text-xs text-muted">#{b.id}</p>
+                  <Link to={`/admin/bookings/${b.id}`} className="font-medium text-ink hover:text-primary transition-colors block">
+                    {b.vehicleName}
+                  </Link>
+                  <p className="text-xs text-muted">
+                    <Link to={`/admin/bookings/${b.id}`} className="hover:underline hover:text-primary">#{b.id}</Link>
+                  </p>
                 </td>
                 <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)}</td>
                 <td className="px-2 py-3 text-ink-soft">{b.slot}</td>
@@ -339,6 +369,57 @@ export function CustomerDetail() {
         </table>
         <Pagination page={payments.page} totalPages={payments.totalPages} onPageChange={payments.setPage} />
       </GlassCard>
+      <PersonFormModal
+        kind="customer"
+        open={editing}
+        title="Edit customer"
+        submitLabel="Save changes"
+        initial={customer}
+        pending={updateCustomer.isPending}
+        error={formError}
+        onClose={() => { setEditing(false); setFormError(""); }}
+        onSubmit={(v) => {
+          setFormError("");
+          updateCustomer.mutate(
+            { id: customer.id, ...v },
+            {
+              onSuccess: () => { setEditing(false); setFormError(""); },
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Something went wrong"),
+            },
+          );
+        }}
+      />
+
+      <ConfirmDeleteModal
+        open={deleting}
+        kind="customer"
+        name={customer.name}
+        pending={deleteCustomer.isPending}
+        error={formError}
+        onClose={() => { setDeleting(false); setFormError(""); }}
+        onDeleteCustomerOnly={() => {
+          setFormError("");
+          deleteCustomer.mutate(
+            { id: customer.id, mode: "customer_only" },
+            {
+              // The record this page is built on is gone, so go back to the list
+              // rather than leaving a detail view of something that no longer exists.
+              onSuccess: () => navigate("/admin/customers"),
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this customer"),
+            },
+          );
+        }}
+        onDeleteWithData={() => {
+          setFormError("");
+          deleteCustomer.mutate(
+            { id: customer.id, mode: "with_data" },
+            {
+              onSuccess: () => navigate("/admin/customers"),
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this customer with data"),
+            },
+          );
+        }}
+      />
     </div>
   );
 }

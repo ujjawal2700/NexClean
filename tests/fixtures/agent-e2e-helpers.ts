@@ -68,6 +68,9 @@ export const TINY_PNG_BUFFER = Buffer.from(
   "base64",
 );
 
+export const TINY_PNG_DATA_URI =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
 export function tinyPngFile(name = "photo.png") {
   return { name, mimeType: "image/png", buffer: TINY_PNG_BUFFER };
 }
@@ -83,7 +86,9 @@ export async function goOnlineNear(request: APIRequestContext, token: string) {
     headers: authHeader(token),
     data: { online: true, lat: NEAR_LAT, lng: NEAR_LNG },
   });
-  expect(res.ok()).toBeTruthy();
+  if (!res.ok()) {
+    throw new Error(`goOnlineNear failed (${res.status()}): ${await res.text()}`);
+  }
 }
 
 /**
@@ -102,14 +107,47 @@ export async function completeAnyOpenJobsForAgent(request: APIRequestContext, ag
     const open = jobs.find((j) => j.status !== "completed");
     if (!open) return;
 
-    await request.post(`/agent/jobs/${open.id}/photo`, { headers: authHeader(agentToken), data: { kind: "before" } });
-    await request.post(`/agent/jobs/${open.id}/photo`, { headers: authHeader(agentToken), data: { kind: "after" } });
+    for (let p = 0; p < 4; p++) {
+      await request.post(`/agent/jobs/${open.id}/photo`, {
+        headers: authHeader(agentToken),
+        data: { kind: "before", image: TINY_PNG_DATA_URI },
+      });
+    }
+    for (let p = 0; p < 4; p++) {
+      await request.post(`/agent/jobs/${open.id}/photo`, {
+        headers: authHeader(agentToken),
+        data: { kind: "after", image: TINY_PNG_DATA_URI },
+      });
+    }
 
     for (let i = 0; i < 5; i++) {
       const advRes = await request.patch(`/agent/jobs/${open.id}/advance`, { headers: authHeader(agentToken) });
       const adv = await advRes.json();
       if (adv.data?.status === "completed") break;
     }
+  }
+}
+
+/**
+ * Decline whatever offer the seeded agent is already holding, if any.
+ *
+ * There is one demo agent shared by every agent spec, so it can still be
+ * holding an offer for an earlier test's booking. `/agent/offers/current`
+ * returns only that one offer, so seedAssignedJob would poll for its own
+ * bookingId and keep seeing the older one — for up to OFFER_TTL_MS (25s by
+ * default), well past its 12s poll window, and past the 30s test timeout once
+ * setup is counted. That is the whole flake: nothing is broken, the helper was
+ * just racing an offer TTL. Declining up front makes it deterministic.
+ */
+async function drainPendingOffers(request: APIRequestContext, agentToken: string): Promise<void> {
+  // A handful of iterations: declining one offer can immediately cascade the
+  // next queued booking to the same agent.
+  for (let i = 0; i < 5; i++) {
+    const res = await request.get("/agent/offers/current", { headers: authHeader(agentToken) });
+    if (!res.ok()) return;
+    const bookingId = (await res.json())?.data?.bookingId;
+    if (!bookingId) return;
+    await request.post(`/agent/offers/${bookingId}/decline`, { headers: authHeader(agentToken) });
   }
 }
 
@@ -127,6 +165,7 @@ export async function seedAssignedJob(
   const { token: agentToken, userId: agentId } = await loginAsAgent(request);
   await completeAnyOpenJobsForAgent(request, agentToken);
   await goOnlineNear(request, agentToken);
+  await drainPendingOffers(request, agentToken);
 
   const { token: customerToken } = await loginAsNewCustomer(request);
   const packageId = await firstPackageId(request);

@@ -4,6 +4,7 @@ import { creditRefereeWelcome } from "../promotions/referral.service";
 import { generateUniqueReferralCode } from "../user/user.service";
 import { env, isProd } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
+import { isSuperAdmin } from "../../shared/utils/superAdmin";
 import { signToken, type Role } from "../../shared/utils/jwt";
 import { generateOtp } from "../../shared/utils/otp";
 import type { CustomerSignupInput, AgentSignupInput, AgentSignupBasicInput } from "./auth.validation";
@@ -90,6 +91,19 @@ export async function sendSignupOtp(rawPhone: string): Promise<{ sent: boolean }
   return sendOtp(phone);
 }
 
+/** Send an OTP for login, verifying first that a user exists with this phone. */
+export async function sendLoginOtp(rawPhone: string): Promise<{ sent: boolean }> {
+  const phone = normalize(rawPhone);
+  const existing = await User.findOne({ phone });
+  if (!existing) {
+    throw ApiError.notFound("NOT_REGISTERED: This mobile number is not registered. Kindly sign up first.");
+  }
+  if (existing.status === "suspended") {
+    throw ApiError.forbidden("ACCOUNT_DEACTIVATED: Your account is deactivated. Please contact customer support for assistance.");
+  }
+  return sendOtp(phone);
+}
+
 /** Verify an OTP code without creating/upserting a User record. */
 export async function verifyOtpCodeOnly(rawPhone: string, code: string): Promise<{ verified: boolean }> {
   const phone = normalize(rawPhone);
@@ -97,22 +111,21 @@ export async function verifyOtpCodeOnly(rawPhone: string, code: string): Promise
   return { verified: true };
 }
 
-/** Verify an OTP, upsert the user, and return a JWT + the user. */
+/** Verify an OTP and return a JWT + the user. Rejects unregistered users. */
 export async function verifyOtp(rawPhone: string, code: string) {
   const phone = normalize(rawPhone);
   await verifyOtpCode(phone, code);
 
-  const user = await User.findOneAndUpdate(
-    { phone },
-    { $setOnInsert: { phone, name: "NexClean Member", role: "customer" } },
-    { upsert: true, new: true },
-  );
+  const user = await User.findOne({ phone });
+  if (!user) {
+    throw ApiError.notFound("NOT_REGISTERED: This mobile number is not registered. Kindly sign up first.");
+  }
 
   if (user.status === "suspended") {
     throw ApiError.forbidden("ACCOUNT_DEACTIVATED: Your account is deactivated. Please contact customer support for assistance.");
   }
 
-  // Cover accounts created via OTP-only login (no customerSignup) or from before referral codes existed.
+  // Cover accounts created from before referral codes existed.
   if (user.role === "customer" && !user.referralCode) {
     user.referralCode = await generateUniqueReferralCode(user.name);
     await user.save();
@@ -217,13 +230,18 @@ export async function agentSignup(input: AgentSignupInput) {
     user.aadharFrontUrl = input.aadharFront;
     user.aadharBackUrl = input.aadharBack;
     user.agentStatus = "pending";
+    // The KYC step re-submits the details form, so a cleaner who corrected
+    // their location between the two steps gets the corrected value.
+    if (input.city) user.city = input.city;
+    if (input.area) user.area = input.area;
     await user.save();
   } else {
     user = await User.create({
       phone,
       name: input.name,
       role: "agent",
-      area: input.area,
+      city: input.city ?? "",
+      area: input.area ?? "",
       online: false,
       agentStatus: "pending",
       aadharNumber: input.aadharNumber,
@@ -250,7 +268,8 @@ export async function agentSignupBasic(input: AgentSignupBasicInput) {
     phone,
     name: input.name,
     role: "agent",
-    area: input.area,
+    city: input.city,
+    area: input.area ?? "",
     online: false,
     agentStatus: "unverified",
   });
@@ -308,7 +327,7 @@ export async function adminLogin(email: string, password: string) {
   }
 
   const token = signToken(user.id, "admin", user.tokenVersion ?? 0);
-  const isSuper = isSuperAdminEmail || user.phone === `admin:${env.adminEmail}` || !user.adminRoleId;
+  const isSuper = isSuperAdminEmail || isSuperAdmin(user);
   const role = user.adminRoleId as any;
   const permissions = isSuper ? ["*"] : role ? role.permissions : [];
 
@@ -332,7 +351,7 @@ export async function getMe(userId: string) {
 
   let permissions: string[] = [];
   if (user.role === "admin") {
-    if (user.phone === `admin:${env.adminEmail}` || !user.adminRoleId) {
+    if (isSuperAdmin(user)) {
       permissions = ["*"];
     } else {
       const role = user.adminRoleId as any;

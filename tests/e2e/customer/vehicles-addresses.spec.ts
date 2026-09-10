@@ -68,34 +68,49 @@ test.describe("Addresses", () => {
   });
 
   test("starts empty for a fresh customer", async ({ page }) => {
-    await expect(page.getByText("No addresses yet.")).toBeVisible();
+    await expect(page.getByText("No saved addresses yet")).toBeVisible();
   });
 
-  test("Save address is disabled with empty required fields, then adds an address", async ({ page }) => {
-    await page.getByRole("button", { name: "Add address" }).click();
-    await page.locator('input[name="alabel"]').fill("");
-    await page.locator('input[name="aline"]').fill("");
-    // Clicking with both empty is a no-op per component logic (guarded in saveAddress).
-    await page.getByRole("button", { name: "Save address" }).click();
-    await expect(page.getByText("No addresses yet.")).toBeVisible();
+  test("Save address is disabled with empty required fields, then adds an address with map pin & structured fields", async ({ page }) => {
+    await page.getByTestId("open-add-address").click();
 
-    await page.locator('input[name="alabel"]').fill("Home");
-    await page.locator('input[name="aline"]').fill("123 Test Street, Indore");
-    await page.getByRole("button", { name: "Save address" }).click();
+    // Verify modal is open
+    await expect(page.getByRole("dialog", { name: "Add Service Address" })).toBeVisible();
 
-    await expect(page.getByText("Home")).toBeVisible();
-    await expect(page.getByText("123 Test Street, Indore")).toBeVisible();
+    const saveBtn = page.getByTestId("save-address-btn");
+    await expect(saveBtn).toBeDisabled();
+
+    // Fill in structured fields
+    await page.getByTestId("input-house-no").fill("Flat 402, Tower B");
+    await page.getByTestId("input-society").fill("Green Valley Heights, Sector 45");
+    await page.getByTestId("input-landmark").fill("Near Central Club");
+    await page.getByTestId("input-city").fill("Gurugram");
+    await page.getByTestId("input-pincode").fill("122003");
+
+    // Select Home label
+    await page.getByTestId("label-preset-home").click();
+
+    await expect(saveBtn).toBeEnabled();
+    await saveBtn.click();
+
+    // Verify saved address card
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(page.getByText("Home").first()).toBeVisible();
+    await expect(page.getByText("Flat 402, Tower B, Green Valley Heights, Sector 45")).toBeVisible();
   });
 
   test("deletes an address", async ({ page }) => {
-    await page.getByRole("button", { name: "Add address" }).click();
-    await page.locator('input[name="alabel"]').fill("Office");
-    await page.locator('input[name="aline"]').fill("456 Work Ave, Indore");
-    await page.getByRole("button", { name: "Save address" }).click();
-    await expect(page.getByText("Office")).toBeVisible();
+    await page.getByTestId("open-add-address").click();
+    await page.getByTestId("input-house-no").fill("Suite 500");
+    await page.getByTestId("input-society").fill("Tech Park 2");
+    await page.getByTestId("label-preset-office").click();
+    await page.getByTestId("save-address-btn").click();
 
+    await expect(page.getByText("Office", { exact: true })).toBeVisible();
+
+    // Delete it
     await page.getByRole("button", { name: "Remove Office" }).click();
-    await expect(page.getByText("Office")).not.toBeVisible();
-    await expect(page.getByText("No addresses yet.")).toBeVisible();
+    await expect(page.getByText("Office", { exact: true })).not.toBeVisible();
+    await expect(page.getByText("No saved addresses yet")).toBeVisible();
   });
 });

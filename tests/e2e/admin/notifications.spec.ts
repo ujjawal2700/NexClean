@@ -29,4 +29,38 @@ test.describe("Admin push notification campaigns", () => {
     // Campaign appears in history.
     await expect(page.getByText(title)).toBeVisible();
   });
+
+  test("the audience picker offers customer and agent groups", async ({ page }) => {
+    // Scoped to the picker: "Agents" also appears in the sidebar nav.
+    const picker = page.getByRole("group", { name: "Audience" });
+    await expect(picker.getByText("Customers", { exact: true })).toBeVisible();
+    await expect(picker.getByText("Agents", { exact: true })).toBeVisible();
+    for (const label of ["All customers", "All agents", "Verified agents", "Online agents"]) {
+      await expect(picker.getByRole("button", { name: new RegExp(`^${label}`) })).toBeVisible();
+    }
+  });
+
+  test("sends a campaign to agents", async ({ page }) => {
+    const title = `Ops notice ${Date.now()}`;
+
+    await page.locator('input[name="title"]').fill(title);
+    await page.locator("textarea").fill("Please update your availability for tomorrow.");
+    await page.getByRole("button", { name: /^All agents/ }).click();
+    await expect(page.getByRole("button", { name: /^All agents/ })).toHaveAttribute("aria-pressed", "true");
+
+    const sendResponse = page.waitForResponse(
+      (res) => res.url().includes("/admin/campaigns") && res.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: "Send campaign" }).click();
+    expect((await sendResponse).ok()).toBeTruthy();
+
+    await expect(page.getByRole("button", { name: /Sent to \d/ })).toBeVisible();
+
+    // History records which audience it went to, not just that it was sent.
+    // Scoped to this campaign's own row — the API specs seed other "All agents"
+    // campaigns into the same database, so a page-wide match is ambiguous.
+    const row = page.locator("div").filter({ has: page.getByText(title, { exact: true }) }).last();
+    await expect(row).toBeVisible();
+    await expect(row.getByText(/All agents ·/)).toBeVisible();
+  });
 });

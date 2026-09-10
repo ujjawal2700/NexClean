@@ -57,8 +57,8 @@ test.describe("Admin Bookings", () => {
     const row = page.locator("table tbody tr").first();
     const agentSelect = row.locator("select").first();
 
-    const optionValues = await agentSelect.locator("option").evaluateAll((opts) =>
-      opts.map((o) => (o as HTMLOptionElement).value),
+    const optionValues = await agentSelect.locator("option").evaluateAll((opts: any[]) =>
+      opts.map((o) => (o.value as string) || ""),
     );
     const targetValue = optionValues.find((v) => v !== "");
     test.skip(!targetValue, "No verified agent available to assign in this environment");

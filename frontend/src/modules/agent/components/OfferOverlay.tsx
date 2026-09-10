@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { Navigation, Clock, MapPin, Car, Sparkles, Check, X } from "lucide-react";
 import { Button } from "@shared/ui/Button";
@@ -9,7 +10,8 @@ import type { AgentDispatch } from "../hooks/useAgentDispatch";
 /** Full-screen incoming-offer popup with a live countdown (Uber/food-delivery style). */
 export function OfferOverlay({ dispatch }: { dispatch: AgentDispatch }) {
   const { offer, accept, decline, accepting } = dispatch;
-  return (
+
+  const content = (
     <AnimatePresence>
       {offer && (
         <OfferCard
@@ -22,6 +24,9 @@ export function OfferOverlay({ dispatch }: { dispatch: AgentDispatch }) {
       )}
     </AnimatePresence>
   );
+
+  if (typeof document === "undefined") return content;
+  return createPortal(content, document.body);
 }
 
 function OfferCard({
@@ -61,17 +66,17 @@ function OfferCard({
 
   return (
     <motion.div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-ink/60 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 p-4 sm:p-6 backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="w-full max-w-md overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl"
-        initial={{ y: 40, opacity: 0, scale: 0.96 }}
+        className="w-full max-w-lg overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl"
+        initial={{ y: 20, opacity: 0, scale: 0.95 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
-        exit={{ y: 40, opacity: 0, scale: 0.96 }}
-        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+        exit={{ y: 20, opacity: 0, scale: 0.95 }}
+        transition={{ type: "spring", stiffness: 280, damping: 24 }}
       >
         {/* Header with countdown */}
         <div className="flex items-center justify-between gap-3 bg-gradient-to-br from-primary to-accent px-5 py-4 text-white">
@@ -112,7 +117,7 @@ function OfferCard({
           <div className="flex items-center justify-between gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-pill bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
               <Navigation className="size-4" />
-              {offer.distanceKm != null ? `${offer.distanceKm} km away` : "Nearby"}
+              {offer.distanceKm != null ? String(offer.distanceKm) + " km away" : "Nearby"}
             </span>
             <span className="inline-flex items-center gap-1.5 text-sm text-muted">
               <Clock className="size-4" /> {when} · {offer.slot}
@@ -147,11 +152,11 @@ function OfferCard({
           </div>
 
           <div className="flex gap-3 pt-1">
-            <Button variant="outline" className="flex-1" onClick={decline} disabled={accepting}>
+            <Button variant="outline" className="flex-1 cursor-pointer" onClick={decline} disabled={accepting}>
               <X className="size-4" /> Decline
             </Button>
             <Button
-              className="flex-[1.6] bg-emerald-600 hover:bg-emerald-700"
+              className="flex-[1.6] bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
               onClick={accept}
               disabled={accepting || expired}
             >

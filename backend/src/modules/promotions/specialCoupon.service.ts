@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { SpecialCoupon, SPECIAL_COUPON_PREFIX, type SpecialCouponDoc } from "./specialCoupon.model";
 import { DiscountCode } from "./discountCode.model";
+import { assertOffPeakEligible, type RedemptionContext } from "./discountCode.service";
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { notifyUser } from "../notification/notification.service";
@@ -22,6 +23,7 @@ function mapCoupon(c: SpecialCouponDoc) {
     status: c.status,
     assignedCustomer: c.assignedCustomer,
     batchId: c.batchId,
+    offPeakOnly: c.offPeakOnly,
     usageHistory: c.usageHistory,
     createdAt: (c as unknown as { createdAt: Date }).createdAt,
   };
@@ -68,6 +70,7 @@ export async function generateSpecialCoupons(input: {
   maxDiscount?: number | null;
   validFrom?: Date | null;
   validTill?: Date | null;
+  offPeakOnly?: boolean;
 }) {
   if (input.count < 1 || input.count > 500) {
     throw ApiError.badRequest("Count must be between 1 and 500");
@@ -89,6 +92,7 @@ export async function generateSpecialCoupons(input: {
       status: "active" as const,
       assignedCustomer: null,
       batchId,
+      offPeakOnly: input.offPeakOnly ?? false,
       usageHistory: [],
     });
   }
@@ -142,8 +146,16 @@ export async function reactivateSpecialCoupon(couponId: string) {
   return mapCoupon(await coupon.populate("assignedCustomer", "name phone email"));
 }
 
-/** Validate a special coupon against an order amount and requesting customer. Does not mutate usage. */
-export async function applySpecialCoupon(rawCode: string, amount: number, userId: string) {
+/**
+ * Validate a special coupon against an order amount and requesting customer. Does not mutate usage.
+ * `context` carries the booking's date + slot, required for off-peak-only coupons.
+ */
+export async function applySpecialCoupon(
+  rawCode: string,
+  amount: number,
+  userId: string,
+  context?: RedemptionContext,
+) {
   const coupon = await SpecialCoupon.findOne({ code: rawCode.trim().toUpperCase() });
   if (!coupon) throw ApiError.badRequest("Invalid coupon code");
   if (coupon.status === "inactive") throw ApiError.badRequest("This coupon is no longer active");
@@ -161,12 +173,20 @@ export async function applySpecialCoupon(rawCode: string, amount: number, userId
   if (amount < coupon.minOrderValue) {
     throw ApiError.badRequest(`This coupon needs a minimum order of ₹${coupon.minOrderValue}`);
   }
+  await assertOffPeakEligible(coupon.offPeakOnly, context);
 
   let discountAmount = coupon.type === "percent" ? (amount * coupon.value) / 100 : coupon.value;
   if (coupon.maxDiscount != null) discountAmount = Math.min(discountAmount, coupon.maxDiscount);
   discountAmount = Math.min(Math.round(discountAmount), amount);
 
-  return { discountAmount, couponId: coupon.id as string, code: coupon.code };
+  // See applyDiscountCode: the flag rides along so the booking can snapshot the
+  // reclaimable portion of the discount.
+  return {
+    discountAmount,
+    couponId: coupon.id as string,
+    code: coupon.code,
+    offPeakOnly: coupon.offPeakOnly,
+  };
 }
 
 /** Mark a coupon as used — call only once the booking it discounted is actually created. */

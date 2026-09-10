@@ -1,4 +1,4 @@
-import { test as base, expect } from "@playwright/test";
+import { test as base, expect, type APIRequestContext } from "@playwright/test";
 import { API_BASE_URL } from "../playwright.config";
 
 /**
@@ -22,7 +22,7 @@ function resolveApiUrl(path: string): string {
   return `${API_BASE_URL.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
 
-export const test = base.extend<Record<string, never>>({
+export const test = base.extend({
   request: async ({ request }, use) => {
     const wrapped = new Proxy(request, {
       get(target, prop, receiver) {
@@ -37,4 +37,4 @@ export const test = base.extend<Record<string, never>>({
   },
 });
 
-export { expect };
+export { expect, type APIRequestContext };

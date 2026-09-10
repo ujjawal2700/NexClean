@@ -9,6 +9,7 @@
     "dev": "node --watch --import tsx src/index.ts",
     "test-start": "node --import tsx src/index.ts",
     "cleanup": "node --import tsx src/scripts/cleanup.ts",
+    "delete-customers": "node --import tsx src/scripts/delete-all-customers.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"

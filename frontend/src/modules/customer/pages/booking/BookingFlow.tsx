@@ -13,6 +13,8 @@ import {
   Tag,
   X,
   Coins,
+  Radio,
+  Crosshair,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
@@ -21,10 +23,21 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { BrandModelSelect, type VehicleSelection } from "../../components/BrandModelSelect";
 import { ApiError } from "@shared/lib/api";
-import { useMe, useVehicleCategories, useCategoryLabel, useWallet } from "../../api/queries";
-import { useVerifyPayment, usePreviewDiscount, useAddAddress } from "../../api/mutations";
+import {
+  useMe,
+  useVehicleCategories,
+  useCategoryLabel,
+  useWallet,
+  useOffPeakHours,
+  usePaymentMode,
+} from "../../api/queries";
+import { isOffPeakSlot, windowsForDate } from "../../data/offPeakHours";
+import { useVerifyPayment, useCreateOrder, usePreviewDiscount } from "../../api/mutations";
+import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import type { PreviewAmountResponse } from "../../api/mutations";
-import { usePlacesAutocomplete, type PlaceCoords } from "@shared/hooks/usePlacesAutocomplete";
+import { ServicePinPicker } from "@shared/components/map/ServicePinPicker";
+import { AddAddressModal } from "@shared/components/address/AddAddressModal";
+import type { LatLng } from "@shared/lib/maps";
 import { PACKAGES, availableSlotsForDate, upcomingDates, priceFor } from "../../data/catalog";
 import type { CarType, Booking, Vehicle, Address, VehicleCategory } from "../../types";
 import { formatMoney } from "@shared/lib/format";
@@ -37,6 +50,15 @@ type Draft = {
   date: string | null;
   slot: string | null;
   addressId: string | null;
+  /**
+   * The exact spot the cleaner drives to, dropped on a map by the customer.
+   *
+   * Separate from the address's own coordinates on purpose: a saved address
+   * geocodes to a building or a gate, while the car is in a particular bay of
+   * a particular basement. This is the point the live tracking map, the ETA and
+   * the nearest-cleaner search all run on, so it is worth asking for.
+   */
+  pin: LatLng | null;
 };
 
 const EMPTY: Draft = {
@@ -46,6 +68,7 @@ const EMPTY: Draft = {
   date: null,
   slot: null,
   addressId: null,
+  pin: null,
 };
 
 const DRAFT_STORAGE_KEY = "nexclean-booking-draft";
@@ -74,6 +97,7 @@ export function BookingFlow() {
   const vehicles = me?.vehicles ?? [];
   const addresses = me?.addresses ?? [];
   const verifyPayment = useVerifyPayment();
+  const createOrder = useCreateOrder();
   const previewDiscount = usePreviewDiscount();
   const { data: wallet } = useWallet();
 
@@ -118,6 +142,10 @@ export function BookingFlow() {
       packageId: pkg.id,
       discountCode: code,
       coinsToRedeem: coins > 0 ? coins : undefined,
+      // Sent so an off-peak-only code is judged against the slot the customer
+      // actually picked, exactly as booking creation will judge it.
+      date: draft.date ?? undefined,
+      slot: draft.slot ?? undefined,
     });
     setAppliedDiscount(result);
     return result;
@@ -150,6 +178,48 @@ export function BookingFlow() {
     } catch { /* ignore */ }
   };
 
+  /**
+   * An off-peak-only code is tied to the slot it was applied on, so going back
+   * and picking a different time can invalidate a code that is already showing
+   * as applied. Re-validate whenever the schedule changes: without this the
+   * stale discount survives to `pay()`, where the server rejects it and the
+   * customer meets a payment error instead of a clear "doesn't apply" message
+   * on the screen where they can still act on it.
+   */
+  const validatedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${draft.date ?? ""}|${draft.slot ?? ""}`;
+    if (validatedFor.current === key) return;
+    validatedFor.current = key;
+
+    if (!appliedDiscount?.discountCode || !draft.date || !draft.slot) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        await refreshQuote(discountInput.trim(), coinsToRedeem);
+      } catch (e) {
+        if (cancelled) return;
+        setDiscountError(
+          e instanceof ApiError ? e.message : "That code doesn't apply to the time slot you picked",
+        );
+        setDiscountInput("");
+        // Drop only the code — any coins the customer redeemed should survive.
+        try {
+          await refreshQuote(undefined, coinsToRedeem);
+        } catch {
+          if (!cancelled) setAppliedDiscount(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally keyed on the schedule alone: re-running on discount/coin
+    // changes would re-quote on every keystroke and fight refreshQuote.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.date, draft.slot]);
+
   const canContinue = [
     !!draft.vehicleType,
     !!draft.packageId,
@@ -173,19 +243,27 @@ export function BookingFlow() {
       addressLine: address.line,
       discountCode: appliedDiscount?.discountCode ? discountInput.trim() : undefined,
       coinsToRedeem: coinsToRedeem > 0 ? coinsToRedeem : undefined,
-      // GeoJSON stores [lng, lat]; the API expects lat/lng.
-      lat: address.coordinates?.[1],
-      lng: address.coordinates?.[0],
+      // The dropped pin wins over the address's geocode — it is the more
+      // precise of the two, and the one the customer will watch the cleaner
+      // approach. GeoJSON stores [lng, lat]; the API expects lat/lng.
+      lat: draft.pin?.lat ?? address.coordinates?.[1],
+      lng: draft.pin?.lng ?? address.coordinates?.[0],
     };
 
     try {
-      // Direct demo confirm — Razorpay disabled per demo requirement
-      const booking = await verifyPayment.mutateAsync({ booking: bookingInput });
-      setConfirmed(booking);
-      setProcessing(false);
-      return;
-
-      /* Razorpay disabled for demo
+      /**
+       * Ask the server to open an order first, and let its answer choose the
+       * route. `mock: true` means no gateway is configured, so the booking is
+       * confirmed directly and the customer pays the cleaner in cash.
+       *
+       * This branch used to be commented out with the direct confirm hardcoded
+       * above it — which quietly made the app unable to accept online payment at
+       * all. Worse, it was a trap rather than a limitation: the moment real
+       * Razorpay keys were added, /payments/verify starts demanding a signature
+       * and the hardcoded call would have failed every booking with "Missing
+       * payment confirmation fields". Letting the server decide means adding
+       * keys switches the flow on instead of breaking it.
+       */
       const order = await createOrder.mutateAsync(bookingInput);
 
       if (order.mock) {
@@ -217,9 +295,10 @@ export function BookingFlow() {
             setProcessing(false);
           }
         },
+        // Closing the sheet without paying must release the button, not leave
+        // the customer staring at a spinner they cannot clear.
         modal: { ondismiss: () => setProcessing(false) },
       });
-      */
     } catch (e) {
       setPayError(e instanceof ApiError ? e.message : "Payment failed. Please try again.");
       setProcessing(false);
@@ -312,7 +391,7 @@ export function BookingFlow() {
                     <Loader2 className="size-4 animate-spin" /> Processing…
                   </>
                 ) : (
-                  <>Pay to cleaner {formatMoney(payable)}</>
+                  <>Pay {formatMoney(payable)}</>
                 )}
               </Button>
             )}
@@ -477,6 +556,8 @@ function PackageStep({
 function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) => void }) {
   const dates = upcomingDates(7);
   const slots = availableSlotsForDate(draft.date);
+  const { data: offPeakConfig } = useOffPeakHours();
+  const offPeakWindows = windowsForDate(offPeakConfig, draft.date);
 
   // When a date is selected, if the currently chosen slot is no longer valid, clear it.
   const selectDate = (iso: string) => {
@@ -519,7 +600,15 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
         </div>
       </div>
 
-      <p className="mb-3 mt-6 text-sm font-medium text-muted">Time slot</p>
+      <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium text-muted">Time slot</p>
+        {offPeakWindows.length > 0 && (
+          <span className="flex items-center gap-1.5 text-[11px] text-emerald-600">
+            <span className="size-1.5 rounded-full bg-emerald-500" />
+            Cheaper {offPeakWindows.map((w) => `${w.start}–${w.end}`).join(", ")}
+          </span>
+        )}
+      </div>
       {draft.date && slots.length === 0 ? (
         <p className="rounded-2xl border border-amber-300/40 bg-amber-50/60 px-4 py-3 text-sm text-amber-700">
           No more slots available today — please pick a future date.
@@ -528,22 +617,44 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
         <div className="grid grid-cols-2 gap-2.5 xs:grid-cols-3 sm:grid-cols-4">
           {slots.map((slot) => {
             const selected = draft.slot === slot;
+            // A hint only — the server decides whether an off-peak coupon applies.
+            const offPeak = isOffPeakSlot(offPeakConfig, draft.date, slot);
             return (
               <button
                 key={slot}
                 onClick={() => set({ slot })}
                 className={cn(
-                  "rounded-xl border px-2 py-2.5 text-sm font-medium transition-all",
+                  "relative rounded-xl border px-2 py-2.5 text-sm font-medium transition-all",
                   selected
                     ? "border-primary bg-primary/5 text-primary ring-2 ring-primary/20"
-                    : "border-line bg-surface text-ink-soft hover:border-primary/40",
+                    : offPeak
+                      ? "border-emerald-400/50 bg-emerald-50/40 text-ink-soft hover:border-primary/40"
+                      : "border-line bg-surface text-ink-soft hover:border-primary/40",
                 )}
+                // Off-peak status rides on `title` and `data-off-peak`, never on
+                // an aria-label: the dot is inside the button, so labelling it
+                // would append to the button's accessible name and the control
+                // would stop being addressable as plainly "11:00 AM". The
+                // legend above the grid carries the meaning in text.
+                title={offPeak ? `${slot} — off-peak slot, discounts apply` : undefined}
+                data-off-peak={offPeak ? "true" : undefined}
               >
                 {slot}
+                {offPeak && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-emerald-500"
+                  />
+                )}
               </button>
             );
           })}
         </div>
+      )}
+      {offPeakWindows.length > 0 && (
+        <p className="mt-3 text-xs text-muted">
+          Slots marked with a green dot are our quieter hours — discount codes apply to these.
+        </p>
       )}
     </div>
   );
@@ -558,57 +669,30 @@ function AddressStep({
   set: (p: Partial<Draft>) => void;
   addresses: Address[];
 }) {
-  const [showForm, setShowForm] = useState(addresses.length === 0);
-  const [aLabel, setALabel] = useState("");
-  const [aLine, setALine] = useState("");
-  const [aCoords, setACoords] = useState<PlaceCoords | null>(null);
-  const [aPlaceId, setAPlaceId] = useState("");
-  const lineRef = useRef<HTMLInputElement>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
-  const addAddress = useAddAddress();
+  const selectedAddress = addresses.find((a) => a.id === draft.addressId) ?? null;
+  const addressCenter: LatLng | null = selectedAddress?.coordinates
+    ? { lat: selectedAddress.coordinates[1], lng: selectedAddress.coordinates[0] }
+    : null;
 
-  usePlacesAutocomplete({
-    inputRef: lineRef,
-    types: ["geocode", "establishment"],
-    onSelect: (placeName, placeId, coords) => {
-      setALine(placeName);
-      setAPlaceId(placeId);
-      setACoords(coords ?? null);
-    },
-  });
-
-  const saveAddress = () => {
-    if (!aLabel.trim() || !aLine.trim()) return;
-    addAddress.mutate(
-      {
-        label: aLabel.trim(),
-        line: aLine.trim(),
-        society: aLine.trim(),
-        lat: aCoords?.lat,
-        lng: aCoords?.lng,
-        placeId: aPlaceId || undefined,
-      },
-      {
-        onSuccess: (updatedUser) => {
-          setALabel("");
-          setALine("");
-          setACoords(null);
-          setAPlaceId("");
-          setShowForm(false);
-          const newAddr = updatedUser.addresses?.[updatedUser.addresses.length - 1];
-          if (newAddr) {
-            set({ addressId: newAddr.id });
-          }
-        },
-      },
-    );
-  };
+  // A pin belongs to the address it was dropped on. Switching addresses has to
+  // discard it, otherwise the booking silently carries the previous address's
+  // coordinates and the cleaner is routed to the wrong place entirely.
+  const [pinnedFor, setPinnedFor] = useState<string | null>(draft.addressId);
+  useEffect(() => {
+    if (draft.addressId === pinnedFor) return;
+    setPinnedFor(draft.addressId);
+    set({ pin: null });
+    // `set` is recreated every render by the parent; depending on it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.addressId, pinnedFor]);
 
   return (
     <div>
       <StepHeading title="Where should we come?" subtitle="Select a saved address or add a new one." />
 
-      {addresses.length > 0 && (
+      {addresses.length > 0 ? (
         <div className="space-y-3">
           {addresses.map((a) => {
             const selected = draft.addressId === a.id;
@@ -617,17 +701,25 @@ function AddressStep({
                 key={a.id}
                 onClick={() => set({ addressId: a.id })}
                 className={cn(
-                  "flex w-full items-center gap-4 rounded-card border p-4 text-left transition-all",
+                  "flex w-full items-center gap-4 rounded-card border p-4 text-left transition-all cursor-pointer",
                   selected
                     ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                     : "border-line bg-surface hover:border-primary/40",
                 )}
+                data-testid={`select-address-${a.id}`}
               >
                 <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
                   <MapPin className="size-5" />
                 </span>
-                <div className="min-w-0">
-                  <p className="font-display font-semibold text-ink">{a.label}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-display font-semibold text-ink">{a.label}</p>
+                    {a.coordinates && a.coordinates.length === 2 && (
+                      <span className="rounded-pill bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                        📍 Pinned
+                      </span>
+                    )}
+                  </div>
                   <p className="truncate text-sm text-muted">{a.line}</p>
                 </div>
                 {selected && <Check className="ml-auto size-5 text-primary" />}
@@ -635,57 +727,52 @@ function AddressStep({
             );
           })}
         </div>
+      ) : (
+        <div className="py-8 text-center rounded-2xl border border-dashed border-line bg-surface-muted/40 p-6">
+          <MapPin className="mx-auto size-8 text-muted" />
+          <p className="mt-2 font-display font-semibold text-ink">No addresses added yet</p>
+          <p className="text-xs text-muted mt-0.5">Add your address with exact map coordinates to continue.</p>
+          <Button size="sm" className="mt-4" onClick={() => setShowAddModal(true)} data-testid="add-first-address-btn">
+            <Plus className="size-4" /> Add your address
+          </Button>
+        </div>
       )}
 
-      {showForm ? (
-        <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
-          <p className="sm:col-span-2 font-display text-sm font-semibold text-ink">Add new address</p>
-          <Input
-            name="alabel"
-            label="Label"
-            placeholder="Home / Office"
-            value={aLabel}
-            onChange={(e) => setALabel(e.target.value)}
-          />
-          <Input
-            ref={lineRef}
-            name="aline"
-            label="Address"
-            placeholder="Search your address"
-            value={aLine}
-            onChange={(e) => {
-              setALine(e.target.value);
-              setACoords(null);
-              setAPlaceId("");
-            }}
-            hint={aCoords ? "📍 Location pinned" : "Pick a suggestion to pin the exact location"}
-          />
-          <div className="sm:col-span-2 flex items-center gap-2">
-            <Button size="sm" onClick={saveAddress} disabled={addAddress.isPending || !aLabel.trim() || !aLine.trim()}>
-              {addAddress.isPending ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" /> Saving...
-                </>
-              ) : (
-                "Save & select address"
-              )}
-            </Button>
-            {addresses.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>
-                Cancel
-              </Button>
-            )}
+      {selectedAddress && (
+        <div className="mt-5">
+          <div className="mb-2.5 flex items-center gap-2">
+            <Crosshair className="size-4 text-primary" />
+            <div>
+              <p className="font-display text-sm font-semibold text-ink">Drop your exact pin</p>
+              <p className="text-xs text-muted">
+                Move the map so the pin sits on your car. Your cleaner navigates to this exact spot.
+              </p>
+            </div>
           </div>
+          <ServicePinPicker
+            value={draft.pin}
+            fallbackCenter={addressCenter}
+            onChange={(coords) => set({ pin: coords })}
+          />
         </div>
-      ) : (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <Button variant="outline" onClick={() => setShowForm(true)}>
-            <Plus className="size-4" /> Add a new address
-          </Button>
-          <Link to="/app/profile/addresses?add=true" className="text-xs text-muted hover:text-primary transition-colors">
-            Manage all saved addresses
-          </Link>
-        </div>
+      )}
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <Button variant="outline" size="sm" onClick={() => setShowAddModal(true)} data-testid="add-new-address-btn">
+          <Plus className="size-4" /> Add a new address
+        </Button>
+        <Link to="/app/profile/addresses?add=true" className="text-xs text-muted hover:text-primary transition-colors">
+          Manage all saved addresses
+        </Link>
+      </div>
+
+      {showAddModal && (
+        <AddAddressModal
+          onClose={() => setShowAddModal(false)}
+          onSuccess={(newAddr) => {
+            set({ addressId: newAddr.id });
+          }}
+        />
       )}
     </div>
   );
@@ -724,6 +811,9 @@ function PaymentSummary({
   coinDiscount: number;
   toggleCoins: () => void;
 }) {
+  // Cached query — reading it here avoids threading the flag through props.
+  const { data: paymentMode } = usePaymentMode();
+  const payOnline = paymentMode?.online ?? false;
   // No payment-method picker: NexClean is pay-to-cleaner, so the money is
   // always collected in cash on completion. Offering UPI/Card/Wallet implied a
   // choice that doesn't exist and that nothing downstream acted on.
@@ -843,7 +933,9 @@ function PaymentSummary({
           </div>
         </dl>
         <p className="mt-3 border-t border-line pt-3 text-xs text-muted">
-          Payable in cash to your cleaner after the service is finished — nothing is charged now.
+          {payOnline
+            ? "Paid securely now — your cleaner collects nothing on the day."
+            : "Payable in cash to your cleaner after the service is finished — nothing is charged now."}
         </p>
       </div>
       {draft.vehicleType && (
@@ -925,6 +1017,23 @@ function OrderSummary({
 /* --------------------------- Confirmation ------------------------------- */
 
 function Confirmation({ booking }: { booking: Booking }) {
+  const navigate = useNavigate();
+
+  /**
+   * Hand off to live tracking on its own.
+   *
+   * Dispatch starts the instant the booking is created, so the interesting
+   * thing — cleaners being offered the job — is already happening while this
+   * receipt is on screen. Three seconds is long enough to register that the
+   * booking worked and short enough that the customer arrives at the search
+   * while it is still searching. The button below does the same thing
+   * immediately, so this is a convenience, not the only way through.
+   */
+  useEffect(() => {
+    const timer = setTimeout(() => navigate(`/app/track/${booking.id}`), 3000);
+    return () => clearTimeout(timer);
+  }, [booking.id, navigate]);
+
   return (
     <div className="mx-auto max-w-lg py-10 text-center">
       <motion.div
@@ -937,8 +1046,10 @@ function Confirmation({ booking }: { booking: Booking }) {
       </motion.div>
       <h1 className="mt-6 font-display text-3xl font-semibold text-ink">Booking confirmed!</h1>
       <p className="mt-2 text-muted">
-        We're finding you the nearest available cleaner — you'll be notified the moment one accepts.
-        Booking ID <span className="font-medium text-ink">{booking.id}</span>.
+        We're finding you the nearest available cleaner — taking you to live tracking…
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        Booking ID <span className="font-medium text-ink">{booking.id}</span>
       </p>
 
       <GlassCard className="mt-8 text-left">
@@ -971,11 +1082,13 @@ function Confirmation({ booking }: { booking: Booking }) {
         </dl>
       </GlassCard>
 
-      <div className="mt-8 flex justify-center gap-3">
-        <Button asChild variant="outline">
-          <Link to="/app">Back to dashboard</Link>
-        </Button>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button asChild>
+          <Link to={`/app/track/${booking.id}`}>
+            <Radio className="size-4" /> Track my cleaner
+          </Link>
+        </Button>
+        <Button asChild variant="outline">
           <Link to="/app/bookings">View my bookings</Link>
         </Button>
       </div>

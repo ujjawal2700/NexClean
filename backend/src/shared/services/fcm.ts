@@ -23,7 +23,14 @@ async function getMessaging() {
   if (!pushEnabled) return null;
 
   try {
-    const admin = await import("firebase-admin");
+    // tsconfig uses module: "nodenext", so tsc leaves this as a real ESM
+    // dynamic import even in the CommonJS build. firebase-admin is CommonJS and
+    // exposes `apps` as a getter, which cjs-module-lexer doesn't detect, so the
+    // namespace object has no `apps` and `admin.apps.length` threw
+    // "Cannot read properties of undefined (reading 'length')" in production —
+    // silently disabling push. Everything real hangs off the default export.
+    const ns = await import("firebase-admin");
+    const admin = ((ns as unknown as { default?: typeof ns }).default ?? ns) as typeof ns;
     const raw = env.firebaseServiceAccount.trim().replace(/^['"]|['"]$/g, "");
 
     let json: any;

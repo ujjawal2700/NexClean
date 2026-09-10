@@ -7,17 +7,19 @@ import { Input } from "@shared/ui/Input";
 import { Pagination } from "@shared/ui/Pagination";
 import { formatDate } from "@shared/lib/format";
 import { usePagination } from "@shared/lib/usePagination";
-import { useCampaigns, useSendCampaign, useAudienceSizes } from "../api/admin.api";
+import { useCampaigns, useSendCampaign, useAudienceSizes, useAudienceGroups } from "../api/admin.api";
 
-const AUDIENCES = ["All customers", "Active customers", "Lapsed customers", "Subscribers"];
+/** Fallback ordering used only until the server's audience list arrives. */
+const DEFAULT_AUDIENCE = "All customers";
 
 export function Notifications() {
   const { data: campaigns = [] } = useCampaigns();
   const { data: audienceSizes } = useAudienceSizes();
+  const { data: audienceGroups = [] } = useAudienceGroups();
   const sendCampaign = useSendCampaign();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [audience, setAudience] = useState(AUDIENCES[0]);
+  const [audience, setAudience] = useState(DEFAULT_AUDIENCE);
   const [sent, setSent] = useState<number | null>(null);
 
   const paginatedCampaigns = usePagination(campaigns, 5);
@@ -35,7 +37,7 @@ export function Notifications() {
     <div className="space-y-8">
       <div>
         <h1 className="font-display text-3xl text-ink">Push Notifications</h1>
-        <p className="mt-1 text-muted">Send manual campaigns to your customers via Firebase Cloud Messaging (FCM).</p>
+        <p className="mt-1 text-muted">Send manual campaigns to customers or agents via Firebase Cloud Messaging (FCM).</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
@@ -51,34 +53,43 @@ export function Notifications() {
               rows={3}
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="What do you want to tell your customers?"
+              placeholder="What do you want to tell them?"
               className="w-full rounded-2xl border border-line bg-surface px-4 py-3 text-ink outline-none placeholder:text-muted/70 focus:border-primary/50"
             />
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink">Audience</label>
-            <div className="flex flex-wrap gap-2">
-              {AUDIENCES.map((a) => (
-                <button
-                  key={a}
-                  onClick={() => setAudience(a)}
-                  className={cn(
-                    "rounded-pill border px-3.5 py-1.5 text-sm font-medium transition-colors",
-                    audience === a
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-line bg-surface text-muted hover:text-ink",
-                  )}
-                >
-                  {a}
-                  {audienceSizes && (
-                    <span className="ml-1 text-xs opacity-70">
-                      ({(audienceSizes[a] ?? 0).toLocaleString("en-IN")})
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+          {/* Grouped by app rather than one flat row: "All agents" and "All
+              customers" sitting side by side is exactly the pair you don't want
+              to mix up when the message is about to go out. */}
+          <div className="space-y-3" role="group" aria-label="Audience">
+            <label className="block text-sm font-medium text-ink">Audience</label>
+            {audienceGroups.map((group) => (
+              <div key={group.label}>
+                <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted">{group.label}</p>
+                <div className="flex flex-wrap gap-2">
+                  {group.audiences.map((a) => (
+                    <button
+                      key={a}
+                      onClick={() => setAudience(a)}
+                      aria-pressed={audience === a}
+                      className={cn(
+                        "rounded-pill border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                        audience === a
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-line bg-surface text-muted hover:text-ink",
+                      )}
+                    >
+                      {a}
+                      {audienceSizes && (
+                        <span className="ml-1 text-xs opacity-70">
+                          ({(audienceSizes[a] ?? 0).toLocaleString("en-IN")})
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="flex items-center gap-3 pt-1">

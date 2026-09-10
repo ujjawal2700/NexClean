@@ -9,6 +9,7 @@ import { StatCard } from "../components/StatCard";
 import { BarChart } from "../components/BarChart";
 import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
 import { Button } from "@shared/ui/Button";
+import { useAdminSession } from "../store/sessionStore";
 
 export function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useStats();
@@ -16,6 +17,16 @@ export function Dashboard() {
   const { data: triggered = [], isLoading: triggeredLoading } = useTriggered();
   const { data: reports, isLoading: reportsLoading } = useReports();
   const { data: agents = [] } = useAgents();
+  const permissions = useAdminSession((s) => s.permissions) || [];
+
+  /**
+   * A tile only becomes a link when this admin can actually open the target.
+   * Staff roles are permission-scoped, and PermissionGuard bounces a forbidden
+   * route to the first section they *can* see — so linking unconditionally
+   * would send someone to an unrelated screen with no explanation.
+   */
+  const linkIfAllowed = (permission: string, to: string): string | undefined =>
+    permissions.includes("*") || permissions.includes(permission) ? to : undefined;
 
   const pendingCount = agents.filter((a) => a.status === "pending").length;
   const recent = bookings.slice(0, 5);
@@ -59,12 +70,52 @@ export function Dashboard() {
           <SkeletonStatCards count={6} />
         ) : (
           <>
-            <StatCard icon={UserRound} label="Total users" value={String(stats?.totalUsers ?? 0)} />
-            <StatCard icon={IndianRupee} label="Revenue (completed)" value={formatMoney(stats?.revenue ?? 0)} delta="12.4% vs last week" trend="up" />
-            <StatCard icon={CalendarRange} label="Active bookings" value={String(stats?.activeBookings ?? 0)} delta="today" trend="up" />
-            <StatCard icon={Car} label="Active services" value={String(stats?.activeServices ?? 0)} delta="in progress" trend="up" />
-            <StatCard icon={Users} label="Agents online" value={`${stats?.agentsOnline ?? 0}/${stats?.agentsTotal ?? 0}`} />
-            <StatCard icon={Radar} label="Alerts triggered" value={String(stats?.alertsTriggered ?? 0)} delta="this week" trend="up" />
+            <StatCard
+              icon={UserRound}
+              label="Total users"
+              value={String(stats?.totalUsers ?? 0)}
+              to={linkIfAllowed("customers", "/admin/customers")}
+            />
+            <StatCard
+              icon={IndianRupee}
+              label="Revenue (completed)"
+              value={formatMoney(stats?.revenue ?? 0)}
+              delta="12.4% vs last week"
+              trend="up"
+              to={linkIfAllowed("payments", "/admin/payments")}
+            />
+            <StatCard
+              icon={CalendarRange}
+              label="Active bookings"
+              value={String(stats?.activeBookings ?? 0)}
+              delta="today"
+              trend="up"
+              to={linkIfAllowed("bookings", "/admin/bookings")}
+            />
+            {/* Jobs mid-service — Dispatch is the screen that shows work in
+                flight, where Bookings is the full ledger. */}
+            <StatCard
+              icon={Car}
+              label="Active services"
+              value={String(stats?.activeServices ?? 0)}
+              delta="in progress"
+              trend="up"
+              to={linkIfAllowed("bookings", "/admin/dispatch")}
+            />
+            <StatCard
+              icon={Users}
+              label="Agents online"
+              value={`${stats?.agentsOnline ?? 0}/${stats?.agentsTotal ?? 0}`}
+              to={linkIfAllowed("agents", "/admin/agents")}
+            />
+            <StatCard
+              icon={Radar}
+              label="Alerts triggered"
+              value={String(stats?.alertsTriggered ?? 0)}
+              delta="this week"
+              trend="up"
+              to={linkIfAllowed("area-alerts", "/admin/area-alerts")}
+            />
           </>
         )}
       </div>
@@ -144,8 +195,12 @@ export function Dashboard() {
               {!bookingsLoading && recent.map((b) => (
                 <tr key={b.id} className="border-t border-line/70">
                   <td className="px-2 py-3">
-                    <p className="font-medium text-ink">{b.vehicleName}</p>
-                    <p className="text-xs text-muted">#{b.id}</p>
+                    <Link to={`/admin/bookings/${b.id}`} className="font-medium text-ink hover:text-primary transition-colors block">
+                      {b.vehicleName}
+                    </Link>
+                    <p className="text-xs text-muted">
+                      <Link to={`/admin/bookings/${b.id}`} className="hover:underline hover:text-primary">#{b.id}</Link>
+                    </p>
                   </td>
                   <td className="px-2 py-3 text-ink-soft">{b.customerName}</td>
                   <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)} · {b.slot}</td>

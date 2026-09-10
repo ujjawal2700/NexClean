@@ -1,5 +1,6 @@
 import type { APIRequestContext } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { authHeader, freshPhone, DEMO_OTP } from "./api-client";
 
 /**
@@ -51,7 +52,9 @@ export async function loginByPhoneApi(request: APIRequestContext, phone: string)
 }
 
 export async function loginAsNewCustomerApi(request: APIRequestContext) {
-  return loginByPhoneApi(request, freshPhone());
+  const phone = freshPhone();
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
+  return loginByPhoneApi(request, phone);
 }
 
 // Indore-ish coordinates matching the seeded demo agents' area (see tests/api/booking.spec.ts).
@@ -215,6 +218,30 @@ export async function seedPayment(request: APIRequestContext) {
  * same way a real successful Razorpay payment would have landed. This is
  * test-data seeding on a throwaway DB, not an app-source change.
  */
+/**
+ * Locate the mongosh binary.
+ *
+ * Bare "mongosh" is not enough: Homebrew installs it to /opt/homebrew/bin, which
+ * is on an interactive shell's PATH but frequently absent from the environment a
+ * test runner inherits. When that happens execFileSync fails with a bare ENOENT
+ * that reads like a broken test rather than a missing tool, so fall back to the
+ * usual install locations and, failing that, say plainly what is missing.
+ */
+function resolveMongosh(): string {
+  const candidates = [
+    process.env.MONGOSH_PATH,
+    "/opt/homebrew/bin/mongosh",
+    "/usr/local/bin/mongosh",
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  // Nothing found on disk — fall back to PATH resolution so a non-standard but
+  // correctly-PATHed install still works.
+  return "mongosh";
+}
+
 export function forcePaymentPaidByBookingId(bookingId: string): void {
   const script = `
     const res = db.payments.updateOne(
@@ -223,8 +250,13 @@ export function forcePaymentPaidByBookingId(bookingId: string): void {
     );
     if (res.matchedCount !== 1) throw new Error("expected to match exactly 1 payment for booking ${bookingId}, matched " + res.matchedCount);
   `;
-  execFileSync("mongosh", ["mongodb://127.0.0.1:27017/nexclean-test", "--quiet", "--eval", script], {
-    stdio: "pipe",
+  execFileSync(resolveMongosh(), ["mongodb://127.0.0.1:27017/nexclean-test", "--quiet", "--eval", script], {
+    // stdin must be "ignore", not part of a blanket "pipe". mongosh is itself a
+    // Node CLI: handed a pipe on fd 0 that is closed immediately, it exits in a
+    // way that leaves the *calling* Playwright worker with a non-zero exit code
+    // — the run reports "N passed" and still fails the process. Detaching stdin
+    // keeps the seeding side-effect from deciding the suite's exit status.
+    stdio: ["ignore", "pipe", "pipe"],
   });
 }
 

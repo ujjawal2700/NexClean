@@ -14,6 +14,11 @@ export async function sendSignupOtp(req: Request, res: Response): Promise<Respon
   return ok(res, result, "OTP sent");
 }
 
+export async function sendLoginOtp(req: Request, res: Response): Promise<Response> {
+  const result = await authService.sendLoginOtp(req.body.phone);
+  return ok(res, result, "OTP sent");
+}
+
 export async function verifyOtpCodeOnly(req: Request, res: Response): Promise<Response> {
   const result = await authService.verifyOtpCodeOnly(req.body.phone, req.body.code);
   return ok(res, result, "Code verified");

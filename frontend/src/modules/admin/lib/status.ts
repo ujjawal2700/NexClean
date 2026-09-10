@@ -1,4 +1,4 @@
-import type { BookingStatus, AgentStatus, CustomerStatus, PaymentStatus, SettlementStatus } from "../types";
+import type { BookingStatus, AgentStatus, CustomerStatus, PaymentStatus, SettlementStatus, PayoutRequestStatus } from "../types";
 
 export const BOOKING_STATUS_STYLE: Record<BookingStatus, string> = {
   upcoming: "bg-primary/10 text-primary",
@@ -39,7 +39,29 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
   refunded: "Refunded",
 };
 
+/**
+ * Payment statuses in the order they should be offered in a filter — roughly
+ * the order money moves through them. Typed as PaymentStatus[] so adding a
+ * status to the union without listing it here is a compile error, which is what
+ * stops a filter from silently drifting out of step with the real values.
+ */
+export const PAYMENT_STATUS_ORDER: PaymentStatus[] = ["created", "paid", "refunded", "mock"];
+
 export const SETTLEMENT_STATUS_STYLE: Record<SettlementStatus, string> = {
   pending: "bg-amber-500/10 text-amber-600",
   settled: "bg-emerald-500/10 text-emerald-600",
+};
+
+export const PAYOUT_REQUEST_STATUS_STYLE: Record<PayoutRequestStatus, string> = {
+  pending: "bg-amber-500/10 text-amber-600",
+  approved: "bg-primary/10 text-primary",
+  paid: "bg-emerald-500/10 text-emerald-600",
+  rejected: "bg-red-500/10 text-red-600",
+};
+
+export const PAYOUT_REQUEST_STATUS_LABEL: Record<PayoutRequestStatus, string> = {
+  pending: "Pending",
+  approved: "Approved",
+  paid: "Paid",
+  rejected: "Declined",
 };

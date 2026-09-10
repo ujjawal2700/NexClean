@@ -20,6 +20,7 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Pagination } from "@shared/ui/Pagination";
 import { usePagination } from "@shared/lib/usePagination";
+import { shortId } from "@shared/lib/format";
 import {
   useAgents,
   useSetAgentStatus,
@@ -217,7 +218,7 @@ export function Agents() {
                   )}
                 </div>
                 <p className="text-xs text-muted">
-                  …{a.id.slice(-8)} · {a.phone}
+                  <span title={a.id}>{shortId(a.id)}</span> · {a.phone}
                 </p>
               </div>
               <span
@@ -232,8 +233,7 @@ export function Agents() {
             <div className="mt-4 grid grid-cols-3 gap-2 rounded-2xl border border-line bg-surface/60 p-3 text-center">
               <div>
                 <p className="flex items-center justify-center gap-1 font-display font-semibold text-ink">
-                  <Star className="size-3.5 fill-primary text-primary" />{" "}
-                  {a.rating}
+                  <Star className="size-3.5 fill-primary text-primary" /> {a.rating > 0 ? Number(a.rating).toFixed(1) : "New"}
                 </p>
                 <p className="text-[11px] text-muted">Rating</p>
               </div>
@@ -356,7 +356,7 @@ export function Agents() {
         open={editing !== null}
         title={editing === "new" ? "Add agent" : "Edit agent"}
         submitLabel={editing === "new" ? "Create agent" : "Save changes"}
-        withArea
+        kind="agent"
         initial={editing && editing !== "new" ? editing : undefined}
         pending={createAgent.isPending || updateAgent.isPending}
         error={formError}
@@ -380,16 +380,27 @@ export function Agents() {
         pending={deleteAgent.isPending}
         error={formError}
         onClose={closeDelete}
-        onConfirm={() => {
+        onDeleteAgentOnly={() => {
           if (!deleting) return;
           setFormError("");
-          deleteAgent.mutate(deleting.id, {
-            onSuccess: closeDelete,
-            onError: (e: unknown) =>
-              setFormError(
-                (e as Error)?.message ?? "Couldn't delete this agent",
-              ),
-          });
+          deleteAgent.mutate(
+            { id: deleting.id, mode: "agent_only" },
+            {
+              onSuccess: closeDelete,
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent"),
+            },
+          );
+        }}
+        onDeleteWithData={() => {
+          if (!deleting) return;
+          setFormError("");
+          deleteAgent.mutate(
+            { id: deleting.id, mode: "with_data" },
+            {
+              onSuccess: closeDelete,
+              onError: (e: unknown) => setFormError((e as Error)?.message ?? "Couldn't delete this agent with data"),
+            },
+          );
         }}
       />
     </div>
