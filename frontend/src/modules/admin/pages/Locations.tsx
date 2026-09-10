@@ -336,19 +336,28 @@ export function Locations() {
       isNew: false,
     });
     setLiveVertexCount(coords.length > 1 ? coords.length - 1 : coords.length);
-    setIsBoundaryEditing(true);
-    panToZone(zone);
-    showToast(
-      "Interactive boundary editing enabled. Drag vertex handles on map to reshape.",
-      "info",
-    );
+    if (coords.length >= 3) {
+      setIsBoundaryEditing(true);
+      panToZone(zone);
+      showToast(
+        "Interactive boundary editing enabled. Drag vertex handles on map to reshape.",
+        "info",
+      );
+    } else {
+      setIsBoundaryEditing(false);
+      panToZone(zone);
+      showToast(
+        "No polygon boundary set for this zone yet. Use 'Draw New Zone' to draw one.",
+        "info",
+      );
+    }
   };
 
   // Extract edited coordinates from live Polygon instance
   const collectEditedCoords = useCallback((): [number, number][] | null => {
-    if (!editPolygonRef.current) return null;
+    if (!editPolygonRef.current || typeof editPolygonRef.current.getPath !== "function") return null;
     const path = editPolygonRef.current.getPath();
-    if (!path || path.getLength() < 3) return null;
+    if (!path || typeof path.getLength !== "function" || path.getLength() < 3) return null;
     const coords: [number, number][] = [];
     for (let i = 0; i < path.getLength(); i++) {
       const pt = path.getAt(i);
@@ -498,7 +507,9 @@ export function Locations() {
 
   // Drawing finished: user completed drawing a new polygon on map
   const onPolygonComplete = async (poly: google.maps.Polygon) => {
+    if (!poly || typeof poly.getPath !== "function") return;
     const path = poly.getPath();
+    if (!path || typeof path.getLength !== "function" || path.getLength() < 3) return;
     const coordinates: [number, number][] = [];
     const googlePath: google.maps.LatLng[] = [];
 
@@ -1397,6 +1408,11 @@ export function Locations() {
                       : getCoords(zone);
                   const paths = toGooglePaths(rawCoords);
 
+                  // Do not render Polygon if zone doesn't have a valid boundary with at least 3 vertices
+                  if (!paths || paths.length < 3) {
+                    return null;
+                  }
+
                   return (
                     <Polygon
                       key={`${zone.id}-${isEditing ? "editing" : "static"}`}
@@ -1406,60 +1422,76 @@ export function Locations() {
                       onLoad={(poly) => {
                         if (isEditing) {
                           editPolygonRef.current = poly;
-                          const path = poly.getPath();
-                          setLiveVertexCount(path.getLength());
+                          const path =
+                            poly && typeof poly.getPath === "function"
+                              ? poly.getPath()
+                              : null;
+                          if (path && typeof path.getLength === "function") {
+                            setLiveVertexCount(path.getLength());
+                          }
 
                           const updateCount = () => {
-                            if (poly && poly.getPath) {
-                              setLiveVertexCount(poly.getPath().getLength());
+                            if (poly && typeof poly.getPath === "function") {
+                              const p = poly.getPath();
+                              if (p && typeof p.getLength === "function") {
+                                setLiveVertexCount(p.getLength());
+                              }
                             }
                           };
 
-                          const insertListener = path.addListener(
-                            "insert_at",
-                            updateCount,
-                          );
-                          const setListener = path.addListener(
-                            "set_at",
-                            updateCount,
-                          );
-                          const removeListener = path.addListener(
-                            "remove_at",
-                            updateCount,
-                          );
+                          const listeners: google.maps.MapsEventListener[] = [];
+                          if (path && typeof path.addListener === "function") {
+                            listeners.push(
+                              path.addListener("insert_at", updateCount),
+                              path.addListener("set_at", updateCount),
+                              path.addListener("remove_at", updateCount),
+                            );
+                          }
 
-                          const rightClickListener = poly.addListener(
-                            "rightclick",
-                            (e: google.maps.PolyMouseEvent) => {
-                              if (e.vertex !== undefined) {
-                                const currentPath = poly.getPath();
-                                if (currentPath.getLength() > 3) {
-                                  currentPath.removeAt(e.vertex);
-                                  setLiveVertexCount(currentPath.getLength());
-                                  showToast("Vertex removed", "info");
-                                } else {
-                                  showToast(
-                                    "A polygon must have at least 3 vertices",
-                                    "error",
-                                  );
-                                }
-                              }
-                            },
-                          );
+                          if (poly && typeof poly.addListener === "function") {
+                            listeners.push(
+                              poly.addListener(
+                                "rightclick",
+                                (e: google.maps.PolyMouseEvent) => {
+                                  if (e.vertex !== undefined && poly.getPath) {
+                                    const currentPath = poly.getPath();
+                                    if (
+                                      currentPath &&
+                                      typeof currentPath.getLength ===
+                                        "function" &&
+                                      currentPath.getLength() > 3
+                                    ) {
+                                      currentPath.removeAt(e.vertex);
+                                      setLiveVertexCount(
+                                        currentPath.getLength(),
+                                      );
+                                      showToast("Vertex removed", "info");
+                                    } else {
+                                      showToast(
+                                        "A polygon must have at least 3 vertices",
+                                        "error",
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                            );
+                          }
 
-                          (poly as any)._listeners = [
-                            insertListener,
-                            setListener,
-                            removeListener,
-                            rightClickListener,
-                          ];
+                          (poly as any)._listeners = listeners;
                         }
                       }}
                       onUnmount={(poly) => {
                         if ((poly as any)._listeners) {
-                          (poly as any)._listeners.forEach((l: any) =>
-                            window.google?.maps?.event?.removeListener(l),
-                          );
+                          (poly as any)._listeners.forEach((l: any) => {
+                            if (l && typeof l.remove === "function") {
+                              l.remove();
+                            } else if (
+                              window.google?.maps?.event?.removeListener
+                            ) {
+                              window.google.maps.event.removeListener(l);
+                            }
+                          });
                         }
                         if (isEditing && editPolygonRef.current === poly) {
                           editPolygonRef.current = null;
@@ -1485,7 +1517,8 @@ export function Locations() {
                 {/* Render Unsaved New Zone Polygon if in configure mode */}
                 {selectedZone &&
                   selectedZone.isNew &&
-                  selectedZone.coordinates && (
+                  selectedZone.coordinates &&
+                  toGooglePaths(selectedZone.coordinates).length >= 3 && (
                     <Polygon
                       key={`new-zone-${isBoundaryEditing ? "editing" : "static"}`}
                       paths={toGooglePaths(selectedZone.coordinates)}
@@ -1494,13 +1527,26 @@ export function Locations() {
                       onLoad={(poly) => {
                         if (isBoundaryEditing) {
                           editPolygonRef.current = poly;
-                          const path = poly.getPath();
-                          setLiveVertexCount(path.getLength());
-                          const updateCount = () =>
-                            setLiveVertexCount(poly.getPath().getLength());
-                          path.addListener("insert_at", updateCount);
-                          path.addListener("set_at", updateCount);
-                          path.addListener("remove_at", updateCount);
+                          const path =
+                            poly && typeof poly.getPath === "function"
+                              ? poly.getPath()
+                              : null;
+                          if (path && typeof path.getLength === "function") {
+                            setLiveVertexCount(path.getLength());
+                          }
+                          const updateCount = () => {
+                            if (poly && typeof poly.getPath === "function") {
+                              const p = poly.getPath();
+                              if (p && typeof p.getLength === "function") {
+                                setLiveVertexCount(p.getLength());
+                              }
+                            }
+                          };
+                          if (path && typeof path.addListener === "function") {
+                            path.addListener("insert_at", updateCount);
+                            path.addListener("set_at", updateCount);
+                            path.addListener("remove_at", updateCount);
+                          }
                         }
                       }}
                       options={{

@@ -20,7 +20,11 @@ import {
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
-import { useAgentMe, useToggleOnline, useDeactivateAccount } from "../api/agent.api";
+import {
+  useAgentMe,
+  useToggleOnline,
+  useDeactivateAccount,
+} from "../api/agent.api";
 
 export function Profile() {
   const navigate = useNavigate();
@@ -81,8 +85,12 @@ export function Profile() {
         </div>
         <div className="text-center sm:text-left space-y-1 min-w-0 flex-1">
           <div className="flex items-center justify-center gap-2 sm:justify-start">
-            <h2 className="font-display text-2xl font-bold text-ink truncate">{me?.name || "Specialist"}</h2>
-            {verified && <BadgeCheck className="size-5 text-primary shrink-0" />}
+            <h2 className="font-display text-2xl font-bold text-ink truncate">
+              {me?.name || "Specialist"}
+            </h2>
+            {verified && (
+              <BadgeCheck className="size-5 text-primary shrink-0" />
+            )}
           </div>
           <p className="text-sm text-ink-soft truncate">{me?.phone}</p>
           <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-muted pt-1">
@@ -101,35 +109,49 @@ export function Profile() {
           <p className="font-display text-xl font-bold text-primary">
             {me?.rating ? `${Number(me.rating).toFixed(1)}★` : "New"}
           </p>
-          <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">Rating</p>
+          <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">
+            Rating
+          </p>
         </GlassCard>
         <GlassCard className="p-4 text-center">
-          <p className="font-display text-xl font-bold text-ink">{me?.jobsDone ?? 0}</p>
-          <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">Jobs done</p>
+          <p className="font-display text-xl font-bold text-ink">
+            {me?.jobsDone ?? 0}
+          </p>
+          <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">
+            Jobs done
+          </p>
         </GlassCard>
         <GlassCard className="p-4 text-center">
           <p className="font-display text-xl font-bold text-emerald-600 capitalize">
-            {verified ? "Verified" : me?.agentStatus ?? "—"}
+            {verified ? "Verified" : (me?.agentStatus ?? "—")}
           </p>
-          <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">Status</p>
+          <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">
+            Status
+          </p>
         </GlassCard>
       </div>
 
       {/* Account Details Card */}
       <GlassCard className="space-y-4">
         <div className="flex items-center justify-between border-b border-line/50 pb-2">
-          <h3 className="font-display text-lg font-semibold text-ink">Account Summary</h3>
+          <h3 className="font-display text-lg font-semibold text-ink">
+            Account Summary
+          </h3>
         </div>
         <div className="grid gap-3 text-sm">
           <div className="flex items-center gap-3 py-1.5 border-b border-line/30 last:border-0">
             <User className="size-4 text-muted shrink-0" />
             <span className="text-muted w-24">Full name</span>
-            <span className="font-medium text-ink truncate">{me?.name || "—"}</span>
+            <span className="font-medium text-ink truncate">
+              {me?.name || "—"}
+            </span>
           </div>
           <div className="flex items-center gap-3 py-1.5 last:border-0">
             <Phone className="size-4 text-muted shrink-0" />
             <span className="text-muted w-24">Mobile</span>
-            <span className="font-medium text-ink truncate">+91 {me?.phone || "—"}</span>
+            <span className="font-medium text-ink truncate">
+              +91 {me?.phone || "—"}
+            </span>
           </div>
         </div>
       </GlassCard>
@@ -141,7 +163,9 @@ export function Profile() {
             <Power className="size-4.5" />
           </span>
           <div>
-            <p className="font-display font-semibold text-ink text-sm sm:text-base">Availability</p>
+            <p className="font-display font-semibold text-ink text-sm sm:text-base">
+              Availability
+            </p>
             <p className="text-xs text-muted">
               You are {me?.online ? "online & receiving jobs" : "offline"}
             </p>
@@ -152,15 +176,16 @@ export function Profile() {
           size="sm"
           disabled={toggleOnline.isPending || isUnverified}
           onClick={() => toggleOnline.mutate(!me?.online)}
-          className="rounded-xl px-4 py-2 text-xs font-semibold"
-        >
+          className="rounded-xl px-4 py-2 text-xs font-semibold">
           {me?.online ? "Go offline" : "Go online"}
         </Button>
       </GlassCard>
 
       {/* Navigation Options Menu */}
       <div className="space-y-3">
-        <h3 className="font-display text-lg font-semibold text-ink px-1">Settings &amp; Preferences</h3>
+        <h3 className="font-display text-lg font-semibold text-ink px-1">
+          Settings &amp; Preferences
+        </h3>
 
         <div className="grid gap-3 sm:grid-cols-2">
           {/* Edit Profile Link */}
@@ -171,8 +196,12 @@ export function Profile() {
                   <Pencil className="size-4.5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-display font-semibold text-ink text-sm sm:text-base">Edit profile</p>
-                  <p className="text-xs text-muted truncate">Update full name</p>
+                  <p className="font-display font-semibold text-ink text-sm sm:text-base">
+                    Edit profile
+                  </p>
+                  <p className="text-xs text-muted truncate">
+                    Update full name
+                  </p>
                 </div>
                 <ChevronRight className="size-4 shrink-0 text-muted" />
               </GlassCard>
@@ -184,8 +213,12 @@ export function Profile() {
                   <Pencil className="size-4.5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-display font-semibold text-ink text-sm sm:text-base">Edit profile</p>
-                  <p className="text-xs text-muted truncate">Update full name</p>
+                  <p className="font-display font-semibold text-ink text-sm sm:text-base">
+                    Edit profile
+                  </p>
+                  <p className="text-xs text-muted truncate">
+                    Update full name
+                  </p>
                 </div>
                 <ChevronRight className="size-4 shrink-0 text-muted" />
               </GlassCard>
@@ -199,8 +232,12 @@ export function Profile() {
                 <Wallet className="size-4.5" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-display font-semibold text-ink text-sm sm:text-base">Payouts</p>
-                <p className="text-xs text-muted truncate">Request a payout of your earnings</p>
+                <p className="font-display font-semibold text-ink text-sm sm:text-base">
+                  Payouts
+                </p>
+                <p className="text-xs text-muted truncate">
+                  Request a payout of your earnings
+                </p>
               </div>
               <ChevronRight className="size-4 shrink-0 text-muted" />
             </GlassCard>
@@ -213,8 +250,12 @@ export function Profile() {
                 <Landmark className="size-4.5" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-display font-semibold text-ink text-sm sm:text-base">Bank account</p>
-                <p className="text-xs text-muted truncate">Where your payouts get sent</p>
+                <p className="font-display font-semibold text-ink text-sm sm:text-base">
+                  Bank account
+                </p>
+                <p className="text-xs text-muted truncate">
+                  Where your payouts get sent
+                </p>
               </div>
               <ChevronRight className="size-4 shrink-0 text-muted" />
             </GlassCard>
@@ -227,8 +268,12 @@ export function Profile() {
                 <HelpCircle className="size-4.5" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-display font-semibold text-ink text-sm sm:text-base">Help &amp; Support</p>
-                <p className="text-xs text-muted truncate">FAQs &amp; Support team chat</p>
+                <p className="font-display font-semibold text-ink text-sm sm:text-base">
+                  Help &amp; Support
+                </p>
+                <p className="text-xs text-muted truncate">
+                  FAQs &amp; Support team chat
+                </p>
               </div>
               <ChevronRight className="size-4 shrink-0 text-muted" />
             </GlassCard>
@@ -239,7 +284,8 @@ export function Profile() {
       {/* Status Notice */}
       <GlassCard className="flex items-center gap-3 text-xs text-muted bg-surface/50">
         <CheckCircle2 className="size-5 shrink-0 text-emerald-500" />
-        Background-checked &amp; insured. Specialist credentials verified by the NexClean operations team.
+        Background-checked &amp; insured. Specialist credentials verified by the
+        NexClean operations team.
       </GlassCard>
 
       {/* Account Action Buttons */}
@@ -247,8 +293,7 @@ export function Profile() {
         <Button
           variant="outline"
           onClick={handleLogout}
-          className="w-full text-ink-soft border-line hover:bg-surface-muted flex items-center justify-center gap-2 bg-surface"
-        >
+          className="w-full text-ink-soft border-line hover:bg-surface-muted flex items-center justify-center gap-2 bg-surface">
           <LogOut className="size-[18px]" />
           <span>Log out</span>
         </Button>
@@ -256,8 +301,7 @@ export function Profile() {
         <Button
           variant="outline"
           onClick={() => setShowDeactivateConfirm(true)}
-          className="w-full text-red-500 border-red-200 hover:bg-red-50/15 flex items-center justify-center gap-2 bg-surface"
-        >
+          className="w-full text-red-500 border-red-200 hover:bg-red-50/15 flex items-center justify-center gap-2 bg-surface">
           <UserX className="size-[18px]" />
           <span>Delete account</span>
         </Button>
@@ -271,9 +315,12 @@ export function Profile() {
               <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-ink/5 text-ink">
                 <LogOut className="size-6" />
               </div>
-              <h3 className="font-display text-lg font-bold text-ink">Log Out</h3>
+              <h3 className="font-display text-lg font-bold text-ink">
+                Log Out
+              </h3>
               <p className="text-sm text-muted leading-relaxed">
-                Are you sure you want to log out of your agent account? You will need to log back in to accept cleaning jobs and check payouts.
+                Are you sure you want to log out of your agent account? You will
+                need to log back in to accept cleaning jobs and check payouts.
               </p>
             </div>
 
@@ -281,14 +328,12 @@ export function Profile() {
               <Button
                 variant="outline"
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 rounded-xl cursor-pointer"
-              >
+                className="flex-1 rounded-xl cursor-pointer">
                 Cancel
               </Button>
               <Button
                 onClick={confirmLogout}
-                className="flex-1 rounded-xl bg-ink text-surface hover:bg-ink/90 cursor-pointer"
-              >
+                className="flex-1 rounded-xl bg-ink text-surface hover:bg-ink/90 cursor-pointer">
                 Log out
               </Button>
             </div>
@@ -304,9 +349,13 @@ export function Profile() {
               <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">
                 <UserX className="size-6" />
               </div>
-              <h3 className="font-display text-lg font-bold text-ink">Delete Account?</h3>
+              <h3 className="font-display text-lg font-bold text-ink">
+                Delete Account?
+              </h3>
               <p className="text-sm text-muted leading-relaxed">
-                Are you sure you want to delete your agent profile? You will be logged out immediately. Once deleted, only an admin can reactivate your account.
+                Are you sure you want to delete your agent profile? You will be
+                logged out immediately. Once deleted, only an admin can
+                reactivate your account.
               </p>
             </div>
 
@@ -315,16 +364,18 @@ export function Profile() {
                 variant="outline"
                 onClick={() => setShowDeactivateConfirm(false)}
                 disabled={deactivateAccount.isPending}
-                className="flex-1 rounded-xl cursor-pointer"
-              >
+                className="flex-1 rounded-xl cursor-pointer">
                 Cancel
               </Button>
               <Button
                 onClick={confirmDeactivate}
                 disabled={deactivateAccount.isPending}
-                className="flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white cursor-pointer"
-              >
-                {deactivateAccount.isPending ? <Loader2 className="size-4 animate-spin" /> : "Delete account"}
+                className="flex-1 rounded-xl bg-red-600 hover:bg-red-700 text-white cursor-pointer">
+                {deactivateAccount.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  "Delete account"
+                )}
               </Button>
             </div>
           </GlassCard>
@@ -333,4 +384,3 @@ export function Profile() {
     </div>
   );
 }
-

@@ -247,7 +247,9 @@ export function Profile() {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="font-display font-semibold text-ink text-sm sm:text-base">Notifications</p>
+                  <p className="font-display font-semibold text-ink text-sm sm:text-base">
+                    Notifications
+                  </p>
                   {unread > 0 && (
                     <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                       {unread} new
@@ -255,7 +257,9 @@ export function Profile() {
                   )}
                 </div>
                 <p className="text-xs text-muted truncate">
-                  {unread > 0 ? `${unread} unread update${unread > 1 ? "s" : ""}` : "Alerts, offers & status"}
+                  {unread > 0
+                    ? `${unread} unread update${unread > 1 ? "s" : ""}`
+                    : "Alerts, offers & status"}
                 </p>
               </div>
               <ChevronRight className="size-4 shrink-0 text-muted" />
@@ -347,9 +351,9 @@ export function Profile() {
                 Delete Account?
               </h3>
               <p className="text-sm text-muted leading-relaxed">
-                Are you sure you want to delete your profile? You will be
-                logged out immediately. Once deleted, only an admin can
-                reactivate your profile.
+                Are you sure you want to delete your profile? You will be logged
+                out immediately. Once deleted, only an admin can reactivate your
+                profile.
               </p>
             </div>
 
