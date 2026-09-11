@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import {
   MapPin,
   Building2,
@@ -42,6 +42,12 @@ import type { ServiceZone } from "../types";
 
 const defaultCenter = { lat: 12.9716, lng: 77.5946 }; // Bengaluru default
 const mapContainerStyle = { width: "100%", height: "100%" };
+
+// How close (in screen pixels) a click needs to land to the start vertex,
+// once there are enough points, to close the loop instead of adding a new
+// point. Generous relative to the 22px start-marker icon so it's an easy
+// target, not a precision test.
+const CLOSE_LOOP_HIT_RADIUS_PX = 16;
 
 const ZONE_COLORS = [
   "#4F7CFF", // NexClean Indigo
@@ -365,6 +371,11 @@ export function Locations() {
   const editPolygonRef = useRef<google.maps.Polygon | null>(null);
   const originalCoordsRef = useRef<[number, number][] | null>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  // A do-nothing OverlayView, kept alive for the map's whole lifetime purely to
+  // get a MapCanvasProjection out of it (Google doesn't expose pixel<->LatLng
+  // conversion on the Map object directly — an attached OverlayView is the
+  // documented way to get one). See the drawing-click effect below for why.
+  const projectionOverlayRef = useRef<google.maps.OverlayView | null>(null);
 
   // Load Google Maps SDK
   const { isLoaded } = useJsApiLoader(GOOGLE_MAPS_LOADER_OPTIONS);
@@ -489,22 +500,88 @@ export function Locations() {
     showToast("Boundary reset to initial coordinates", "info");
   };
 
-  // Click-to-place drawing. A point is only added when it wouldn't cross an
-  // edge already drawn — the invalid state is refused at the moment it would
-  // happen, not discovered only once the whole shape is finished.
-  const handleMapClick = (e: google.maps.MapMouseEvent) => {
-    if (!drawingMode || !e.latLng) return;
-    const candidate: [number, number] = [e.latLng.lng(), e.latLng.lat()];
-    const openRing: [number, number][] = drawingPoints.map((p) => [p.lng, p.lat]);
-    if (wouldSelfIntersect(openRing, candidate)) {
-      showToast(
-        "That point would cross a line you've already drawn — pick a spot that doesn't cross the boundary.",
-        "error",
-      );
-      return;
-    }
-    setDrawingPoints((prev) => [...prev, { lat: e.latLng!.lat(), lng: e.latLng!.lng() }]);
-  };
+  /**
+   * Core click-to-place logic, driven by lat/lng + screen pixel — deliberately
+   * NOT wired to GoogleMap's own onClick/onMouseDown. Google's Map class holds
+   * back its own synthetic mouse events for some internal gesture-disambiguation
+   * window (confirmed by testing: neither onClick nor onMouseDown escape it,
+   * and disableDoubleClickZoom doesn't touch it either) — two clicks placed at
+   * a normal quick pace, which is exactly how corners get drawn, can lose the
+   * second one entirely. See the raw-DOM listener effect below, which bypasses
+   * Maps' event system and calls this directly.
+   *
+   * Closing the loop is a proximity check here (screen pixels to the start
+   * point) rather than the start Marker's own onClick, for the same reason —
+   * relying on Maps' synthetic marker click for "close the loop" would still
+   * be able to lose a quick tap.
+   */
+  const handleDrawSurfaceClick = useCallback(
+    (lat: number, lng: number, pixel: { x: number; y: number }) => {
+      if (!drawingMode) return;
+
+      if (drawingPoints.length >= 3) {
+        const projection = projectionOverlayRef.current?.getProjection();
+        const start = drawingPoints[0];
+        const startPixel = projection?.fromLatLngToContainerPixel(new window.google.maps.LatLng(start.lat, start.lng));
+        if (startPixel && Math.hypot(pixel.x - startPixel.x, pixel.y - startPixel.y) <= CLOSE_LOOP_HIT_RADIUS_PX) {
+          finishDrawing();
+          return;
+        }
+      }
+
+      const candidate: [number, number] = [lng, lat];
+      const openRing: [number, number][] = drawingPoints.map((p) => [p.lng, p.lat]);
+      if (wouldSelfIntersect(openRing, candidate)) {
+        showToast(
+          "That point would cross a line you've already drawn — pick a spot that doesn't cross the boundary.",
+          "error",
+        );
+        return;
+      }
+      setDrawingPoints((prev) => [...prev, { lat, lng }]);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [drawingMode, drawingPoints],
+  );
+
+  // Bypasses @react-google-maps/api's onClick/onMouseDown entirely (see
+  // handleDrawSurfaceClick's comment) — and bypasses google.maps.event
+  // altogether, not just React's wrapper. Confirmed by testing: a listener
+  // added directly to the map's own DOM surface (even capture-phase, even
+  // that exact element) never fires either — Maps' own internal gesture
+  // handling sits between it and document and stops the event first. A
+  // capture-phase listener on document itself runs before that's possible,
+  // since capture always proceeds top-down from document. Re-binds whenever
+  // drawingPoints changes so the closure is never stale — a plain
+  // addEventListener/removeEventListener cycle is cheap, unlike recreating
+  // Maps overlays.
+  useEffect(() => {
+    if (!drawingMode) return;
+    const map = mapRef.current;
+    if (!map || !window.google) return;
+    const mapDiv = map.getDiv();
+
+    const handler = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      // Not a click on the map itself, or on this page's own controls
+      // (search box, drawing banner, zoom/street-view/map-type buttons —
+      // none of those should place a point).
+      if (!mapDiv.contains(target)) return;
+      if (target?.closest("[data-map-ui-overlay]")) return;
+      if (target?.closest(".gmnoprint, .gm-control-active, button, input")) return;
+
+      const projection = projectionOverlayRef.current?.getProjection();
+      if (!projection) return;
+      const rect = mapDiv.getBoundingClientRect();
+      const point = new window.google.maps.Point(event.clientX - rect.left, event.clientY - rect.top);
+      const latLng = projection.fromContainerPixelToLatLng(point);
+      if (!latLng) return;
+      handleDrawSurfaceClick(latLng.lat(), latLng.lng(), { x: point.x, y: point.y });
+    };
+
+    document.addEventListener("mousedown", handler, true);
+    return () => document.removeEventListener("mousedown", handler, true);
+  }, [drawingMode, handleDrawSurfaceClick]);
 
   // Throttled cursor tracking for the rubber-band preview segment — coalesced
   // to one state update per animation frame so mousemove can't flood React.
@@ -1139,10 +1216,19 @@ export function Locations() {
                 mapContainerStyle={mapContainerStyle}
                 center={defaultCenter}
                 zoom={12}
-                onClick={handleMapClick}
                 onMouseMove={handleMapMouseMove}
                 onLoad={(map) => {
                   mapRef.current = map;
+                  // Do-nothing OverlayView kept alive for pixel<->LatLng
+                  // conversion — see handleDrawSurfaceClick's comment.
+                  if (!projectionOverlayRef.current) {
+                    const helper = new window.google.maps.OverlayView();
+                    helper.onAdd = () => {};
+                    helper.draw = () => {};
+                    helper.onRemove = () => {};
+                    helper.setMap(map);
+                    projectionOverlayRef.current = helper;
+                  }
                   if (zones.length > 0) {
                     const firstCoords = getCoords(zones[0]);
                     if (firstCoords.length > 0) {
@@ -1158,12 +1244,23 @@ export function Locations() {
                   fullscreenControl: true,
                   draggableCursor: drawingMode ? "crosshair" : undefined,
                   clickableIcons: false,
+                  // Two clicks placed close together (in position or timing) —
+                  // exactly the normal rhythm of placing polygon corners — are
+                  // otherwise indistinguishable from a double-click, and the
+                  // browser/Maps API swallows the second one as a zoom gesture
+                  // instead of delivering it as a click. Off for the whole
+                  // session rather than toggled per drawingMode: reshaping an
+                  // existing boundary (isBoundaryEditing) drags vertices with
+                  // the same rhythm and needs the same protection, and losing
+                  // double-click-to-zoom costs nothing — the +/- controls and
+                  // scroll-to-zoom still work.
+                  disableDoubleClickZoom: true,
                 }}>
                 {/* Autocomplete Search Overlay */}
                 <Autocomplete
                   onLoad={(ac) => (autocompleteRef.current = ac)}
                   onPlaceChanged={handlePlaceChanged}>
-                  <div className="absolute top-4 left-4 z-30 w-72">
+                  <div data-map-ui-overlay className="absolute top-4 left-4 z-30 w-72">
                     <div className="relative">
                       <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
                       <input
@@ -1177,7 +1274,7 @@ export function Locations() {
 
                 {/* Drawing Mode Active Overlay Banner */}
                 {drawingMode && (
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
+                  <div data-map-ui-overlay className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
                     <div className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-surface/95 px-5 py-3 shadow-[var(--shadow-lift)] backdrop-blur-md">
                       <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
                         <Plus className="size-4" />
@@ -1226,7 +1323,7 @@ export function Locations() {
 
                 {/* Boundary Reshaping Active Floating Banner */}
                 {isBoundaryEditing && selectedZone && (
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
+                  <div data-map-ui-overlay className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
                     <div className="flex items-center gap-3 rounded-2xl border border-primary/40 bg-ink px-5 py-3 text-surface shadow-[var(--shadow-lift)] backdrop-blur-md">
                       <div className="grid size-8 place-items-center rounded-xl bg-primary text-white">
                         <Edit2 className="size-4" />
@@ -1260,29 +1357,37 @@ export function Locations() {
                     only created by closing the loop — see finishDrawing. */}
                 {drawingMode && drawingPoints.length > 0 && (
                   <>
-                    {drawingPoints.map((pt, idx) => (
-                      <Marker
-                        key={`draw-pt-${idx}`}
-                        position={pt}
-                        icon={vertexIcon(
-                          idx === 0
-                            ? drawingPoints.length >= 3
-                              ? "start-active"
-                              : "start-inactive"
-                            : "normal",
-                        )}
-                        title={
-                          idx === 0 && drawingPoints.length >= 3
-                            ? "Click to close the loop and create this zone"
-                            : idx === 0
-                              ? "Start point"
-                              : `Point ${idx + 1}`
-                        }
-                        onClick={() => {
-                          if (idx === 0 && drawingPoints.length >= 3) finishDrawing();
-                        }}
-                      />
-                    ))}
+                    {drawingPoints.map((pt, idx) => {
+                      // A Marker is clickable by default regardless of whether
+                      // it does anything on click, and its hit-area extends
+                      // past the tiny custom icon — a real problem here, since
+                      // placing the next corner *near* an existing one is the
+                      // normal way to draw a zone, and Google Maps overlay
+                      // clicks don't bubble to the map underneath (same reason
+                      // the existing-zone Polygon has to forward clicks in
+                      // drawingMode below). Only the start point, and only
+                      // once it actually does something (closing the loop
+                      // needs 3+ points), should be able to intercept a click.
+                      const canClose = idx === 0 && drawingPoints.length >= 3;
+                      return (
+                        <Marker
+                          key={`draw-pt-${idx}`}
+                          position={pt}
+                          clickable={canClose}
+                          icon={vertexIcon(idx === 0 ? (canClose ? "start-active" : "start-inactive") : "normal")}
+                          title={
+                            canClose
+                              ? "Click to close the loop and create this zone"
+                              : idx === 0
+                                ? "Start point"
+                                : `Point ${idx + 1}`
+                          }
+                          onClick={() => {
+                            if (canClose) finishDrawing();
+                          }}
+                        />
+                      );
+                    })}
 
                     {/* Placed segments, plus a live rubber-band segment to the cursor */}
                     <Polyline
@@ -1416,15 +1521,14 @@ export function Locations() {
                         strokeOpacity: 0.9,
                         zIndex: isEditing ? 10 : isSelected ? 5 : 1,
                       }}
-                      onClick={(e) => {
-                        // Polygon clicks don't bubble to the map's own click
-                        // handler, so drawing over an existing zone's fill
-                        // needs to be forwarded explicitly or it would silently
-                        // fail to place a point there.
-                        if (drawingMode) {
-                          handleMapClick(e);
-                          return;
-                        }
+                      onClick={() => {
+                        // The raw mousedown listener (see handleDrawSurfaceClick)
+                        // is on the map's own surface and fires regardless of
+                        // what's rendered on top, so drawing over an existing
+                        // zone's fill already places a point there — this just
+                        // has to stay out of the way and not also open that
+                        // zone's edit panel mid-draw.
+                        if (drawingMode) return;
                         if (!isBoundaryEditing) {
                           handleEditDetails(zone);
                         }
