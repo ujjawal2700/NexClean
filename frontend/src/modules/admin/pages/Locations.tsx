@@ -19,8 +19,9 @@ import {
 import {
   GoogleMap,
   useJsApiLoader,
-  DrawingManager,
   Polygon,
+  Polyline,
+  Marker,
   Autocomplete,
 } from "@react-google-maps/api";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -90,6 +91,85 @@ const computeCenter = (coords: [number, number][]) => {
     lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
   };
 };
+
+/* ------------------------- self-intersection check ------------------------ */
+// Mirrors backend/src/shared/geo.ts's segmentsIntersect/wouldSelfIntersect
+// exactly, so a bowtie shape is rejected the instant it's clicked here rather
+// than only discovered when the server rejects the save. [lng, lat] pairs to
+// match GeoJSON, same as the rest of this file's coordinate handling.
+type LngLat = [number, number];
+
+function orientation(p: LngLat, q: LngLat, r: LngLat): 0 | 1 | 2 {
+  const val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
+  if (val === 0) return 0;
+  return val > 0 ? 1 : 2;
+}
+
+function onSegment(p: LngLat, q: LngLat, r: LngLat): boolean {
+  return (
+    q[0] <= Math.max(p[0], r[0]) &&
+    q[0] >= Math.min(p[0], r[0]) &&
+    q[1] <= Math.max(p[1], r[1]) &&
+    q[1] >= Math.min(p[1], r[1])
+  );
+}
+
+function segmentsIntersect(p1: LngLat, p2: LngLat, p3: LngLat, p4: LngLat): boolean {
+  const o1 = orientation(p1, p2, p3);
+  const o2 = orientation(p1, p2, p4);
+  const o3 = orientation(p3, p4, p1);
+  const o4 = orientation(p3, p4, p2);
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && onSegment(p1, p3, p2)) return true;
+  if (o2 === 0 && onSegment(p1, p4, p2)) return true;
+  if (o3 === 0 && onSegment(p3, p1, p4)) return true;
+  if (o4 === 0 && onSegment(p3, p2, p4)) return true;
+  return false;
+}
+
+/** Would the edge from the last placed point to `candidate` cross any edge already drawn? */
+function wouldSelfIntersect(openPoints: LngLat[], candidate: LngLat): boolean {
+  if (openPoints.length < 2) return false;
+  const newEdgeStart = openPoints[openPoints.length - 1];
+  for (let i = 0; i < openPoints.length - 2; i++) {
+    if (segmentsIntersect(newEdgeStart, candidate, openPoints[i], openPoints[i + 1])) return true;
+  }
+  return false;
+}
+
+/** Is the fully-closed ring (first point repeated as the last) free of self-crossings? */
+function isSimplePolygon(ring: LngLat[]): boolean {
+  const n = ring.length - 1;
+  if (n < 3) return false;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const adjacent = j === i + 1 || (i === 0 && j === n - 1);
+      if (adjacent) continue;
+      if (segmentsIntersect(ring[i], ring[i + 1], ring[j], ring[j + 1])) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Small filled-circle marker icons for drawing vertices — no default red map
+ * pins. The start point renders larger and primary-filled once the polygon
+ * has enough points to close, inviting the click that completes it.
+ */
+function vertexIcon(kind: "normal" | "start-inactive" | "start-active"): google.maps.Icon {
+  const svg =
+    kind === "start-active"
+      ? `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="8.5" fill="#4F7CFF" stroke="white" stroke-width="2.5"/></svg>`
+      : kind === "start-inactive"
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"><circle cx="7" cy="7" r="5" fill="white" stroke="#4F7CFF" stroke-width="2.5"/></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"><circle cx="6" cy="6" r="4" fill="white" stroke="#8B9BFF" stroke-width="2"/></svg>`;
+  const size = kind === "start-active" ? 22 : kind === "start-inactive" ? 14 : 12;
+  return {
+    url: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`,
+    scaledSize: new window.google.maps.Size(size, size),
+    anchor: new window.google.maps.Point(size / 2, size / 2),
+  };
+}
 
 /* -------------------------------------------------------------------------- */
 /*                               CITIES PANEL                                 */
@@ -251,8 +331,18 @@ export function Locations() {
   const [isBoundaryEditing, setIsBoundaryEditing] = useState(false);
   const [liveVertexCount, setLiveVertexCount] = useState(0);
 
-  // Drawing mode: null (off) | "polygon" (DrawingManager active)
+  // Drawing mode: null (off) | "polygon" (click-to-place active). The zone
+  // only completes when the user closes the loop back on the start point —
+  // never on a click elsewhere — so the placed-but-unclosed vertices live
+  // here, not as a Google DrawingManager overlay.
   const [drawingMode, setDrawingMode] = useState<string | null>(null);
+  const [drawingPoints, setDrawingPoints] = useState<{ lat: number; lng: number }[]>([]);
+  // Live rubber-band segment from the last placed point to the cursor —
+  // updated via rAF (see handleMapMouseMove) so it can't flood React with a
+  // state update on every pixel of mouse movement.
+  const [cursorPos, setCursorPos] = useState<{ lat: number; lng: number } | null>(null);
+  const cursorRafRef = useRef<number | null>(null);
+  const pendingCursorRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // Search filter for zone list
   const [zoneSearch, setZoneSearch] = useState("");
@@ -399,27 +489,58 @@ export function Locations() {
     showToast("Boundary reset to initial coordinates", "info");
   };
 
-  // Drawing finished: DrawingManager fires this once the user closes the
-  // shape (double-click, or clicking the first vertex again) — smooth native
-  // drawing, no click-to-place pins.
-  const onPolygonComplete = (poly: google.maps.Polygon) => {
-    const path = poly?.getPath?.();
-    if (!path || typeof path.getLength !== "function" || path.getLength() < 3) {
-      poly?.setMap?.(null);
+  // Click-to-place drawing. A point is only added when it wouldn't cross an
+  // edge already drawn — the invalid state is refused at the moment it would
+  // happen, not discovered only once the whole shape is finished.
+  const handleMapClick = (e: google.maps.MapMouseEvent) => {
+    if (!drawingMode || !e.latLng) return;
+    const candidate: [number, number] = [e.latLng.lng(), e.latLng.lat()];
+    const openRing: [number, number][] = drawingPoints.map((p) => [p.lng, p.lat]);
+    if (wouldSelfIntersect(openRing, candidate)) {
+      showToast(
+        "That point would cross a line you've already drawn — pick a spot that doesn't cross the boundary.",
+        "error",
+      );
+      return;
+    }
+    setDrawingPoints((prev) => [...prev, { lat: e.latLng!.lat(), lng: e.latLng!.lng() }]);
+  };
+
+  // Throttled cursor tracking for the rubber-band preview segment — coalesced
+  // to one state update per animation frame so mousemove can't flood React.
+  const handleMapMouseMove = (e: google.maps.MapMouseEvent) => {
+    if (!drawingMode || drawingPoints.length === 0 || !e.latLng) return;
+    pendingCursorRef.current = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+    if (cursorRafRef.current != null) return;
+    cursorRafRef.current = requestAnimationFrame(() => {
+      cursorRafRef.current = null;
+      setCursorPos(pendingCursorRef.current);
+    });
+  };
+
+  const handleUndoPoint = () => {
+    setDrawingPoints((prev) => prev.slice(0, -1));
+  };
+
+  // Close the loop — the ONLY way a zone gets created. Fired by clicking the
+  // start vertex again (or the "Close Loop" button, same action) once there
+  // are at least 3 points.
+  const finishDrawing = () => {
+    if (drawingPoints.length < 3) return;
+    const coordinates: [number, number][] = drawingPoints.map((p) => [p.lng, p.lat]);
+    coordinates.push([coordinates[0][0], coordinates[0][1]]); // close the ring
+
+    if (!isSimplePolygon(coordinates)) {
+      showToast(
+        "This shape crosses itself — undo the last point or start over to fix it before closing.",
+        "error",
+      );
       return;
     }
 
-    const coordinates: [number, number][] = [];
-    const googlePath: google.maps.LatLng[] = [];
-    for (let i = 0; i < path.getLength(); i++) {
-      const pt = path.getAt(i);
-      coordinates.push([pt.lng(), pt.lat()]);
-      googlePath.push(pt);
-    }
-    coordinates.push([coordinates[0][0], coordinates[0][1]]);
-
     // Overlap collision detection against existing zones
     if (window.google?.maps?.geometry?.poly) {
+      const googlePath = coordinates.map(([lng, lat]) => new window.google.maps.LatLng(lat, lng));
       const existingPolys = zones.map((z) => {
         const p = getCoords(z).map((c) => ({ lat: c[1], lng: c[0] }));
         return new window.google.maps.Polygon({ paths: p });
@@ -437,16 +558,13 @@ export function Locations() {
           "Overlap detected! Zone intersects an existing service area.",
           "error",
         );
-        poly.setMap(null);
         return;
       }
     }
 
-    // We render this shape ourselves via the "unsaved new zone" Polygon below
-    // once it's in selectedZone — drop DrawingManager's own overlay so there
-    // isn't a duplicate sitting on top of it.
-    poly.setMap(null);
     setDrawingMode(null);
+    setDrawingPoints([]);
+    setCursorPos(null);
 
     const color = ZONE_COLORS[zones.length % ZONE_COLORS.length];
     originalCoordsRef.current = JSON.parse(JSON.stringify(coordinates));
@@ -960,6 +1078,8 @@ export function Locations() {
               onClick={() => {
                 setSelectedZone(null);
                 setIsBoundaryEditing(false);
+                setDrawingPoints([]);
+                setCursorPos(null);
                 setDrawingMode(drawingMode ? null : "polygon");
               }}
               variant={drawingMode ? "outline" : "primary"}
@@ -1019,6 +1139,8 @@ export function Locations() {
                 mapContainerStyle={mapContainerStyle}
                 center={defaultCenter}
                 zoom={12}
+                onClick={handleMapClick}
+                onMouseMove={handleMapMouseMove}
                 onLoad={(map) => {
                   mapRef.current = map;
                   if (zones.length > 0) {
@@ -1034,6 +1156,7 @@ export function Locations() {
                   streetViewControl: false,
                   mapTypeControl: false,
                   fullscreenControl: true,
+                  draggableCursor: drawingMode ? "crosshair" : undefined,
                   clickableIcons: false,
                 }}>
                 {/* Autocomplete Search Overlay */}
@@ -1054,23 +1177,47 @@ export function Locations() {
 
                 {/* Drawing Mode Active Overlay Banner */}
                 {drawingMode && (
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
                     <div className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-surface/95 px-5 py-3 shadow-[var(--shadow-lift)] backdrop-blur-md">
                       <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
                         <Plus className="size-4" />
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-ink">
-                          Drawing Zone Boundary
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-semibold text-ink">
+                            Drawing Zone Boundary
+                          </p>
+                          <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                            {drawingPoints.length} point{drawingPoints.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
                         <p className="text-[10px] text-muted">
-                          Click the map to place corners · double-click to
-                          finish
+                          {drawingPoints.length >= 3
+                            ? "Click the filled start point to close the loop"
+                            : "Click the map to place corners (min 3 points)"}
                         </p>
                       </div>
+                      {drawingPoints.length > 0 && (
+                        <button
+                          onClick={handleUndoPoint}
+                          className="rounded-xl border border-line bg-surface px-2.5 py-1.5 text-[11px] font-medium text-ink hover:bg-surface-muted transition-all cursor-pointer">
+                          Undo
+                        </button>
+                      )}
+                      {drawingPoints.length >= 3 && (
+                        <button
+                          onClick={finishDrawing}
+                          className="rounded-xl bg-primary px-3.5 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-soft transition-all shadow-xs cursor-pointer">
+                          Close Loop
+                        </button>
+                      )}
                       <button
-                        onClick={() => setDrawingMode(null)}
-                        className="pointer-events-auto ml-2 rounded-xl bg-ink px-3 py-1.5 text-[11px] font-semibold text-surface hover:bg-ink-soft transition-all cursor-pointer">
+                        onClick={() => {
+                          setDrawingMode(null);
+                          setDrawingPoints([]);
+                          setCursorPos(null);
+                        }}
+                        className="rounded-xl bg-ink px-3 py-1.5 text-[11px] font-semibold text-surface hover:bg-ink-soft transition-all cursor-pointer">
                         Cancel
                       </button>
                     </div>
@@ -1107,24 +1254,59 @@ export function Locations() {
                   </div>
                 )}
 
-                {/* Native drawing tool — smooth drag-to-draw, no click-placed pins */}
-                {drawingMode && (
-                  <DrawingManager
-                    onPolygonComplete={onPolygonComplete}
-                    drawingMode={window.google.maps.drawing.OverlayType.POLYGON}
-                    options={{
-                      drawingControl: false,
-                      polygonOptions: {
-                        fillColor: "#4F7CFF",
-                        fillOpacity: 0.25,
-                        strokeWeight: 2.5,
+                {/* Click-to-place drawing: small circle markers (no default map
+                    pins), a live segment following the cursor, and a filled
+                    preview once there are enough points to close. The zone is
+                    only created by closing the loop — see finishDrawing. */}
+                {drawingMode && drawingPoints.length > 0 && (
+                  <>
+                    {drawingPoints.map((pt, idx) => (
+                      <Marker
+                        key={`draw-pt-${idx}`}
+                        position={pt}
+                        icon={vertexIcon(
+                          idx === 0
+                            ? drawingPoints.length >= 3
+                              ? "start-active"
+                              : "start-inactive"
+                            : "normal",
+                        )}
+                        title={
+                          idx === 0 && drawingPoints.length >= 3
+                            ? "Click to close the loop and create this zone"
+                            : idx === 0
+                              ? "Start point"
+                              : `Point ${idx + 1}`
+                        }
+                        onClick={() => {
+                          if (idx === 0 && drawingPoints.length >= 3) finishDrawing();
+                        }}
+                      />
+                    ))}
+
+                    {/* Placed segments, plus a live rubber-band segment to the cursor */}
+                    <Polyline
+                      path={cursorPos ? [...drawingPoints, cursorPos] : drawingPoints}
+                      options={{
                         strokeColor: "#4F7CFF",
-                        clickable: false,
-                        editable: true,
-                        zIndex: 1,
-                      },
-                    }}
-                  />
+                        strokeWeight: 2.5,
+                        strokeOpacity: 0.9,
+                      }}
+                    />
+
+                    {drawingPoints.length >= 3 && (
+                      <Polygon
+                        paths={drawingPoints}
+                        options={{
+                          fillColor: "#4F7CFF",
+                          fillOpacity: 0.2,
+                          strokeColor: "#4F7CFF",
+                          strokeWeight: 2,
+                          clickable: false,
+                        }}
+                      />
+                    )}
+                  </>
                 )}
 
                 {/* Render Existing Zones Polygons */}
@@ -1234,8 +1416,16 @@ export function Locations() {
                         strokeOpacity: 0.9,
                         zIndex: isEditing ? 10 : isSelected ? 5 : 1,
                       }}
-                      onClick={() => {
-                        if (!drawingMode && !isBoundaryEditing) {
+                      onClick={(e) => {
+                        // Polygon clicks don't bubble to the map's own click
+                        // handler, so drawing over an existing zone's fill
+                        // needs to be forwarded explicitly or it would silently
+                        // fail to place a point there.
+                        if (drawingMode) {
+                          handleMapClick(e);
+                          return;
+                        }
+                        if (!isBoundaryEditing) {
                           handleEditDetails(zone);
                         }
                       }}

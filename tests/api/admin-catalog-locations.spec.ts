@@ -79,6 +79,58 @@ test.describe("Admin — zones", () => {
     expect((await res.json()).message).toBe("Zone name and a boundary are required");
   });
 
+  // Server-side authority for the same guard the admin drawing UI enforces
+  // live — the API itself must refuse a self-crossing boundary regardless of
+  // caller, since pointInPolygon (and every dispatch/coverage query built on
+  // it) gives ill-defined answers against one.
+  test("POST /admin/zones rejects a self-intersecting (bowtie) boundary", async ({ request }) => {
+    const { token } = await loginAsAdminApi(request);
+    // Same 4 corners as a clean square, but the 2nd and 4th points are
+    // swapped — the classic crossed-edges shape (see tests/unit/geo.spec.ts).
+    const bowtie: [number, number][] = [
+      [77.595, 12.895],
+      [77.605, 12.905],
+      [77.605, 12.895],
+      [77.595, 12.905],
+    ];
+    const res = await request.post(apiUrl("/admin/zones"), {
+      headers: authHeader(token),
+      data: { name: "Bowtie Zone", coordinates: bowtie },
+    });
+    expect(res.status()).toBe(400);
+    expect((await res.json()).message).toBe("This boundary crosses itself — a zone can't be a self-intersecting shape");
+  });
+
+  test("PATCH /admin/zones/:id rejects reshaping into a self-intersecting boundary", async ({ request }) => {
+    const { token } = await loginAsAdminApi(request);
+    const clean: [number, number][] = [
+      [77.615, 12.935],
+      [77.625, 12.935],
+      [77.625, 12.945],
+      [77.615, 12.945],
+    ];
+    const create = await request.post(apiUrl("/admin/zones"), {
+      headers: authHeader(token),
+      data: { name: `Reshape Test ${Date.now()}`, coordinates: clean },
+    });
+    const zone = (await create.json()).data;
+
+    const bowtie: [number, number][] = [
+      [77.615, 12.935],
+      [77.625, 12.945],
+      [77.625, 12.935],
+      [77.615, 12.945],
+    ];
+    const update = await request.patch(apiUrl(`/admin/zones/${zone.id}`), {
+      headers: authHeader(token),
+      data: { coordinates: bowtie },
+    });
+    expect(update.status()).toBe(400);
+    expect((await update.json()).message).toBe("This boundary crosses itself — a zone can't be a self-intersecting shape");
+
+    await request.delete(apiUrl(`/admin/zones/${zone.id}`), { headers: authHeader(token) });
+  });
+
   test("full zone lifecycle: create with no city → update → delete (standalone geofence)", async ({ request }) => {
     const { token } = await loginAsAdminApi(request);
     const zoneName = `Test Zone ${Date.now()}`;

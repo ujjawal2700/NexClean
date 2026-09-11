@@ -39,3 +39,14 @@ export function useSubmitLead() {
       apiFetch<{ id: string; city: string }>("/leads", { method: "POST", body: input }),
   });
 }
+
+export type ServiceCoverage = { serviceable: boolean; zonesConfigured: boolean };
+
+/**
+ * Is this point inside a drawn geofence? Called imperatively at address-save
+ * time (not a useQuery hook) — see AddAddressModal. No auth required; city
+ * plays no part in this, only the drawn zone polygons do.
+ */
+export function checkServiceCoverage(lat: number, lng: number): Promise<ServiceCoverage> {
+  return apiFetch<ServiceCoverage>(`/catalog/service-check?lat=${lat}&lng=${lng}`);
+}

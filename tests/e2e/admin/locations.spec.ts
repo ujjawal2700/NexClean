@@ -50,7 +50,7 @@ test.describe("Admin Locations & Geofencing", () => {
     await expect(page.getByText("This page hit an unexpected error")).toHaveCount(0);
   });
 
-  test("draws a zone with the native polygon tool (no click-placed pins) and completes it", async ({ page }) => {
+  test("draws a zone by clicking points and only completes it by closing the loop (not on an arbitrary click)", async ({ page }) => {
     const drawBtn = page.getByRole("button", { name: /Draw New Zone/i });
     await drawBtn.click();
 
@@ -67,17 +67,45 @@ test.describe("Admin Locations & Geofencing", () => {
       const centerX = mapBox.x + mapBox.width / 2;
       const baseY = mapBox.y + mapBox.height * 0.65;
 
-      // Two clicks place the first two vertices; a double-click places the
-      // third and closes the polygon in one gesture — DrawingManager's native
-      // finish, not a custom "Complete Zone" button.
+      // Click 1st vertex
       await page.mouse.click(centerX - 60, baseY);
       await page.waitForTimeout(300);
+      await expect(page.getByText("1 point", { exact: true })).toBeVisible({ timeout: 5000 });
+
+      // A 2nd click is just a point, not a finish — no double-click, no
+      // click-anywhere-completes gesture. The zone must still be open.
       await page.mouse.click(centerX + 60, baseY);
       await page.waitForTimeout(300);
-      await page.mouse.dblclick(centerX, baseY + 60);
-      await page.waitForTimeout(600);
+      await expect(page.getByText("2 points", { exact: true })).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText(/Boundary Shape/)).toHaveCount(0);
 
-      // Completing the polygon opens the configure panel with the vertex count.
+      // Undo removes the most recently placed point.
+      const undoBtn = page.getByRole("button", { name: "Undo" });
+      await expect(undoBtn).toBeVisible();
+      await undoBtn.click();
+      await page.waitForTimeout(300);
+      await expect(page.getByText("1 point", { exact: true })).toBeVisible({ timeout: 5000 });
+
+      // Place a 2nd point at a fresh spot (not the exact pixel just undone —
+      // two clicks at an identical point is a double-click-to-zoom gesture on
+      // any map, Google's own drawing tool included, not a distinct-vertex
+      // click; a real user reshaping a boundary wouldn't reuse a pixel either)
+      // and a 3rd to complete the triangle.
+      await page.mouse.click(centerX + 70, baseY - 10);
+      await page.waitForTimeout(300);
+      await page.mouse.click(centerX, baseY + 80);
+      await page.waitForTimeout(300);
+      await expect(page.getByText("3 points", { exact: true })).toBeVisible({ timeout: 5000 });
+      // Still not created — 3 points placed is not the same as closing the loop.
+      await expect(page.getByText(/Boundary Shape/)).toHaveCount(0);
+
+      // "Close Loop" performs the same close-the-boundary action as clicking
+      // the highlighted start vertex — the only two ways this zone completes.
+      const closeLoopBtn = page.getByRole("button", { name: "Close Loop" });
+      await expect(closeLoopBtn).toBeVisible();
+      await closeLoopBtn.click();
+
+      // Closing the loop opens the configure panel with the vertex count.
       await expect(page.getByText(/Boundary Shape \(3 Vertices\)/)).toBeVisible({ timeout: 5000 });
       await expect(page.getByPlaceholder("e.g. Indiranagar Central")).toBeVisible();
       const saveBtn = page.getByRole("button", { name: "Save Zone" });
@@ -94,8 +122,11 @@ test.describe("Admin Locations & Geofencing", () => {
       await saveBtn.click();
       await createZoneResponse;
 
-      // Verify created zone appears in zone list
-      await expect(page.getByText(testZoneName)).toBeVisible({ timeout: 5000 });
+      // Verify created zone appears in zone list. Exact match: a loose text
+      // search also matches the (slower to auto-dismiss) success toast's
+      // longer "Zone "X" created successfully" message, which contains the
+      // same name as a substring and made this assertion flaky.
+      await expect(page.getByText(testZoneName, { exact: true })).toBeVisible({ timeout: 5000 });
 
       // Clean up: delete the created test zone
       const zoneCard = page.locator(".group").filter({ hasText: testZoneName });
@@ -105,7 +136,9 @@ test.describe("Admin Locations & Geofencing", () => {
       );
       await zoneCard.getByTitle("Delete Zone").click();
       await deleteZoneResponse;
-      await expect(page.getByText(testZoneName)).toHaveCount(0);
+      // Same exact-match reasoning as above — the "...deleted" toast can
+      // still be visible for a moment and also contains the zone name.
+      await expect(page.getByText(testZoneName, { exact: true })).toHaveCount(0);
     } else {
       // Fallback: cancel drawing
       const cancelBtn = page.getByRole("button", { name: "Cancel Drawing" });

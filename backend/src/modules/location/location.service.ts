@@ -1,7 +1,7 @@
 import { City, ServiceZone, type CityDoc } from "./location.model";
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
-import { pointInPolygon, type LngLat } from "../../shared/geo";
+import { isSimplePolygon, pointInPolygon, type LngLat } from "../../shared/geo";
 import { agentLiveSince } from "../user/presence";
 
 function mapCity(c: CityDoc) {
@@ -122,6 +122,20 @@ function closeRing(coords: [number, number][]): [number, number][] {
   return first[0] !== last[0] || first[1] !== last[1] ? [...coords, [first[0], first[1]]] : coords;
 }
 
+/**
+ * Close the ring and reject a self-crossing boundary. Server-side authority
+ * for this — the admin UI also checks while drawing, but the API itself must
+ * not accept a bowtie shape regardless of caller, since pointInPolygon (and
+ * therefore every dispatch/coverage query) gives ill-defined answers for one.
+ */
+function buildValidBoundary(coordinates: [number, number][]): { type: "Polygon"; coordinates: [number, number][][] } {
+  const ring = closeRing(coordinates);
+  if (!isSimplePolygon(ring as LngLat[])) {
+    throw ApiError.badRequest("This boundary crosses itself — a zone can't be a self-intersecting shape");
+  }
+  return { type: "Polygon", coordinates: [ring] };
+}
+
 export async function createZone(input: {
   name: string;
   // Optional: a zone is a standalone geofence. A city link only matters to
@@ -147,7 +161,7 @@ export async function createZone(input: {
     name: input.name,
     city: cityRef,
     color: input.color || "#4F7CFF",
-    boundary: { type: "Polygon", coordinates: [closeRing(input.coordinates)] },
+    boundary: buildValidBoundary(input.coordinates),
     active: input.active !== undefined ? input.active : true,
   });
   return mapZone(await zone.populate("city", "name"));
@@ -181,7 +195,7 @@ export async function updateZone(
     if (!Array.isArray(patch.coordinates) || patch.coordinates.length < 3) {
       throw ApiError.badRequest("A zone needs a boundary with at least 3 points");
     }
-    zone.boundary = { type: "Polygon", coordinates: [closeRing(patch.coordinates)] };
+    zone.boundary = buildValidBoundary(patch.coordinates);
   }
   await zone.save();
 
@@ -190,6 +204,24 @@ export async function updateZone(
   const liveAgents = ring.length ? await liveAgentPositions() : [];
   const agentCount = liveAgents.filter((a) => pointInPolygon(a.point, ring)).length;
   return mapZone(populated, agentCount);
+}
+
+/**
+ * Whether a point falls inside any active geofenced zone — the backing check
+ * for "we're not in your area yet" at address-add time (see lead.service.ts's
+ * requestArea for the accompanying "request this area" capture).
+ *
+ * `zonesConfigured: false` means no admin has drawn any active zone yet, in
+ * which case `serviceable` is always true — geofencing is opt-in, and a fresh
+ * deployment with zero zones must not reject every address, the same
+ * "absence of zones means unrestricted" rule dispatch's buildDispatchTiers
+ * already follows.
+ */
+export async function checkServiceability(point: LngLat): Promise<{ serviceable: boolean; zonesConfigured: boolean }> {
+  const zones = await ServiceZone.find({ active: true }).select("boundary").lean();
+  const rings = zones.map((z) => boundaryRing(z)).filter((r) => r.length >= 3);
+  if (rings.length === 0) return { serviceable: true, zonesConfigured: false };
+  return { serviceable: rings.some((ring) => pointInPolygon(point, ring)), zonesConfigured: true };
 }
 
 export async function deleteZone(id: string) {

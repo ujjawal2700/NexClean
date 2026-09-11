@@ -13,7 +13,8 @@ import {
   type LocateFailure,
   type StructuredAddress,
 } from "@shared/lib/geocode";
-import { useAddAddress, useUpdateAddress } from "@modules/customer/api/mutations";
+import { useAddAddress, useUpdateAddress, useRequestArea } from "@modules/customer/api/mutations";
+import { checkServiceCoverage } from "@modules/customer/api/public";
 import type { Address } from "@modules/customer/types";
 
 type Props = {
@@ -51,6 +52,7 @@ function parseInitialLine(line?: string, society?: string) {
 export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddress }: Props) {
   const addAddress = useAddAddress();
   const updateAddress = useUpdateAddress();
+  const requestArea = useRequestArea();
   const isEditing = Boolean(editingAddress);
 
   const initialParsed = parseInitialLine(editingAddress?.line, editingAddress?.society);
@@ -94,6 +96,12 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
   const [locateError, setLocateError] = useState("");
   const [autoFilled, setAutoFilled] = useState(false);
 
+  // Geofence coverage — checked at submit time, not blocked by formError so
+  // it can show its own "request this area" action instead of a plain error.
+  const [checkingCoverage, setCheckingCoverage] = useState(false);
+  const [outsideServiceArea, setOutsideServiceArea] = useState(false);
+  const [areaRequested, setAreaRequested] = useState(false);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Autocomplete for quick location searching on the map
@@ -106,6 +114,8 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
       if (coords) {
         setPinCoords(coords);
         setMapFallbackCenter(coords);
+        setOutsideServiceArea(false);
+        setAreaRequested(false);
         void reverseGeocode(coords).then((addr) => {
           if (addr) applyAddress(addr, false);
         });
@@ -140,6 +150,9 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
   // Dragging the pin refines the address, but never overwrites typed input.
   const handlePinChange = (coords: LatLng, formattedAddress?: string) => {
     setPinCoords(coords);
+    // A moved pin needs a fresh coverage check, not the last one's verdict.
+    setOutsideServiceArea(false);
+    setAreaRequested(false);
     if (!formattedAddress) return;
     void reverseGeocode(coords).then((addr) => {
       if (addr) applyAddress(addr, false);
@@ -158,6 +171,8 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
   const useCurrentLocation = async () => {
     setLocating(true);
     setLocateError("");
+    setOutsideServiceArea(false);
+    setAreaRequested(false);
     setAutoFilled(false);
     try {
       const { coords, accuracy } = await getCurrentPosition();
@@ -191,9 +206,18 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
 
   const effectiveLabel = selectedPreset === "Other" ? (customLabel.trim() || "Other") : selectedPreset;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleRequestArea = () => {
+    if (!pinCoords) return;
+    requestArea.mutate(
+      { lat: pinCoords.lat, lng: pinCoords.lng, label: buildingSociety.trim() || searchQuery.trim() || undefined },
+      { onSuccess: () => setAreaRequested(true) },
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
+    setOutsideServiceArea(false);
 
     if (!houseNo.trim()) {
       setFormError("Please enter Flat / House / Block number.");
@@ -206,6 +230,26 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
     if (!effectiveLabel) {
       setFormError("Please select or enter an address label.");
       return;
+    }
+
+    // Geofence check — separate from formError so it can offer its own
+    // "request this area" action instead of a plain red banner. Zero zones
+    // configured (a fresh deployment, or one not using geofencing yet) means
+    // "serviceable" by default rather than rejecting every address.
+    if (pinCoords) {
+      setCheckingCoverage(true);
+      try {
+        const coverage = await checkServiceCoverage(pinCoords.lat, pinCoords.lng);
+        if (coverage.zonesConfigured && !coverage.serviceable) {
+          setCheckingCoverage(false);
+          setOutsideServiceArea(true);
+          return;
+        }
+      } catch {
+        // Fail open: a transient check failure shouldn't block saving a
+        // real address, only a confirmed "outside every zone" should.
+      }
+      setCheckingCoverage(false);
     }
 
     // Build the complete, clean structured address line
@@ -511,6 +555,55 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
             </div>
           )}
 
+          {/* Outside every drawn geofence — offer to request coverage instead of a plain error */}
+          {outsideServiceArea && (
+            <div
+              className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4"
+              data-testid="outside-service-area"
+            >
+              {!areaRequested ? (
+                <>
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-ink">We're not in your area yet</p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        This pin falls outside every service zone we currently cover. Let us know you're
+                        here and we'll reach out once we launch nearby.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRequestArea}
+                    disabled={requestArea.isPending}
+                    className="w-full"
+                    data-testid="request-area-btn"
+                  >
+                    {requestArea.isPending ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" /> Requesting...
+                      </>
+                    ) : (
+                      "Request this area"
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <p
+                  className="flex items-center gap-1.5 text-xs font-medium text-emerald-700"
+                  data-testid="area-requested-confirmation"
+                >
+                  <Check className="size-3.5 shrink-0" />
+                  Thanks — we've noted your area and will reach out once we're live nearby. You can close
+                  this or pin a different address.
+                </p>
+              )}
+            </div>
+          )}
+
         </form>
 
         {/* Fixed Footer Actions */}
@@ -522,10 +615,14 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
             type="submit"
             form="add-address-form"
             size="sm"
-            disabled={isPending || !houseNo.trim() || !buildingSociety.trim()}
+            disabled={isPending || checkingCoverage || !houseNo.trim() || !buildingSociety.trim()}
             data-testid="save-address-btn"
           >
-            {isPending ? (
+            {checkingCoverage ? (
+              <>
+                <Loader2 className="size-4 animate-spin" /> Checking coverage...
+              </>
+            ) : isPending ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> {isEditing ? "Updating Address..." : "Saving Address..."}
               </>

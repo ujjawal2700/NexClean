@@ -32,6 +32,19 @@ export function useDeactivateAccount() {
   });
 }
 
+/**
+ * "Request this area" — a logged-in customer's pinned address fell outside
+ * every drawn geofence (see customer/api/public.ts's checkServiceCoverage).
+ * Saves a Lead the admin Leads queue already tracks; doesn't touch the user
+ * document, so no meKey invalidation is needed.
+ */
+export function useRequestArea() {
+  return useMutation({
+    mutationFn: (input: { lat: number; lng: number; label?: string }) =>
+      apiFetch<{ id: string }>("/leads/area-request", { method: "POST", body: input }),
+  });
+}
+
 
 export function useSendOtp() {
   return useMutation({

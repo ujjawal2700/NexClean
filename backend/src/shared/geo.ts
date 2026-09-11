@@ -171,3 +171,84 @@ export function orderZonesByDistance<T extends { boundaryRing: LngLat[]; name?: 
     .map((z) => ({ ...z, distanceM: distanceToPolygonMeters(point, z.boundaryRing) }))
     .sort((a, b) => a.distanceM - b.distanceM || (a.name ?? "").localeCompare(b.name ?? ""));
 }
+
+/* --------------------------- polygon simplicity --------------------------- */
+//
+// A "simple" polygon is one whose edges don't cross themselves — the bowtie
+// shape a click-anywhere-to-finish drawing tool can produce is not simple, and
+// pointInPolygon's ray-cast (and therefore every dispatch/coverage query
+// above) gives ill-defined results against one. Enforced both here (server
+// authority — the API can't be used to smuggle one in) and mirrored in the
+// admin drawing UI for immediate feedback while drawing.
+
+type Orientation = 0 | 1 | 2; // 0 = colinear, 1 = clockwise, 2 = counter-clockwise
+
+function orientation(p: LngLat, q: LngLat, r: LngLat): Orientation {
+  const val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
+  if (val === 0) return 0;
+  return val > 0 ? 1 : 2;
+}
+
+/** Whether q lies on segment p→r, given p, q, r are already known colinear. */
+function onSegment(p: LngLat, q: LngLat, r: LngLat): boolean {
+  return (
+    q[0] <= Math.max(p[0], r[0]) &&
+    q[0] >= Math.min(p[0], r[0]) &&
+    q[1] <= Math.max(p[1], r[1]) &&
+    q[1] >= Math.min(p[1], r[1])
+  );
+}
+
+/** Whether segments p1→p2 and p3→p4 properly cross or touch (standard orientation test). */
+export function segmentsIntersect(p1: LngLat, p2: LngLat, p3: LngLat, p4: LngLat): boolean {
+  const o1 = orientation(p1, p2, p3);
+  const o2 = orientation(p1, p2, p4);
+  const o3 = orientation(p3, p4, p1);
+  const o4 = orientation(p3, p4, p2);
+
+  if (o1 !== o2 && o3 !== o4) return true;
+
+  if (o1 === 0 && onSegment(p1, p3, p2)) return true;
+  if (o2 === 0 && onSegment(p1, p4, p2)) return true;
+  if (o3 === 0 && onSegment(p3, p1, p4)) return true;
+  if (o4 === 0 && onSegment(p3, p2, p4)) return true;
+
+  return false;
+}
+
+/**
+ * Whether a closed GeoJSON ring (first point repeated as the last) has no
+ * self-crossing edges. Edges that merely share a drawn vertex — every
+ * consecutive pair, and the first/last edge at the closing point — are not
+ * crossings and are skipped rather than flagged.
+ */
+export function isSimplePolygon(ring: LngLat[]): boolean {
+  const n = ring.length - 1; // edge/unique-vertex count; ring[n] === ring[0]
+  if (n < 3) return false;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const adjacent = j === i + 1 || (i === 0 && j === n - 1);
+      if (adjacent) continue;
+      if (segmentsIntersect(ring[i], ring[i + 1], ring[j], ring[j + 1])) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Whether appending `candidate` after `openPoints` (a not-yet-closed run of
+ * vertices, at least one point) would cross any edge already drawn. Used to
+ * reject an invalid point the instant it's clicked, rather than only at the
+ * end — the edge into the new point can only conflict with edges other than
+ * the one immediately before it (which shares `openPoints`'s last vertex).
+ */
+export function wouldSelfIntersect(openPoints: LngLat[], candidate: LngLat): boolean {
+  if (openPoints.length < 2) return false;
+  const newEdgeStart = openPoints[openPoints.length - 1];
+  // Every existing edge except the one ending at newEdgeStart (adjacent by
+  // construction — it shares that vertex, not a crossing).
+  for (let i = 0; i < openPoints.length - 2; i++) {
+    if (segmentsIntersect(newEdgeStart, candidate, openPoints[i], openPoints[i + 1])) return true;
+  }
+  return false;
+}

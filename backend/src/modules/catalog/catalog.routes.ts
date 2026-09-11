@@ -12,6 +12,7 @@ import {
   getVehicleModelsCtl,
   getCitiesCtl,
   getZonesByCityCtl,
+  getServiceCheckCtl,
 } from "./catalog.controller";
 
 export const catalogRouter = Router();
@@ -29,4 +30,6 @@ catalogRouter.get("/vehicle-brands/:id/models", asyncHandler(getVehicleModelsCtl
 // Public location endpoints — used in customer signup city/society picker
 catalogRouter.get("/cities", asyncHandler(getCitiesCtl));
 catalogRouter.get("/zones", asyncHandler(getZonesByCityCtl));
+// Geofence coverage check — independent of city, used at address-add time
+catalogRouter.get("/service-check", asyncHandler(getServiceCheckCtl));
 

@@ -395,3 +395,122 @@ test.describe("Zone distance ordering & tier ranking — dispatch geofencing", (
     expect(tier0Candidates.map((c) => c.id)).toEqual(["own-zone"]);
   });
 });
+
+/**
+ * Self-intersection guard for zone drawing — mirrors backend/src/shared/geo.ts
+ * (segmentsIntersect/isSimplePolygon/wouldSelfIntersect) and the identical copy
+ * in frontend/src/modules/admin/pages/Locations.tsx exactly, so this proves
+ * the actual shipped algorithm rejects a bowtie shape, not a look-alike.
+ */
+
+function orientation(p: LngLat, q: LngLat, r: LngLat): 0 | 1 | 2 {
+  const val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
+  if (val === 0) return 0;
+  return val > 0 ? 1 : 2;
+}
+
+function onSegment(p: LngLat, q: LngLat, r: LngLat): boolean {
+  return (
+    q[0] <= Math.max(p[0], r[0]) &&
+    q[0] >= Math.min(p[0], r[0]) &&
+    q[1] <= Math.max(p[1], r[1]) &&
+    q[1] >= Math.min(p[1], r[1])
+  );
+}
+
+function segmentsIntersect(p1: LngLat, p2: LngLat, p3: LngLat, p4: LngLat): boolean {
+  const o1 = orientation(p1, p2, p3);
+  const o2 = orientation(p1, p2, p4);
+  const o3 = orientation(p3, p4, p1);
+  const o4 = orientation(p3, p4, p2);
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && onSegment(p1, p3, p2)) return true;
+  if (o2 === 0 && onSegment(p1, p4, p2)) return true;
+  if (o3 === 0 && onSegment(p3, p1, p4)) return true;
+  if (o4 === 0 && onSegment(p3, p2, p4)) return true;
+  return false;
+}
+
+function wouldSelfIntersectCheck(openPoints: LngLat[], candidate: LngLat): boolean {
+  if (openPoints.length < 2) return false;
+  const newEdgeStart = openPoints[openPoints.length - 1];
+  for (let i = 0; i < openPoints.length - 2; i++) {
+    if (segmentsIntersect(newEdgeStart, candidate, openPoints[i], openPoints[i + 1])) return true;
+  }
+  return false;
+}
+
+function isSimplePolygon(ring: LngLat[]): boolean {
+  const n = ring.length - 1;
+  if (n < 3) return false;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const adjacent = j === i + 1 || (i === 0 && j === n - 1);
+      if (adjacent) continue;
+      if (segmentsIntersect(ring[i], ring[i + 1], ring[j], ring[j + 1])) return false;
+    }
+  }
+  return true;
+}
+
+test.describe("Zone drawing — self-intersection guard", () => {
+  test("a clean square ring is simple", () => {
+    const square: LngLat[] = [
+      [77.595, 12.895],
+      [77.605, 12.895],
+      [77.605, 12.905],
+      [77.595, 12.905],
+      [77.595, 12.895], // closed
+    ];
+    expect(isSimplePolygon(square)).toBe(true);
+  });
+
+  test("a bowtie ring (crossed edges) is not simple", () => {
+    // Same 4 corners as the clean square, but the 2nd and 4th vertices are
+    // swapped — the classic self-crossing shape a click-anywhere-to-finish
+    // tool lets you draw by accident.
+    const bowtie: LngLat[] = [
+      [77.595, 12.895],
+      [77.605, 12.905], // swapped with the point below
+      [77.605, 12.895],
+      [77.595, 12.905],
+      [77.595, 12.895], // closed
+    ];
+    expect(isSimplePolygon(bowtie)).toBe(false);
+  });
+
+  test("fewer than 3 unique vertices is never simple", () => {
+    expect(isSimplePolygon([[0, 0], [1, 1], [0, 0]])).toBe(false);
+  });
+
+  test("a pentagon with one reflex vertex is still simple (concave is allowed, crossing is not)", () => {
+    const concave: LngLat[] = [
+      [0, 0],
+      [4, 0],
+      [4, 4],
+      [2, 1], // dents inward — concave, but no edges cross
+      [0, 4],
+      [0, 0],
+    ];
+    expect(isSimplePolygon(concave)).toBe(true);
+  });
+
+  test("wouldSelfIntersect rejects the exact next click that would create the bowtie", () => {
+    // Three points placed so far, forming an "L": (0,0) -> (4,0) -> (4,4).
+    const placed: LngLat[] = [
+      [0, 0],
+      [4, 0],
+      [4, 4],
+    ];
+    // Placing (2,-1) next would cross the very first edge (0,0)-(4,0).
+    expect(wouldSelfIntersectCheck(placed, [2, -1])).toBe(true);
+    // Placing (0,4) next is a clean continuation — no crossing.
+    expect(wouldSelfIntersectCheck(placed, [0, 4])).toBe(false);
+  });
+
+  test("wouldSelfIntersect ignores the edge adjacent to the point just placed", () => {
+    // Only two points placed — the only existing edge shares its start vertex
+    // with any candidate edge, so nothing can register as a crossing yet.
+    expect(wouldSelfIntersectCheck([[0, 0], [4, 0]], [8, 0])).toBe(false);
+  });
+});

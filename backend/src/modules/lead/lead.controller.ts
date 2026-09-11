@@ -21,6 +21,24 @@ export async function createLead(req: Request, res: Response): Promise<Response>
   return created(res, lead, "You're on our waitlist! We'll notify you when we launch in your city.");
 }
 
+const requestAreaSchema = z.object({
+  lat: z.number(),
+  lng: z.number(),
+  label: z.string().trim().max(200).optional(),
+});
+
+/**
+ * POST /leads/area-request — authenticated. An existing customer's address
+ * fell outside every drawn geofence (see catalog.controller.ts's
+ * getServiceCheckCtl); this is the "request this area" follow-up.
+ */
+export async function requestArea(req: Request, res: Response): Promise<Response> {
+  const parsed = requestAreaSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest(parsed.error.errors[0]?.message ?? "A valid location is required");
+  const lead = await service.requestArea(req.userId!, parsed.data);
+  return created(res, lead, "Thanks — we've noted your area and will reach out once we're live nearby.");
+}
+
 /** GET /admin/leads — admin only */
 export async function listLeads(_req: Request, res: Response): Promise<Response> {
   return ok(res, await service.listLeads());

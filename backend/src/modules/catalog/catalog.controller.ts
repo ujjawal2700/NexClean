@@ -11,6 +11,7 @@ import { paymentsLive } from "../payment/razorpay";
 import { listActiveBrands } from "../brand/brand.service";
 import { listActiveModelsForBrand } from "../brand/vehicleModel.service";
 import { City, ServiceZone } from "../location/location.model";
+import { checkServiceability } from "../location/location.service";
 
 
 export function getPackages(_req: Request, res: Response): Response {
@@ -93,4 +94,18 @@ export async function getZonesByCityCtl(req: Request, res: Response): Promise<Re
     res,
     zones.map((z) => ({ id: String(z._id), name: z.name })),
   );
+}
+
+/**
+ * Public endpoint: is this point inside a drawn geofence? The check behind
+ * "we're not in your area yet" at address-add time — entirely independent of
+ * city, which plays no part in dispatch or coverage. Query params: ?lat=&lng=
+ */
+export async function getServiceCheckCtl(req: Request, res: Response): Promise<Response> {
+  const lat = Number(req.query.lat);
+  const lng = Number(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    throw ApiError.badRequest("lat and lng query params are required");
+  }
+  return ok(res, await checkServiceability([lng, lat]));
 }
