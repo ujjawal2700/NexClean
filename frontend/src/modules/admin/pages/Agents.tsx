@@ -26,8 +26,8 @@ import {
   useSetAgentStatus,
   useCreateAgent,
   useUpdateAgent,
+  useUpdateAgentArea,
   useDeleteAgent,
-  useZones,
 } from "../api/admin.api";
 import {
   PersonFormModal,
@@ -43,20 +43,17 @@ const FILTERS: { id: "verified" | "suspended" | "all"; label: string }[] = [
 ];
 
 function AreaEditor({ agent }: { agent: AdminAgent }) {
-  const { data: zones = [] } = useZones();
-  const updateAgent = useUpdateAgent();
+  const updateAgentArea = useUpdateAgentArea();
   const [editing, setEditing] = useState(false);
-  const [selectedZoneId, setSelectedZoneId] = useState(agent.zoneId || "");
   const [area, setArea] = useState(agent.area);
 
   if (!editing) {
     return (
       <p className="flex items-center gap-1.5 text-sm text-muted">
-        <MapPin className="size-4 text-primary" /> {agent.area || "No zone set"}
+        <MapPin className="size-4 text-primary" /> {agent.area || "No area set"}
         <button
           onClick={() => {
             setArea(agent.area);
-            setSelectedZoneId(agent.zoneId || "");
             setEditing(true);
           }}
           aria-label="Edit area"
@@ -68,34 +65,20 @@ function AreaEditor({ agent }: { agent: AdminAgent }) {
   }
 
   const save = () => {
-    const found = zones.find((z) => z.id === selectedZoneId);
-    const finalArea = found ? found.name : area.trim();
-    updateAgent.mutate(
-      { id: agent.id, zoneId: selectedZoneId || null, area: finalArea },
-      { onSuccess: () => setEditing(false) },
-    );
+    updateAgentArea.mutate({ id: agent.id, area: area.trim() }, { onSuccess: () => setEditing(false) });
   };
 
   return (
     <div className="flex items-center gap-1.5">
       <MapPin className="size-4 shrink-0 text-primary" />
-      <select
-        value={selectedZoneId}
-        onChange={(e) => {
-          setSelectedZoneId(e.target.value);
-          const found = zones.find((z) => z.id === e.target.value);
-          if (found) setArea(found.name);
-        }}
-        className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-primary/50">
-        <option value="">Custom / No zone</option>
-        {zones.map((z) => (
-          <option key={z.id} value={z.id}>
-            {z.name} ({z.cityName})
-          </option>
-        ))}
-      </select>
+      <input
+        value={area}
+        onChange={(e) => setArea(e.target.value)}
+        placeholder="Area / society"
+        className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-primary/50"
+      />
       <button
-        disabled={updateAgent.isPending}
+        disabled={updateAgentArea.isPending}
         onClick={save}
         aria-label="Save area"
         className="text-emerald-600 disabled:opacity-50">

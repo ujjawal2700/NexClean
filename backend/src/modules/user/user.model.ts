@@ -75,11 +75,13 @@ const userSchema = new Schema(
     // Agent profile (only meaningful when role === "agent")
     // City and area are picked from the admin-managed Locations list at signup,
     // stored as names rather than ids: everything downstream (area alerts,
-    // the admin agent list, dispatch copy) already matches on the society name,
-    // and a rename in Locations shouldn't silently re-home existing cleaners.
+    // the admin agent list) already matches on the society name, and a rename
+    // in Locations shouldn't silently re-home existing cleaners. There is no
+    // zoneId here on purpose — which geofence an agent is dispatched through
+    // is computed live from `liveLocation` against the drawn zone polygons
+    // (see dispatch/dispatch.query.ts), not a label set once at signup.
     city: { type: String, default: "" },
     area: { type: String, default: "" },
-    zoneId: { type: Schema.Types.ObjectId, ref: "ServiceZone", default: null },
     rating: { type: Number, default: 0 },
     jobsDone: { type: Number, default: 0 },
     online: { type: Boolean, default: true },

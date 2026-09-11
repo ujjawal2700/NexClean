@@ -146,7 +146,7 @@ export const useAlertSettings = () => useAuthedQuery<AlertSettings>(keys.setting
 export const useTriggered = () => useAuthedQuery<TriggeredAlert[]>(keys.triggered, "/area-alerts/triggered");
 export type AgentInput = {
   name: string; phone: string; email?: string;
-  city?: string; area?: string; zoneId?: string | null;
+  city?: string; area?: string;
   agentStatus?: string; aadharNumber?: string;
 };
 export type CustomerInput = {
@@ -596,10 +596,9 @@ export function useCreateZone() {
   return useMutation({
     mutationFn: (vars: {
       name: string;
-      cityId: string;
+      cityId?: string;
       color?: string;
-      coordinates?: [number, number][];
-      pincodes?: string[];
+      coordinates: [number, number][];
       active?: boolean;
     }) =>
       apiFetch<ServiceZone>("/admin/zones", { method: "POST", body: vars }),
@@ -614,10 +613,9 @@ export function useUpdateZone() {
       id: string;
       name?: string;
       active?: boolean;
-      cityId?: string;
+      cityId?: string | null;
       color?: string;
       coordinates?: [number, number][];
-      pincodes?: string[];
     }) =>
       apiFetch<ServiceZone>(`/admin/zones/${vars.id}`, { method: "PATCH", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.zones }),

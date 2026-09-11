@@ -19,9 +19,8 @@ import {
 import {
   GoogleMap,
   useJsApiLoader,
+  DrawingManager,
   Polygon,
-  Polyline,
-  Marker,
   Autocomplete,
 } from "@react-google-maps/api";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -95,6 +94,8 @@ const computeCenter = (coords: [number, number][]) => {
 /* -------------------------------------------------------------------------- */
 /*                               CITIES PANEL                                 */
 /* -------------------------------------------------------------------------- */
+// A distinct concern from geofencing below (which cities are we live in, vs.
+// where are the drawn zones) — unchanged by the zone-management redesign.
 
 function CitiesPanel() {
   const { data: cities = [] } = useCities();
@@ -228,7 +229,9 @@ function CitiesPanel() {
 export function Locations() {
   const [activeTab, setActiveTab] = useState<"zones" | "cities">("zones");
 
-  // Server Queries & Mutations
+  // Server Queries & Mutations. `cities` here is only for the tab button's
+  // count — React Query dedupes this against CitiesPanel's own call, so it's
+  // not an extra request. Zone management below no longer depends on cities.
   const { data: cities = [] } = useCities();
   const { data: zones = [], isLoading: loadingZones } = useZones();
   const createZone = useCreateZone();
@@ -248,17 +251,11 @@ export function Locations() {
   const [isBoundaryEditing, setIsBoundaryEditing] = useState(false);
   const [liveVertexCount, setLiveVertexCount] = useState(0);
 
-  // Drawing mode (null | 'polygon') and clicked vertices
+  // Drawing mode: null (off) | "polygon" (DrawingManager active)
   const [drawingMode, setDrawingMode] = useState<string | null>(null);
-  const [drawingPoints, setDrawingPoints] = useState<{ lat: number; lng: number }[]>([]);
 
   // Search filter for zone list
   const [zoneSearch, setZoneSearch] = useState("");
-  const [selectedCityFilter, setSelectedCityFilter] = useState<string>("all");
-
-  // Pincode input & geocoding state
-  const [newPincodeInput, setNewPincodeInput] = useState("");
-  const [detectingPincodes, setDetectingPincodes] = useState(false);
 
   // Feedback toast banner
   const [toastMsg, setToastMsg] = useState<{
@@ -282,8 +279,8 @@ export function Locations() {
   // Load Google Maps SDK
   const { isLoaded } = useJsApiLoader(GOOGLE_MAPS_LOADER_OPTIONS);
 
-  // Assigned agents query for selected existing zone
-  const { data: assignedAgents = [] } = useZoneAgents(
+  // Agents currently, live, inside the selected existing zone
+  const { data: liveZoneAgents = [] } = useZoneAgents(
     selectedZone && !selectedZone.isNew && selectedZone.id
       ? selectedZone.id
       : null,
@@ -298,19 +295,12 @@ export function Locations() {
     mapRef.current.setZoom(14);
   }, []);
 
-  // Filtered zones list
+  // Filtered zones list — search by name only, zones aren't grouped by city here.
   const filteredZones = useMemo(() => {
-    return zones.filter((z) => {
-      const matchesSearch =
-        !zoneSearch.trim() ||
-        z.name.toLowerCase().includes(zoneSearch.toLowerCase()) ||
-        z.cityName?.toLowerCase().includes(zoneSearch.toLowerCase()) ||
-        z.pincodes?.some((p) => p.includes(zoneSearch.trim()));
-      const matchesCity =
-        selectedCityFilter === "all" || z.cityId === selectedCityFilter;
-      return matchesSearch && matchesCity;
-    });
-  }, [zones, zoneSearch, selectedCityFilter]);
+    if (!zoneSearch.trim()) return zones;
+    const q = zoneSearch.trim().toLowerCase();
+    return zones.filter((z) => z.name.toLowerCase().includes(q));
+  }, [zones, zoneSearch]);
 
   // Open Configure Panel in Edit Details mode
   const handleEditDetails = (zone: ServiceZone) => {
@@ -409,202 +399,62 @@ export function Locations() {
     showToast("Boundary reset to initial coordinates", "info");
   };
 
-  // Auto-detect serviced pincodes using Google Maps Geocoder
-  const handleAutoDetectPincodes = async () => {
-    const coords =
-      isBoundaryEditing && editPolygonRef.current
-        ? collectEditedCoords()
-        : selectedZone?.coordinates || getCoords(selectedZone);
-
-    if (!coords || coords.length < 3) {
-      showToast(
-        "Boundary coordinates required to auto-detect pincodes",
-        "error",
-      );
-      return;
-    }
-
-    if (!window.google?.maps?.Geocoder) {
-      showToast("Google Maps Geocoder is not loaded", "error");
-      return;
-    }
-
-    setDetectingPincodes(true);
-    try {
-      const geocoder = new window.google.maps.Geocoder();
-      const pts = coords.map((c) => new window.google.maps.LatLng(c[1], c[0]));
-      const bounds = new window.google.maps.LatLngBounds();
-      pts.forEach((p) => bounds.extend(p));
-      const center = bounds.getCenter();
-
-      const sampleLocs = [center, ...pts.slice(0, Math.min(pts.length, 8))];
-      const detected = new Set<string>(selectedZone?.pincodes || []);
-      let newCount = 0;
-
-      for (const loc of sampleLocs) {
-        try {
-          const resp: google.maps.GeocoderResult[] = await new Promise(
-            (resolve) => {
-              geocoder.geocode(
-                { location: loc },
-                (results: any, status: any) => {
-                  if (status === "OK" && results) resolve(results);
-                  else resolve([]);
-                },
-              );
-            },
-          );
-          if (resp && resp[0]) {
-            const comp = resp[0].address_components?.find((c) =>
-              c.types.includes("postal_code"),
-            );
-            if (comp?.long_name && !detected.has(comp.long_name)) {
-              detected.add(comp.long_name);
-              newCount++;
-            }
-          }
-        } catch (_) {}
-      }
-
-      setSelectedZone((prev) =>
-        prev ? { ...prev, pincodes: Array.from(detected) } : null,
-      );
-      if (newCount > 0) {
-        showToast(`Auto-detected ${newCount} new pincode(s)`, "success");
-      } else {
-        showToast("No new pincodes detected within this zone boundary", "info");
-      }
-    } catch (err: any) {
-      showToast("Auto-detection failed: " + err.message, "error");
-    } finally {
-      setDetectingPincodes(false);
-    }
-  };
-
-  // Add individual pincode manually
-  const handleAddPincode = () => {
-    const trimmed = newPincodeInput.trim();
-    if (!/^\d{6}$/.test(trimmed)) {
-      showToast("Please enter a valid 6-digit pincode", "error");
-      return;
-    }
-    const current = selectedZone?.pincodes || [];
-    if (current.includes(trimmed)) {
-      showToast("Pincode already added", "info");
-      return;
-    }
-    setSelectedZone((prev) =>
-      prev ? { ...prev, pincodes: [...current, trimmed] } : null,
-    );
-    setNewPincodeInput("");
-  };
-
-  const handleRemovePincode = (pin: string) => {
-    setSelectedZone((prev) =>
-      prev
-        ? { ...prev, pincodes: (prev.pincodes || []).filter((p) => p !== pin) }
-        : null,
-    );
-  };
-
-  // Map click handler for custom polygon drawing
-  const handleMapClick = (e: google.maps.MapMouseEvent) => {
-    if (!drawingMode || !e.latLng) return;
-    const newPt = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-    setDrawingPoints((prev) => [...prev, newPt]);
-  };
-
-  // Drawing finished: user completed drawing a new polygon on map
-  const finishDrawing = async (pointsToComplete?: { lat: number; lng: number }[]) => {
-    const pts = pointsToComplete || drawingPoints;
-    if (!pts || pts.length < 3) {
-      showToast("A zone requires at least 3 points to form a polygon", "error");
+  // Drawing finished: DrawingManager fires this once the user closes the
+  // shape (double-click, or clicking the first vertex again) — smooth native
+  // drawing, no click-to-place pins.
+  const onPolygonComplete = (poly: google.maps.Polygon) => {
+    const path = poly?.getPath?.();
+    if (!path || typeof path.getLength !== "function" || path.getLength() < 3) {
+      poly?.setMap?.(null);
       return;
     }
 
     const coordinates: [number, number][] = [];
     const googlePath: google.maps.LatLng[] = [];
-
-    for (let i = 0; i < pts.length; i++) {
-      const pt = pts[i];
-      coordinates.push([pt.lng, pt.lat]);
-      googlePath.push(new window.google.maps.LatLng(pt.lat, pt.lng));
+    for (let i = 0; i < path.getLength(); i++) {
+      const pt = path.getAt(i);
+      coordinates.push([pt.lng(), pt.lat()]);
+      googlePath.push(pt);
     }
-    // Close polygon
     coordinates.push([coordinates[0][0], coordinates[0][1]]);
 
-    // Overlap collision detection
+    // Overlap collision detection against existing zones
     if (window.google?.maps?.geometry?.poly) {
       const existingPolys = zones.map((z) => {
         const p = getCoords(z).map((c) => ({ lat: c[1], lng: c[0] }));
         return new window.google.maps.Polygon({ paths: p });
       });
-
       const bounds = new window.google.maps.LatLngBounds();
       googlePath.forEach((pt) => bounds.extend(pt));
       const center = bounds.getCenter();
-
       const isOverlapping = existingPolys.some((existing) => {
-        const centerIn = window.google.maps.geometry.poly.containsLocation(
-          center,
-          existing,
-        );
-        const vertexIn = googlePath.some((v) =>
-          window.google.maps.geometry.poly.containsLocation(v, existing),
-        );
+        const centerIn = window.google.maps.geometry.poly.containsLocation(center, existing);
+        const vertexIn = googlePath.some((v) => window.google.maps.geometry.poly.containsLocation(v, existing));
         return centerIn || vertexIn;
       });
-
       if (isOverlapping) {
         showToast(
           "Overlap detected! Zone intersects an existing service area.",
           "error",
         );
+        poly.setMap(null);
         return;
       }
     }
 
-    // Auto-detect initial pincode from center
-    const pincodes = new Set<string>();
-    if (window.google?.maps?.Geocoder) {
-      try {
-        const geocoder = new window.google.maps.Geocoder();
-        const center = googlePath[0];
-        const res: google.maps.GeocoderResult[] = await new Promise(
-          (resolve) => {
-            geocoder.geocode(
-              { location: center },
-              (results: any, status: any) => {
-                if (status === "OK" && results) resolve(results);
-                else resolve([]);
-              },
-            );
-          },
-        );
-        if (res[0]) {
-          const pc = res[0].address_components?.find((c) =>
-            c.types.includes("postal_code"),
-          );
-          if (pc?.long_name) pincodes.add(pc.long_name);
-        }
-      } catch (_) {}
-    }
-
+    // We render this shape ourselves via the "unsaved new zone" Polygon below
+    // once it's in selectedZone — drop DrawingManager's own overlay so there
+    // isn't a duplicate sitting on top of it.
+    poly.setMap(null);
     setDrawingMode(null);
-    setDrawingPoints([]);
 
-    const defaultCity = cities.find((c) => c.active) || cities[0];
     const color = ZONE_COLORS[zones.length % ZONE_COLORS.length];
-
     originalCoordsRef.current = JSON.parse(JSON.stringify(coordinates));
     setSelectedZone({
       name: "New Service Zone",
-      cityId: defaultCity?.id || "",
-      cityName: defaultCity?.name || "",
       color,
       active: true,
       coordinates,
-      pincodes: Array.from(pincodes),
       isNew: true,
     });
     setLiveVertexCount(coordinates.length - 1);
@@ -640,10 +490,6 @@ export function Locations() {
       showToast("Zone name is required", "error");
       return;
     }
-    if (!selectedZone.cityId) {
-      showToast("Please select a serviceable city", "error");
-      return;
-    }
 
     let coords = selectedZone.coordinates || getCoords(selectedZone);
     if (isBoundaryEditing && editPolygonRef.current) {
@@ -663,10 +509,8 @@ export function Locations() {
 
     const payload = {
       name,
-      cityId: selectedZone.cityId,
       color: selectedZone.color || "#4F7CFF",
       coordinates: coords,
-      pincodes: selectedZone.pincodes || [],
       active: selectedZone.active !== false,
     };
 
@@ -689,7 +533,7 @@ export function Locations() {
   const handleDeleteZone = async (zone: ServiceZone) => {
     if (
       !window.confirm(
-        `Are you sure you want to delete "${zone.name}"? Any agents assigned to this zone will need reassignment.`,
+        `Are you sure you want to delete "${zone.name}"? Agents currently in it will fall back to the next-nearest zone for new job offers.`,
       )
     ) {
       return;
@@ -712,15 +556,15 @@ export function Locations() {
   // Left Sidebar: Zone List
   const renderZoneList = () => (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Search & City Filter */}
-      <div className="p-4 border-b border-line space-y-3 shrink-0 bg-surface">
+      {/* Search */}
+      <div className="p-4 border-b border-line shrink-0 bg-surface">
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
           <input
             type="text"
             value={zoneSearch}
             onChange={(e) => setZoneSearch(e.target.value)}
-            placeholder="Search zones, cities, pincodes..."
+            placeholder="Search zones..."
             className="h-10 w-full rounded-xl border border-line bg-surface-muted/60 pl-9 pr-3 text-xs text-ink outline-none transition-all focus:border-primary/50 focus:bg-surface"
           />
           {zoneSearch && (
@@ -731,32 +575,6 @@ export function Locations() {
             </button>
           )}
         </div>
-
-        {cities.length > 1 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            <button
-              onClick={() => setSelectedCityFilter("all")}
-              className={`rounded-lg px-2.5 py-1 font-medium transition-all shrink-0 ${
-                selectedCityFilter === "all"
-                  ? "bg-primary text-white"
-                  : "bg-surface-muted text-muted hover:text-ink"
-              }`}>
-              All Cities
-            </button>
-            {cities.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedCityFilter(c.id)}
-                className={`rounded-lg px-2.5 py-1 font-medium transition-all shrink-0 ${
-                  selectedCityFilter === c.id
-                    ? "bg-primary text-white"
-                    : "bg-surface-muted text-muted hover:text-ink"
-                }`}>
-                {c.name}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* List */}
@@ -801,14 +619,9 @@ export function Locations() {
                       className="size-4 shrink-0 rounded-full border border-black/10"
                       style={{ backgroundColor: zone.color || "#4F7CFF" }}
                     />
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm text-ink truncate">
-                        {zone.name}
-                      </p>
-                      <p className="text-xs text-muted truncate">
-                        {zone.cityName || "No city linked"}
-                      </p>
-                    </div>
+                    <p className="font-semibold text-sm text-ink truncate">
+                      {zone.name}
+                    </p>
                   </div>
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider shrink-0 ${
@@ -828,13 +641,7 @@ export function Locations() {
                   {zone.agentCount !== undefined && (
                     <span className="flex items-center gap-1 rounded-md bg-surface-muted px-2 py-0.5">
                       <Users className="size-3 text-primary" />{" "}
-                      {zone.agentCount} agents
-                    </span>
-                  )}
-                  {zone.pincodes && zone.pincodes.length > 0 && (
-                    <span className="rounded-md bg-surface-muted px-2 py-0.5">
-                      {zone.pincodes.length} PIN
-                      {zone.pincodes.length > 1 ? "s" : ""}
+                      {zone.agentCount} agent{zone.agentCount === 1 ? "" : "s"} now
                     </span>
                   )}
                 </div>
@@ -966,46 +773,20 @@ export function Locations() {
             </Button>
           </div>
 
-          {/* 2. Zone Name & City */}
-          <div className="space-y-3">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted">
-                Zone Name
-              </label>
-              <input
-                type="text"
-                value={selectedZone.name || ""}
-                onChange={(e) =>
-                  setSelectedZone({ ...selectedZone, name: e.target.value })
-                }
-                placeholder="e.g. Indiranagar Central"
-                className="h-11 w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-ink outline-none focus:border-primary/50"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted">
-                City
-              </label>
-              <select
-                value={selectedZone.cityId || ""}
-                onChange={(e) => {
-                  const cityObj = cities.find((c) => c.id === e.target.value);
-                  setSelectedZone({
-                    ...selectedZone,
-                    cityId: e.target.value,
-                    cityName: cityObj ? cityObj.name : "",
-                  });
-                }}
-                className="h-11 w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-ink outline-none focus:border-primary/50">
-                <option value="">Select city</option>
-                {cities.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* 2. Zone Name */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted">
+              Zone Name
+            </label>
+            <input
+              type="text"
+              value={selectedZone.name || ""}
+              onChange={(e) =>
+                setSelectedZone({ ...selectedZone, name: e.target.value })
+              }
+              placeholder="e.g. Indiranagar Central"
+              className="h-11 w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-ink outline-none focus:border-primary/50"
+            />
           </div>
 
           {/* 3. Map Color */}
@@ -1075,79 +856,18 @@ export function Locations() {
             </div>
           </div>
 
-          {/* 5. Serviced Pincodes */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-muted">
-                Serviced Pincodes ({selectedZone.pincodes?.length || 0})
-              </label>
-              <button
-                type="button"
-                disabled={detectingPincodes}
-                onClick={handleAutoDetectPincodes}
-                className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline disabled:opacity-50">
-                <RefreshCw
-                  className={`size-3 ${detectingPincodes ? "animate-spin" : ""}`}
-                />
-                {detectingPincodes ? "Scanning..." : "Auto-Detect"}
-              </button>
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                maxLength={6}
-                value={newPincodeInput}
-                onChange={(e) =>
-                  setNewPincodeInput(e.target.value.replace(/\D/g, ""))
-                }
-                onKeyDown={(e) => e.key === "Enter" && handleAddPincode()}
-                placeholder="6-digit PIN code"
-                className="h-10 flex-1 rounded-xl border border-line bg-surface px-3 text-xs text-ink outline-none focus:border-primary/50"
-              />
-              <Button
-                size="sm"
-                onClick={handleAddPincode}
-                className="h-10 px-4 rounded-xl text-xs">
-                Add
-              </Button>
-            </div>
-
-            {selectedZone.pincodes && selectedZone.pincodes.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5 rounded-xl border border-line bg-surface-muted/50 p-2 max-h-32 overflow-y-auto">
-                {selectedZone.pincodes.map((pin) => (
-                  <span
-                    key={pin}
-                    className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink shadow-2xs">
-                    {pin}
-                    <button
-                      type="button"
-                      onClick={() => handleRemovePincode(pin)}
-                      className="text-muted hover:text-rose-600 transition-colors">
-                      <X className="size-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-[11px] text-muted italic">
-                No pincodes linked yet. Enter manually or click Auto-Detect.
-              </p>
-            )}
-          </div>
-
-          {/* 6. Assigned Agents in this Zone */}
+          {/* 5. Agents currently in this zone — live, not a stored assignment */}
           {!selectedZone.isNew && selectedZone.id && (
             <div className="space-y-2 pt-2 border-t border-line">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted flex items-center gap-1.5">
-                  <Users className="size-3.5 text-primary" /> Assigned Agents (
-                  {assignedAgents.length})
+                  <Users className="size-3.5 text-primary" /> In this zone now (
+                  {liveZoneAgents.length})
                 </span>
               </div>
-              {assignedAgents.length > 0 ? (
+              {liveZoneAgents.length > 0 ? (
                 <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                  {assignedAgents.map((agent) => (
+                  {liveZoneAgents.map((agent) => (
                     <div
                       key={agent.id}
                       className="flex items-center justify-between rounded-xl border border-line bg-surface/70 px-3 py-2 text-xs">
@@ -1168,8 +888,8 @@ export function Locations() {
                 </div>
               ) : (
                 <p className="text-[11px] text-muted">
-                  No agents servicing this zone yet. You can assign agents from
-                  the Agents page.
+                  No agents are currently inside this zone's boundary. Jobs
+                  here fall through to the next-nearest zone.
                 </p>
               )}
             </div>
@@ -1240,7 +960,6 @@ export function Locations() {
               onClick={() => {
                 setSelectedZone(null);
                 setIsBoundaryEditing(false);
-                setDrawingPoints([]);
                 setDrawingMode(drawingMode ? null : "polygon");
               }}
               variant={drawingMode ? "outline" : "primary"}
@@ -1300,7 +1019,6 @@ export function Locations() {
                 mapContainerStyle={mapContainerStyle}
                 center={defaultCenter}
                 zoom={12}
-                onClick={handleMapClick}
                 onLoad={(map) => {
                   mapRef.current = map;
                   if (zones.length > 0) {
@@ -1317,7 +1035,6 @@ export function Locations() {
                   mapTypeControl: false,
                   fullscreenControl: true,
                   clickableIcons: false,
-                  draggableCursor: drawingMode ? "crosshair" : undefined,
                 }}>
                 {/* Autocomplete Search Overlay */}
                 <Autocomplete
@@ -1337,44 +1054,23 @@ export function Locations() {
 
                 {/* Drawing Mode Active Overlay Banner */}
                 {drawingMode && (
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
                     <div className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-surface/95 px-5 py-3 shadow-[var(--shadow-lift)] backdrop-blur-md">
                       <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
                         <Plus className="size-4" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs font-semibold text-ink">
-                            Drawing Zone Boundary
-                          </p>
-                          <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-                            {drawingPoints.length} point{drawingPoints.length === 1 ? "" : "s"}
-                          </span>
-                        </div>
+                        <p className="text-xs font-semibold text-ink">
+                          Drawing Zone Boundary
+                        </p>
                         <p className="text-[10px] text-muted">
-                          Click on map to place corners (min 3 points)
+                          Click the map to place corners · double-click to
+                          finish
                         </p>
                       </div>
-                      {drawingPoints.length > 0 && (
-                        <button
-                          onClick={() => setDrawingPoints((pts) => pts.slice(0, -1))}
-                          className="rounded-xl border border-line bg-surface px-2.5 py-1.5 text-[11px] font-medium text-ink hover:bg-surface-muted transition-all cursor-pointer">
-                          Undo
-                        </button>
-                      )}
-                      {drawingPoints.length >= 3 && (
-                        <button
-                          onClick={() => finishDrawing(drawingPoints)}
-                          className="rounded-xl bg-primary px-3.5 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-soft transition-all shadow-xs cursor-pointer">
-                          Complete Zone
-                        </button>
-                      )}
                       <button
-                        onClick={() => {
-                          setDrawingMode(null);
-                          setDrawingPoints([]);
-                        }}
-                        className="rounded-xl bg-ink px-3 py-1.5 text-[11px] font-semibold text-surface hover:bg-ink-soft transition-all cursor-pointer">
+                        onClick={() => setDrawingMode(null)}
+                        className="pointer-events-auto ml-2 rounded-xl bg-ink px-3 py-1.5 text-[11px] font-semibold text-surface hover:bg-ink-soft transition-all cursor-pointer">
                         Cancel
                       </button>
                     </div>
@@ -1411,67 +1107,24 @@ export function Locations() {
                   </div>
                 )}
 
-                {/* Native Drawing Mode Live Renderers */}
-                {drawingMode && drawingPoints.length > 0 && (
-                  <>
-                    {/* Vertex Markers */}
-                    {drawingPoints.map((pt, idx) => (
-                      <Marker
-                        key={`draw-pt-${idx}`}
-                        position={pt}
-                        label={
-                          idx === 0 && drawingPoints.length >= 3
-                            ? {
-                                text: "✓",
-                                color: "#ffffff",
-                                fontSize: "11px",
-                                fontWeight: "bold",
-                              }
-                            : {
-                                text: `${idx + 1}`,
-                                color: "#ffffff",
-                                fontSize: "10px",
-                              }
-                        }
-                        title={
-                          idx === 0 && drawingPoints.length >= 3
-                            ? "Click to complete zone"
-                            : `Point ${idx + 1}`
-                        }
-                        onClick={() => {
-                          if (idx === 0 && drawingPoints.length >= 3) {
-                            finishDrawing(drawingPoints);
-                          }
-                        }}
-                      />
-                    ))}
-
-                    {/* Connecting Polyline */}
-                    {drawingPoints.length >= 2 && (
-                      <Polyline
-                        path={drawingPoints}
-                        options={{
-                          strokeColor: "#4F7CFF",
-                          strokeWeight: 2.5,
-                          strokeOpacity: 0.9,
-                        }}
-                      />
-                    )}
-
-                    {/* Preview Polygon */}
-                    {drawingPoints.length >= 3 && (
-                      <Polygon
-                        paths={drawingPoints}
-                        options={{
-                          fillColor: "#4F7CFF",
-                          fillOpacity: 0.2,
-                          strokeColor: "#4F7CFF",
-                          strokeWeight: 2,
-                          clickable: false,
-                        }}
-                      />
-                    )}
-                  </>
+                {/* Native drawing tool — smooth drag-to-draw, no click-placed pins */}
+                {drawingMode && (
+                  <DrawingManager
+                    onPolygonComplete={onPolygonComplete}
+                    drawingMode={window.google.maps.drawing.OverlayType.POLYGON}
+                    options={{
+                      drawingControl: false,
+                      polygonOptions: {
+                        fillColor: "#4F7CFF",
+                        fillOpacity: 0.25,
+                        strokeWeight: 2.5,
+                        strokeColor: "#4F7CFF",
+                        clickable: false,
+                        editable: true,
+                        zIndex: 1,
+                      },
+                    }}
+                  />
                 )}
 
                 {/* Render Existing Zones Polygons */}
@@ -1581,12 +1234,8 @@ export function Locations() {
                         strokeOpacity: 0.9,
                         zIndex: isEditing ? 10 : isSelected ? 5 : 1,
                       }}
-                      onClick={(e) => {
-                        if (drawingMode) {
-                          handleMapClick(e);
-                          return;
-                        }
-                        if (!isBoundaryEditing) {
+                      onClick={() => {
+                        if (!drawingMode && !isBoundaryEditing) {
                           handleEditDetails(zone);
                         }
                       }}

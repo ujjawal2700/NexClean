@@ -53,27 +53,78 @@ test.describe("Admin — cities", () => {
 });
 
 test.describe("Admin — zones", () => {
+  // Zones are standalone geofences (not a City's child) — cityId is optional
+  // everywhere below, only kept to link a zone into the customer/agent signup
+  // "pick your society" pickers when an admin chooses to.
+
   test("GET /admin/zones requires admin auth", async ({ request }) => {
     const res = await request.get(apiUrl("/admin/zones"));
     expect(res.status()).toBe(401);
   });
 
-  test("POST /admin/zones rejects a missing name/cityId", async ({ request }) => {
+  test("POST /admin/zones rejects a missing name/boundary", async ({ request }) => {
     const { token } = await loginAsAdminApi(request);
     const res = await request.post(apiUrl("/admin/zones"), { headers: authHeader(token), data: {} });
     expect(res.status()).toBe(400);
-    expect((await res.json()).message).toBe("Zone name and city are required");
+    expect((await res.json()).message).toBe("Zone name and a boundary are required");
   });
 
-  test("full zone lifecycle: create → update → delete (against a real city)", async ({ request }) => {
+  test("POST /admin/zones rejects a boundary with fewer than 3 points", async ({ request }) => {
+    const { token } = await loginAsAdminApi(request);
+    const res = await request.post(apiUrl("/admin/zones"), {
+      headers: authHeader(token),
+      data: { name: "Too Few Points", coordinates: [[77.6, 12.9], [77.61, 12.9]] },
+    });
+    expect(res.status()).toBe(400);
+    expect((await res.json()).message).toBe("Zone name and a boundary are required");
+  });
+
+  test("full zone lifecycle: create with no city → update → delete (standalone geofence)", async ({ request }) => {
+    const { token } = await loginAsAdminApi(request);
+    const zoneName = `Test Zone ${Date.now()}`;
+    const coordinates: [number, number][] = [
+      [77.615, 12.935],
+      [77.625, 12.935],
+      [77.625, 12.945],
+      [77.615, 12.945],
+    ];
+
+    const create = await request.post(apiUrl("/admin/zones"), {
+      headers: authHeader(token),
+      data: { name: zoneName, coordinates },
+    });
+    expect(create.status()).toBe(201);
+    const zone = (await create.json()).data;
+    expect(zone.name).toBe(zoneName);
+    // No cityId was supplied — a zone doesn't need one to exist as a geofence.
+    expect(zone.cityId).toBeFalsy();
+
+    const update = await request.patch(apiUrl(`/admin/zones/${zone.id}`), {
+      headers: authHeader(token),
+      data: { active: false },
+    });
+    expect(update.ok()).toBeTruthy();
+    expect((await update.json()).data.active).toBe(false);
+
+    const del = await request.delete(apiUrl(`/admin/zones/${zone.id}`), { headers: authHeader(token) });
+    expect(del.ok()).toBeTruthy();
+  });
+
+  test("full zone lifecycle: create against a real city → update → delete", async ({ request }) => {
     const { token } = await loginAsAdminApi(request);
     const cityName = `Test City ${Date.now()}`;
     const city = (await (await request.post(apiUrl("/admin/cities"), { headers: authHeader(token), data: { name: cityName } })).json()).data;
 
     const zoneName = `Test Zone ${Date.now()}`;
+    const coordinates: [number, number][] = [
+      [77.615, 12.935],
+      [77.625, 12.935],
+      [77.625, 12.945],
+      [77.615, 12.945],
+    ];
     const create = await request.post(apiUrl("/admin/zones"), {
       headers: authHeader(token),
-      data: { name: zoneName, cityId: city.id },
+      data: { name: zoneName, cityId: city.id, coordinates },
     });
     expect(create.status()).toBe(201);
     const zone = (await create.json()).data;
@@ -98,7 +149,15 @@ test.describe("Admin — zones", () => {
     const { token } = await loginAsAdminApi(request);
     const res = await request.post(apiUrl("/admin/zones"), {
       headers: authHeader(token),
-      data: { name: "Some Zone", cityId: "000000000000000000000000" },
+      data: {
+        name: "Some Zone",
+        cityId: "000000000000000000000000",
+        coordinates: [
+          [77.615, 12.935],
+          [77.625, 12.935],
+          [77.625, 12.945],
+        ],
+      },
     });
     expect(res.status()).toBe(400);
     expect((await res.json()).message).toBe("Unknown city");
@@ -109,7 +168,18 @@ test.describe("Admin — zones", () => {
     const city = (await (await request.post(apiUrl("/admin/cities"), { headers: authHeader(token), data: { name: `City ${Date.now()}` } })).json()).data;
     const zone = (
       await (
-        await request.post(apiUrl("/admin/zones"), { headers: authHeader(token), data: { name: `Zone ${Date.now()}`, cityId: city.id } })
+        await request.post(apiUrl("/admin/zones"), {
+          headers: authHeader(token),
+          data: {
+            name: `Zone ${Date.now()}`,
+            cityId: city.id,
+            coordinates: [
+              [77.615, 12.935],
+              [77.625, 12.935],
+              [77.625, 12.945],
+            ],
+          },
+        })
       ).json()
     ).data;
 
@@ -124,8 +194,6 @@ test.describe("Admin — zones", () => {
 
   test("geofence polygon lifecycle: create zone with coordinates → verify boundary → reshape boundary → verify update → delete", async ({ request }) => {
     const { token } = await loginAsAdminApi(request);
-    const cityName = `GeoCity ${Date.now()}`;
-    const city = (await (await request.post(apiUrl("/admin/cities"), { headers: authHeader(token), data: { name: cityName } })).json()).data;
 
     // Initial polygon (Bengaluru Koramangala area coordinates: [lng, lat])
     const initialCoords: [number, number][] = [
@@ -141,17 +209,14 @@ test.describe("Admin — zones", () => {
       headers: authHeader(token),
       data: {
         name: zoneName,
-        cityId: city.id,
         color: "#10B981",
         coordinates: initialCoords,
-        pincodes: ["560034", "560095"],
       },
     });
     expect(create.status()).toBe(201);
     const zone = (await create.json()).data;
     expect(zone.name).toBe(zoneName);
     expect(zone.color).toBe("#10B981");
-    expect(zone.pincodes).toContain("560034");
     expect(zone.boundary).toBeDefined();
     expect(zone.boundary.type).toBe("Polygon");
     expect(zone.boundary.coordinates[0].length).toBeGreaterThanOrEqual(4);
@@ -175,21 +240,15 @@ test.describe("Admin — zones", () => {
     ];
     const updateRes = await request.patch(apiUrl(`/admin/zones/${zone.id}`), {
       headers: authHeader(token),
-      data: {
-        coordinates: updatedCoords,
-        pincodes: ["560034", "560095", "560047"],
-      },
+      data: { coordinates: updatedCoords },
     });
     expect(updateRes.ok()).toBeTruthy();
     const updatedZone = (await updateRes.json()).data;
     expect(updatedZone.boundary?.coordinates?.[0]?.[0]?.[0]).toBeCloseTo(77.610, 2);
-    expect(updatedZone.pincodes).toContain("560047");
 
     // Clean up
     const delZone = await request.delete(apiUrl(`/admin/zones/${zone.id}`), { headers: authHeader(token) });
     expect(delZone.ok()).toBeTruthy();
-    const delCity = await request.delete(apiUrl(`/admin/cities/${city.id}`), { headers: authHeader(token) });
-    expect(delCity.ok()).toBeTruthy();
   });
 });
 

@@ -35,36 +35,36 @@ const polygonSchema = new Schema(
 
 export interface IZone {
   name: string;
-  city: any;
+  // Optional: zones are standalone geofences, not a City's child. A city link
+  // is only kept for the customer/agent signup "pick your society" pickers
+  // (catalog.controller's /zones?cityId=), which predate real geofencing and
+  // still query zones by city for the ones an admin has chosen to link.
+  city?: any;
   active: boolean;
   color?: string;
-  boundary?: {
+  // Required: a zone with no drawn polygon isn't a geofence and can't be
+  // dispatched through — see dispatch.query.ts's buildDispatchTiers.
+  boundary: {
     type: "Polygon";
     coordinates: number[][][];
   };
-  pincodes: string[];
 }
 
 const zoneSchema = new Schema<IZone>(
   {
     name: { type: String, required: true, trim: true },
-    city: { type: Schema.Types.ObjectId, ref: "City", required: true },
+    city: { type: Schema.Types.ObjectId, ref: "City", default: null },
     active: { type: Boolean, default: true },
     color: { type: String, default: "#4F7CFF" },
     boundary: {
       type: polygonSchema,
-      required: false,
-      default: undefined,
-    },
-    pincodes: {
-      type: [String],
-      default: [],
+      required: true,
     },
   },
   { timestamps: true, toJSON: jsonTransform },
 );
 
-zoneSchema.index({ boundary: "2dsphere" }, { sparse: true });
+zoneSchema.index({ boundary: "2dsphere" });
 
 export type CityDoc = HydratedDocument<InferSchemaType<typeof citySchema>>;
 export type ZoneDoc = HydratedDocument<IZone>;

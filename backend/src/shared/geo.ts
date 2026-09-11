@@ -89,3 +89,85 @@ export function bearingDegrees(from: LngLat, to: LngLat): number {
     Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLng);
   return (((Math.atan2(y, x) * 180) / Math.PI) + 360) % 360;
 }
+
+/* ------------------------- geofence polygon math -------------------------- */
+//
+// Pure, DB-free geometry backing zone-based dispatch (see
+// dispatch/dispatch.query.ts). Kept here rather than computed via a MongoDB
+// $geoWithin query so the actual "which zone is this point in, and how far to
+// the others" logic is directly unit-testable and doesn't depend on a
+// specific Mongo query-combination behaving a certain way.
+
+/**
+ * Ray-casting point-in-polygon test against a GeoJSON outer ring (an array of
+ * [lng, lat] pairs, first and last equal). Standard even-odd algorithm — exact
+ * for the simple, non-self-intersecting polygons an admin draws on a map.
+ */
+export function pointInPolygon(point: LngLat, ring: LngLat[]): boolean {
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const intersects = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Point-to-segment distance in metres, via a local equirectangular projection
+ * centred on `point`. Not a true geodesic — but at the neighbourhood scale a
+ * drawn zone edge spans, the projection error is negligible, the same
+ * trade-off this file already makes elsewhere (see isPlausibleMove).
+ */
+function pointToSegmentMeters(point: LngLat, a: LngLat, b: LngLat): number {
+  const latRad = (point[1] * Math.PI) / 180;
+  const mPerDegLat = 110_574;
+  const mPerDegLng = 111_320 * Math.cos(latRad);
+  const project = (p: LngLat) => ({
+    x: (p[0] - point[0]) * mPerDegLng,
+    y: (p[1] - point[1]) * mPerDegLat,
+  });
+  const P = { x: 0, y: 0 };
+  const A = project(a);
+  const B = project(b);
+  const abx = B.x - A.x;
+  const aby = B.y - A.y;
+  const lenSq = abx * abx + aby * aby;
+  const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((P.x - A.x) * abx + (P.y - A.y) * aby) / lenSq));
+  const cx = A.x + t * abx;
+  const cy = A.y + t * aby;
+  return Math.hypot(P.x - cx, P.y - cy);
+}
+
+/**
+ * Distance in metres from `point` to a polygon: 0 when the point is inside
+ * (or on the boundary of) the polygon, otherwise the distance to its nearest
+ * edge. This is what orders zones "nearby to far" for dispatch — the
+ * containing zone is always distance 0 and sorts first.
+ */
+export function distanceToPolygonMeters(point: LngLat, ring: LngLat[]): number {
+  if (ring.length < 3) return Infinity;
+  if (pointInPolygon(point, ring)) return 0;
+  let min = Infinity;
+  for (let i = 0; i < ring.length - 1; i++) {
+    min = Math.min(min, pointToSegmentMeters(point, ring[i], ring[i + 1]));
+  }
+  return min;
+}
+
+/**
+ * Sort zones by distance from `point`, nearest first (the zone containing the
+ * point, if any, always sorts to the front at distance 0). Ties — e.g. two
+ * overlapping zones both containing the point — break by name for a
+ * deterministic order.
+ */
+export function orderZonesByDistance<T extends { boundaryRing: LngLat[]; name?: string }>(
+  point: LngLat,
+  zones: T[],
+): (T & { distanceM: number })[] {
+  return zones
+    .map((z) => ({ ...z, distanceM: distanceToPolygonMeters(point, z.boundaryRing) }))
+    .sort((a, b) => a.distanceM - b.distanceM || (a.name ?? "").localeCompare(b.name ?? ""));
+}

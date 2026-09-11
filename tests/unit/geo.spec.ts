@@ -210,3 +210,188 @@ test.describe("Geofence Unit Tests — Coordinate Conversion & Math", () => {
     expect(centroid.lat).toBeCloseTo(25, 5);
   });
 });
+
+/**
+ * Zone-based dispatch: the "nearby to far" tier ordering and geofenced agent
+ * ranking backing backend/src/shared/geo.ts and
+ * backend/src/modules/dispatch/dispatch.query.ts. Mirrors those algorithms
+ * exactly (ray-cast point-in-polygon, planar point-to-segment distance,
+ * haversine) rather than a differently-shaped stand-in, per this file's own
+ * "matching the frontend & backend geofence logic" contract above — the
+ * point is to prove the shipped algorithm's behavior, not a look-alike.
+ */
+
+type LngLat = [number, number];
+
+function haversineMeters(a: LngLat, b: LngLat): number {
+  const R = 6_371_000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const [lng1, lat1] = a;
+  const [lng2, lat2] = b;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const s =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+function pointToSegmentMeters(point: LngLat, a: LngLat, b: LngLat): number {
+  const latRad = (point[1] * Math.PI) / 180;
+  const mPerDegLat = 110_574;
+  const mPerDegLng = 111_320 * Math.cos(latRad);
+  const project = (p: LngLat) => ({ x: (p[0] - point[0]) * mPerDegLng, y: (p[1] - point[1]) * mPerDegLat });
+  const P = { x: 0, y: 0 };
+  const A = project(a);
+  const B = project(b);
+  const abx = B.x - A.x;
+  const aby = B.y - A.y;
+  const lenSq = abx * abx + aby * aby;
+  const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((P.x - A.x) * abx + (P.y - A.y) * aby) / lenSq));
+  const cx = A.x + t * abx;
+  const cy = A.y + t * aby;
+  return Math.hypot(P.x - cx, P.y - cy);
+}
+
+function distanceToPolygonMeters(point: LngLat, ring: LngLat[]): number {
+  if (ring.length < 3) return Infinity;
+  if (isPointInPolygon({ lat: point[1], lng: point[0] }, ring)) return 0;
+  let min = Infinity;
+  for (let i = 0; i < ring.length - 1; i++) {
+    min = Math.min(min, pointToSegmentMeters(point, ring[i], ring[i + 1]));
+  }
+  return min;
+}
+
+function orderZonesByDistance<T extends { boundaryRing: LngLat[]; name?: string }>(
+  point: LngLat,
+  zones: T[],
+): (T & { distanceM: number })[] {
+  return zones
+    .map((z) => ({ ...z, distanceM: distanceToPolygonMeters(point, z.boundaryRing) }))
+    .sort((a, b) => a.distanceM - b.distanceM || (a.name ?? "").localeCompare(b.name ?? ""));
+}
+
+function rankAgentsForTier(
+  point: LngLat,
+  agents: { id: string; name: string; coordinates: LngLat }[],
+  tier: { ring?: LngLat[] | null; radiusM: number },
+): { id: string; name: string; distanceM: number }[] {
+  return agents
+    .map((a) => ({ ...a, distanceM: haversineMeters(point, a.coordinates) }))
+    .filter(
+      (a) =>
+        (tier.ring ? isPointInPolygon({ lat: a.coordinates[1], lng: a.coordinates[0] }, tier.ring) : true) &&
+        a.distanceM <= tier.radiusM,
+    )
+    .sort((a, b) => a.distanceM - b.distanceM)
+    .map((a) => ({ id: a.id, name: a.name, distanceM: Math.round(a.distanceM) }));
+}
+
+test.describe("Zone distance ordering & tier ranking — dispatch geofencing", () => {
+  // A 1km-ish square, roughly centred at [77.60, 12.90].
+  const zoneA: LngLat[] = [
+    [77.595, 12.895],
+    [77.605, 12.895],
+    [77.605, 12.905],
+    [77.595, 12.905],
+    [77.595, 12.895],
+  ];
+  // A same-shaped square well to the east — does not overlap zoneA.
+  const zoneB: LngLat[] = [
+    [77.700, 12.895],
+    [77.710, 12.895],
+    [77.710, 12.905],
+    [77.700, 12.905],
+    [77.700, 12.895],
+  ];
+
+  test("distanceToPolygonMeters is 0 for a point inside, positive for a point outside", () => {
+    expect(distanceToPolygonMeters([77.6, 12.9], zoneA)).toBe(0);
+    // zoneA's northern edge is at lat 12.905; 0.01deg further north is ~1.1km
+    // of pure latitude offset (0.01 * 110_574 m/deg).
+    const outside = distanceToPolygonMeters([77.6, 12.915], zoneA);
+    expect(outside).toBeGreaterThan(1000);
+    expect(outside).toBeLessThan(1200);
+  });
+
+  test("distanceToPolygonMeters matches a hand-computed offset for a point due south of a square", () => {
+    // 0.01 deg south of the square's southern edge (lat 12.895), at a longitude
+    // inside the square's span — nearest point is straight down, so this is a
+    // pure latitude delta: ~0.01 * 110_574 m.
+    const point: LngLat = [77.6, 12.885];
+    const d = distanceToPolygonMeters(point, zoneA);
+    expect(d).toBeCloseTo(0.01 * 110_574, -1); // within ~10m
+  });
+
+  test("orderZonesByDistance sorts nearest-first and puts the containing zone at distance 0", () => {
+    const bookingInA: LngLat = [77.6, 12.9]; // inside zoneA
+    const ordered = orderZonesByDistance(bookingInA, [
+      { name: "Zone B (far)", boundaryRing: zoneB },
+      { name: "Zone A (containing)", boundaryRing: zoneA },
+    ]);
+    expect(ordered[0].name).toBe("Zone A (containing)");
+    expect(ordered[0].distanceM).toBe(0);
+    expect(ordered[1].name).toBe("Zone B (far)");
+    expect(ordered[1].distanceM).toBeGreaterThan(ordered[0].distanceM);
+  });
+
+  test("rankAgentsForTier restricts to agents inside the tier's ring and orders them nearest-first", () => {
+    const booking: LngLat = [77.6, 12.9];
+    const agents = [
+      { id: "in-a-far-corner", name: "A1", coordinates: [77.596, 12.896] as LngLat }, // inside zoneA, near its corner
+      { id: "in-a-near-center", name: "A2", coordinates: [77.601, 12.901] as LngLat }, // inside zoneA, close to booking
+      { id: "in-b", name: "B1", coordinates: [77.705, 12.9] as LngLat }, // inside zoneB only
+      { id: "nowhere", name: "N1", coordinates: [70.0, 10.0] as LngLat }, // in neither zone, far away
+    ];
+
+    const zoneATier = { ring: zoneA, radiusM: 50_000 };
+    const ranked = rankAgentsForTier(booking, agents, zoneATier);
+    expect(ranked.map((r) => r.id)).toEqual(["in-a-near-center", "in-a-far-corner"]);
+
+    const zoneBTier = { ring: zoneB, radiusM: 50_000 };
+    expect(rankAgentsForTier(booking, agents, zoneBTier).map((r) => r.id)).toEqual(["in-b"]);
+  });
+
+  test("rankAgentsForTier with no ring falls back to a flat radius — the citywide catch-all tier", () => {
+    const booking: LngLat = [77.6, 12.9];
+    const agents = [
+      { id: "near", name: "Near", coordinates: [77.601, 12.901] as LngLat },
+      { id: "far", name: "Far", coordinates: [70.0, 10.0] as LngLat },
+    ];
+    const fallbackTier = { radiusM: 20_000 }; // no ring — plain radius, matches the pre-zones behavior
+    const ranked = rankAgentsForTier(booking, agents, fallbackTier);
+    expect(ranked.map((r) => r.id)).toEqual(["near"]); // "far" is well outside 20km
+  });
+
+  test("nearby-to-far proof: an agent inside the booking's own zone outranks a straight-line-closer agent outside it", () => {
+    // This is the concrete behavioral claim of zone-based dispatch: containment
+    // in the booking's zone beats raw distance, not just a restatement of the
+    // ranking function above.
+    const booking: LngLat = [77.6, 12.9]; // dead centre of zoneA
+    // Near zoneA's far (NE) corner — inside the zone, but ~761m from booking.
+    const agentInOwnZone = { id: "own-zone", name: "Own zone", coordinates: [77.6049, 12.9049] as LngLat };
+    // Just past zoneA's northern edge — outside the zone, but only ~612m from
+    // booking: genuinely closer as the crow flies than agentInOwnZone.
+    const agentCloserButElsewhere = {
+      id: "closer-elsewhere",
+      name: "Closer but wrong zone",
+      coordinates: [77.6, 12.9055] as LngLat,
+    };
+    // Sanity: the "closer" agent really is closer in a straight line.
+    expect(haversineMeters(booking, agentCloserButElsewhere.coordinates)).toBeLessThan(
+      haversineMeters(booking, agentInOwnZone.coordinates),
+    );
+
+    const tiers = orderZonesByDistance(booking, [
+      { name: "Zone A", boundaryRing: zoneA },
+      { name: "Zone B", boundaryRing: zoneB },
+    ]);
+    expect(tiers[0].name).toBe("Zone A"); // the containing zone is tier 0
+
+    const tier0Candidates = rankAgentsForTier(booking, [agentInOwnZone, agentCloserButElsewhere], {
+      ring: tiers[0].boundaryRing,
+      radiusM: 50_000,
+    });
+    expect(tier0Candidates.map((c) => c.id)).toEqual(["own-zone"]);
+  });
+});

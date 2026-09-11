@@ -155,7 +155,6 @@ const agentFields = {
   email: personEmail,
   city: z.string().trim().max(80).optional(),
   area: z.string().trim().max(120).optional(),
-  zoneId: z.string().trim().optional().nullable(),
   agentStatus: z.enum(AGENT_STATUSES).optional(),
   aadharNumber,
   rating: z.coerce.number().min(0).max(5).optional(),
@@ -364,27 +363,30 @@ export async function zones(_req: Request, res: Response): Promise<Response> {
   return ok(res, await locationService.listZones());
 }
 
+// cityId is optional on purpose: a zone is a standalone geofence, not a
+// City's child. It's only kept to link a zone into the customer/agent signup
+// "pick your society" pickers (catalog.controller's /zones?cityId=) when an
+// admin chooses to. coordinates (the boundary) is what's actually required —
+// a zone that isn't a real polygon can't be dispatched through.
 const createZoneSchema = z.object({
   name: z.string().trim().min(1),
-  cityId: z.string().min(1),
+  cityId: z.string().min(1).optional(),
   color: z.string().trim().optional(),
-  coordinates: z.array(z.tuple([z.number(), z.number()])).optional(),
-  pincodes: z.array(z.string()).optional(),
+  coordinates: z.array(z.tuple([z.number(), z.number()])).min(3),
   active: z.boolean().optional(),
 });
 export async function createZone(req: Request, res: Response): Promise<Response> {
   const parsed = createZoneSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest("Zone name and city are required");
+  if (!parsed.success) throw ApiError.badRequest("Zone name and a boundary are required");
   return created(res, await locationService.createZone(parsed.data), "Zone created");
 }
 
 const updateZoneSchema = z.object({
   name: z.string().trim().min(1).optional(),
   active: z.boolean().optional(),
-  cityId: z.string().min(1).optional(),
+  cityId: z.string().min(1).nullable().optional(),
   color: z.string().trim().optional(),
-  coordinates: z.array(z.tuple([z.number(), z.number()])).optional(),
-  pincodes: z.array(z.string()).optional(),
+  coordinates: z.array(z.tuple([z.number(), z.number()])).min(3).optional(),
 });
 export async function updateZone(req: Request, res: Response): Promise<Response> {
   const parsed = updateZoneSchema.safeParse(req.body);

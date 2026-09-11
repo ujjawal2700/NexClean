@@ -44,21 +44,19 @@ test.describe("Admin Locations & Geofencing", () => {
 
     // Verify search bar and Draw button exist in zones view
     await expect(page.getByRole("button", { name: /Draw New Zone/i })).toBeVisible();
-    await expect(page.getByPlaceholder("Search zones, cities, pincodes...")).toBeVisible();
+    await expect(page.getByPlaceholder("Search zones...")).toBeVisible();
 
     // Verify no error boundary or deprecation message is shown
     await expect(page.getByText("This page hit an unexpected error")).toHaveCount(0);
-    await expect(page.getByText("DrawingManager functionality")).toHaveCount(0);
   });
 
-  test("toggles drawing mode, places polygon vertices, undos point, and completes zone drawing", async ({ page }) => {
+  test("draws a zone with the native polygon tool (no click-placed pins) and completes it", async ({ page }) => {
     const drawBtn = page.getByRole("button", { name: /Draw New Zone/i });
     await drawBtn.click();
 
     // Verify Drawing Banner appears
     const banner = page.locator("text=Drawing Zone Boundary");
     await expect(banner).toBeVisible();
-    await expect(page.locator("text=0 points")).toBeVisible();
 
     // Find the Google Map container
     const mapContainer = page.locator(".gm-style, [aria-label='Map']").first();
@@ -69,40 +67,18 @@ test.describe("Admin Locations & Geofencing", () => {
       const centerX = mapBox.x + mapBox.width / 2;
       const baseY = mapBox.y + mapBox.height * 0.65;
 
-      // Click 1st vertex
+      // Two clicks place the first two vertices; a double-click places the
+      // third and closes the polygon in one gesture — DrawingManager's native
+      // finish, not a custom "Complete Zone" button.
       await page.mouse.click(centerX - 60, baseY);
-      await page.waitForTimeout(600);
-      await expect(page.getByText("1 point", { exact: true })).toBeVisible({ timeout: 5000 });
-
-      // Click 2nd vertex
+      await page.waitForTimeout(300);
       await page.mouse.click(centerX + 60, baseY);
+      await page.waitForTimeout(300);
+      await page.mouse.dblclick(centerX, baseY + 60);
       await page.waitForTimeout(600);
-      await expect(page.getByText("2 points", { exact: true })).toBeVisible({ timeout: 5000 });
 
-      // Click 3rd vertex
-      await page.mouse.click(centerX, baseY + 60);
-      await page.waitForTimeout(600);
-      await expect(page.getByText("3 points", { exact: true })).toBeVisible({ timeout: 5000 });
-
-      // Test Undo button: removes 3rd vertex
-      const undoBtn = page.getByRole("button", { name: "Undo" });
-      await expect(undoBtn).toBeVisible();
-      await undoBtn.click();
-      await page.waitForTimeout(400);
-      await expect(page.getByText("2 points", { exact: true })).toBeVisible({ timeout: 5000 });
-
-      // Click 3rd vertex again
-      await page.mouse.click(centerX, baseY + 60);
-      await page.waitForTimeout(600);
-      await expect(page.getByText("3 points", { exact: true })).toBeVisible({ timeout: 5000 });
-
-      // Complete Zone button is now active
-      const completeBtn = page.getByRole("button", { name: "Complete Zone", exact: true });
-      await expect(completeBtn).toBeVisible();
-      await completeBtn.click();
-
-      // Verify that completing zone opens the configuration drawer
-      await expect(page.getByText("Boundary Shape (3 Vertices)")).toBeVisible({ timeout: 5000 });
+      // Completing the polygon opens the configure panel with the vertex count.
+      await expect(page.getByText(/Boundary Shape \(3 Vertices\)/)).toBeVisible({ timeout: 5000 });
       await expect(page.getByPlaceholder("e.g. Indiranagar Central")).toBeVisible();
       const saveBtn = page.getByRole("button", { name: "Save Zone" });
       await expect(saveBtn).toBeVisible();

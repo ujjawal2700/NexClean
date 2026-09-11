@@ -131,7 +131,6 @@ export type AdminAgent = {
   email: string;
   city: string;
   area: string;
-  zoneId?: string | null;
   rating: number;
   jobsDone: number;
   online: boolean;
@@ -235,8 +234,10 @@ export type VehicleModel = {
 export type ServiceZone = {
   id: string;
   name: string;
-  cityId: string;
-  cityName: string;
+  // Optional: a zone is a standalone geofence, not a City's child. Only set
+  // when an admin has linked it into the customer/agent signup society picker.
+  cityId?: string | null;
+  cityName?: string;
   active: boolean;
   color?: string;
   coordinates?: [number, number][];
@@ -244,7 +245,8 @@ export type ServiceZone = {
     type: "Polygon";
     coordinates: [number, number][][];
   };
-  pincodes?: string[];
+  // Agents currently, live, physically inside this zone right now — computed
+  // fresh each request, not a static assignment count.
   agentCount?: number;
 };
 

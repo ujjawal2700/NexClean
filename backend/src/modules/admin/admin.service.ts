@@ -330,7 +330,6 @@ function mapAgent(a: UserDoc) {
     email: a.email ?? "",
     city: a.city ?? "",
     area: a.area ?? "",
-    zoneId: a.zoneId ? String(a.zoneId) : null,
     rating: a.rating ?? 0,
     jobsDone: a.jobsDone ?? 0,
     online: isAgentLive(a),
@@ -632,7 +631,6 @@ export type AgentInput = {
   email?: string;
   city?: string;
   area?: string;
-  zoneId?: string | null;
   agentStatus?: AgentStatus;
   aadharNumber?: string;
   rating?: number;
@@ -642,20 +640,13 @@ export async function createAgent(input: AgentInput) {
   const phone = normalizePhone(input.phone);
   await assertPhoneFree(phone);
   const agentStatus = input.agentStatus ?? "verified";
-  let area = input.area?.trim() ?? "";
-  let zoneId = input.zoneId || null;
-  if (zoneId) {
-    const z = await ServiceZone.findById(zoneId);
-    if (z) area = z.name;
-  }
   const agent = await User.create({
     name: input.name.trim(),
     phone,
     email: input.email?.trim() ?? "",
     role: "agent",
     city: input.city?.trim() ?? "",
-    area,
-    zoneId,
+    area: input.area?.trim() ?? "",
     // Admin-created cleaners are trusted by default — an admin adding someone
     // by hand has already vetted them, and "pending" would strand them behind
     // a KYC screen they never went through.
@@ -686,19 +677,7 @@ export async function updateAgent(id: string, input: Partial<AgentInput>) {
   if (input.name !== undefined) agent.name = input.name.trim();
   if (input.email !== undefined) agent.email = input.email.trim();
   if (input.city !== undefined) agent.city = input.city.trim();
-  if (input.zoneId !== undefined) {
-    if (input.zoneId) {
-      const z = await ServiceZone.findById(input.zoneId);
-      if (z) {
-        agent.zoneId = z._id as any;
-        agent.area = z.name;
-      }
-    } else {
-      agent.zoneId = null as any;
-    }
-  } else if (input.area !== undefined) {
-    agent.area = input.area.trim();
-  }
+  if (input.area !== undefined) agent.area = input.area.trim();
   if (input.aadharNumber !== undefined) agent.aadharNumber = input.aadharNumber.trim();
   if (input.rating !== undefined) agent.rating = Number(input.rating);
 

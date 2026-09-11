@@ -6,7 +6,7 @@ import { agentLiveSince, isAgentLive } from "../user/presence";
 import { notifyUser, pushToUser } from "../notification/notification.service";
 import { emitToUser, emitToAdmins, emitToRoom } from "../../shared/services/socket";
 import { haversineMeters, type LngLat } from "../../shared/geo";
-import { findNearestEligibleAgents, type NearbyAgent } from "./dispatch.query";
+import { buildDispatchTiers, findAcrossTiers, findNearestEligibleAgents, type NearbyAgent } from "./dispatch.query";
 import { payoutCalculator } from "../payout/payoutConfig.service";
 import {
   broadcastJobStatus,
@@ -16,7 +16,6 @@ import {
 } from "../tracking/tracking.service";
 import {
   OFFER_TTL_MS,
-  SEARCH_RADII_M,
   OFFER_BATCH,
   SWEEP_INTERVAL_MS,
   SUBSCRIPTION_LEAD_MS,
@@ -134,7 +133,8 @@ export async function startDispatch(bookingId: string): Promise<void> {
   const b = await Booking.findById(bookingId).populate("user", "name");
   if (!b) return;
   b.dispatchStatus = "searching";
-  b.searchRadiusM = SEARCH_RADII_M[0] ?? 3000;
+  b.dispatchTierIndex = 0;
+  b.searchRadiusM = 0;
   b.set("declinedAgents", []);
   b.dispatchAttempts = 0;
   b.currentOfferAgent = null;
@@ -171,13 +171,18 @@ export async function offerNext(bookingId: string): Promise<void> {
   const excluded = (b.declinedAgents ?? []).map((d) => String(d));
 
   if (point) {
-    // ── GEO PATH: Booking has coordinates → nearest-first ──────────────────
-    const startIdx = Math.max(0, SEARCH_RADII_M.indexOf(b.searchRadiusM || SEARCH_RADII_M[0]));
-    for (let i = startIdx; i < SEARCH_RADII_M.length; i++) {
-      const radius = SEARCH_RADII_M[i];
-      const candidates = await findNearestEligibleAgents(point, radius, excluded, OFFER_BATCH);
+    // ── GEO PATH: Booking has coordinates → nearest zone to farthest ───────
+    // Tiers are rebuilt fresh each call (zones rarely change and the search is
+    // resumed by index, not by re-deriving where we left off) — the zone
+    // containing the booking is always tier 0 at distance 0, then outward by
+    // distance, with an unrestricted flat-radius tier last as a catch-all.
+    const tiers = await buildDispatchTiers(point);
+    const startIdx = Math.min(Math.max(0, b.dispatchTierIndex ?? 0), tiers.length - 1);
+    for (let i = startIdx; i < tiers.length; i++) {
+      const tier = tiers[i];
+      const candidates = await findNearestEligibleAgents(point, tier.filterRadiusM, excluded, OFFER_BATCH, tier.ring);
       const candidate = candidates[0];
-      if (!candidate) continue; // widen to the next ring
+      if (!candidate) continue; // widen to the next tier
 
       // Atomically lock the cleaner to this offer (guards concurrent dispatch).
       const locked = await User.updateOne(
@@ -185,7 +190,7 @@ export async function offerNext(bookingId: string): Promise<void> {
         { currentOfferBooking: b._id },
       );
       if (locked.modifiedCount === 0) {
-        excluded.push(candidate.id); // taken by another job — skip and retry this ring
+        excluded.push(candidate.id); // taken by another job — skip and retry this tier
         i--;
         continue;
       }
@@ -193,7 +198,8 @@ export async function offerNext(bookingId: string): Promise<void> {
       b.set("currentOfferAgent", new Types.ObjectId(candidate.id));
       b.offerExpiresAt = new Date(Date.now() + OFFER_TTL_MS);
       b.dispatchStatus = "offered";
-      b.searchRadiusM = radius;
+      b.dispatchTierIndex = i;
+      b.searchRadiusM = tier.displayRadiusM;
       b.dispatchAttempts = (b.dispatchAttempts ?? 0) + 1;
       await b.save();
 
@@ -202,7 +208,7 @@ export async function offerNext(bookingId: string): Promise<void> {
       emitDispatchUpdate();
       return;
     }
-    // All radii exhausted → admin queue
+    // All tiers exhausted → admin queue
     await moveToAdminQueue(b);
     return;
   }
@@ -355,9 +361,10 @@ export async function autoAssignNearest(bookingId: string) {
   if (!booking) throw ApiError.notFound("Booking not found");
   const point = bookingPoint(booking);
   if (!point) throw ApiError.badRequest("This booking has no saved location to rank cleaners by");
-  const [candidate] = await findNearestEligibleAgents(point, SEARCH_RADII_M[SEARCH_RADII_M.length - 1], [], 1);
-  if (!candidate) throw ApiError.badRequest("No available cleaners nearby to auto-assign");
-  return assignAgentToBooking(bookingId, candidate.id);
+  const tiers = await buildDispatchTiers(point);
+  const found = await findAcrossTiers(point, tiers, 0, [], 1);
+  if (!found) throw ApiError.badRequest("No available cleaners nearby to auto-assign");
+  return assignAgentToBooking(bookingId, found.candidates[0].id);
 }
 
 /**
@@ -510,9 +517,10 @@ export async function runSubscriptionScheduler(): Promise<void> {
       await moveToAdminQueue(b);
       continue;
     }
-    const [candidate] = await findNearestEligibleAgents(point, SEARCH_RADII_M[SEARCH_RADII_M.length - 1], [], 1);
-    if (candidate) {
-      await assignAgentToBooking(String(b._id), candidate.id);
+    const tiers = await buildDispatchTiers(point);
+    const found = await findAcrossTiers(point, tiers, 0, [], 1);
+    if (found) {
+      await assignAgentToBooking(String(b._id), found.candidates[0].id);
     } else if (b.date.getTime() <= now) {
       // Slot has arrived and still nobody available → let an admin place it.
       await moveToAdminQueue(b);

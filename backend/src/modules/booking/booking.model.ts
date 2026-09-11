@@ -135,6 +135,11 @@ const bookingSchema = new Schema(
     offerExpiresAt: { type: Date, default: null },
     declinedAgents: { type: [Types.ObjectId], default: [] },
     searchRadiusM: { type: Number, default: 0 },
+    // Index into this booking's ordered dispatch tier list (zones nearest to
+    // farthest, then a flat-radius catch-all) — see dispatch/dispatch.query.ts
+    // buildDispatchTiers. Persisted so a resumed/retried search continues from
+    // where it left off instead of restarting at the nearest zone every sweep.
+    dispatchTierIndex: { type: Number, default: 0 },
     dispatchAttempts: { type: Number, default: 0 },
 
     // Auto-reschedule tracking

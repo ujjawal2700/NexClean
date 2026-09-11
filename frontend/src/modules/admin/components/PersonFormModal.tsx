@@ -13,7 +13,6 @@ export type PersonValues = {
   // Agent-only
   city?: string;
   area?: string;
-  zoneId?: string | null;
   agentStatus?: AgentStatus;
   aadharNumber?: string;
   rating?: number;
@@ -35,7 +34,6 @@ export type PersonInitial = {
   email?: string;
   area?: string;
   city?: string;
-  zoneId?: string | null;
   aadharNumber?: string;
   rating?: number;
   status?: string;
@@ -164,7 +162,6 @@ export function PersonFormModal({
       email: initial?.email ?? "",
       city: initial?.city ?? "",
       area: initial?.area ?? "",
-      zoneId: initial?.zoneId ?? null,
       agentStatus: (initial?.agentStatus ??
         initial?.status ??
         "verified") as AgentStatus,
@@ -191,7 +188,6 @@ export function PersonFormModal({
     initial?.phone,
     initial?.email,
     initial?.rating,
-    initial?.zoneId,
   ]);
 
   if (!open) return null;
@@ -228,7 +224,6 @@ export function PersonFormModal({
             ...base,
             city: values.city?.trim() ?? "",
             area: values.area?.trim() ?? "",
-            zoneId: values.zoneId ?? null,
             agentStatus: values.agentStatus,
             aadharNumber: values.aadharNumber?.trim() ?? "",
             rating:
@@ -325,7 +320,6 @@ export function PersonFormModal({
                           ...v,
                           city: e.target.value,
                           area: "",
-                          zoneId: null,
                         }))
                       }>
                       <option value="">Select a city…</option>
@@ -349,15 +343,7 @@ export function PersonFormModal({
                       value={values.area ?? ""}
                       disabled={!values.city}
                       onChange={(e) => {
-                        const areaName = e.target.value;
-                        const matchingZone = cityZones.find(
-                          (z) => z.name === areaName,
-                        );
-                        setValues((v) => ({
-                          ...v,
-                          area: areaName,
-                          zoneId: matchingZone ? matchingZone.id : null,
-                        }));
+                        setValues((v) => ({ ...v, area: e.target.value }));
                       }}>
                       <option value="">
                         {values.city
