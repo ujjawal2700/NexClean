@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback, useEffect } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import {
   MapPin,
   Building2,
@@ -19,9 +19,8 @@ import {
 import {
   GoogleMap,
   useJsApiLoader,
+  DrawingManager,
   Polygon,
-  Polyline,
-  Marker,
   Autocomplete,
 } from "@react-google-maps/api";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -42,12 +41,6 @@ import type { ServiceZone } from "../types";
 
 const defaultCenter = { lat: 12.9716, lng: 77.5946 }; // Bengaluru default
 const mapContainerStyle = { width: "100%", height: "100%" };
-
-// How close (in screen pixels) a click needs to land to the start vertex,
-// once there are enough points, to close the loop instead of adding a new
-// point. Generous relative to the 22px start-marker icon so it's an easy
-// target, not a precision test.
-const CLOSE_LOOP_HIT_RADIUS_PX = 16;
 
 const ZONE_COLORS = [
   "#4F7CFF", // NexClean Indigo
@@ -97,85 +90,6 @@ const computeCenter = (coords: [number, number][]) => {
     lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
   };
 };
-
-/* ------------------------- self-intersection check ------------------------ */
-// Mirrors backend/src/shared/geo.ts's segmentsIntersect/wouldSelfIntersect
-// exactly, so a bowtie shape is rejected the instant it's clicked here rather
-// than only discovered when the server rejects the save. [lng, lat] pairs to
-// match GeoJSON, same as the rest of this file's coordinate handling.
-type LngLat = [number, number];
-
-function orientation(p: LngLat, q: LngLat, r: LngLat): 0 | 1 | 2 {
-  const val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
-  if (val === 0) return 0;
-  return val > 0 ? 1 : 2;
-}
-
-function onSegment(p: LngLat, q: LngLat, r: LngLat): boolean {
-  return (
-    q[0] <= Math.max(p[0], r[0]) &&
-    q[0] >= Math.min(p[0], r[0]) &&
-    q[1] <= Math.max(p[1], r[1]) &&
-    q[1] >= Math.min(p[1], r[1])
-  );
-}
-
-function segmentsIntersect(p1: LngLat, p2: LngLat, p3: LngLat, p4: LngLat): boolean {
-  const o1 = orientation(p1, p2, p3);
-  const o2 = orientation(p1, p2, p4);
-  const o3 = orientation(p3, p4, p1);
-  const o4 = orientation(p3, p4, p2);
-  if (o1 !== o2 && o3 !== o4) return true;
-  if (o1 === 0 && onSegment(p1, p3, p2)) return true;
-  if (o2 === 0 && onSegment(p1, p4, p2)) return true;
-  if (o3 === 0 && onSegment(p3, p1, p4)) return true;
-  if (o4 === 0 && onSegment(p3, p2, p4)) return true;
-  return false;
-}
-
-/** Would the edge from the last placed point to `candidate` cross any edge already drawn? */
-function wouldSelfIntersect(openPoints: LngLat[], candidate: LngLat): boolean {
-  if (openPoints.length < 2) return false;
-  const newEdgeStart = openPoints[openPoints.length - 1];
-  for (let i = 0; i < openPoints.length - 2; i++) {
-    if (segmentsIntersect(newEdgeStart, candidate, openPoints[i], openPoints[i + 1])) return true;
-  }
-  return false;
-}
-
-/** Is the fully-closed ring (first point repeated as the last) free of self-crossings? */
-function isSimplePolygon(ring: LngLat[]): boolean {
-  const n = ring.length - 1;
-  if (n < 3) return false;
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const adjacent = j === i + 1 || (i === 0 && j === n - 1);
-      if (adjacent) continue;
-      if (segmentsIntersect(ring[i], ring[i + 1], ring[j], ring[j + 1])) return false;
-    }
-  }
-  return true;
-}
-
-/**
- * Small filled-circle marker icons for drawing vertices — no default red map
- * pins. The start point renders larger and primary-filled once the polygon
- * has enough points to close, inviting the click that completes it.
- */
-function vertexIcon(kind: "normal" | "start-inactive" | "start-active"): google.maps.Icon {
-  const svg =
-    kind === "start-active"
-      ? `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22"><circle cx="11" cy="11" r="8.5" fill="#4F7CFF" stroke="white" stroke-width="2.5"/></svg>`
-      : kind === "start-inactive"
-        ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14"><circle cx="7" cy="7" r="5" fill="white" stroke="#4F7CFF" stroke-width="2.5"/></svg>`
-        : `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"><circle cx="6" cy="6" r="4" fill="white" stroke="#8B9BFF" stroke-width="2"/></svg>`;
-  const size = kind === "start-active" ? 22 : kind === "start-inactive" ? 14 : 12;
-  return {
-    url: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`,
-    scaledSize: new window.google.maps.Size(size, size),
-    anchor: new window.google.maps.Point(size / 2, size / 2),
-  };
-}
 
 /* -------------------------------------------------------------------------- */
 /*                               CITIES PANEL                                 */
@@ -337,18 +251,11 @@ export function Locations() {
   const [isBoundaryEditing, setIsBoundaryEditing] = useState(false);
   const [liveVertexCount, setLiveVertexCount] = useState(0);
 
-  // Drawing mode: null (off) | "polygon" (click-to-place active). The zone
-  // only completes when the user closes the loop back on the start point —
-  // never on a click elsewhere — so the placed-but-unclosed vertices live
-  // here, not as a Google DrawingManager overlay.
+  // Drawing mode: null (off) | "polygon" (Google's native DrawingManager
+  // overlay active). The zone completes when Google reports the polygon
+  // complete (onPolygonComplete) — same mechanism as ezoflife's Geofence
+  // Management page.
   const [drawingMode, setDrawingMode] = useState<string | null>(null);
-  const [drawingPoints, setDrawingPoints] = useState<{ lat: number; lng: number }[]>([]);
-  // Live rubber-band segment from the last placed point to the cursor —
-  // updated via rAF (see handleMapMouseMove) so it can't flood React with a
-  // state update on every pixel of mouse movement.
-  const [cursorPos, setCursorPos] = useState<{ lat: number; lng: number } | null>(null);
-  const cursorRafRef = useRef<number | null>(null);
-  const pendingCursorRef = useRef<{ lat: number; lng: number } | null>(null);
 
   // Search filter for zone list
   const [zoneSearch, setZoneSearch] = useState("");
@@ -371,11 +278,6 @@ export function Locations() {
   const editPolygonRef = useRef<google.maps.Polygon | null>(null);
   const originalCoordsRef = useRef<[number, number][] | null>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  // A do-nothing OverlayView, kept alive for the map's whole lifetime purely to
-  // get a MapCanvasProjection out of it (Google doesn't expose pixel<->LatLng
-  // conversion on the Map object directly — an attached OverlayView is the
-  // documented way to get one). See the drawing-click effect below for why.
-  const projectionOverlayRef = useRef<google.maps.OverlayView | null>(null);
 
   // Load Google Maps SDK
   const { isLoaded } = useJsApiLoader(GOOGLE_MAPS_LOADER_OPTIONS);
@@ -500,148 +402,47 @@ export function Locations() {
     showToast("Boundary reset to initial coordinates", "info");
   };
 
-  /**
-   * Core click-to-place logic, driven by lat/lng + screen pixel — deliberately
-   * NOT wired to GoogleMap's own onClick/onMouseDown. Google's Map class holds
-   * back its own synthetic mouse events for some internal gesture-disambiguation
-   * window (confirmed by testing: neither onClick nor onMouseDown escape it,
-   * and disableDoubleClickZoom doesn't touch it either) — two clicks placed at
-   * a normal quick pace, which is exactly how corners get drawn, can lose the
-   * second one entirely. See the raw-DOM listener effect below, which bypasses
-   * Maps' event system and calls this directly.
-   *
-   * Closing the loop is a proximity check here (screen pixels to the start
-   * point) rather than the start Marker's own onClick, for the same reason —
-   * relying on Maps' synthetic marker click for "close the loop" would still
-   * be able to lose a quick tap.
-   */
-  const handleDrawSurfaceClick = useCallback(
-    (lat: number, lng: number, pixel: { x: number; y: number }) => {
-      if (!drawingMode) return;
+  // Drawing complete — Google's native DrawingManager hands us the finished
+  // polygon here (double-click, or clicking back on the start vertex).
+  // Mirrors ezoflife's Geofence Management onPolygonComplete exactly: pull
+  // the path off the polygon, reject it on overlap with an existing zone,
+  // then hand the shape to the configure panel as a new (unsaved) zone.
+  const onPolygonComplete = (polygon: google.maps.Polygon) => {
+    const path = polygon.getPath();
+    const coordinates: [number, number][] = [];
+    const googlePath: google.maps.LatLng[] = [];
+    for (let i = 0; i < path.getLength(); i++) {
+      const pt = path.getAt(i);
+      coordinates.push([pt.lng(), pt.lat()]);
+      googlePath.push(new window.google.maps.LatLng(pt.lat(), pt.lng()));
+    }
+    coordinates.push(coordinates[0]);
 
-      if (drawingPoints.length >= 3) {
-        const projection = projectionOverlayRef.current?.getProjection();
-        const start = drawingPoints[0];
-        const startPixel = projection?.fromLatLngToContainerPixel(new window.google.maps.LatLng(start.lat, start.lng));
-        if (startPixel && Math.hypot(pixel.x - startPixel.x, pixel.y - startPixel.y) <= CLOSE_LOOP_HIT_RADIUS_PX) {
-          finishDrawing();
-          return;
-        }
-      }
-
-      const candidate: [number, number] = [lng, lat];
-      const openRing: [number, number][] = drawingPoints.map((p) => [p.lng, p.lat]);
-      if (wouldSelfIntersect(openRing, candidate)) {
-        showToast(
-          "That point would cross a line you've already drawn — pick a spot that doesn't cross the boundary.",
-          "error",
-        );
-        return;
-      }
-      setDrawingPoints((prev) => [...prev, { lat, lng }]);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [drawingMode, drawingPoints],
-  );
-
-  // Bypasses @react-google-maps/api's onClick/onMouseDown entirely (see
-  // handleDrawSurfaceClick's comment) — and bypasses google.maps.event
-  // altogether, not just React's wrapper. Confirmed by testing: a listener
-  // added directly to the map's own DOM surface (even capture-phase, even
-  // that exact element) never fires either — Maps' own internal gesture
-  // handling sits between it and document and stops the event first. A
-  // capture-phase listener on document itself runs before that's possible,
-  // since capture always proceeds top-down from document. Re-binds whenever
-  // drawingPoints changes so the closure is never stale — a plain
-  // addEventListener/removeEventListener cycle is cheap, unlike recreating
-  // Maps overlays.
-  useEffect(() => {
-    if (!drawingMode) return;
-    const map = mapRef.current;
-    if (!map || !window.google) return;
-    const mapDiv = map.getDiv();
-
-    const handler = (event: MouseEvent) => {
-      const target = event.target as HTMLElement | null;
-      // Not a click on the map itself, or on this page's own controls
-      // (search box, drawing banner, zoom/street-view/map-type buttons —
-      // none of those should place a point).
-      if (!mapDiv.contains(target)) return;
-      if (target?.closest("[data-map-ui-overlay]")) return;
-      if (target?.closest(".gmnoprint, .gm-control-active, button, input")) return;
-
-      const projection = projectionOverlayRef.current?.getProjection();
-      if (!projection) return;
-      const rect = mapDiv.getBoundingClientRect();
-      const point = new window.google.maps.Point(event.clientX - rect.left, event.clientY - rect.top);
-      const latLng = projection.fromContainerPixelToLatLng(point);
-      if (!latLng) return;
-      handleDrawSurfaceClick(latLng.lat(), latLng.lng(), { x: point.x, y: point.y });
-    };
-
-    document.addEventListener("mousedown", handler, true);
-    return () => document.removeEventListener("mousedown", handler, true);
-  }, [drawingMode, handleDrawSurfaceClick]);
-
-  // Throttled cursor tracking for the rubber-band preview segment — coalesced
-  // to one state update per animation frame so mousemove can't flood React.
-  const handleMapMouseMove = (e: google.maps.MapMouseEvent) => {
-    if (!drawingMode || drawingPoints.length === 0 || !e.latLng) return;
-    pendingCursorRef.current = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-    if (cursorRafRef.current != null) return;
-    cursorRafRef.current = requestAnimationFrame(() => {
-      cursorRafRef.current = null;
-      setCursorPos(pendingCursorRef.current);
+    // Overlap collision detection against existing zones
+    const existingPolygons = zones.map((z) => {
+      const paths = getCoords(z).map((c) => ({ lat: c[1], lng: c[0] }));
+      return new window.google.maps.Polygon({ paths });
     });
-  };
+    const bounds = new window.google.maps.LatLngBounds();
+    googlePath.forEach((pt) => bounds.extend(pt));
+    const center = bounds.getCenter();
 
-  const handleUndoPoint = () => {
-    setDrawingPoints((prev) => prev.slice(0, -1));
-  };
-
-  // Close the loop — the ONLY way a zone gets created. Fired by clicking the
-  // start vertex again (or the "Close Loop" button, same action) once there
-  // are at least 3 points.
-  const finishDrawing = () => {
-    if (drawingPoints.length < 3) return;
-    const coordinates: [number, number][] = drawingPoints.map((p) => [p.lng, p.lat]);
-    coordinates.push([coordinates[0][0], coordinates[0][1]]); // close the ring
-
-    if (!isSimplePolygon(coordinates)) {
-      showToast(
-        "This shape crosses itself — undo the last point or start over to fix it before closing.",
-        "error",
+    const isOverlapping = existingPolygons.some((poly) => {
+      const isCenterInside = window.google.maps.geometry.poly.containsLocation(center, poly);
+      const isAnyVertexInside = googlePath.some((v) =>
+        window.google.maps.geometry.poly.containsLocation(v, poly),
       );
+      return isCenterInside || isAnyVertexInside;
+    });
+
+    if (isOverlapping) {
+      showToast("Overlap detected! Cannot draw over an existing zone.", "error");
+      polygon.setMap(null);
       return;
     }
 
-    // Overlap collision detection against existing zones
-    if (window.google?.maps?.geometry?.poly) {
-      const googlePath = coordinates.map(([lng, lat]) => new window.google.maps.LatLng(lat, lng));
-      const existingPolys = zones.map((z) => {
-        const p = getCoords(z).map((c) => ({ lat: c[1], lng: c[0] }));
-        return new window.google.maps.Polygon({ paths: p });
-      });
-      const bounds = new window.google.maps.LatLngBounds();
-      googlePath.forEach((pt) => bounds.extend(pt));
-      const center = bounds.getCenter();
-      const isOverlapping = existingPolys.some((existing) => {
-        const centerIn = window.google.maps.geometry.poly.containsLocation(center, existing);
-        const vertexIn = googlePath.some((v) => window.google.maps.geometry.poly.containsLocation(v, existing));
-        return centerIn || vertexIn;
-      });
-      if (isOverlapping) {
-        showToast(
-          "Overlap detected! Zone intersects an existing service area.",
-          "error",
-        );
-        return;
-      }
-    }
-
+    polygon.setMap(null);
     setDrawingMode(null);
-    setDrawingPoints([]);
-    setCursorPos(null);
 
     const color = ZONE_COLORS[zones.length % ZONE_COLORS.length];
     originalCoordsRef.current = JSON.parse(JSON.stringify(coordinates));
@@ -652,7 +453,9 @@ export function Locations() {
       coordinates,
       isNew: true,
     });
-    setLiveVertexCount(coordinates.length - 1);
+    setLiveVertexCount(
+      coordinates.length > 1 ? coordinates.length - 1 : coordinates.length,
+    );
     setIsBoundaryEditing(false);
     showToast(
       "New zone boundary created. Complete details below and save.",
@@ -1155,8 +958,6 @@ export function Locations() {
               onClick={() => {
                 setSelectedZone(null);
                 setIsBoundaryEditing(false);
-                setDrawingPoints([]);
-                setCursorPos(null);
                 setDrawingMode(drawingMode ? null : "polygon");
               }}
               variant={drawingMode ? "outline" : "primary"}
@@ -1216,19 +1017,8 @@ export function Locations() {
                 mapContainerStyle={mapContainerStyle}
                 center={defaultCenter}
                 zoom={12}
-                onMouseMove={handleMapMouseMove}
                 onLoad={(map) => {
                   mapRef.current = map;
-                  // Do-nothing OverlayView kept alive for pixel<->LatLng
-                  // conversion — see handleDrawSurfaceClick's comment.
-                  if (!projectionOverlayRef.current) {
-                    const helper = new window.google.maps.OverlayView();
-                    helper.onAdd = () => {};
-                    helper.draw = () => {};
-                    helper.onRemove = () => {};
-                    helper.setMap(map);
-                    projectionOverlayRef.current = helper;
-                  }
                   if (zones.length > 0) {
                     const firstCoords = getCoords(zones[0]);
                     if (firstCoords.length > 0) {
@@ -1242,18 +1032,11 @@ export function Locations() {
                   streetViewControl: false,
                   mapTypeControl: false,
                   fullscreenControl: true,
-                  draggableCursor: drawingMode ? "crosshair" : undefined,
                   clickableIcons: false,
-                  // Two clicks placed close together (in position or timing) —
-                  // exactly the normal rhythm of placing polygon corners — are
-                  // otherwise indistinguishable from a double-click, and the
-                  // browser/Maps API swallows the second one as a zoom gesture
-                  // instead of delivering it as a click. Off for the whole
-                  // session rather than toggled per drawingMode: reshaping an
-                  // existing boundary (isBoundaryEditing) drags vertices with
-                  // the same rhythm and needs the same protection, and losing
-                  // double-click-to-zoom costs nothing — the +/- controls and
-                  // scroll-to-zoom still work.
+                  // Reshaping an existing boundary (isBoundaryEditing) drags
+                  // vertices at the same rhythm DrawingManager uses to place
+                  // corners — losing double-click-to-zoom costs nothing here,
+                  // the +/- controls and scroll-to-zoom still work.
                   disableDoubleClickZoom: true,
                 }}>
                 {/* Autocomplete Search Overlay */}
@@ -1274,47 +1057,22 @@ export function Locations() {
 
                 {/* Drawing Mode Active Overlay Banner */}
                 {drawingMode && (
-                  <div data-map-ui-overlay className="absolute top-4 left-1/2 -translate-x-1/2 z-30">
+                  <div data-map-ui-overlay className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
                     <div className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-surface/95 px-5 py-3 shadow-[var(--shadow-lift)] backdrop-blur-md">
                       <div className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
                         <Plus className="size-4" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs font-semibold text-ink">
-                            Drawing Zone Boundary
-                          </p>
-                          <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-                            {drawingPoints.length} point{drawingPoints.length === 1 ? "" : "s"}
-                          </span>
-                        </div>
+                        <p className="text-xs font-semibold text-ink">
+                          Drawing Mode Active
+                        </p>
                         <p className="text-[10px] text-muted">
-                          {drawingPoints.length >= 3
-                            ? "Click the filled start point to close the loop"
-                            : "Click the map to place corners (min 3 points)"}
+                          Click on map to place corners · Double-click to finish
                         </p>
                       </div>
-                      {drawingPoints.length > 0 && (
-                        <button
-                          onClick={handleUndoPoint}
-                          className="rounded-xl border border-line bg-surface px-2.5 py-1.5 text-[11px] font-medium text-ink hover:bg-surface-muted transition-all cursor-pointer">
-                          Undo
-                        </button>
-                      )}
-                      {drawingPoints.length >= 3 && (
-                        <button
-                          onClick={finishDrawing}
-                          className="rounded-xl bg-primary px-3.5 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-soft transition-all shadow-xs cursor-pointer">
-                          Close Loop
-                        </button>
-                      )}
                       <button
-                        onClick={() => {
-                          setDrawingMode(null);
-                          setDrawingPoints([]);
-                          setCursorPos(null);
-                        }}
-                        className="rounded-xl bg-ink px-3 py-1.5 text-[11px] font-semibold text-surface hover:bg-ink-soft transition-all cursor-pointer">
+                        onClick={() => setDrawingMode(null)}
+                        className="pointer-events-auto rounded-xl bg-ink px-3 py-1.5 text-[11px] font-semibold text-surface hover:bg-ink-soft transition-all cursor-pointer">
                         Cancel
                       </button>
                     </div>
@@ -1351,67 +1109,29 @@ export function Locations() {
                   </div>
                 )}
 
-                {/* Click-to-place drawing: small circle markers (no default map
-                    pins), a live segment following the cursor, and a filled
-                    preview once there are enough points to close. The zone is
-                    only created by closing the loop — see finishDrawing. */}
-                {drawingMode && drawingPoints.length > 0 && (
-                  <>
-                    {drawingPoints.map((pt, idx) => {
-                      // A Marker is clickable by default regardless of whether
-                      // it does anything on click, and its hit-area extends
-                      // past the tiny custom icon — a real problem here, since
-                      // placing the next corner *near* an existing one is the
-                      // normal way to draw a zone, and Google Maps overlay
-                      // clicks don't bubble to the map underneath (same reason
-                      // the existing-zone Polygon has to forward clicks in
-                      // drawingMode below). Only the start point, and only
-                      // once it actually does something (closing the loop
-                      // needs 3+ points), should be able to intercept a click.
-                      const canClose = idx === 0 && drawingPoints.length >= 3;
-                      return (
-                        <Marker
-                          key={`draw-pt-${idx}`}
-                          position={pt}
-                          clickable={canClose}
-                          icon={vertexIcon(idx === 0 ? (canClose ? "start-active" : "start-inactive") : "normal")}
-                          title={
-                            canClose
-                              ? "Click to close the loop and create this zone"
-                              : idx === 0
-                                ? "Start point"
-                                : `Point ${idx + 1}`
-                          }
-                          onClick={() => {
-                            if (canClose) finishDrawing();
-                          }}
-                        />
-                      );
-                    })}
-
-                    {/* Placed segments, plus a live rubber-band segment to the cursor */}
-                    <Polyline
-                      path={cursorPos ? [...drawingPoints, cursorPos] : drawingPoints}
-                      options={{
-                        strokeColor: "#4F7CFF",
+                {/* Drawing manager — Google's native polygon draw tool. Only
+                    mounted while drawingMode === "polygon"; the zone is
+                    created once Google reports the polygon complete (double-
+                    click, or clicking back on the start point) via
+                    onPolygonComplete. Same mechanism as ezoflife's Geofence
+                    Management page. */}
+                {drawingMode && (
+                  <DrawingManager
+                    onPolygonComplete={onPolygonComplete}
+                    drawingMode={window.google?.maps?.drawing?.OverlayType?.POLYGON || "polygon"}
+                    options={{
+                      drawingControl: false,
+                      polygonOptions: {
+                        fillColor: "#4F7CFF",
+                        fillOpacity: 0.25,
                         strokeWeight: 2.5,
-                        strokeOpacity: 0.9,
-                      }}
-                    />
-
-                    {drawingPoints.length >= 3 && (
-                      <Polygon
-                        paths={drawingPoints}
-                        options={{
-                          fillColor: "#4F7CFF",
-                          fillOpacity: 0.2,
-                          strokeColor: "#4F7CFF",
-                          strokeWeight: 2,
-                          clickable: false,
-                        }}
-                      />
-                    )}
-                  </>
+                        strokeColor: "#4F7CFF",
+                        clickable: false,
+                        editable: true,
+                        zIndex: 1,
+                      },
+                    }}
+                  />
                 )}
 
                 {/* Render Existing Zones Polygons */}
