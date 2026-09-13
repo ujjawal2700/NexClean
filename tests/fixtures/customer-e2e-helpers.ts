@@ -36,11 +36,17 @@ export async function apiContext(): Promise<APIRequestContext> {
  * the always-valid demo code), using full absolute URLs — see the module
  * doc above for why this doesn't just call `loginByPhone` from
  * `fixtures/api-client.ts` directly. Mirrors that function's behavior/shape.
+ *
+ * verify-otp no longer upserts an account on a fresh phone — it requires one
+ * to already exist (see auth.service.ts's verifyOtp: NOT_REGISTERED if
+ * User.findOne comes back empty), so this registers the phone first. Signup
+ * alone doesn't mint a session, so it doesn't change what this returns.
  */
 export async function mintTokenForPhone(
   api: APIRequestContext,
   phone: string,
 ): Promise<{ token: string; userId: string }> {
+  await api.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
   await api.post(`${API_BASE_URL}/auth/send-otp`, { data: { phone } });
   const res = await api.post(`${API_BASE_URL}/auth/verify-otp`, { data: { phone, code: DEMO_OTP } });
   const body = (await res.json()) as { success?: boolean; data?: { token: string; user: { id: string } }; message?: string };

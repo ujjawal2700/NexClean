@@ -69,4 +69,25 @@ test.describe("Admin special coupons", () => {
     await assignResponse;
     await expect(rowB.getByText(`Assigned to ${customerName}`, { exact: false })).toBeVisible();
   });
+
+  test("Export Excel asks for a date range, then downloads an .xlsx workbook", async ({ page }) => {
+    // A fresh batch guarantees the export button (disabled when the list is
+    // empty) is enabled, regardless of what else is in the shared dev DB.
+    await page.getByRole("button", { name: "Generate coupons" }).click();
+    await page.locator('input[name="count"]').fill("1");
+    await page.locator('input[name="value"]').fill("10");
+    const generateResponse = page.waitForResponse(
+      (res) => res.url().includes("/admin/special-coupons/generate") && res.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: /Generate \d+ coupon/ }).click();
+    await generateResponse;
+
+    await page.getByRole("button", { name: /Export Excel/i }).click();
+    await expect(page.getByText("Export Special Coupons")).toBeVisible();
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^nexclean-special-coupons-.+\.xlsx$/);
+  });
 });

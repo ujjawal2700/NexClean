@@ -42,7 +42,12 @@ async function unwrap<T>(res: { ok: () => boolean; json: () => Promise<unknown> 
  * permitted to edit that shared file, so these are the working equivalents
  * for the admin/area-alert/lead/notification spec files.
  */
+// verify-otp requires an existing account (NOT_REGISTERED otherwise) — see
+// fixtures/api-client.ts's loginByPhone doc for the full explanation. This
+// best-effort signup covers both fresh and already-registered phones; on an
+// existing number it just 400s and is ignored.
 export async function loginByPhoneApi(request: APIRequestContext, phone: string): Promise<{ token: string; userId: string }> {
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
   await request.post(apiUrl("/auth/send-otp"), { data: { phone } });
   const res = await request.post(apiUrl("/auth/verify-otp"), { data: { phone, code: DEMO_OTP } });
   const data = await unwrap<{ token: string; user: { id: string } }>(res, "verify-otp");

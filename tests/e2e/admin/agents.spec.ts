@@ -21,6 +21,19 @@ test.describe("Admin Agents", () => {
     await page.locator('input[name="search"]').fill("");
   });
 
+  test("Export Excel asks for a date range, then downloads an .xlsx workbook", async ({ page }) => {
+    await page.locator('input[name="search"]').fill(SEED_AGENT_PHONE);
+    await expect(page.getByText("Rohit Kumar")).toBeVisible();
+
+    await page.getByRole("button", { name: /Export Excel/i }).click();
+    await expect(page.getByText("Export Agents")).toBeVisible();
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^nexclean-agents-.+\.xlsx$/);
+  });
+
   test("filter pills narrow the list", async ({ page }) => {
     const cards = page.locator("div.glass");
     await expect(cards.first()).toBeVisible();

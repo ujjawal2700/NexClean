@@ -61,7 +61,12 @@ export async function mintTokenForPhone(
 
 /** Mints a token for a fresh, never-before-seen customer phone. */
 export async function loginAsFreshCustomer(api: APIRequestContext) {
-  return mintTokenForPhone(api, freshPhone());
+  const phone = freshPhone();
+  // A fresh phone must be registered before it can verify an OTP, or
+  // verify-otp rejects it as NOT_REGISTERED — same absolute-URL requirement
+  // as everything else in this file, see the module doc above.
+  await api.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
+  return mintTokenForPhone(api, phone);
 }
 
 /** PATCH the given customer's display name via a full absolute URL. */

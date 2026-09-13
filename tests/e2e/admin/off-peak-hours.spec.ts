@@ -141,7 +141,14 @@ test.describe("Admin off-peak hours", () => {
   });
 
   test("the peak upgrade fee persists", async ({ page }) => {
-    await page.locator('input[name="peakUpgradeFee"]').fill("175");
+    // Off-peak config is a singleton document, not per-test data — a prior
+    // run may have already left the fee at 175, which would make Save a
+    // no-op change (button stays disabled forever). Pick whichever of two
+    // values differs from what's on screen right now.
+    const feeInput = page.locator('input[name="peakUpgradeFee"]');
+    const current = await feeInput.inputValue();
+    const nextFee = current === "175" ? "180" : "175";
+    await feeInput.fill(nextFee);
 
     const save = page.waitForResponse(
       (res) => res.url().includes("/admin/off-peak-hours") && res.request().method() === "PUT",
@@ -150,7 +157,7 @@ test.describe("Admin off-peak hours", () => {
     expect((await save).status()).toBe(200);
 
     await page.reload();
-    await expect(page.locator('input[name="peakUpgradeFee"]')).toHaveValue("175");
+    await expect(page.locator('input[name="peakUpgradeFee"]')).toHaveValue(nextFee);
   });
 
   test("a negative fee blocks saving", async ({ page }) => {

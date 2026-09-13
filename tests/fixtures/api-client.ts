@@ -50,8 +50,20 @@ export function apiUrl(path: string): string {
   return path.startsWith("http") ? path.replace("localhost", "127.0.0.1") : `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
-/** Logs a phone in via the OTP flow (send + verify with the always-valid demo code) and returns a bearer token. */
+/**
+ * Logs a phone in via the OTP flow (send + verify with the always-valid demo
+ * code) and returns a bearer token.
+ *
+ * verify-otp no longer upserts an account on a fresh phone — it requires one
+ * to already exist (auth.service.ts's verifyOtp: NOT_REGISTERED if
+ * User.findOne comes back empty). Best-effort signup first covers both
+ * callers that pass a genuinely fresh phone (this used to just work) and
+ * ones that pass an already-registered phone (agent/admin fixtures, or a
+ * phone an earlier step in the same test already signed up) — signup on an
+ * existing number 400s and is ignored, it never touches that account's role.
+ */
 export async function loginByPhone(request: APIRequestContext, phone: string): Promise<{ token: string; userId: string }> {
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
   await request.post(apiUrl("/auth/send-otp"), { data: { phone } });
   const res = await request.post(apiUrl("/auth/verify-otp"), { data: { phone, code: DEMO_OTP } });
   const data = await unwrap<{ token: string; user: { id: string } }>(res, "verify-otp");

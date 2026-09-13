@@ -45,6 +45,19 @@ async function setArea(page: Page, area: string) {
   else if (options.length > 1) await areaSelect.selectOption({ index: 1 });
 }
 
+/**
+ * The delete confirmation dialog is now a two-step "Only" vs "with Data"
+ * choice (PersonFormModal.tsx) instead of a single Delete button, for both
+ * agents and customers. This drives the "with Data" path — a full,
+ * unconditional removal — which is the closest match to the old single-click
+ * delete these tests were written against.
+ */
+async function confirmHardDelete(page: Page, kind: "Agent" | "Customer") {
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: `Delete ${kind} with Data` }).click();
+  await dialog.getByRole("button", { name: `Yes, Delete ${kind} & All Data` }).click();
+}
+
 test.describe("Admin — agent CRUD", () => {
   test.beforeEach(async ({ page }) => {
     await loginAdminUI(page);
@@ -74,7 +87,7 @@ test.describe("Admin — agent CRUD", () => {
 
     await page.getByRole("button", { name: "Delete Zeta Renamed Agent" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await confirmHardDelete(page, "Agent");
 
     await expect(page.getByRole("dialog")).toBeHidden();
     await expect(page.getByText("No agents match your search.")).toBeVisible();
@@ -132,7 +145,7 @@ test.describe("Admin — customer CRUD", () => {
 
     await page.getByRole("button", { name: "Delete Zeta Renamed Customer" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await confirmHardDelete(page, "Customer");
 
     await expect(page.getByRole("dialog")).toBeHidden();
     await expect(page.getByText("No customers match your filters.")).toBeVisible();
@@ -153,7 +166,7 @@ test.describe("Admin — customer CRUD", () => {
     // Clean up so a rerun starts from the same state.
     await page.getByRole("button", { name: "Cancel" }).click();
     await page.getByRole("button", { name: "Delete Zeta Stay Put" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await confirmHardDelete(page, "Customer");
     await expect(page.getByRole("dialog")).toBeHidden();
   });
 });
@@ -187,7 +200,7 @@ test.describe("Admin — detail page actions", () => {
     await expect(page.getByRole("button", { name: "Suspend", exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Delete" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await confirmHardDelete(page, "Agent");
     await expect(page).toHaveURL(/\/admin\/agents$/);
     await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
   });
@@ -220,7 +233,7 @@ test.describe("Admin — detail page actions", () => {
     await expect(page.getByRole("button", { name: "Suspend" })).toBeVisible();
 
     await page.getByRole("button", { name: "Delete" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await confirmHardDelete(page, "Customer");
     await expect(page).toHaveURL(/\/admin\/customers$/);
     await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
   });
@@ -268,7 +281,7 @@ test.describe("Admin — richer forms and verification", () => {
     await expect(page.getByText("Zeta Aadhaar Agent")).toBeVisible();
 
     await page.getByRole("button", { name: "Delete Zeta Aadhaar Agent" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await confirmHardDelete(page, "Agent");
     await expect(page.getByRole("dialog")).toBeHidden();
   });
 
@@ -299,7 +312,7 @@ test.describe("Admin — richer forms and verification", () => {
     await expect(page.getByText("City ZX")).toBeVisible();
 
     await page.getByRole("button", { name: "Delete" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await confirmHardDelete(page, "Customer");
     await expect(page).toHaveURL(/\/admin\/customers$/);
   });
 
@@ -338,7 +351,7 @@ test.describe("Admin — richer forms and verification", () => {
     await expect(panel.getByText("Verified", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Delete" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Delete", exact: true }).click();
+    await confirmHardDelete(page, "Agent");
     await expect(page).toHaveURL(/\/admin\/agents$/);
   });
 });

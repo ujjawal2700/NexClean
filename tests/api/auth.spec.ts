@@ -19,8 +19,12 @@ test.describe("Auth", () => {
     expect(res.status()).toBe(400);
   });
 
-  test("verify-otp with the demo code logs in and upserts a customer", async ({ request }) => {
+  test("verify-otp with the demo code logs in a registered customer", async ({ request }) => {
+    // verify-otp no longer upserts an account on a fresh phone — it requires
+    // one to already exist (NOT_REGISTERED otherwise), so sign up first. See
+    // fixtures/api-client.ts's loginByPhone doc for the full explanation.
     const phone = freshPhone();
+    await request.post("/auth/customer/signup", { data: { name: "Test Customer", phone } });
     await request.post("/auth/send-otp", { data: { phone } });
     const res = await request.post("/auth/verify-otp", { data: { phone, code: DEMO_OTP } });
     expect(res.ok()).toBeTruthy();
@@ -30,8 +34,17 @@ test.describe("Auth", () => {
     expect(body.data.user.referralCode).toBeTruthy();
   });
 
+  test("verify-otp rejects an unregistered phone", async ({ request }) => {
+    const phone = freshPhone();
+    await request.post("/auth/send-otp", { data: { phone } });
+    const res = await request.post("/auth/verify-otp", { data: { phone, code: DEMO_OTP } });
+    expect(res.status()).toBe(404);
+    expect((await res.json()).message).toMatch(/not registered/i);
+  });
+
   test("verify-otp is idempotent-safe: same phone twice returns the same user id", async ({ request }) => {
     const phone = freshPhone();
+    await request.post("/auth/customer/signup", { data: { name: "Test Customer", phone } });
     await request.post("/auth/send-otp", { data: { phone } });
     const first = await (await request.post("/auth/verify-otp", { data: { phone, code: DEMO_OTP } })).json();
     await request.post("/auth/send-otp", { data: { phone } });

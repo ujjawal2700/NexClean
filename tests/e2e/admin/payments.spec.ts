@@ -32,6 +32,36 @@ test.describe("Admin Payments", () => {
     await expect(rows.first()).toBeVisible();
   });
 
+  test("Export Excel asks for a date range, then downloads an .xlsx workbook", async ({ page, request }) => {
+    await seedPayment(request);
+
+    await page.goto("/admin/payments");
+    await expect(page.locator("table tbody tr").first()).toBeVisible();
+
+    await page.getByRole("button", { name: /Export Excel/i }).click();
+    await expect(page.getByText("Export Payments")).toBeVisible();
+
+    // Leaving both dates blank exports everything currently matching the
+    // page's own filters — the simplest, most common case.
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^nexclean-payments-.+\.xlsx$/);
+  });
+
+  test("Export Excel rejects a 'from' date after the 'to' date", async ({ page, request }) => {
+    await seedPayment(request);
+
+    await page.goto("/admin/payments");
+    await page.getByRole("button", { name: /Export Excel/i }).click();
+
+    await page.locator('input[type="date"]').first().fill("2025-06-15");
+    await page.locator('input[type="date"]').nth(1).fill("2025-06-01");
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+
+    await expect(page.getByText("must be on or before")).toBeVisible();
+  });
+
   test("search filters the payments table down to nothing for a bogus query, and clearing restores it", async ({
     page,
     request,
@@ -97,28 +127,39 @@ test.describe("Admin Payments", () => {
     expect(resp.ok()).toBeTruthy();
   });
 
-  test("Refund button on a paid payment calls PATCH refund and flips the row to Refunded", async ({ page, request }) => {
+  test("Refund button opens the payment detail modal, and processing it calls PATCH refund with remarks", async ({
+    page,
+    request,
+  }) => {
     const { bookingId } = await seedPayment(request);
     forcePaymentPaidByBookingId(bookingId);
 
     await page.goto("/admin/payments");
     await page.locator("select").first().selectOption("paid");
 
+    // Refunds now go through the detail modal rather than firing blind, so a
+    // remark can always be captured against the ledger entry.
     const refundBtn = page.getByRole("button", { name: /Refund/i }).first();
     await expect(refundBtn).toBeVisible({ timeout: 10_000 });
+    await refundBtn.click();
+
+    await expect(page.getByText("Process a refund")).toBeVisible();
+    await page.getByPlaceholder(/Booking cancelled by admin/).fill("Customer requested refund — duplicate charge");
 
     const respPromise = page.waitForResponse(
       (r) => /\/admin\/payments\/.+\/refund$/.test(r.url()) && r.request().method() === "PATCH",
     );
-    await refundBtn.click();
+    await page.getByRole("button", { name: /Process refund/i }).click();
     const resp = await respPromise;
     expect(resp.ok()).toBeTruthy();
 
-    // The list is still filtered to "paid", so the refunded row has dropped out
-    // of view. Switch the status filter to "refunded" and assert it shows up
-    // there — the previous assertion matched the filter's own hidden <option>.
-    await page.locator("select").first().selectOption("refunded");
-    await expect(page.locator("table tbody tr").first()).toContainText("Refunded");
+    // The modal re-resolves against the live (now-refunded) payment, so the
+    // refund form gives way to the read-only refund summary in place.
+    // PaymentDetailModal isn't role="dialog", and the same modal also shows a
+    // "Refunded" status pill (a <span>) above this summary, plus the table
+    // row behind it and the filter's <select> option — so scope to the
+    // summary's own <p> tag rather than matching by text alone.
+    await expect(page.locator("p").filter({ hasText: /^Refunded$/ })).toBeVisible();
   });
 
   /**

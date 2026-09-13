@@ -174,6 +174,10 @@ export async function seedPendingAgent(request: APIRequestContext, namePrefix = 
 export async function seedNamedCustomer(request: APIRequestContext, name: string) {
   return withRetry(async () => {
     const phone = freshPhone();
+    // A fresh phone must be registered before it can verify an OTP — see
+    // loginAsNewCustomerApi, which does the same signup step. Without this,
+    // verify-otp rejects the phone as NOT_REGISTERED.
+    await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
     const { token, userId } = await loginByPhoneApi(request, phone);
     const res = await request.patch(apiUrl("/users/me"), { headers: authHeader(token), data: { name } });
     if (!res.ok()) {

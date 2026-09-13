@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { DEMO_OTP, freshPhone } from "../../fixtures/api-client";
+import { API_BASE_URL } from "../../playwright.config";
 
 test.describe("Customer login", () => {
   test("rejects an invalid phone number", async ({ page }) => {
@@ -14,6 +15,10 @@ test.describe("Customer login", () => {
 
   test("rejects a too-short OTP", async ({ page }) => {
     const phone = freshPhone();
+    // send-login-otp 404s with NOT_REGISTERED for a phone with no account —
+    // register it first so this test can reach the verify step (see
+    // fixtures/ui-helpers.ts's loginCustomerUI doc for the full explanation).
+    await page.request.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
     await page.goto("/app/login");
     await page.locator('input[name="phone"]').fill(phone);
     await page.getByRole("button", { name: "Send OTP" }).click();
@@ -25,6 +30,7 @@ test.describe("Customer login", () => {
 
   test("rejects a wrong OTP and stays on the verify step", async ({ page }) => {
     const phone = freshPhone();
+    await page.request.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
     await page.goto("/app/login");
     await page.locator('input[name="phone"]').fill(phone);
     await page.getByRole("button", { name: "Send OTP" }).click();
@@ -37,6 +43,7 @@ test.describe("Customer login", () => {
 
   test("logs in with a correct OTP and lands on the dashboard", async ({ page }) => {
     const phone = freshPhone();
+    await page.request.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
     await page.goto("/app/login");
     await page.locator('input[name="phone"]').fill(phone);
     await page.getByRole("button", { name: "Send OTP" }).click();
@@ -49,6 +56,7 @@ test.describe("Customer login", () => {
 
   test("Change number link returns to the phone step", async ({ page }) => {
     const phone = freshPhone();
+    await page.request.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
     await page.goto("/app/login");
     await page.locator('input[name="phone"]').fill(phone);
     await page.getByRole("button", { name: "Send OTP" }).click();

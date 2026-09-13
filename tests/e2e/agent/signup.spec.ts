@@ -27,9 +27,20 @@ async function seedLocation(request: APIRequestContext) {
   const zones = (await (await request.get(apiUrl("/admin/zones"), { headers: authHeader(token) })).json()).data as
     { name: string; cityName: string }[];
   if (!zones.some((z) => z.name === TEST_AREA && z.cityName === TEST_CITY)) {
+    // A zone is now a real geofence — boundary is required, not optional
+    // (see backend/src/modules/location/location.model.ts). Any small
+    // triangle works here; this zone's shape doesn't matter to this spec.
     await request.post(apiUrl("/admin/zones"), {
       headers: authHeader(token),
-      data: { name: TEST_AREA, cityId: city.id },
+      data: {
+        name: TEST_AREA,
+        cityId: city.id,
+        coordinates: [
+          [75.85, 22.71],
+          [75.86, 22.71],
+          [75.86, 22.72],
+        ],
+      },
     });
   }
 }

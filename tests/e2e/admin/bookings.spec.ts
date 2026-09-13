@@ -32,6 +32,16 @@ test.describe("Admin Bookings", () => {
     expect(countAfterClear).toBeGreaterThanOrEqual(1);
   });
 
+  test("Export Excel asks for a date range, then downloads an .xlsx workbook", async ({ page }) => {
+    await page.getByRole("button", { name: /Export Excel/i }).click();
+    await expect(page.getByText("Export Bookings")).toBeVisible();
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^nexclean-bookings-.+\.xlsx$/);
+  });
+
   test("status filter pills change the visible rows", async ({ page }) => {
     // The shared dev DB is under heavy concurrent write load from sibling
     // agents' suites, so comparing aggregate row counts before/after a

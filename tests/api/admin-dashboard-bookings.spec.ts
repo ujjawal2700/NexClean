@@ -111,6 +111,37 @@ test.describe("Admin — dashboard & bookings", () => {
       expect((await res.json()).data.status).toBe("cancelled");
     });
 
+    test("PATCH /admin/bookings/:id/cancel rejects cancelling an already-cancelled booking", async ({ request }) => {
+      const { token: customerToken } = await loginAsNewCustomerApi(request);
+      const bookingId = await createUnlocatedBooking(request, customerToken);
+      const { token: adminToken } = await loginAsAdminApi(request);
+
+      const first = await request.patch(apiUrl(`/admin/bookings/${bookingId}/cancel`), { headers: authHeader(adminToken) });
+      expect(first.ok()).toBeTruthy();
+
+      const second = await request.patch(apiUrl(`/admin/bookings/${bookingId}/cancel`), { headers: authHeader(adminToken) });
+      expect(second.status()).toBe(400);
+    });
+
+    test("PATCH /admin/bookings/:id/status rejects reopening a cancelled booking", async ({ request }) => {
+      const { token: customerToken } = await loginAsNewCustomerApi(request);
+      const bookingId = await createUnlocatedBooking(request, customerToken);
+      const { token: adminToken } = await loginAsAdminApi(request);
+
+      const cancel = await request.patch(apiUrl(`/admin/bookings/${bookingId}/cancel`), { headers: authHeader(adminToken) });
+      expect(cancel.ok()).toBeTruthy();
+
+      // A cancelled booking is a dead end: none of upcoming/in_progress/completed
+      // — nor cancelling it again through this endpoint — may resurrect it.
+      for (const status of ["upcoming", "in_progress", "completed", "cancelled"] as const) {
+        const res = await request.patch(apiUrl(`/admin/bookings/${bookingId}/status`), {
+          headers: authHeader(adminToken),
+          data: { status },
+        });
+        expect(res.status()).toBe(400);
+      }
+    });
+
     test("PATCH /admin/bookings/:id/cancel 404s for an unknown id", async ({ request }) => {
       const { token: adminToken } = await loginAsAdminApi(request);
       const res = await request.patch(apiUrl("/admin/bookings/000000000000000000000000/cancel"), {

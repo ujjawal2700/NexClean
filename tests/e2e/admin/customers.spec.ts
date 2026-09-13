@@ -23,6 +23,23 @@ test.describe("Admin Customers", () => {
     await expect(page.getByText("No customers match your filters.")).toBeVisible();
   });
 
+  test("Export Excel asks for a date range, then downloads an .xlsx workbook", async ({ page, request }) => {
+    const name = uniqueName("Export Test Customer");
+    await seedNamedCustomer(request, name);
+
+    await page.goto("/admin/customers");
+    await page.locator('input[name="search"]').fill(name);
+    await expect(page.locator("table tbody tr")).toHaveCount(1);
+
+    await page.getByRole("button", { name: /Export Excel/i }).click();
+    await expect(page.getByText("Export Customers")).toBeVisible();
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^nexclean-customers-.+\.xlsx$/);
+  });
+
   test("status filter pills narrow the table", async ({ page, request }) => {
     // The shared dev DB is under heavy concurrent write load from sibling
     // agents' suites (hundreds of rows can appear mid-test), so comparing

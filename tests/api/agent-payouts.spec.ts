@@ -8,7 +8,7 @@ const TINY_PNG =
 
 /**
  * The cleaner's cut used to be a hardcoded `price * 0.7` in four separate
- * places. It is now a single admin-managed rule (Admin → Money → Agent
+ * places. It is now a single admin-managed rule (Admin → Finance → Agent
  * Payouts); these cover the rule itself, the guardrails on it, and the promise
  * that editing it never re-prices work an agent has already finished.
  */

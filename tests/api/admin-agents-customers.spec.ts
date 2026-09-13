@@ -201,6 +201,9 @@ test.describe("Admin — customers", () => {
 
 /** Same as loginAsNewCustomerApi but for a caller-supplied phone, so the test above can re-login the same user later. */
 async function loginAsNewCustomerApiForPhone(request: APIRequestContext, phone: string) {
+  // verify-otp requires an existing account (NOT_REGISTERED otherwise) — see
+  // fixtures/api-client.ts's loginByPhone doc for the full explanation.
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
   await request.post(apiUrl("/auth/send-otp"), { data: { phone } });
   const res = await request.post(apiUrl("/auth/verify-otp"), { data: { phone, code: DEMO_OTP } });
   const body = await res.json();

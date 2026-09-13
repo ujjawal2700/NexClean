@@ -24,6 +24,9 @@ async function adminToken(api: APIRequestContext): Promise<string> {
 
 async function customerToken(api: APIRequestContext): Promise<string> {
   const phone = freshPhone();
+  // verify-otp requires an existing account (NOT_REGISTERED otherwise) — see
+  // fixtures/api-client.ts's loginByPhone doc for the full explanation.
+  await api.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
   await api.post(`${API_BASE_URL}/auth/send-otp`, { data: { phone } });
   const res = await api.post(`${API_BASE_URL}/auth/verify-otp`, { data: { phone, code: DEMO_OTP } });
   return (await res.json()).data.token;
