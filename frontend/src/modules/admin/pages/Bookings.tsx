@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, X, Wand2, Calendar, Loader2, Eye } from "lucide-react";
+import { Search, X, Wand2, Calendar, Loader2, Eye, FileSpreadsheet } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -8,6 +8,7 @@ import { Input } from "@shared/ui/Input";
 import { Pagination } from "@shared/ui/Pagination";
 import { SkeletonTableRows } from "@shared/ui/Skeleton";
 import { formatMoney, formatDate } from "@shared/lib/format";
+import { exportRowsToExcel } from "@shared/lib/exportExcel";
 import { usePagination } from "@shared/lib/usePagination";
 import {
   useBookings,
@@ -22,7 +23,8 @@ import {
   useCategoryLabel,
 } from "../api/admin.api";
 import { type BookingStatus, type AdminBooking } from "../types";
-import { BOOKING_STATUS_STYLE } from "../lib/status";
+import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
+import { ExportDateRangeModal } from "../components/ExportDateRangeModal";
 
 const TIME_SLOTS = [
   "08:00 AM",
@@ -218,6 +220,24 @@ function AgentCell({ booking }: { booking: AdminBooking }) {
 
 function StatusCell({ booking }: { booking: AdminBooking }) {
   const setStatus = useSetBookingStatus();
+
+  // A cancelled booking is a dead end, not a draft — the backend refuses to
+  // reopen one (its payment may already be queued for refund, its agent
+  // offer already released), so the dropdown shouldn't offer to try.
+  if (booking.status === "cancelled") {
+    return (
+      <span
+        className={cn(
+          "inline-flex h-8 items-center rounded-pill px-2.5 text-xs font-medium",
+          BOOKING_STATUS_STYLE[booking.status],
+        )}
+        title="Cancelled bookings cannot be reopened"
+      >
+        {BOOKING_STATUS_LABEL.cancelled}
+      </span>
+    );
+  }
+
   return (
     <select
       value={booking.status}
@@ -244,6 +264,7 @@ export function Bookings() {
   const [filter, setFilter] = useState<BookingStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [rescheduleBookingTarget, setRescheduleBookingTarget] = useState<AdminBooking | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const list = bookings.filter((b) => {
     const matchesStatus = filter === "all" || b.status === filter;
@@ -259,6 +280,31 @@ export function Bookings() {
 
   const paginated = usePagination(list, 10);
 
+  const exportExcel = (range: { from: Date | null; to: Date | null }) => {
+    const rows = list.filter((b) => {
+      const serviceDate = new Date(b.date);
+      if (range.from && serviceDate < range.from) return false;
+      if (range.to && serviceDate > range.to) return false;
+      return true;
+    });
+    exportRowsToExcel(
+      rows.map((b) => ({
+        "Booking ID": b.id,
+        Vehicle: b.vehicleName,
+        Category: categoryLabel(b.vehicleType),
+        Customer: b.customerName,
+        Date: formatDate(b.date),
+        Slot: b.slot,
+        Society: b.society,
+        Agent: b.agentName ?? "",
+        Status: BOOKING_STATUS_LABEL[b.status],
+        "Amount (₹)": b.price,
+      })),
+      `nexclean-bookings-${new Date().toISOString().slice(0, 10)}`,
+      "Bookings",
+    );
+  };
+
   return (
     <div className="space-y-6">
       {rescheduleBookingTarget && (
@@ -268,9 +314,29 @@ export function Bookings() {
         />
       )}
 
-      <div>
-        <h1 className="font-display text-3xl text-ink">Bookings</h1>
-        <p className="mt-1 text-muted">{bookings.length} total · assign agents, reschedule & control status.</p>
+      {showExportModal && (
+        <ExportDateRangeModal
+          title="Export Bookings"
+          description="Choose a service-date range to export, or leave blank to export every booking currently matching your filters."
+          onExport={exportExcel}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-display text-3xl text-ink">Bookings</h1>
+          <p className="mt-1 text-muted">{bookings.length} total · assign agents, reschedule & control status.</p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowExportModal(true)}
+          disabled={list.length === 0}
+          className="shrink-0"
+        >
+          <FileSpreadsheet className="size-4" /> Export Excel
+        </Button>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

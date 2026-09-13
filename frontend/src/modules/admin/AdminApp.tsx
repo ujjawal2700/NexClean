@@ -14,6 +14,7 @@ import { AgentDetail } from "./pages/AgentDetail";
 import { Customers } from "./pages/Customers";
 import { CustomerDetail } from "./pages/CustomerDetail";
 import { Payments } from "./pages/Payments";
+import { Refunds } from "./pages/Refunds";
 import { AgentPayouts } from "./pages/AgentPayouts";
 import { PayoutRequests } from "./pages/PayoutRequests";
 import { Pricing } from "./pages/Pricing";
@@ -63,6 +64,7 @@ export function AdminApp() {
           <Route path="customers" element={<PermissionGuard permission="customers"><Customers /></PermissionGuard>} />
           <Route path="customers/:id" element={<PermissionGuard permission="customers"><CustomerDetail /></PermissionGuard>} />
           <Route path="payments" element={<PermissionGuard permission="payments"><Payments /></PermissionGuard>} />
+          <Route path="refunds" element={<PermissionGuard permission="payments"><Refunds /></PermissionGuard>} />
           <Route path="agent-payouts" element={<PermissionGuard permission="agent-payouts"><AgentPayouts /></PermissionGuard>} />
           <Route path="payout-requests" element={<PermissionGuard permission="payout-requests"><PayoutRequests /></PermissionGuard>} />
           <Route path="pricing" element={<PermissionGuard permission="pricing"><Pricing /></PermissionGuard>} />

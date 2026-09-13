@@ -1,14 +1,19 @@
 import { useState } from "react";
-import { IndianRupee, RotateCcw, Wallet, CheckCircle2, Undo2, Search } from "lucide-react";
+import { IndianRupee, RotateCcw, Wallet, CheckCircle2, Undo2, Search, Eye, TrendingUp, FileSpreadsheet } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Pagination } from "@shared/ui/Pagination";
-import { formatMoney, formatDate } from "@shared/lib/format";
+import { formatMoney, formatDate, chartDayLabel } from "@shared/lib/format";
+import { exportRowsToExcel } from "@shared/lib/exportExcel";
 import { usePagination } from "@shared/lib/usePagination";
-import { usePayments, usePaymentStats, useRefundPayment, useSettlePayment, useAgents } from "../api/admin.api";
+import { usePayments, usePaymentStats, useSettlePayment, useAgents, useReports, useBookings } from "../api/admin.api";
 import { StatCard } from "../components/StatCard";
+import { BarChart } from "../components/BarChart";
+import { PaymentDetailModal } from "../components/PaymentDetailModal";
+import { ExportDateRangeModal } from "../components/ExportDateRangeModal";
+import type { AdminPayment } from "../types";
 import {
   PAYMENT_STATUS_STYLE,
   PAYMENT_STATUS_LABEL,
@@ -49,13 +54,16 @@ export function Payments() {
   const { data: rawPayments = [] } = usePayments();
   const { data: agents = [] } = useAgents();
   const { data: stats } = usePaymentStats();
-  const refund = useRefundPayment();
+  const { data: reports } = useReports();
+  const { data: bookings = [] } = useBookings();
   const settle = useSettlePayment();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [agentFilter, setAgentFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date-desc");
+  const [selectedPayment, setSelectedPayment] = useState<AdminPayment | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   /**
    * Filter options come from the agents directory, not from the payment rows.
@@ -111,13 +119,58 @@ export function Payments() {
 
   const paginated = usePagination(list, 10);
 
+  const exportExcel = (range: { from: Date | null; to: Date | null }) => {
+    const rows = list.filter((p) => {
+      const created = new Date(p.createdAt);
+      if (range.from && created < range.from) return false;
+      if (range.to && created > range.to) return false;
+      return true;
+    });
+    exportRowsToExcel(
+      rows.map((p) => ({
+        "Order ID": p.orderId,
+        "Payment ID": p.paymentId ?? "",
+        Customer: p.customerName,
+        Agent: p.agentName ?? "",
+        Society: p.society,
+        Date: formatDate(p.createdAt),
+        Status: PAYMENT_STATUS_LABEL[p.status],
+        Settlement: p.status === "paid" ? p.settlementStatus : "",
+        "Amount (₹)": p.amount,
+        "Refund Amount (₹)": p.refundAmount,
+      })),
+      `nexclean-payments-${new Date().toISOString().slice(0, 10)}`,
+      "Payments",
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl text-ink">Payments & Settlement</h1>
-        <p className="mt-1 text-muted">
-          Review transactions, agent payouts & process refunds.
-        </p>
+      {showExportModal && (
+        <ExportDateRangeModal
+          title="Export Payments"
+          description="Choose a date range to export, or leave blank to export every payment currently matching your filters."
+          onExport={exportExcel}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-display text-3xl text-ink">Payments & Settlement</h1>
+          <p className="mt-1 text-muted">
+            Review transactions, agent payouts & process refunds.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowExportModal(true)}
+          disabled={list.length === 0}
+          className="shrink-0"
+        >
+          <FileSpreadsheet className="size-4" /> Export Excel
+        </Button>
       </div>
 
       {stats && (
@@ -143,6 +196,28 @@ export function Payments() {
             icon={Wallet}
           />
         </div>
+      )}
+
+      {/* Revenue trend — lives here too, not just in Reports, so tracking the
+          app's finances (collections, refunds, payouts, the trend behind them)
+          never means leaving this section of the sidebar. */}
+      {reports && (
+        <GlassCard>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="size-4 text-primary" />
+            <p className="font-display text-lg font-semibold text-ink">Revenue trend</p>
+          </div>
+          <p className="text-sm text-muted">Last 30 days, completed bookings</p>
+          <div className="mt-6">
+            <BarChart
+              data={reports.revenueTrend.map((d, i) => ({
+                label: chartDayLabel(d.date, 5, i, reports.revenueTrend.length),
+                value: d.revenue,
+              }))}
+              format={formatMoney}
+            />
+          </div>
+        </GlassCard>
       )}
 
       {/* Filter Bar */}
@@ -253,6 +328,9 @@ export function Payments() {
                   {p.status === "refunded" && (
                     <p className="mt-1 text-xs text-muted">{formatMoney(p.refundAmount)} refunded</p>
                   )}
+                  {p.status === "paid" && p.bookingStatus === "cancelled" && (
+                    <p className="mt-1 text-xs font-medium text-amber-600">Refund owed</p>
+                  )}
                 </td>
                 <td className="px-2 py-3">
                   {p.status === "paid" ? (
@@ -265,29 +343,22 @@ export function Payments() {
                 </td>
                 <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(p.amount)}</td>
                 <td className="px-2 py-3 text-right">
-                  {p.status === "paid" && (
-                    <div className="flex justify-end gap-1.5">
-                      {p.settlementStatus === "pending" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={settle.isPending}
-                          onClick={() => settle.mutate(p.id)}
-                        >
-                          <Wallet className="size-4" /> Settle
-                        </Button>
-                      )}
+                  <div className="flex justify-end gap-1.5">
+                    {p.status === "paid" && p.settlementStatus === "pending" && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        disabled={refund.isPending}
-                        onClick={() => refund.mutate({ id: p.id })}
+                        disabled={settle.isPending}
+                        onClick={() => settle.mutate(p.id)}
                       >
-                        <RotateCcw className="size-4" /> Refund
+                        <Wallet className="size-4" /> Settle
                       </Button>
-                    </div>
-                  )}
-                  {p.status !== "paid" && <span className="text-xs text-muted">—</span>}
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedPayment(p)}>
+                      {p.status === "paid" ? <RotateCcw className="size-4" /> : <Eye className="size-4" />}
+                      {p.status === "paid" ? "Refund" : "View"}
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -306,6 +377,17 @@ export function Payments() {
           onPageChange={paginated.setPage}
         />
       </GlassCard>
+
+      {selectedPayment && (
+        <PaymentDetailModal
+          // Re-resolved against the live list on every render (not the stale
+          // snapshot captured on click) so a refund/settle inside the modal
+          // updates it immediately instead of only after it's reopened.
+          payment={rawPayments.find((p) => p.id === selectedPayment.id) ?? selectedPayment}
+          booking={bookings.find((b) => b.id === selectedPayment.bookingId) ?? null}
+          onClose={() => setSelectedPayment(null)}
+        />
+      )}
     </div>
   );
 }

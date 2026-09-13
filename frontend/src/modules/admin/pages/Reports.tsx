@@ -3,7 +3,7 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Pagination } from "@shared/ui/Pagination";
 import { Skeleton, SkeletonStatCards } from "@shared/ui/Skeleton";
-import { formatMoney } from "@shared/lib/format";
+import { formatMoney, chartDayLabel } from "@shared/lib/format";
 import { usePagination } from "@shared/lib/usePagination";
 import { useBookings, useAgents, useReports, useCategoryLabel } from "../api/admin.api";
 import { StatCard } from "../components/StatCard";
@@ -44,11 +44,6 @@ function AgentPerformanceTable({ agents = [] }: { agents: Array<{ id: string; na
       />
     </div>
   );
-}
-
-function dayLabel(iso: string, everyNth: number, index: number, total: number) {
-  if (index !== 0 && index !== total - 1 && index % everyNth !== 0) return "";
-  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
 export function Reports() {
@@ -105,7 +100,7 @@ export function Reports() {
   }
 
   const trendBars = reports.revenueTrend.map((d, i) => ({
-    label: dayLabel(d.date, 5, i, reports.revenueTrend.length),
+    label: chartDayLabel(d.date, 5, i, reports.revenueTrend.length),
     value: d.revenue,
   }));
   const revenueByVehicle = reports.revenueByVehicle.map((v) => ({

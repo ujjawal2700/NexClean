@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Plus, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, FileSpreadsheet } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Input } from "@shared/ui/Input";
@@ -8,6 +8,7 @@ import { Button } from "@shared/ui/Button";
 import { Pagination } from "@shared/ui/Pagination";
 import { SkeletonTableRows } from "@shared/ui/Skeleton";
 import { formatMoney, formatDate } from "@shared/lib/format";
+import { exportRowsToExcel } from "@shared/lib/exportExcel";
 import { usePagination } from "@shared/lib/usePagination";
 import {
   useCustomers,
@@ -17,6 +18,7 @@ import {
   useDeleteCustomer,
 } from "../api/admin.api";
 import { PersonFormModal, ConfirmDeleteModal } from "../components/PersonFormModal";
+import { ExportDateRangeModal } from "../components/ExportDateRangeModal";
 import { CUSTOMER_STATUS_STYLE } from "../lib/status";
 import type { CustomerStatus, AdminCustomer } from "../types";
 
@@ -41,6 +43,7 @@ export function Customers() {
   const [editing, setEditing] = useState<AdminCustomer | "new" | null>(null);
   const [deleting, setDeleting] = useState<AdminCustomer | null>(null);
   const [formError, setFormError] = useState("");
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const closeForm = () => { setEditing(null); setFormError(""); };
   const closeDelete = () => { setDeleting(null); setFormError(""); };
@@ -66,16 +69,57 @@ export function Customers() {
 
   const paginated = usePagination(list, 10);
 
+  const exportExcel = (range: { from: Date | null; to: Date | null }) => {
+    const rows = list.filter((c) => {
+      const joined = new Date(c.joinedAt);
+      if (range.from && joined < range.from) return false;
+      if (range.to && joined > range.to) return false;
+      return true;
+    });
+    exportRowsToExcel(
+      rows.map((c) => ({
+        Name: c.name,
+        Phone: c.phone,
+        Email: c.email,
+        Joined: formatDate(c.joinedAt),
+        Status: c.status,
+        Plan: planLabel(c.activePlan),
+        Bookings: c.totalBookings,
+        "Total Spend (₹)": c.totalSpend,
+      })),
+      `nexclean-customers-${new Date().toISOString().slice(0, 10)}`,
+      "Customers",
+    );
+  };
+
   return (
     <div className="space-y-6">
+      {showExportModal && (
+        <ExportDateRangeModal
+          title="Export Customers"
+          description="Choose a signup-date range to export, or leave blank to export every customer currently matching your filters."
+          onExport={exportExcel}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl text-ink">Customers</h1>
           <p className="mt-1 text-muted">{customers.length} registered · manage and review activity.</p>
         </div>
-        <Button onClick={() => { setFormError(""); setEditing("new"); }}>
-          <Plus className="size-4" /> Add customer
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowExportModal(true)}
+            disabled={list.length === 0}
+          >
+            <FileSpreadsheet className="size-4" /> Export Excel
+          </Button>
+          <Button onClick={() => { setFormError(""); setEditing("new"); }}>
+            <Plus className="size-4" /> Add customer
+          </Button>
+        </div>
       </div>
 
       <GlassCard className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

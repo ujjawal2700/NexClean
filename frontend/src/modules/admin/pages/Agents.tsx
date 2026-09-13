@@ -13,6 +13,7 @@ import {
   X,
   Plus,
   Trash2,
+  FileSpreadsheet,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -20,7 +21,8 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Pagination } from "@shared/ui/Pagination";
 import { usePagination } from "@shared/lib/usePagination";
-import { shortId } from "@shared/lib/format";
+import { shortId, formatDate } from "@shared/lib/format";
+import { exportRowsToExcel } from "@shared/lib/exportExcel";
 import {
   useAgents,
   useSetAgentStatus,
@@ -33,6 +35,7 @@ import {
   PersonFormModal,
   ConfirmDeleteModal,
 } from "../components/PersonFormModal";
+import { ExportDateRangeModal } from "../components/ExportDateRangeModal";
 import { AGENT_STATUS_STYLE } from "../lib/status";
 import type { AdminAgent } from "../types";
 
@@ -107,6 +110,7 @@ export function Agents() {
   const [editing, setEditing] = useState<AdminAgent | "new" | null>(null);
   const [deleting, setDeleting] = useState<AdminAgent | null>(null);
   const [formError, setFormError] = useState("");
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const closeForm = () => {
     setEditing(null);
@@ -134,8 +138,42 @@ export function Agents() {
 
   const paginated = usePagination(list, 9);
 
+  const exportExcel = (range: { from: Date | null; to: Date | null }) => {
+    const rows = list.filter((a) => {
+      const joined = new Date(a.joinedAt);
+      if (range.from && joined < range.from) return false;
+      if (range.to && joined > range.to) return false;
+      return true;
+    });
+    exportRowsToExcel(
+      rows.map((a) => ({
+        Name: a.name,
+        Phone: a.phone,
+        Email: a.email,
+        City: a.city,
+        Area: a.area,
+        Status: a.status,
+        Rating: a.rating,
+        "Jobs Done": a.jobsDone,
+        Online: a.online ? "Yes" : "No",
+        Joined: formatDate(a.joinedAt),
+      })),
+      `nexclean-agents-${new Date().toISOString().slice(0, 10)}`,
+      "Agents",
+    );
+  };
+
   return (
     <div className="space-y-6">
+      {showExportModal && (
+        <ExportDateRangeModal
+          title="Export Agents"
+          description="Choose a join-date range to export, or leave blank to export every agent currently matching your filters."
+          onExport={exportExcel}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl text-ink">Agents</h1>
@@ -143,13 +181,22 @@ export function Agents() {
             {verifiedAgents.length} specialists · {online} online.
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setFormError("");
-            setEditing("new");
-          }}>
-          <Plus className="size-4" /> Add agent
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowExportModal(true)}
+            disabled={list.length === 0}
+          >
+            <FileSpreadsheet className="size-4" /> Export Excel
+          </Button>
+          <Button
+            onClick={() => {
+              setFormError("");
+              setEditing("new");
+            }}>
+            <Plus className="size-4" /> Add agent
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

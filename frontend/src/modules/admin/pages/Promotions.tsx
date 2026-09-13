@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Trash2, Percent, Image as ImageIcon, Loader2, Clock } from "lucide-react";
+import { Plus, Trash2, Percent, Image as ImageIcon, Loader2, Clock, FileSpreadsheet } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Pagination } from "@shared/ui/Pagination";
-import { formatMoney } from "@shared/lib/format";
+import { formatMoney, formatDate } from "@shared/lib/format";
+import { exportRowsToExcel } from "@shared/lib/exportExcel";
 import { ApiError } from "@shared/lib/api";
 import { usePagination } from "@shared/lib/usePagination";
 import {
@@ -19,6 +20,7 @@ import {
   useDeletePromoBanner,
   useUploadMedia,
 } from "../api/admin.api";
+import { ExportDateRangeModal } from "../components/ExportDateRangeModal";
 
 import { BANNER_TYPES, type BannerType, type DiscountType } from "../types";
 
@@ -43,8 +45,35 @@ function DiscountCodesSection() {
   const [validTill, setValidTill] = useState("");
   const [offPeakOnly, setOffPeakOnly] = useState(false);
   const [error, setError] = useState("");
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const paginated = usePagination(codes, 5);
+
+  const exportExcel = (range: { from: Date | null; to: Date | null }) => {
+    const rows = codes.filter((c) => {
+      const created = new Date(c.createdAt);
+      if (range.from && created < range.from) return false;
+      if (range.to && created > range.to) return false;
+      return true;
+    });
+    exportRowsToExcel(
+      rows.map((c) => ({
+        Code: c.code,
+        Type: c.type === "percent" ? "% off" : "₹ flat off",
+        Value: c.value,
+        "Min Order (₹)": c.minOrderValue,
+        "Max Discount (₹)": c.maxDiscount ?? "",
+        "Usage Limit": c.usageLimit ?? "",
+        "Used Count": c.usageCount,
+        "Valid Till": c.validTill ? formatDate(c.validTill) : "",
+        Active: c.active ? "Yes" : "No",
+        "Off-Peak Only": c.offPeakOnly ? "Yes" : "No",
+        Created: formatDate(c.createdAt),
+      })),
+      `nexclean-discount-codes-${new Date().toISOString().slice(0, 10)}`,
+      "Discount Codes",
+    );
+  };
 
   const submit = () => {
     if (!code.trim() || !value) return;
@@ -73,9 +102,23 @@ function DiscountCodesSection() {
 
   return (
     <GlassCard className="space-y-5">
-      <div className="flex items-center gap-2">
-        <Percent className="size-5 text-primary" />
-        <p className="font-display text-lg font-semibold text-ink">Discount Codes</p>
+      {showExportModal && (
+        <ExportDateRangeModal
+          title="Export Discount Codes"
+          description="Choose a created-date range to export, or leave blank to export every discount code."
+          onExport={exportExcel}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
+
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Percent className="size-5 text-primary" />
+          <p className="font-display text-lg font-semibold text-ink">Discount Codes</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setShowExportModal(true)} disabled={codes.length === 0}>
+          <FileSpreadsheet className="size-4" /> Export Excel
+        </Button>
       </div>
       <p className="text-sm text-muted">Create promo codes customers can redeem at checkout for a percent or flat discount.</p>
 

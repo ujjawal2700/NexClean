@@ -45,6 +45,7 @@ function mapCode(c: DiscountCodeDoc) {
     validTill: c.validTill,
     active: c.active,
     offPeakOnly: c.offPeakOnly,
+    createdAt: c.get("createdAt") as Date,
   };
 }
 

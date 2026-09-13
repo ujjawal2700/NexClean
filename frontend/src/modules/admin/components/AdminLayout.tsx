@@ -31,6 +31,7 @@ import {
   ChevronDown,
   Clock,
   Banknote,
+  Undo2,
 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -79,10 +80,14 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    id: "money",
-    label: "Money",
+    // Every money-related screen lives here — payments, the refunds queue,
+    // agent payouts, and pricing/plans — so tracking the app's finances end
+    // to end never means hopping to a different part of the sidebar.
+    id: "finance",
+    label: "Finance",
     items: [
       { to: "/admin/payments", label: "Payments", icon: Wallet, permission: "payments" },
+      { to: "/admin/refunds", label: "Refunds", icon: Undo2, permission: "payments" },
       { to: "/admin/agent-payouts", label: "Agent Payouts", icon: HandCoins, permission: "agent-payouts" },
       { to: "/admin/payout-requests", label: "Payout Requests", icon: Banknote, permission: "payout-requests" },
       { to: "/admin/pricing", label: "Pricing", icon: Tag, permission: "pricing" },

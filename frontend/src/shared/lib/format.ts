@@ -20,6 +20,17 @@ export function formatMoney(value: number | null | undefined): string {
 }
 
 /**
+ * Sparse x-axis label for a day in a revenue/trend bar chart: only the first,
+ * last, and every `everyNth` bar get a label, so a 30-day chart doesn't
+ * collide into unreadable text. Shared by every screen that charts
+ * `revenueTrend` (Reports, Payments) so the two read the same way.
+ */
+export function chartDayLabel(iso: string, everyNth: number, index: number, total: number): string {
+  if (index !== 0 && index !== total - 1 && index % everyNth !== 0) return "";
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
+/**
  * Trim a Mongo ObjectId down to a readable tail, e.g. "…a1b2c3d4".
  *
  * A full 24-character id crowds the line it sits on and nobody reads it end to

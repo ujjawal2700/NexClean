@@ -138,10 +138,10 @@ export type AdminAgent = {
   aadharNumber: string;
   aadharFrontUrl: string;
   aadharBackUrl: string;
+  joinedAt: string;
 };
 
 export type AdminAgentDetail = AdminAgent & {
-  joinedAt: string;
   totalBookings: number;
   completedJobs: number;
   cancelledJobs: number;
@@ -312,6 +312,8 @@ export type AdminPayment = {
   customerId: string;
   customerName: string;
   bookingId: string | null;
+  /** The linked booking's current status, or null when there's no booking / it wasn't populated. */
+  bookingStatus: BookingStatus | null;
   society: string;
   agentName: string | null;
   /** The assigned cleaner's id, or null while the booking is unassigned. */
@@ -399,6 +401,7 @@ export type DiscountCode = {
   active: boolean;
   /** Only redeemable on bookings whose slot falls in a configured off-peak (discounted) window. */
   offPeakOnly: boolean;
+  createdAt: string;
 };
 
 export type SpecialCouponStatus = "active" | "used" | "inactive";

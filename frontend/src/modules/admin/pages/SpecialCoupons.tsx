@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Sparkles, Search, RotateCcw, UserPlus, Clock } from "lucide-react";
+import { Plus, Sparkles, Search, RotateCcw, UserPlus, Clock, FileSpreadsheet } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Badge } from "@shared/ui/Badge";
 import { Pagination } from "@shared/ui/Pagination";
-import { formatMoney } from "@shared/lib/format";
+import { formatMoney, formatDate } from "@shared/lib/format";
+import { exportRowsToExcel } from "@shared/lib/exportExcel";
 import { usePagination } from "@shared/lib/usePagination";
 import {
   useSpecialCoupons,
@@ -16,6 +17,7 @@ import {
   useReactivateSpecialCoupon,
   useCustomers,
 } from "../api/admin.api";
+import { ExportDateRangeModal } from "../components/ExportDateRangeModal";
 import type { DiscountType, SpecialCoupon } from "../types";
 
 function discountLabel(coupon: Pick<SpecialCoupon, "type" | "value" | "maxDiscount" | "minOrderValue">) {
@@ -347,14 +349,62 @@ function CouponBatches() {
 }
 
 export function SpecialCoupons() {
+  // React Query dedupes this against CouponBatches' own useSpecialCoupons()
+  // call — not an extra request — so the export button can sit up here at
+  // the page level without CouponBatches needing to expose its data.
+  const { data: coupons = [] } = useSpecialCoupons();
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  const exportExcel = (range: { from: Date | null; to: Date | null }) => {
+    const rows = coupons.filter((c) => {
+      const created = new Date(c.createdAt);
+      if (range.from && created < range.from) return false;
+      if (range.to && created > range.to) return false;
+      return true;
+    });
+    exportRowsToExcel(
+      rows.map((c) => ({
+        Code: c.code,
+        Type: c.type === "percent" ? "% off" : "₹ flat off",
+        Value: c.value,
+        "Min Order (₹)": c.minOrderValue,
+        "Max Discount (₹)": c.maxDiscount ?? "",
+        "Valid From": c.validFrom ? formatDate(c.validFrom) : "",
+        "Valid Till": c.validTill ? formatDate(c.validTill) : "",
+        Status: c.status,
+        "Assigned Customer": c.assignedCustomer?.name ?? "",
+        "Assigned Phone": c.assignedCustomer?.phone ?? "",
+        "Batch ID": c.batchId,
+        "Off-Peak Only": c.offPeakOnly ? "Yes" : "No",
+        Created: formatDate(c.createdAt),
+      })),
+      `nexclean-special-coupons-${new Date().toISOString().slice(0, 10)}`,
+      "Special Coupons",
+    );
+  };
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="font-display text-3xl text-ink">Special Coupons</h1>
-        <p className="mt-1 text-muted">
-          Generate one-time, auto-coded coupons and gift them to specific customers — separate from the shared
-          discount codes managed under Coupon &amp; Promotions.
-        </p>
+      {showExportModal && (
+        <ExportDateRangeModal
+          title="Export Special Coupons"
+          description="Choose a created-date range to export, or leave blank to export every special coupon."
+          onExport={exportExcel}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
+
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl text-ink">Special Coupons</h1>
+          <p className="mt-1 text-muted">
+            Generate one-time, auto-coded coupons and gift them to specific customers — separate from the shared
+            discount codes managed under Coupon &amp; Promotions.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => setShowExportModal(true)} disabled={coupons.length === 0} className="shrink-0">
+          <FileSpreadsheet className="size-4" /> Export Excel
+        </Button>
       </div>
 
       <GenerateCouponsSection />

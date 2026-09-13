@@ -113,6 +113,7 @@ export async function listBookings() {
 export async function cancelBooking(id: string) {
   const booking = await Booking.findById(id).populate("user", "name");
   if (!booking) throw ApiError.notFound("Booking not found");
+  if (booking.status === "cancelled") throw ApiError.badRequest("Booking is already cancelled");
 
   const prevOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
 
@@ -231,6 +232,15 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
   const booking = await Booking.findById(id).populate("user", "name");
   if (!booking) throw ApiError.notFound("Booking not found");
 
+  // A cancelled booking is a dead end, not a draft: its payment may already be
+  // queued for (or given) a refund, and its agent offer/lock already released.
+  // Silently letting the status dropdown "reopen" it back to upcoming would
+  // resurrect a job the dispatch engine, the customer, and the ledger all
+  // already treated as over.
+  if (booking.status === "cancelled") {
+    throw ApiError.badRequest("This booking was cancelled and cannot be reopened");
+  }
+
   const prevOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
 
   if (status === "cancelled") {
@@ -337,6 +347,7 @@ function mapAgent(a: UserDoc) {
     aadharNumber: a.aadharNumber ?? "",
     aadharFrontUrl: a.aadharFrontUrl ?? "",
     aadharBackUrl: a.aadharBackUrl ?? "",
+    joinedAt: a.get("createdAt") as Date,
   };
 }
 
@@ -403,7 +414,6 @@ export async function getAgent(id: string) {
 
   return {
     ...mapAgent(agent),
-    joinedAt: agent.get("createdAt") as Date,
     totalBookings: bookings.length,
     completedJobs,
     cancelledJobs,
@@ -1004,6 +1014,7 @@ function mapPayment(p: PaymentDocument) {
     agentName?: string | null;
     society?: string;
     assignedAgent?: unknown;
+    status?: string;
   } | null;
   const assignedAgent = booking && typeof booking === "object" ? booking.assignedAgent : null;
   const customerName = (user && typeof user === "object" && user.name) || (p as any).customerName || "Customer";
@@ -1012,6 +1023,11 @@ function mapPayment(p: PaymentDocument) {
     customerId: (user && typeof user === "object" && user.id) || String(p.user),
     customerName,
     bookingId: (booking && typeof booking === "object" && booking.id) || (p.booking ? String(p.booking) : null),
+    // The linked booking's current status — null when there is none, or it
+    // wasn't populated (e.g. the customer-activity list). Lets the admin
+    // console flag "paid, but the booking behind it was later cancelled" as
+    // needing a refund without a second round trip.
+    bookingStatus: (booking && typeof booking === "object" && booking.status) || null,
     society: (booking && typeof booking === "object" && booking.society) || "",
     agentName: (booking && typeof booking === "object" && booking.agentName) || null,
     // Identity, not just the display name — the admin agent filter matches on
@@ -1035,7 +1051,7 @@ function mapPayment(p: PaymentDocument) {
 export async function listPayments() {
   const payments = await Payment.find()
     .populate("user", "name")
-    .populate("booking", "agentName society assignedAgent")
+    .populate("booking", "agentName society assignedAgent status")
     .sort({ createdAt: -1 })
     .limit(200);
   return payments.map((p) => mapPayment(p));
@@ -1102,7 +1118,7 @@ function nonRefundablePortion(payment: PaymentDocument): number {
 export async function refundPayment(id: string, input: { amount?: number; reason?: string }) {
   const payment = await Payment.findById(id)
     .populate("user", "name")
-    .populate("booking", "agentName society assignedAgent peakUpgradeFeeCharged");
+    .populate("booking", "agentName society assignedAgent status peakUpgradeFeeCharged");
   if (!payment) throw ApiError.notFound("Payment not found");
   if (payment.status !== "paid") throw ApiError.badRequest("Only paid payments can be refunded");
 
@@ -1144,7 +1160,7 @@ export async function refundPayment(id: string, input: { amount?: number; reason
 }
 
 export async function settlePayment(id: string) {
-  const payment = await Payment.findById(id).populate("user", "name").populate("booking", "agentName society assignedAgent");
+  const payment = await Payment.findById(id).populate("user", "name").populate("booking", "agentName society assignedAgent status");
   if (!payment) throw ApiError.notFound("Payment not found");
   if (payment.status !== "paid") throw ApiError.badRequest("Only paid payments can be settled");
   if (payment.settlementStatus === "settled") throw ApiError.badRequest("Payment is already settled");
