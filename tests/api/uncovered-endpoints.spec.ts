@@ -1,5 +1,5 @@
 import { test, expect, request as playwrightRequest } from "@playwright/test";
-import { authHeader, DEMO_OTP, freshPhone } from "../fixtures/api-client";
+import { authHeader, DEMO_OTP, LEGAL_ACCEPTANCE, freshPhone } from "../fixtures/api-client";
 import {
   apiUrl,
   loginAsAdminApi,
@@ -50,7 +50,7 @@ test.describe("Auth — agent signup-basic", () => {
     await request.post(apiUrl("/auth/send-signup-otp"), { data: { phone } });
 
     const res = await request.post(apiUrl("/auth/agent/signup-basic"), {
-      data: { name: "Basic Signup Cleaner", phone, city: "Indore", area: "Green Valley Society", code: DEMO_OTP },
+      data: { name: "Basic Signup Cleaner", phone, city: "Indore", area: "Green Valley Society", code: DEMO_OTP, ...LEGAL_ACCEPTANCE },
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
@@ -62,7 +62,7 @@ test.describe("Auth — agent signup-basic", () => {
     expect(body.data.user.area).toBe("Green Valley Society");
 
     const dup = await request.post(apiUrl("/auth/agent/signup-basic"), {
-      data: { name: "Someone Else", phone, city: "Indore", area: "Tech Park", code: DEMO_OTP },
+      data: { name: "Someone Else", phone, city: "Indore", area: "Tech Park", code: DEMO_OTP, ...LEGAL_ACCEPTANCE },
     });
     expect(dup.status()).toBe(400);
   });
@@ -71,7 +71,7 @@ test.describe("Auth — agent signup-basic", () => {
     const noCity = freshPhone();
     await request.post(apiUrl("/auth/send-signup-otp"), { data: { phone: noCity } });
     const missing = await request.post(apiUrl("/auth/agent/signup-basic"), {
-      data: { name: "No City Cleaner", phone: noCity, area: "Somewhere", code: DEMO_OTP },
+      data: { name: "No City Cleaner", phone: noCity, area: "Somewhere", code: DEMO_OTP, ...LEGAL_ACCEPTANCE },
     });
     expect(missing.status()).toBe(400);
 
@@ -79,7 +79,7 @@ test.describe("Auth — agent signup-basic", () => {
     const phone = freshPhone();
     await request.post(apiUrl("/auth/send-signup-otp"), { data: { phone } });
     const res = await request.post(apiUrl("/auth/agent/signup-basic"), {
-      data: { name: "Arealess Cleaner", phone, city: "Bhopal", code: DEMO_OTP },
+      data: { name: "Arealess Cleaner", phone, city: "Bhopal", code: DEMO_OTP, ...LEGAL_ACCEPTANCE },
     });
     expect(res.ok()).toBeTruthy();
     expect((await res.json()).data.user.city).toBe("Bhopal");

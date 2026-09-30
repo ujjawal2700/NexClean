@@ -1,0 +1,182 @@
+export const LEGAL_DOCUMENT_VERSION = "2026-09-29";
+export const LEGAL_CONTENT_VERSION = 2;
+
+export const PRIVACY_PAGE = {
+  eyebrow: "Legal",
+  title: "Privacy Policy",
+  subtitle: "Effective 29 September 2026. How NexClean collects, uses, shares, and protects your information.",
+  body: `## 1. Who this policy applies to
+
+This Privacy Policy applies to customers, cleaning specialists (agents), website visitors, and anyone who contacts or uses NexClean. In this policy, **NexClean**, **we**, **us**, and **our** refer to the operator of the NexClean platform and services.
+
+## 2. Information we collect
+
+Depending on how you use NexClean, we may collect:
+
+- **Account and contact details:** name, mobile number, email address, account role, referral code, and verification records.
+- **Booking and service details:** vehicles, registration number if supplied, service selections, booking history, photographs connected with a service, ratings, feedback, and support conversations.
+- **Address and location details:** saved service addresses, society or area, map coordinates you choose to provide, and live location when an agent turns on location for job assignment or navigation.
+- **Payment and transaction details:** amount, payment status, discounts, refunds, transaction references, subscription status, and invoices. Card, UPI, or banking credentials are processed by our payment providers; NexClean does not intentionally store full card or UPI credentials.
+- **Agent identity and payout details:** city, service area, Aadhaar number and document images, verification status, job activity, ratings, bank-account and IFSC details, and payout records.
+- **Device and technical details:** IP address, device or installation identifier, browser and device type, operating system, session identifiers, push-notification token, log data, and security events.
+- **Communications and permissions:** OTP and notification delivery status, marketing preferences, cookie choices, enquiries, complaints, and any information you send to support.
+
+Please do not provide personal information that is not needed for the service. Agent identity documents should only be uploaded through the designated KYC screens.
+
+## 3. Why we collect and use it
+
+We use personal information to:
+
+- create and secure accounts, verify mobile numbers, and maintain signed-in sessions;
+- provide quotes, schedule bookings, match customers with agents, navigate to service locations, and complete services;
+- process payments, subscriptions, discounts, referrals, payouts, cancellations, and refunds;
+- verify agent identity and eligibility, review KYC, prevent fraud, and protect customers, agents, and the platform;
+- send service messages such as OTPs, booking updates, receipts, safety notices, and support replies;
+- send offers or nearby-service alerts where permitted and according to your notification choices;
+- diagnose problems, measure performance, improve coverage, pricing, safety, and customer experience; and
+- comply with tax, accounting, law-enforcement, court, regulatory, and other legal obligations.
+
+We process information as needed to provide the service you request, with your consent where required, to comply with law, and for legitimate interests such as platform security, fraud prevention, service improvement, and enforcing our agreements. You may withdraw consent for consent-based processing, but this does not affect processing already completed and may make some features unavailable.
+
+## 4. How we collect information
+
+We collect information directly from you, automatically from your browser or device when you use the service, from agents or customers involved in the same booking, and from service providers such as payment, maps, communications, identity-verification, and notification providers.
+
+## 5. When we share information
+
+We share only what is reasonably necessary with:
+
+- the customer or agent assigned to a booking, so the service can be coordinated and completed;
+- payment, cloud hosting, maps, OTP, email, push-notification, analytics, customer-support, KYC, and fraud-prevention providers acting for us;
+- professional advisers, insurers, auditors, and potential parties to a business reorganisation under confidentiality safeguards; and
+- courts, regulators, law-enforcement bodies, or other persons when disclosure is required by law or necessary to protect rights, safety, and security.
+
+We do not sell personal information. An agent receives only the customer and location details needed for the assigned service. Customers do not receive an agent's Aadhaar or bank details.
+
+## 6. Cookies, sessions, and local storage
+
+NexClean uses cookies and similar browser storage. **Strictly necessary** storage keeps accounts signed in, routes requests to the correct account role, remembers security and consent choices, prevents abuse, and preserves essential transaction state. These features cannot be switched off through our banner because the service cannot operate securely without them.
+
+With your choice, **functional** storage may remember convenience settings and unfinished booking details. NexClean does not currently activate advertising cookies. If optional analytics or advertising technologies are introduced, they must respect the choices presented in Cookie settings. You can change optional choices at any time using **Cookie settings** in the footer. Browser controls may also delete or block storage, but doing so can sign you out or disrupt features.
+
+## 7. Retention
+
+We keep information only as long as reasonably necessary for the purposes described above. Account information is generally kept while the account is active. Booking, payment, invoice, referral, complaint, safety, and payout records may be retained after account closure where needed for tax, accounting, fraud prevention, disputes, or legal claims. Agent KYC and payout information is restricted and retained for the agent relationship and any additional legally required period. When information is no longer required, we delete it, anonymise it, or securely isolate it until deletion is possible.
+
+## 8. Security
+
+We use reasonable technical and organisational safeguards, including encrypted transport, access controls, restricted KYC fields, and HTTP-only session cookies. No online system is completely secure. Keep OTPs private, secure your device, and contact us promptly if you suspect unauthorised access.
+
+## 9. Your choices and rights
+
+Subject to applicable law, you may ask to access a summary of your personal information, correct inaccurate or incomplete information, erase information that is no longer required, withdraw consent, change communication or cookie choices, deactivate your account, and raise a grievance. We may need to verify your identity and may retain information where law or a valid legal reason requires it.
+
+You can update common profile details inside the app. For other requests, email [privacy@nexclean.in](mailto:privacy@nexclean.in). We will respond within the period required by applicable law.
+
+## 10. Children's privacy
+
+NexClean is not intended for people under 18 to create accounts or work as agents. A parent or legal guardian should make any service booking involving a minor's information. Contact us if you believe a child has provided information improperly.
+
+## 11. Cross-border processing
+
+Some technology providers may process information outside your state or country. Where applicable, we use contractual and organisational safeguards and comply with restrictions on international transfers.
+
+## 12. Updates to this policy
+
+We may update this policy when our services or legal obligations change. We will post the revised date and provide additional notice or request fresh consent when required. Material changes do not retroactively reduce your rights.
+
+## 13. Contact and grievance redressal
+
+For privacy questions, rights requests, or grievances, contact **Privacy / Grievance Officer, NexClean** at [privacy@nexclean.in](mailto:privacy@nexclean.in), or use our [Contact page](/contact). Include your registered mobile number and enough detail for us to investigate; never send an OTP, full payment credential, or unnecessary identity document by email.`,
+} as const;
+
+export const TERMS_PAGE = {
+  eyebrow: "Legal",
+  title: "Terms & Conditions",
+  subtitle: "Effective 29 September 2026. Please read these terms before creating an account or booking a service.",
+  body: `## 1. Agreement to these terms
+
+These Terms & Conditions govern access to the NexClean website, customer application, agent application, and related services. By creating an account, selecting the acceptance checkbox, or using NexClean, you agree to these terms, our [Privacy Policy](/privacy), and any booking-specific terms shown before payment. If you do not agree, do not create an account or use the service.
+
+## 2. Eligibility and accounts
+
+You must be at least 18 years old and legally capable of entering a contract. Provide accurate, current information; keep your phone and device secure; never share an OTP; and notify us promptly of unauthorised use. You are responsible for activity performed through your account unless caused by NexClean's failure to use reasonable security.
+
+## 3. The NexClean platform
+
+NexClean enables customers to request vehicle-care services and enables approved agents to accept and perform them. Service descriptions, inclusions, estimated duration, availability, and agent assignment may vary by location, vehicle, plan, and operational conditions. Information displayed before confirmation forms part of the booking.
+
+## 4. Bookings and customer responsibilities
+
+A booking is confirmed when the app shows confirmation. Customers must provide an accurate vehicle, address, access instructions, and safe, lawful working location; ensure the vehicle is available at the agreed time; remove valuables and fragile personal items; disclose conditions that may affect safe service; and provide any building or parking permission required.
+
+An agent may pause or refuse unsafe, unlawful, inaccessible, or materially misdescribed work. Arrival and completion times are estimates affected by traffic, weather, access, earlier jobs, and events outside reasonable control. We will try to notify you of material delays.
+
+## 5. Prices, payment, and taxes
+
+The price, taxes, discounts, wallet or coin credits, and any disclosed fee are shown before payment or confirmation. You authorise our payment provider to charge the selected method. A failed or reversed payment may make an amount due. Promotions and referral benefits may have separate eligibility, expiry, and anti-abuse rules and cannot be converted to cash unless expressly stated.
+
+## 6. Subscriptions
+
+A subscription's price, included services, service period, renewal terms, and limits are shown before purchase. Where automatic renewal is offered, we will disclose it before payment and charge the selected method until cancellation. You may cancel through the available account controls or support; cancellation normally stops future renewal and does not itself refund a period already started, except where our [Refund Policy](/refund) or applicable law says otherwise.
+
+## 7. Cancellations, rescheduling, and refunds
+
+Available cancellation or rescheduling options and any fee depend on timing, dispatch, and the booking terms displayed in the app. Refund eligibility and method are described in our [Refund Policy](/refund). Nothing in these terms removes a mandatory consumer right.
+
+## 8. Agent verification and conduct
+
+Agents must provide accurate KYC, service-area, bank, and eligibility information; maintain required licences or permissions; protect customer information; use appropriate care and equipment; follow safety and quality requirements; and not misuse the platform to bypass fees or solicit unrelated business. Approval may be withheld or withdrawn after verification or for safety, fraud, quality, or legal reasons.
+
+Unless a written agreement states otherwise, agents provide services as independent service professionals and are not authorised to make promises for NexClean. This classification does not override rights that applicable law grants.
+
+## 9. Location, device permissions, and communications
+
+Features such as address selection, nearby offers, navigation, live job matching, OTPs, and push updates may require location, notification, camera, or storage permissions. You control device permissions, but disabling one may prevent the related feature. You agree to receive essential transactional communications. Promotional communications are subject to your choices and applicable law.
+
+## 10. Acceptable use
+
+You must not use NexClean to break the law; threaten, harass, discriminate against, or harm another person; submit false reviews, claims, locations, identity documents, referrals, or payment information; interfere with security or operation; scrape, copy, reverse engineer, or automate access except where law permits; upload malware or unlawful content; or create accounts to exploit promotions. We may investigate and restrict activity reasonably suspected of abuse.
+
+## 11. Photos, reviews, and user content
+
+You retain ownership of content you submit. You give NexClean a non-exclusive, worldwide, royalty-free licence to host, reproduce, and display it only as needed to operate, support, secure, and improve the service or as separately authorised. Do not upload content you lack the right to share. Public reviews may be moderated for privacy, abuse, fraud, relevance, or illegality, but not merely because they are critical.
+
+## 12. Intellectual property
+
+NexClean's software, brand, design, text, graphics, and platform content are owned by or licensed to NexClean. We grant you a limited, revocable, non-transferable right to use the service for its intended purpose. No other licence is granted.
+
+## 13. Third-party services
+
+Maps, payment, communications, and other integrations may be operated by third parties under their own terms and privacy notices. NexClean is not responsible for a third party's independent service, but this does not limit responsibility imposed on us by law.
+
+## 14. Service quality, damage, and claims
+
+Inspect the vehicle after service where practical. Report missing service items, damage, or safety concerns promptly through support, preferably within 24 hours, with photographs and booking details so the issue can be investigated. A reporting window helps investigation but does not remove a right that cannot lawfully be limited. NexClean is not responsible for pre-existing damage, ordinary wear, concealed defects, unsecured items, or loss caused by inaccurate instructions, except to the extent caused by our or an agent's legally attributable act.
+
+## 15. Disclaimers and limitation of liability
+
+We provide the platform with reasonable care and skill, but cannot promise uninterrupted availability or outcomes outside reasonable control. To the maximum extent permitted by law, NexClean is not liable for indirect, incidental, special, or consequential loss, or lost profits or data. Any aggregate liability connected with a booking will not exceed the amount paid for that booking, except where such a limit is prohibited or where liability arises from fraud, wilful misconduct, gross negligence, personal injury, or another matter that cannot legally be limited.
+
+## 16. Indemnity
+
+To the extent permitted by law, you will reimburse reasonable loss and cost caused by your unlawful use, material breach, infringement, fraud, or intentional misconduct. This does not apply to loss caused by NexClean or remove statutory consumer protections.
+
+## 17. Suspension and termination
+
+You may stop using NexClean and request account deactivation. We may suspend or terminate access where reasonably necessary for security, safety, fraud, repeated service failures, non-payment, legal compliance, or material breach. Where appropriate, we will provide notice and a chance to appeal. Terms that by nature should survive termination—including payment, intellectual property, dispute, and liability provisions—remain effective.
+
+## 18. Governing law and disputes
+
+These terms are governed by the laws of India. Please contact support first so we can try to resolve a dispute. Subject to mandatory consumer forums and other non-excludable rights, courts with jurisdiction in Bengaluru, Karnataka will have jurisdiction. Nothing prevents either party from seeking urgent protective relief.
+
+## 19. Changes to these terms
+
+We may revise these terms to reflect service or legal changes. We will post the effective date and give additional notice or seek renewed acceptance when required. Changes apply prospectively. If you do not accept a material revision, you should stop using the affected service and may request account closure.
+
+## 20. General terms and contact
+
+If one provision is unenforceable, the remaining provisions continue. A delay in enforcing a right is not a waiver. You may not transfer these terms without our consent; we may transfer them as part of a lawful reorganisation or business transfer while preserving applicable rights.
+
+Questions about these terms can be sent to [support@nexclean.in](mailto:support@nexclean.in) or through our [Contact page](/contact).`,
+} as const;

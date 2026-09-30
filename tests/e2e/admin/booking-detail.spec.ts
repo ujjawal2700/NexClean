@@ -2,6 +2,7 @@ import { test, expect, type Page, type APIRequestContext } from "@playwright/tes
 import { loginAdminUI } from "../../fixtures/ui-helpers";
 import {
   DEMO_OTP,
+  LEGAL_ACCEPTANCE,
   ADMIN_EMAIL,
   ADMIN_PASSWORD,
   authHeader,
@@ -40,6 +41,7 @@ async function verifiedAgentAt(request: APIRequestContext, adminToken: string, o
       aadharNumber: "987654321098",
       aadharFront: TINY_IMAGE_DATA_URI,
       aadharBack: TINY_IMAGE_DATA_URI,
+      ...LEGAL_ACCEPTANCE,
     },
   });
   if (!signupRes.ok()) throw new Error(`agent signup failed: ${await signupRes.text()}`);

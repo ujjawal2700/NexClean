@@ -1,5 +1,5 @@
 import { request as pwRequest, type APIRequestContext } from "@playwright/test";
-import { DEMO_OTP, authHeader } from "./api-client";
+import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader } from "./api-client";
 import { API_BASE_URL } from "../playwright.config";
 
 /**
@@ -46,7 +46,7 @@ export async function mintTokenForPhone(
   api: APIRequestContext,
   phone: string,
 ): Promise<{ token: string; userId: string }> {
-  await api.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
+  await api.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   await api.post(`${API_BASE_URL}/auth/send-otp`, { data: { phone } });
   const res = await api.post(`${API_BASE_URL}/auth/verify-otp`, { data: { phone, code: DEMO_OTP } });
   const body = (await res.json()) as { success?: boolean; data?: { token: string; user: { id: string } }; message?: string };

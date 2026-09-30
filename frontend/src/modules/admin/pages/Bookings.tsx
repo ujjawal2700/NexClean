@@ -29,7 +29,6 @@ import {
   type AdminRescheduleQuote,
   useSetBookingStatus,
   useCategoryLabel,
-  useTimeSlots,
 } from "../api/admin.api";
 import { type BookingStatus, type AdminBooking } from "../types";
 import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
@@ -70,17 +69,11 @@ function RescheduleModal({
 }) {
   const reschedule = useRescheduleBooking();
   const quoteReschedule = useRescheduleQuote();
-  const { data: timeSlotsData } = useTimeSlots();
-  const activeSlots =
-    timeSlotsData?.slots && timeSlotsData.slots.length > 0
-      ? timeSlotsData.slots
-      : TIME_SLOTS;
-
   const initialDate = booking.date
     ? new Date(booking.date).toISOString().split("T")[0]
     : new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(initialDate);
-  const [slot, setSlot] = useState(booking.slot || activeSlots[0]);
+  const [slot, setSlot] = useState(booking.slot || TIME_SLOTS[0]);
   const [waive, setWaive] = useState(false);
   const [quote, setQuote] = useState<AdminRescheduleQuote | null>(null);
 
@@ -149,7 +142,7 @@ function RescheduleModal({
               value={slot}
               onChange={(e) => setSlot(e.target.value)}
               className="h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-primary/50">
-              {activeSlots.map((s) => (
+              {TIME_SLOTS.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -215,7 +208,9 @@ function AgentCell({ booking }: { booking: AdminBooking }) {
   const { data: agents = [] } = useAgents();
   const assign = useAssignBooking();
   const autoAssign = useAutoAssignBooking();
-  const verifiedAgents = agents.filter((a) => a.status === "verified");
+  const verifiedAgents = agents.filter(
+    (a) => a.status === "verified" && a.online && a.available !== false,
+  );
 
   if (booking.status === "cancelled" || booking.status === "completed") {
     return <span className="text-ink-soft">{booking.agentName ?? "—"}</span>;

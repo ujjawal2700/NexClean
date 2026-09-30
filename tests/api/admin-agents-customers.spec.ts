@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { authHeader, freshPhone, DEMO_OTP } from "../fixtures/api-client";
+import { authHeader, freshPhone, DEMO_OTP, LEGAL_ACCEPTANCE } from "../fixtures/api-client";
 import { apiUrl, loginAsAdminApi, loginAsPendingAgentApi, loginAsNewCustomerApi } from "../fixtures/admin-api-helpers";
 
 test.describe("Admin — agents", () => {
@@ -203,7 +203,7 @@ test.describe("Admin — customers", () => {
 async function loginAsNewCustomerApiForPhone(request: APIRequestContext, phone: string) {
   // verify-otp requires an existing account (NOT_REGISTERED otherwise) — see
   // fixtures/api-client.ts's loginByPhone doc for the full explanation.
-  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   await request.post(apiUrl("/auth/send-otp"), { data: { phone } });
   const res = await request.post(apiUrl("/auth/verify-otp"), { data: { phone, code: DEMO_OTP } });
   const body = await res.json();

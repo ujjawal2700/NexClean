@@ -1,12 +1,15 @@
 /**
  * Google Maps JS access, in one place.
  *
- * The `<script>` tag lives in index.html (async), so at any given moment the
- * API may be absent, still loading, or ready. Every map surface needs the same
- * answer to "can I draw yet?", and each one polling `window.google` on its own
+ * The script is injected after fetching the browser-safe runtime config, so at
+ * any given moment the API may be absent, still loading, or ready. Every map
+ * surface needs the same answer to "can I draw yet?", and each one polling
+ * `window.google` on its own
  * is how you end up with maps that render on a fast connection and stay blank
  * on a slow one.
  */
+
+import { getPublicRuntimeConfig } from "./runtimeConfig";
 
 declare global {
   interface Window {
@@ -17,10 +20,6 @@ declare global {
 }
 
 export type LatLng = { lat: number; lng: number };
-
-/** Whether a Maps key was configured at build time. */
-export const MAPS_KEY: string = (import.meta.env.VITE_GOOGLE_MAPS_KEY as string | undefined) ?? "";
-export const MAPS_CONFIGURED = MAPS_KEY.trim().length > 0;
 
 /** How long to wait for the async script before declaring it unavailable. */
 const LOAD_TIMEOUT_MS = 12_000;
@@ -87,22 +86,39 @@ export function mapsReady(): boolean {
 export function loadMaps(): Promise<boolean> {
   if (readyPromise) return readyPromise;
 
-  readyPromise = new Promise<boolean>((resolve) => {
-    if (mapsReady()) return resolve(true);
-    if (!MAPS_CONFIGURED) return resolve(false);
+  readyPromise = (async () => {
+    if (mapsReady()) return true;
 
-    const startedAt = Date.now();
-    const timer = window.setInterval(() => {
-      if (mapsReady()) {
-        window.clearInterval(timer);
-        resolve(true);
-      } else if (Date.now() - startedAt > LOAD_TIMEOUT_MS) {
-        window.clearInterval(timer);
-        console.warn("[maps] Google Maps JS did not load — falling back to the no-map view.");
-        resolve(false);
-      }
-    }, POLL_MS);
-  });
+    const { googleMapsApiKey } = await getPublicRuntimeConfig();
+    if (!googleMapsApiKey) return false;
+
+    if (!document.getElementById("google-map-script")) {
+      const script = document.createElement("script");
+      script.id = "google-map-script";
+      script.async = true;
+      script.defer = true;
+      script.src = `https://maps.googleapis.com/maps/api/js?${new URLSearchParams({
+        key: googleMapsApiKey,
+        libraries: "places,geometry,drawing",
+        loading: "async",
+      })}`;
+      document.head.appendChild(script);
+    }
+
+    return new Promise<boolean>((resolve) => {
+      const startedAt = Date.now();
+      const timer = window.setInterval(() => {
+        if (mapsReady()) {
+          window.clearInterval(timer);
+          resolve(true);
+        } else if (Date.now() - startedAt > LOAD_TIMEOUT_MS) {
+          window.clearInterval(timer);
+          console.warn("[maps] Google Maps JS did not load — falling back to the no-map view.");
+          resolve(false);
+        }
+      }, POLL_MS);
+    });
+  })();
 
   return readyPromise;
 }

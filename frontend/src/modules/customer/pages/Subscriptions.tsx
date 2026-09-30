@@ -24,7 +24,6 @@ import {
   useCategoryLabel,
   useSubscriptionSchedule,
   useWallet,
-  useTimeSlots,
 } from "../api/queries";
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import {
@@ -79,8 +78,6 @@ export function Subscriptions() {
   const unsubscribe = useUnsubscribe();
   const previewSub = usePreviewSubscription();
   const { data: wallet } = useWallet();
-  const { data: timeSlotsData } = useTimeSlots();
-  const liveSlots = timeSlotsData?.slots ?? TIME_SLOTS;
 
   const { data: scheduleData, isLoading: scheduleLoading } =
     useSubscriptionSchedule();
@@ -709,7 +706,7 @@ export function Subscriptions() {
                     Select Time Slot
                   </label>
                   <div className="mt-1.5 grid grid-cols-3 gap-2">
-                    {liveSlots.map((slot) => {
+                    {TIME_SLOTS.map((slot) => {
                       const isSelected = selectedSlot === slot;
                       return (
                         <button
@@ -817,7 +814,7 @@ export function Subscriptions() {
                     Select Time Slot
                   </label>
                   <div className="mt-1.5 grid grid-cols-3 gap-2">
-                    {liveSlots.map((slot) => {
+                    {TIME_SLOTS.map((slot) => {
                       const isSelected = selectedSlot === slot;
                       return (
                         <button

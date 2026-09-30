@@ -353,7 +353,20 @@ function mapAgent(a: UserDoc) {
 
 export async function listAgents() {
   const agents = await User.find({ role: "agent" }).sort({ createdAt: 1 });
-  return agents.map(mapAgent);
+  const busy = await Booking.find({
+    assignedAgent: { $in: agents.map((a) => a._id) },
+    status: "upcoming",
+    jobStatus: { $in: ["assigned", "enroute", "arrived", "in_progress"] },
+  }).distinct("assignedAgent");
+  const busyIds = new Set(busy.map(String));
+
+  return agents.map((agent) => ({
+    ...mapAgent(agent),
+    available:
+      isAgentLive(agent) &&
+      !agent.currentOfferBooking &&
+      !busyIds.has(String(agent._id)),
+  }));
 }
 
 export async function setAgentStatus(id: string, status: "verified" | "pending" | "suspended") {

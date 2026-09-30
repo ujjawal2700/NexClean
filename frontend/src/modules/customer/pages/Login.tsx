@@ -13,6 +13,7 @@ import { Stepper } from "@shared/ui/Stepper";
 import { useSendLoginOtp, useVerifyOtp } from "../api/mutations";
 import { meKey } from "../api/queries";
 import { useSessionStore } from "../store/sessionStore";
+import { AccountNotFoundDialog } from "../components/AccountNotFoundDialog";
 
 
 const DEMO_OTP = "123456";
@@ -38,6 +39,7 @@ export function Login() {
   const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
   const [showNotRegisteredModal, setShowNotRegisteredModal] = useState(false);
   const phoneRef = useRef("");
+  const phoneInputRef = useRef<HTMLInputElement>(null);
 
   if (authenticated) return <Navigate to={redirectTo} replace />;
 
@@ -114,6 +116,7 @@ export function Login() {
 
               <div className="mt-6 space-y-4">
                 <Input
+                  ref={phoneInputRef}
                   name="phone"
                   type="tel"
                   autoComplete="tel"
@@ -267,49 +270,18 @@ export function Login() {
       )}
 
       {showNotRegisteredModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-md animate-fade-in">
-          <GlassCard className="w-full max-w-md space-y-6 bg-surface p-6 shadow-2xl border border-line relative">
-            <button
-              onClick={() => setShowNotRegisteredModal(false)}
-              className="absolute top-4 right-4 text-muted hover:text-ink p-1 rounded-lg transition-colors"
-            >
-              <X className="size-5" />
-            </button>
-
-            <div className="space-y-3 text-center pt-2">
-              <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
-                <UserX className="size-7" />
-              </div>
-              <h3 className="font-display text-2xl font-bold text-ink">Account Not Registered</h3>
-              <p className="text-sm text-muted leading-relaxed">
-                The mobile number <span className="font-semibold text-ink">+91 {phoneRef.current || phone}</span> is not registered with NexClean.
-              </p>
-              <p className="text-xs text-ink-soft bg-surface-muted/60 rounded-xl p-3 border border-line/40">
-                Kindly sign up first to create your profile, choose your service location, and get started!
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 pt-1">
-              <Button
-                variant="outline"
-                onClick={() => setShowNotRegisteredModal(false)}
-                className="flex-1 rounded-xl"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  const targetPhone = phoneRef.current || phone;
-                  setShowNotRegisteredModal(false);
-                  navigate(`/app/signup?phone=${targetPhone}`);
-                }}
-                className="flex-1 rounded-xl bg-primary text-white"
-              >
-                Sign Up <ArrowRight className="size-4 ml-1" />
-              </Button>
-            </div>
-          </GlassCard>
-        </div>
+        <AccountNotFoundDialog
+          phone={phoneRef.current || phone}
+          onClose={() => {
+            setShowNotRegisteredModal(false);
+            window.requestAnimationFrame(() => phoneInputRef.current?.focus());
+          }}
+          onSignUp={() => {
+            const targetPhone = phoneRef.current || phone;
+            setShowNotRegisteredModal(false);
+            navigate(`/app/signup?phone=${targetPhone}`);
+          }}
+        />
       )}
     </main>
   );

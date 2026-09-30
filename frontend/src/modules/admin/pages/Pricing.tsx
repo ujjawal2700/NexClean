@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Check, Loader2, Plus, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
@@ -70,9 +71,9 @@ export function Pricing() {
         <p className="font-display text-lg font-semibold text-ink">Base price by vehicle</p>
         <p className="mt-1 text-sm text-muted">
           Need a new category? Add it from{" "}
-          <a href="/admin/vehicle-categories" className="text-primary hover:underline">
+          <Link to="/admin/vehicle-categories" className="text-primary hover:underline">
             Vehicle Categories
-          </a>
+          </Link>
           .
         </p>
         <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

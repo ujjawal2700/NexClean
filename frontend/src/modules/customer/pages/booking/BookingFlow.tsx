@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -15,6 +16,7 @@ import {
   Coins,
   Radio,
   Crosshair,
+  IndianRupee,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
@@ -32,8 +34,8 @@ import {
   useCategoryLabel,
   useWallet,
   useOffPeakHours,
-  useTimeSlots,
   usePaymentMode,
+  vehicleCategoriesKey,
 } from "../../api/queries";
 import { isOffPeakSlot, windowsForDate } from "../../data/offPeakHours";
 import {
@@ -48,7 +50,6 @@ import { AddAddressModal } from "@shared/components/address/AddAddressModal";
 import type { LatLng } from "@shared/lib/maps";
 import {
   PACKAGES,
-  TIME_SLOTS,
   availableSlotsForDate,
   upcomingDates,
   priceFor,
@@ -62,6 +63,7 @@ import type {
 } from "../../types";
 import { formatMoney } from "@shared/lib/format";
 import { Stepper, STEP_LABELS } from "./Stepper";
+import { functionalStorageAllowed } from "@shared/lib/cookieConsent";
 
 type Draft = {
   vehicleType: CarType | null;
@@ -94,6 +96,7 @@ const EMPTY: Draft = {
 const DRAFT_STORAGE_KEY = "nexclean-booking-draft";
 
 function getInitialBookingState(): { step: number; draft: Draft } {
+  if (!functionalStorageAllowed()) return { step: 0, draft: EMPTY };
   try {
     const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
     if (raw) {
@@ -111,6 +114,7 @@ function getInitialBookingState(): { step: number; draft: Draft } {
 
 export function BookingFlow() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { data: me } = useMe();
   const { data: categories = [] } = useVehicleCategories();
   const categoryLabel = useCategoryLabel();
@@ -127,8 +131,10 @@ export function BookingFlow() {
   const [payError, setPayError] = useState("");
   const [processing, setProcessing] = useState(false);
   const [confirmed, setConfirmed] = useState<Booking | null>(null);
+  const [priceChanged, setPriceChanged] = useState<number | null>(null);
 
   useEffect(() => {
+    if (!functionalStorageAllowed()) return;
     if (step < 2) {
       sessionStorage.setItem(
         DRAFT_STORAGE_KEY,
@@ -162,9 +168,9 @@ export function BookingFlow() {
   const walletCoins = wallet?.coins ?? 0;
 
   /** Re-price with the server, factoring in the applied code and any coins redeemed. */
-  const refreshQuote = async (code: string | undefined, coins: number) => {
+  const refreshQuote = async (code: string | undefined, coins: number, force = false) => {
     if (!draft.vehicleType || !pkg) return;
-    if (!code && coins <= 0) {
+    if (!force && !code && coins <= 0) {
       setAppliedDiscount(null);
       return;
     }
@@ -308,11 +314,15 @@ export function BookingFlow() {
        * payment confirmation fields". Letting the server decide means adding
        * keys switches the flow on instead of breaking it.
        */
-      const order = await createOrder.mutateAsync(bookingInput);
+      const order = await createOrder.mutateAsync({
+        booking: bookingInput,
+        expectedAmount: payable,
+      });
 
       if (order.mock) {
         const booking = await verifyPayment.mutateAsync({
           booking: bookingInput,
+          razorpay_order_id: order.orderId,
         });
         setConfirmed(booking);
         setProcessing(false);
@@ -351,9 +361,35 @@ export function BookingFlow() {
         modal: { ondismiss: () => setProcessing(false) },
       });
     } catch (e) {
+      const details = e instanceof ApiError ? e.details as { code?: string; currentAmount?: number } | undefined : undefined;
+      if (e instanceof ApiError && e.status === 409 && details?.code === "PRICE_CHANGED") {
+        setPriceChanged(typeof details.currentAmount === "number" ? details.currentAmount : payable);
+        setProcessing(false);
+        return;
+      }
       setPayError(
         e instanceof ApiError ? e.message : "Payment failed. Please try again.",
       );
+      setProcessing(false);
+    }
+  };
+
+  const acceptUpdatedPrice = async () => {
+    setProcessing(true);
+    try {
+      // Refresh both the catalog base price and the server-computed final
+      // quote. The latter keeps discounts and redeemed coins authoritative.
+      await qc.invalidateQueries({ queryKey: vehicleCategoriesKey });
+      await refreshQuote(
+        appliedDiscount?.discountCode ? discountInput.trim() : undefined,
+        coinsToRedeem,
+        true,
+      );
+      setPriceChanged(null);
+      setPayError("");
+    } catch (e) {
+      setPayError(e instanceof ApiError ? e.message : "Couldn't refresh the new price. Please try again.");
+    } finally {
       setProcessing(false);
     }
   };
@@ -480,6 +516,74 @@ export function BookingFlow() {
           address={address?.label}
         />
       </div>
+
+      {priceChanged !== null && (
+        <PriceChangedDialog
+          amount={priceChanged}
+          loading={processing}
+          onConfirm={acceptUpdatedPrice}
+        />
+      )}
+    </div>
+  );
+}
+
+function PriceChangedDialog({
+  amount,
+  loading,
+  onConfirm,
+}: {
+  amount: number;
+  loading: boolean;
+  onConfirm: () => void;
+}) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    buttonRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const keepFocusInside = (event: KeyboardEvent) => {
+      if (event.key === "Tab") {
+        event.preventDefault();
+        buttonRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", keepFocusInside);
+    return () => {
+      document.removeEventListener("keydown", keepFocusInside);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/55 p-4 backdrop-blur-sm" role="presentation">
+      <section
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="price-changed-title"
+        aria-describedby="price-changed-description"
+        className="w-full max-w-md rounded-[28px] border border-line bg-surface p-6 shadow-2xl sm:p-7"
+      >
+        <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
+          <IndianRupee className="size-7" />
+        </div>
+        <h2 id="price-changed-title" className="font-display text-2xl font-semibold text-ink">
+          The price has been updated
+        </h2>
+        <p id="price-changed-description" className="mt-2 text-sm leading-6 text-muted">
+          The service price changed while you were checking out. No payment was taken. Your updated total is
+          <span className="font-semibold text-ink"> {formatMoney(amount)}</span>.
+        </p>
+        <Button
+          ref={buttonRef}
+          onClick={onConfirm}
+          disabled={loading}
+          className="mt-6 min-h-12 w-full justify-center text-base"
+        >
+          {loading ? <Loader2 className="size-5 animate-spin" /> : null}
+          OK, update my total
+        </Button>
+      </section>
     </div>
   );
 }
@@ -664,16 +768,14 @@ function ScheduleStep({
   draft: Draft;
   set: (p: Partial<Draft>) => void;
 }) {
-  const { data: timeSlotsData } = useTimeSlots();
-  const configuredSlots = timeSlotsData?.slots ?? TIME_SLOTS;
-  const dates = upcomingDates(7, configuredSlots);
-  const slots = availableSlotsForDate(draft.date, configuredSlots);
+  const dates = upcomingDates(7);
+  const slots = availableSlotsForDate(draft.date);
   const { data: offPeakConfig } = useOffPeakHours();
   const offPeakWindows = windowsForDate(offPeakConfig, draft.date);
 
   // When a date is selected, if the currently chosen slot is no longer valid, clear it.
   const selectDate = (iso: string) => {
-    const available = availableSlotsForDate(iso, configuredSlots);
+    const available = availableSlotsForDate(iso);
     const slotStillValid = draft.slot && available.includes(draft.slot);
     set({ date: iso, slot: slotStillValid ? draft.slot : null });
   };

@@ -24,18 +24,9 @@ export const TIME_SLOTS = [
 
 export type TimeSlot = (typeof TIME_SLOTS)[number];
 
-import { getLiveSlots } from "../modules/dispatch/slotConfig.service.js";
-
-export function isValidSlotLive(slot: unknown): boolean {
-  if (typeof slot !== "string") return false;
-  return getLiveSlots().includes(slot);
-}
-
 export function isValidSlot(slot: unknown): slot is TimeSlot {
-  return isValidSlotLive(slot);
+  return typeof slot === "string" && (TIME_SLOTS as readonly string[]).includes(slot);
 }
-
-export { getLiveSlots };
 
 /** Human-readable list for error messages. */
 export const SLOT_LIST = TIME_SLOTS.join(", ");

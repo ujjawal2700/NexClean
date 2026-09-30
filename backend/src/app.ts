@@ -19,7 +19,9 @@ export function createApp(): Application {
   // `true` would trust a client-supplied X-Forwarded-For and be spoofable.
   app.set("trust proxy", 1);
 
-  app.use(helmet());
+  // CORS runs first so every response — including the 426 below and
+  // preflight OPTIONS — carries CORS headers. Otherwise the browser masks the
+  // real error as a generic CORS failure.
   app.use(
     cors({
       origin(origin, callback) {
@@ -41,6 +43,28 @@ export function createApp(): Application {
       credentials: true,
     }),
   );
+  // Reject plaintext production traffic even if a proxy is accidentally
+  // configured without its HTTP -> HTTPS redirect. `trust proxy` above makes
+  // req.secure honor the first proxy's X-Forwarded-Proto value.
+  app.use((req: Request, res: Response, next) => {
+    if (isProd && !req.secure) {
+      return res.status(426).json({
+        success: false,
+        message: "HTTPS is required.",
+      });
+    }
+    next();
+  });
+
+  app.use(
+    helmet({
+      strictTransportSecurity: {
+        maxAge: 63_072_000,
+        includeSubDomains: true,
+        preload: true,
+      },
+    }),
+  );
   // 12mb cap accommodates base64-encoded Aadhar KYC photos from agent signup.
   app.use(express.json({ limit: "12mb" }));
   if (!isProd) app.use(morgan("dev"));
@@ -52,6 +76,29 @@ export function createApp(): Application {
       status: "ok",
       db: isDbConnected() ? "connected" : "disconnected",
       time: new Date().toISOString(),
+    });
+  });
+
+  // This allowlisted payload contains only values browser SDKs are designed to
+  // receive. Server credentials (JWT, Firebase service account, payments,
+  // Cloudinary, SMS and admin credentials) never enter this response.
+  app.get("/api/config/public", (_req: Request, res: Response) => {
+    const firebase = env.firebaseWebConfig;
+    const hasFirebaseConfig = Boolean(
+      firebase.apiKey &&
+        firebase.projectId &&
+        firebase.messagingSenderId &&
+        firebase.appId &&
+        firebase.vapidKey,
+    );
+
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=3600");
+    res.json({
+      success: true,
+      data: {
+        googleMapsApiKey: env.googleMapsBrowserKey || null,
+        firebase: hasFirebaseConfig ? firebase : null,
+      },
     });
   });
 

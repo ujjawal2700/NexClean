@@ -11,6 +11,7 @@ import {
   fetchCurrentOffer,
   acceptOffer,
   declineOffer,
+  sendLocationHeartbeat,
 } from "../api/agent.api";
 import type { JobOffer } from "../types";
 import { useDeviceLocation } from "./useDeviceLocation";
@@ -85,6 +86,9 @@ export function useAgentDispatch(): AgentDispatch {
   const [error, setError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const checkOfferRef = useRef<() => void>(() => {});
+  const offerEventVersionRef = useRef(0);
+  const lastRestLocationAtRef = useRef(0);
 
   // Socket connection + offer events.
   useEffect(() => {
@@ -96,12 +100,19 @@ export function useAgentDispatch(): AgentDispatch {
     });
     socketRef.current = socket;
 
+    // Socket events are ephemeral. Reconcile with the authoritative REST
+    // state after every connect/reconnect so a brief mobile network handoff
+    // cannot make a valid offer invisible for its entire timeout.
+    socket.on("connect", () => checkOfferRef.current());
+
     socket.on("job_offer", (o: JobOffer) => {
+      offerEventVersionRef.current += 1;
       setError(null);
       setOffer(o);
       playPing();
     });
     socket.on("offer_revoked", ({ bookingId }: { bookingId: string }) => {
+      offerEventVersionRef.current += 1;
       setOffer((prev) => (prev?.bookingId === bookingId ? null : prev));
     });
     socket.on("job_assigned", () => {
@@ -127,20 +138,34 @@ export function useAgentDispatch(): AgentDispatch {
   useEffect(() => {
     if (!authenticated) return;
     const checkOffer = () => {
+      const versionAtRequest = offerEventVersionRef.current;
       fetchCurrentOffer()
         .then((o) => {
-          if (o) setOffer(o);
+          // A socket event that arrived after this request began is newer than
+          // its response. Never let a slow `null` reconciliation erase that
+          // freshly delivered popup.
+          if (o || offerEventVersionRef.current === versionAtRequest) setOffer(o);
         })
         .catch(() => {});
     };
+    checkOfferRef.current = checkOffer;
     checkOffer();
+    // A lightweight safety net for WebSocket-only production deployments.
+    // Five seconds is fast enough to recover a missed popup while remaining
+    // tiny compared with location streaming traffic.
+    const poll = window.setInterval(checkOffer, online ? 5_000 : 15_000);
     window.addEventListener("focus", checkOffer);
-    document.addEventListener("visibilitychange", checkOffer);
-    return () => {
-      window.removeEventListener("focus", checkOffer);
-      document.removeEventListener("visibilitychange", checkOffer);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") checkOffer();
     };
-  }, [authenticated]);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(poll);
+      window.removeEventListener("focus", checkOffer);
+      document.removeEventListener("visibilitychange", onVisibility);
+      checkOfferRef.current = () => {};
+    };
+  }, [authenticated, online]);
 
   // Stream GPS so dispatch can rank by real distance and the customer's live
   // map can follow the cleaner in. The fix comes from the app-wide watch, which
@@ -159,6 +184,14 @@ export function useAgentDispatch(): AgentDispatch {
       heading: deviceFix.heading,
       speed: deviceFix.speed,
     });
+    // Socket.IO is the fast path; this periodic authenticated write is the
+    // reliability path. It keeps nearest-agent ranking current even when a
+    // corporate/mobile network blocks WebSockets or the cross-worker adapter
+    // is temporarily unavailable.
+    if (Date.now() - lastRestLocationAtRef.current >= 20_000) {
+      lastRestLocationAtRef.current = Date.now();
+      void sendLocationHeartbeat(deviceFix.lat, deviceFix.lng).catch(() => {});
+    }
   }, [shouldStream, deviceFix]);
 
   useEffect(() => {

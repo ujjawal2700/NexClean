@@ -1,4 +1,5 @@
 import type { SiteContent } from "@shared/types/content";
+import { PRIVACY_PAGE, TERMS_PAGE } from "@shared/content/legal";
 
 /**
  * Client-side fallback for site content — mirrors the backend defaults so the
@@ -33,7 +34,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
           { label: "Customer Support", href: "/support" },
           { label: "Help center", href: "/help" },
           { label: "Privacy policy", href: "/privacy" },
-          { label: "Terms of service", href: "/terms" },
+          { label: "Terms & Conditions", href: "/terms" },
           { label: "Refund policy", href: "/refund" },
         ],
       },
@@ -56,18 +57,8 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
         "We're a small team moving fast — and we're always looking to talk to people who care about craft, reliability, and good design.",
       body: "",
     },
-    privacy: {
-      eyebrow: "Legal",
-      title: "Privacy policy",
-      subtitle: "Last updated June 2026. This page explains what we collect, why, and how you can control it.",
-      body: "",
-    },
-    terms: {
-      eyebrow: "Legal",
-      title: "Terms of service",
-      subtitle: "Last updated June 2026. By booking through NexClean, you agree to the terms below.",
-      body: "",
-    },
+    privacy: { ...PRIVACY_PAGE },
+    terms: { ...TERMS_PAGE },
     refund: {
       eyebrow: "Legal",
       title: "Refund policy",

@@ -1,5 +1,5 @@
 import type { APIRequestContext } from "@playwright/test";
-import { authHeader, DEMO_OTP, ADMIN_EMAIL, ADMIN_PASSWORD, SEED_AGENT_PHONE, SEED_PENDING_AGENT_PHONE, freshPhone } from "./api-client";
+import { authHeader, DEMO_OTP, LEGAL_ACCEPTANCE, ADMIN_EMAIL, ADMIN_PASSWORD, SEED_AGENT_PHONE, SEED_PENDING_AGENT_PHONE, freshPhone } from "./api-client";
 
 /**
  * playwright.config.ts's "api" project sets `baseURL: "http://localhost:4000/api"`
@@ -47,7 +47,7 @@ async function unwrap<T>(res: { ok: () => boolean; json: () => Promise<unknown> 
 // best-effort signup covers both fresh and already-registered phones; on an
 // existing number it just 400s and is ignored.
 export async function loginByPhoneApi(request: APIRequestContext, phone: string): Promise<{ token: string; userId: string }> {
-  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   await request.post(apiUrl("/auth/send-otp"), { data: { phone } });
   const res = await request.post(apiUrl("/auth/verify-otp"), { data: { phone, code: DEMO_OTP } });
   const data = await unwrap<{ token: string; user: { id: string } }>(res, "verify-otp");
@@ -56,7 +56,7 @@ export async function loginByPhoneApi(request: APIRequestContext, phone: string)
 
 export async function loginAsNewCustomerApi(request: APIRequestContext) {
   const phone = freshPhone();
-  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   return loginByPhoneApi(request, phone);
 }
 

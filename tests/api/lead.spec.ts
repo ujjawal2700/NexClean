@@ -115,6 +115,7 @@ test.describe("Geofence coverage check — /catalog/service-check", () => {
     ).data;
 
     const inside = await request.get(apiUrl("/catalog/service-check?lat=20.105&lng=80.105"));
+    expect(inside.headers()["cache-control"]).toContain("no-store");
     const insideBody = (await inside.json()).data;
     expect(insideBody.zonesConfigured).toBe(true);
     expect(insideBody.serviceable).toBe(true);
@@ -123,6 +124,22 @@ test.describe("Geofence coverage check — /catalog/service-check", () => {
     const outsideBody = (await outside.json()).data;
     expect(outsideBody.zonesConfigured).toBe(true);
     expect(outsideBody.serviceable).toBe(false);
+
+    // Moving the boundary must affect the very next customer check; no admin
+    // or customer refresh is part of the contract.
+    const movedCoordinates: [number, number][] = [
+      [80.495, 20.495],
+      [80.505, 20.495],
+      [80.505, 20.505],
+      [80.495, 20.505],
+    ];
+    const update = await request.patch(apiUrl(`/admin/zones/${zone.id}`), {
+      headers: authHeader(token),
+      data: { coordinates: movedCoordinates },
+    });
+    expect(update.ok()).toBeTruthy();
+    const immediatelyCovered = await request.get(apiUrl("/catalog/service-check?lat=20.500&lng=80.500"));
+    expect((await immediatelyCovered.json()).data.serviceable).toBe(true);
 
     await request.delete(apiUrl(`/admin/zones/${zone.id}`), { headers: authHeader(token) });
   });

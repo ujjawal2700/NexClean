@@ -37,6 +37,19 @@ export const env = {
   // Base64-encoded Firebase service-account JSON. When empty, push runs in
   // mock mode (logs instead of sending) so the engine is fully testable offline.
   firebaseServiceAccount: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ?? "",
+  // Browser SDK identifiers are intentionally served at runtime from the
+  // narrowly scoped /api/config/public endpoint. They are public credentials
+  // (and must be origin/API restricted), never service-account secrets.
+  googleMapsBrowserKey: process.env.GOOGLE_MAPS_BROWSER_KEY ?? "",
+  firebaseWebConfig: {
+    apiKey: process.env.FIREBASE_WEB_API_KEY ?? "",
+    authDomain: process.env.FIREBASE_WEB_AUTH_DOMAIN ?? "",
+    projectId: process.env.FIREBASE_WEB_PROJECT_ID ?? "",
+    storageBucket: process.env.FIREBASE_WEB_STORAGE_BUCKET ?? "",
+    messagingSenderId: process.env.FIREBASE_WEB_MESSAGING_SENDER_ID ?? "",
+    appId: process.env.FIREBASE_WEB_APP_ID ?? "",
+    vapidKey: process.env.FIREBASE_VAPID_PUBLIC_KEY ?? "",
+  },
   // Razorpay keys. Only consulted when PAYMENTS_ONLINE is explicitly enabled.
   razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? "",
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? "",
@@ -158,4 +171,3 @@ export function assertProductionConfig(): void {
     );
   }
 }
-

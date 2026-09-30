@@ -98,12 +98,6 @@ const NAV_GROUPS: NavGroup[] = [
         permission: "off-peak-hours",
       },
       {
-        to: "/admin/time-slots",
-        label: "Time Slots",
-        icon: Clock,
-        permission: "time-slots",
-      },
-      {
         to: "/admin/area-alerts",
         label: "Area Alerts",
         icon: Radar,
@@ -426,7 +420,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     setSession,
   } = useAdminSession();
   const [open, setOpen] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const { data: me, error } = useAdminMe();
 
@@ -434,15 +427,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     clear();
     qc.clear();
     navigate("/admin/login");
-  };
-
-  const handleLogoutClick = () => {
-    setShowLogoutConfirm(true);
-  };
-
-  const confirmLogout = () => {
-    setShowLogoutConfirm(false);
-    onLogout();
   };
 
   useEffect(() => {
@@ -456,7 +440,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       onLogout();
     }
   }, [error]);
-
 
   return (
     <div className="min-h-dvh bg-bg">
@@ -472,7 +455,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <NavItems />
         </div>
         <button
-          onClick={handleLogoutClick}
+          onClick={onLogout}
           className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-muted">
           <LogOut className="size-[18px] " /> Log out
         </button>
@@ -498,7 +481,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               <NavItems onNavigate={() => setOpen(false)} />
             </div>
             <button
-              onClick={handleLogoutClick}
+              onClick={onLogout}
               className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-ink-soft hover:bg-surface-muted">
               <LogOut className="size-[18px]" /> Log out
             </button>
@@ -536,7 +519,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleLogoutClick}
+              onClick={onLogout}
               className="lg:hidden"
               aria-label="Log out">
               <LogOut className="size-4" />
@@ -546,44 +529,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
         <main className="px-5 py-8 md:px-8">{children}</main>
       </div>
-
-      {/* Logout Confirmation Modal */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
-            onClick={() => setShowLogoutConfirm(false)}
-          />
-          <div className="relative w-full max-w-sm rounded-3xl border border-line bg-surface p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex flex-col items-center text-center">
-              <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-red-500/10 text-red-600">
-                <LogOut className="size-6" />
-              </div>
-              <h3 className="font-display text-lg font-semibold text-ink">Confirm Logout</h3>
-              <p className="mt-1.5 text-xs text-muted leading-relaxed">
-                Are you sure you want to log out of the admin console? You will need to sign in again to access administrative tools.
-              </p>
-            </div>
-
-            <div className="mt-6 flex items-center gap-3">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setShowLogoutConfirm(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white shadow-sm"
-                onClick={confirmLogout}
-              >
-                Log out
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
-

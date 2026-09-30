@@ -68,14 +68,31 @@ export async function initSocket(server: any) {
   // (dispatch offers, chat, notifications) would silently miss clients
   // connected to a different worker.
   if (env.redisUrl) {
-    const pubClient = createClient({ url: env.redisUrl });
+    // Fail this startup attempt promptly. The redis client's default is to
+    // retry forever, which prevents the authentication/room handlers below
+    // from ever being registered: browsers appear socket-connected but never
+    // join `user:*`, so dispatch events vanish. HTTP reconciliation keeps the
+    // app functional until Redis is restored.
+    const pubClient = createClient({ url: env.redisUrl, socket: { reconnectStrategy: false } });
     const subClient = pubClient.duplicate();
     pubClient.on("error", (err) => console.error("Redis pubClient error:", err.message));
     subClient.on("error", (err) => console.error("Redis subClient error:", err.message));
-    await Promise.all([pubClient.connect(), subClient.connect()]);
-    io.adapter(createAdapter(pubClient, subClient));
-    clusterAdapterReady = true;
-    console.log("🔌 Socket.IO using Redis adapter for cross-worker broadcast");
+    try {
+      await Promise.all([pubClient.connect(), subClient.connect()]);
+      io.adapter(createAdapter(pubClient, subClient));
+      clusterAdapterReady = true;
+      console.log("🔌 Socket.IO using Redis adapter for cross-worker broadcast");
+    } catch (err) {
+      // One half may have connected while the other failed. Only destroy an
+      // open client; node-redis throws "The client is closed" otherwise and
+      // that would abort the local-socket fallback we are trying to preserve.
+      if (pubClient.isOpen) pubClient.destroy();
+      if (subClient.isOpen) subClient.destroy();
+      console.error(
+        "⚠️ Socket.IO Redis unavailable; continuing with local sockets + HTTP reconciliation:",
+        (err as Error).message,
+      );
+    }
   }
 
   /**

@@ -134,6 +134,7 @@ export type AdminAgent = {
   rating: number;
   jobsDone: number;
   online: boolean;
+  available?: boolean;
   status: AgentStatus;
   aadharNumber: string;
   aadharFrontUrl: string;
@@ -564,12 +565,4 @@ export type AdminStaff = {
   adminRoleId: string | AdminRole | null;
   createdAt?: string;
 };
-
-/** DB-backed bookable time slot configuration — owned by the admin. */
-export type TimeSlotConfig = {
-  slots: string[];
-  updatedAt?: string;
-};
-
-
 

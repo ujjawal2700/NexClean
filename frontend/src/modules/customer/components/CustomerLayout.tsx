@@ -166,12 +166,15 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* content */}
-      <main className="mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-5 sm:pt-8 md:pb-16">
+      <main className="mobile-content-with-nav mx-auto max-w-6xl px-4 pt-6 sm:px-5 sm:pt-8">
         {children}
       </main>
 
       {/* mobile tab bar */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/90 backdrop-blur-xl md:hidden">
+      <nav
+        data-testid="customer-mobile-nav"
+        className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/95 backdrop-blur-xl md:hidden"
+      >
         <div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">
           {NAV.map((item) => {
             const locked = isGuest && item.authRequired;

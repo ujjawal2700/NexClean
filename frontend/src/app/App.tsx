@@ -6,6 +6,8 @@ import { RouteScrollReset } from "@shared/components/RouteScrollReset";
 import { RouteErrorBoundary } from "@shared/components/RouteErrorBoundary";
 import { queryClient } from "@shared/lib/queryClient";
 import { AppRoutes } from "@/routes";
+import { CookieConsentBanner } from "@shared/components/CookieConsentBanner";
+import { SeoMetadata } from "@shared/components/SeoMetadata";
 
 /**
  * Root application shell: server-state provider + router + smooth scrolling.
@@ -16,9 +18,11 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <SeoMetadata />
         <SmoothScroll>
           <Grain />
           <RouteScrollReset />
+          <CookieConsentBanner />
           <RouteErrorBoundary homePath="/" homeLabel="home page">
             <AppRoutes />
           </RouteErrorBoundary>

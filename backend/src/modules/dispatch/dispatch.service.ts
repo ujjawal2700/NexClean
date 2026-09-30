@@ -99,13 +99,30 @@ async function sendOffer(b: BookingDocument, candidate: NearbyAgent) {
 }
 
 async function moveToAdminQueue(b: BookingDocument) {
-  b.dispatchStatus = "pending_admin";
-  b.currentOfferAgent = null;
-  b.offerExpiresAt = null;
-  await b.save();
-  emitSearchProgress(b);
+  // Do not let a concurrent no-candidate search overwrite an offer another
+  // caller has just claimed. This is the same booking-side compare-and-swap
+  // used when publishing an offer below.
+  const moved = await Booking.findOneAndUpdate(
+    {
+      _id: b._id,
+      status: "upcoming",
+      dispatchStatus: b.dispatchStatus,
+      currentOfferAgent: b.currentOfferAgent ?? null,
+      offerExpiresAt: b.offerExpiresAt ?? null,
+    },
+    {
+      $set: {
+        dispatchStatus: "pending_admin",
+        currentOfferAgent: null,
+        offerExpiresAt: null,
+      },
+    },
+    { new: true },
+  ).populate("user", "name");
+  if (!moved) return;
+  emitSearchProgress(moved);
   emitDispatchUpdate();
-  emitToAdmins("dispatch_pending", { bookingId: String(b._id) });
+  emitToAdmins("dispatch_pending", { bookingId: String(moved._id) });
 }
 
 /** Notify the customer + refresh admin views once a cleaner is locked in. */
@@ -195,16 +212,43 @@ export async function offerNext(bookingId: string): Promise<void> {
         continue;
       }
 
-      b.set("currentOfferAgent", new Types.ObjectId(candidate.id));
-      b.offerExpiresAt = new Date(Date.now() + OFFER_TTL_MS);
-      b.dispatchStatus = "offered";
-      b.dispatchTierIndex = i;
-      b.searchRadiusM = tier.displayRadiusM;
-      b.dispatchAttempts = (b.dispatchAttempts ?? 0) + 1;
-      await b.save();
+      const expiresAt = new Date(Date.now() + OFFER_TTL_MS);
+      // Claim the booking as well as the agent. Two HTTP/worker paths can both
+      // enter offerNext (timeout + decline, reconnect recovery, etc.). The
+      // agent lock alone is insufficient: each path could lock a different
+      // agent and the later save would overwrite the first offer, leaving a
+      // popup on an agent who can no longer accept it.
+      const claimed = await Booking.findOneAndUpdate(
+        {
+          _id: b._id,
+          status: "upcoming",
+          dispatchStatus: b.dispatchStatus,
+          currentOfferAgent: b.currentOfferAgent ?? null,
+          offerExpiresAt: b.offerExpiresAt ?? null,
+        },
+        {
+          $set: {
+            currentOfferAgent: new Types.ObjectId(candidate.id),
+            offerExpiresAt: expiresAt,
+            dispatchStatus: "offered",
+            dispatchTierIndex: i,
+            searchRadiusM: tier.displayRadiusM,
+          },
+          $inc: { dispatchAttempts: 1 },
+        },
+        { new: true },
+      ).populate("user", "name");
 
-      await sendOffer(b, candidate);
-      emitSearchProgress(b);
+      if (!claimed) {
+        await User.updateOne(
+          { _id: candidate.id, currentOfferBooking: b._id },
+          { currentOfferBooking: null },
+        );
+        return;
+      }
+
+      await sendOffer(claimed, candidate);
+      emitSearchProgress(claimed);
       emitDispatchUpdate();
       return;
     }
@@ -305,9 +349,24 @@ export async function assignAgentToBooking(bookingId: string, agentId: string) {
   const agent = await User.findOne({ _id: agentId, role: "agent" });
   if (!agent) throw ApiError.notFound("Agent not found");
   if (agent.agentStatus !== "verified") throw ApiError.badRequest("Agent is not verified");
+  if (!isAgentLive(agent)) {
+    throw ApiError.conflict("This cleaner is offline or has stopped responding. Choose an online cleaner.");
+  }
 
   const booking = await Booking.findById(bookingId).populate("user", "name");
   if (!booking) throw ApiError.notFound("Booking not found");
+
+  const heldOffer = agent.currentOfferBooking ? String(agent.currentOfferBooking) : null;
+  if (heldOffer && heldOffer !== bookingId) {
+    throw ApiError.conflict("This cleaner is currently reviewing another job.");
+  }
+  const busyElsewhere = await Booking.exists({
+    _id: { $ne: booking._id },
+    assignedAgent: agent._id,
+    status: "upcoming",
+    jobStatus: { $in: ["assigned", "enroute", "arrived", "in_progress"] },
+  });
+  if (busyElsewhere) throw ApiError.conflict("This cleaner is already working on another job.");
 
   const previousOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
   // Captured before the overwrite: a reassignment has to revoke the previous
@@ -417,28 +476,52 @@ export async function listAssignableAgents(bookingId: string) {
           near: { type: "Point", coordinates: point },
           distanceField: "distanceM",
           spherical: true,
-          query: { role: "agent", agentStatus: "verified" },
+          query: {
+            role: "agent",
+            agentStatus: "verified",
+            online: true,
+            lastSeenAt: { $gte: new Date(liveSince) },
+            currentOfferBooking: { $in: [null, booking._id] },
+          },
         },
       },
       { $limit: 50 },
       { $project: { name: 1, distanceM: 1, online: 1, lastSeenAt: 1, area: 1 } },
     ]);
-    return agents.map((a) => ({
+    const busy = await Booking.find({
+      assignedAgent: { $in: agents.map((a) => a._id) },
+      status: "upcoming",
+      jobStatus: { $in: ["assigned", "enroute", "arrived", "in_progress"] },
+    }).distinct("assignedAgent");
+    const busyIds = new Set(busy.map(String));
+    return agents.filter((a) => !busyIds.has(String(a._id))).map((a) => ({
       id: String(a._id),
       name: a.name,
       area: a.area ?? "",
       distanceKm: Number((a.distanceM / 1000).toFixed(1)),
-      online: !!a.online && !!a.lastSeenAt && new Date(a.lastSeenAt).getTime() >= liveSince,
+      online: true,
     }));
   }
 
-  const agents = await User.find({ role: "agent", agentStatus: "verified" }).limit(50);
-  return agents.map((a) => ({
+  const agents = await User.find({
+    role: "agent",
+    agentStatus: "verified",
+    online: true,
+    lastSeenAt: { $gte: new Date(liveSince) },
+    currentOfferBooking: { $in: [null, booking._id] },
+  }).limit(50);
+  const busy = await Booking.find({
+    assignedAgent: { $in: agents.map((a) => a._id) },
+    status: "upcoming",
+    jobStatus: { $in: ["assigned", "enroute", "arrived", "in_progress"] },
+  }).distinct("assignedAgent");
+  const busyIds = new Set(busy.map(String));
+  return agents.filter((a) => !busyIds.has(String(a._id))).map((a) => ({
     id: String(a.id),
     name: a.name,
     area: a.area ?? "",
     distanceKm: null,
-    online: isAgentLive(a),
+    online: true,
   }));
 }
 
@@ -541,13 +624,20 @@ export async function sweepOffers(): Promise<void> {
 
   for (const b of expired) {
     const agentId = b.currentOfferAgent ? String(b.currentOfferAgent) : null;
-    await Booking.updateOne(
-      { _id: b._id, dispatchStatus: "offered" },
+    const advanced = await Booking.updateOne(
+      {
+        _id: b._id,
+        dispatchStatus: "offered",
+        currentOfferAgent: b.currentOfferAgent ?? null,
+        offerExpiresAt: { $lt: now },
+      },
       {
         ...(agentId ? { $addToSet: { declinedAgents: new Types.ObjectId(agentId) as never } } : {}),
         $set: { currentOfferAgent: null, offerExpiresAt: null, dispatchStatus: "searching" },
       },
     );
+    // Another tick/worker/decline already advanced this exact offer.
+    if (advanced.modifiedCount === 0) continue;
     if (agentId) {
       await User.updateOne({ _id: agentId, currentOfferBooking: b._id }, { currentOfferBooking: null });
       revokeAgentTracking(agentId, String(b._id));

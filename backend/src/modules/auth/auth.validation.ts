@@ -22,6 +22,8 @@ export const customerSignupSchema = z.object({
   // Stable per-install id from the client, paired with the request IP to spot
   // referral farming. Optional so older clients keep working.
   deviceId: z.string().trim().max(128).optional(),
+  privacyAccepted: z.literal(true, { errorMap: () => ({ message: "Privacy Policy acceptance is required" }) }),
+  termsAccepted: z.literal(true, { errorMap: () => ({ message: "Terms & Conditions acceptance is required" }) }),
 });
 
 const dataUri = z.string().regex(/^data:image\/[a-zA-Z+]+;base64,/, "Upload a valid image");
@@ -35,6 +37,9 @@ export const agentSignupSchema = z.object({
   aadharNumber: z.string().regex(/^\d{12}$/, "Aadhar number must be 12 digits"),
   aadharFront: dataUri,
   aadharBack: dataUri,
+  // Existing unverified agents may already have accepted in signup-basic.
+  privacyAccepted: z.literal(true).optional(),
+  termsAccepted: z.literal(true).optional(),
 });
 
 export const agentSignupBasicSchema = z.object({
@@ -43,6 +48,8 @@ export const agentSignupBasicSchema = z.object({
   city: z.string().trim().min(2, "Choose the city you'll work in"),
   area: z.string().trim().max(120).optional(),
   code: z.string().length(6, "Code must be 6 digits"),
+  privacyAccepted: z.literal(true, { errorMap: () => ({ message: "Privacy Policy acceptance is required" }) }),
+  termsAccepted: z.literal(true, { errorMap: () => ({ message: "Terms & Conditions acceptance is required" }) }),
 });
 
 export type SendOtpInput = z.infer<typeof sendOtpSchema>;

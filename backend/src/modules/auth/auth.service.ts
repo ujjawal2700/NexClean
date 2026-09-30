@@ -8,12 +8,23 @@ import { isSuperAdmin } from "../../shared/utils/superAdmin";
 import { signToken, type Role } from "../../shared/utils/jwt";
 import { generateOtp } from "../../shared/utils/otp";
 import type { CustomerSignupInput, AgentSignupInput, AgentSignupBasicInput } from "./auth.validation";
+import { LEGAL_DOCUMENT_VERSION } from "../../shared/legalDocuments";
+import { verifyPassword, hashPassword } from "../../shared/utils/crypto";
+import { sendSmsOtp } from "../../shared/services/sms";
 
 /** Where a signup came from, used purely for referral-abuse detection. */
-export type SignupOrigin = { ip?: string; deviceId?: string };
-import { verifyPassword, hashPassword } from "../../shared/utils/crypto";
+export type SignupOrigin = { ip?: string; deviceId?: string; userAgent?: string };
 
-import { sendSmsOtp } from "../../shared/services/sms";
+function legalConsent(source: "customer_signup" | "agent_signup", origin: SignupOrigin) {
+  return {
+    privacyPolicyVersion: LEGAL_DOCUMENT_VERSION,
+    termsVersion: LEGAL_DOCUMENT_VERSION,
+    acceptedAt: new Date(),
+    source,
+    ipAddress: (origin.ip ?? "").trim(),
+    userAgent: (origin.userAgent ?? "").slice(0, 500),
+  };
+}
 
 /** Normalize a phone string to a consistent stored form. */
 export function normalize(phone: string): string {
@@ -200,6 +211,7 @@ export async function customerSignup(input: CustomerSignupInput, origin: SignupO
     signupIp: ip,
     signupDeviceId: deviceId,
     referralFlagged: farming,
+    legalConsent: legalConsent("customer_signup", origin),
   });
 
   // New user gets their welcome coins immediately. The referrer is credited
@@ -218,7 +230,7 @@ export async function customerSignup(input: CustomerSignupInput, origin: SignupO
 }
 
 /** Register a new agent account with KYC documents (pending admin review) after OTP verification. */
-export async function agentSignup(input: AgentSignupInput) {
+export async function agentSignup(input: AgentSignupInput, origin: SignupOrigin = {}) {
   const phone = normalize(input.phone);
   let user = await User.findOne({ phone });
   
@@ -234,8 +246,17 @@ export async function agentSignup(input: AgentSignupInput) {
     // their location between the two steps gets the corrected value.
     if (input.city) user.city = input.city;
     if (input.area) user.area = input.area;
+    if (!user.legalConsent) {
+      if (!input.privacyAccepted || !input.termsAccepted) {
+        throw ApiError.badRequest("Please accept the Privacy Policy and Terms & Conditions");
+      }
+      user.legalConsent = legalConsent("agent_signup", origin);
+    }
     await user.save();
   } else {
+    if (!input.privacyAccepted || !input.termsAccepted) {
+      throw ApiError.badRequest("Please accept the Privacy Policy and Terms & Conditions");
+    }
     user = await User.create({
       phone,
       name: input.name,
@@ -247,6 +268,7 @@ export async function agentSignup(input: AgentSignupInput) {
       aadharNumber: input.aadharNumber,
       aadharFrontUrl: input.aadharFront,
       aadharBackUrl: input.aadharBack,
+      legalConsent: legalConsent("agent_signup", origin),
     });
   }
 
@@ -255,7 +277,7 @@ export async function agentSignup(input: AgentSignupInput) {
 }
 
 /** Create an unverified agent account immediately after OTP verification during signup basic step. */
-export async function agentSignupBasic(input: AgentSignupBasicInput) {
+export async function agentSignupBasic(input: AgentSignupBasicInput, origin: SignupOrigin = {}) {
   const phone = normalize(input.phone);
   await verifyOtpCode(phone, input.code);
 
@@ -272,6 +294,7 @@ export async function agentSignupBasic(input: AgentSignupBasicInput) {
     area: input.area ?? "",
     online: false,
     agentStatus: "unverified",
+    legalConsent: legalConsent("agent_signup", origin),
   });
 
   const token = signToken(user.id, "agent", user.tokenVersion ?? 0);

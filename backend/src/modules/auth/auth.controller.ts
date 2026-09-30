@@ -50,18 +50,25 @@ export async function customerSignup(req: Request, res: Response): Promise<Respo
   const result = await authService.customerSignup(req.body, {
     ip: req.ip,
     deviceId: String(req.get("x-device-id") ?? ""),
+    userAgent: String(req.get("user-agent") ?? ""),
   });
   return ok(res, result, "Account created — verification code sent");
 }
 
 export async function agentSignup(req: Request, res: Response): Promise<Response> {
-  const result = await authService.agentSignup(req.body);
+  const result = await authService.agentSignup(req.body, {
+    ip: req.ip,
+    userAgent: String(req.get("user-agent") ?? ""),
+  });
   setSessionCookie(res, "agent", result.token);
   return ok(res, result, "Application submitted");
 }
 
 export async function agentSignupBasic(req: Request, res: Response): Promise<Response> {
-  const result = await authService.agentSignupBasic(req.body);
+  const result = await authService.agentSignupBasic(req.body, {
+    ip: req.ip,
+    userAgent: String(req.get("user-agent") ?? ""),
+  });
   setSessionCookie(res, "agent", result.token);
   return ok(res, result, "Account created, OTP verified");
 }

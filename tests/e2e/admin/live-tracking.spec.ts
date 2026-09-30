@@ -1,6 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { loginAdminUI } from "../../fixtures/ui-helpers";
-import { DEMO_OTP, ADMIN_EMAIL, ADMIN_PASSWORD, authHeader, freshPhone } from "../../fixtures/api-client";
+import { DEMO_OTP, LEGAL_ACCEPTANCE, ADMIN_EMAIL, ADMIN_PASSWORD, authHeader, freshPhone } from "../../fixtures/api-client";
 import { API_BASE_URL } from "../../playwright.config";
 
 const NEAR_LAT = 22.7196;
@@ -26,7 +26,7 @@ async function customerToken(api: APIRequestContext): Promise<string> {
   const phone = freshPhone();
   // verify-otp requires an existing account (NOT_REGISTERED otherwise) — see
   // fixtures/api-client.ts's loginByPhone doc for the full explanation.
-  await api.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
+  await api.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   await api.post(`${API_BASE_URL}/auth/send-otp`, { data: { phone } });
   const res = await api.post(`${API_BASE_URL}/auth/verify-otp`, { data: { phone, code: DEMO_OTP } });
   return (await res.json()).data.token;
@@ -42,6 +42,7 @@ async function verifiedAgentAt(api: APIRequestContext, admin: string, offsetLat:
       aadharNumber: "123456789012",
       aadharFront: FAKE_AADHAR,
       aadharBack: FAKE_AADHAR,
+      ...LEGAL_ACCEPTANCE,
     },
   });
   const verify = await (

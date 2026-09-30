@@ -59,7 +59,7 @@ const main = async () => {
     const code = (await call("/users/me/referrals", { token: referrer.token })).body?.data?.referralCode;
 
     const phone = freshPhone();
-    await call("/auth/customer/signup", { method: "POST", body: { name: "Race Referee", phone, referralCode: code } });
+    await call("/auth/customer/signup", { method: "POST", body: { name: "Race Referee", phone, referralCode: code, privacyAccepted: true, termsAccepted: true } });
     const user = await login(phone);
     const startCoins = (await call("/wallet", { token: user.token })).body?.data?.coins ?? 0;
 

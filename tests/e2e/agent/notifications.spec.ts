@@ -1,5 +1,5 @@
 import { loginAgentUI } from "../../fixtures/ui-helpers";
-import { authHeader, loginAsAdmin, loginAsNewCustomer, DEMO_OTP, freshPhone } from "../../fixtures/api-client";
+import { authHeader, loginAsAdmin, loginAsNewCustomer, DEMO_OTP, LEGAL_ACCEPTANCE, freshPhone } from "../../fixtures/api-client";
 import { test, expect } from "../../fixtures/agent-e2e-helpers";
 import type { APIRequestContext } from "@playwright/test";
 
@@ -25,6 +25,7 @@ async function freshAgentWithNotifications(request: APIRequestContext) {
       aadharNumber: "123456789012",
       aadharFront: FAKE_AADHAR,
       aadharBack: FAKE_AADHAR,
+      ...LEGAL_ACCEPTANCE,
     },
   });
   const verify = await (
@@ -139,6 +140,7 @@ test.describe("Agent notifications", () => {
         aadharNumber: "123456789012",
         aadharFront: FAKE_AADHAR,
         aadharBack: FAKE_AADHAR,
+        ...LEGAL_ACCEPTANCE,
       },
     });
     const verify = await (

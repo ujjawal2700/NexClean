@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Logo } from "@shared/components/brand/Logo";
+import { LegalConsent } from "@shared/components/LegalConsent";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Badge } from "@shared/ui/Badge";
@@ -40,6 +41,7 @@ export function Signup() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState(searchParams.get("phone") ?? "");
   const [referralCode, setReferralCode] = useState(searchParams.get("ref") ?? "");
+  const [legalConsent, setLegalConsent] = useState(false);
 
   // Step 2 — Location
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
@@ -69,6 +71,7 @@ export function Signup() {
   const submitDetails = () => {
     if (name.trim().length < 2) return setError("Enter your full name");
     if (!/^\d{10}$/.test(phone)) return setError("Enter a valid 10-digit number");
+    if (!legalConsent) return setError("Please accept the Privacy Policy and Terms & Conditions");
     setError("");
     phoneRef.current = phone;
     setStep("location");
@@ -104,6 +107,8 @@ export function Signup() {
           phone,
           email: email.trim() || undefined,
           referralCode: referralCode.trim() || undefined,
+          privacyAccepted: true,
+          termsAccepted: true,
         });
         setStep("otp");
       } catch (e) {
@@ -119,6 +124,8 @@ export function Signup() {
           phone,
           email: email.trim() || undefined,
           referralCode: referralCode.trim() || undefined,
+          privacyAccepted: true,
+          termsAccepted: true,
         });
         setStep("otp");
       } catch (e) {
@@ -221,6 +228,7 @@ export function Signup() {
                   onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
                   onKeyDown={(e) => e.key === "Enter" && submitDetails()}
                 />
+                <LegalConsent checked={legalConsent} onChange={setLegalConsent} />
                 {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-500">{error}</p>}
                 <Button className="w-full" onClick={submitDetails}>
                   Continue <ArrowRight className="size-4" />

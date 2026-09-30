@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect } from "@playwright/test";
-import { ADMIN_EMAIL, ADMIN_PASSWORD, DEMO_OTP, SEED_AGENT_PHONE, freshPhone } from "./api-client";
+import { ADMIN_EMAIL, ADMIN_PASSWORD, DEMO_OTP, LEGAL_ACCEPTANCE, SEED_AGENT_PHONE, freshPhone } from "./api-client";
 import { API_BASE_URL } from "../playwright.config";
 
 /**
@@ -34,11 +34,13 @@ export async function loginCustomerUI(page: Page, phone: string = freshPhone()):
   // leading-slash relative path against a baseURL with its own path segment
   // (API_BASE_URL is ".../api") drops that segment on merge — see
   // fixtures/customer-e2e-helpers.ts's module doc for the full explanation.
-  await page.request.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
+  await page.request.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
 
   await page.goto("/app/login", { waitUntil: "domcontentloaded" });
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.goto("/app/login", { waitUntil: "domcontentloaded" });
+  const customerCookieChoice = page.getByRole("button", { name: "Necessary only" });
+  if (await customerCookieChoice.isVisible()) await customerCookieChoice.click();
   await page.locator('input[name="phone"]').fill(phone);
   await page.getByRole("button", { name: "Send OTP" }).click();
   await expect(page.locator("h1")).toHaveText("Verify your number", { timeout: 15_000 });
@@ -53,6 +55,8 @@ export async function loginAgentUI(page: Page, phone: string = SEED_AGENT_PHONE)
   await page.goto("/agent/login", { waitUntil: "domcontentloaded" });
   await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.goto("/agent/login", { waitUntil: "domcontentloaded" });
+  const agentCookieChoice = page.getByRole("button", { name: "Necessary only" });
+  if (await agentCookieChoice.isVisible()) await agentCookieChoice.click();
   await page.locator('input[name="phone"]').fill(phone);
   await page.getByRole("button", { name: "Send OTP" }).click();
   await expect(page.locator("h1")).toHaveText("Verify your number", { timeout: 15_000 });

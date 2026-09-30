@@ -1,6 +1,5 @@
-import { useEffect, useState, useMemo } from "react";
-import { Plus, Trash2, X, Car, Search } from "lucide-react";
-
+import { useEffect, useState } from "react";
+import { Plus, Trash2, X, Car } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -32,10 +31,12 @@ function ModelRows({ brand }: { brand: VehicleBrand }) {
   // "Add model" (its category select LOOKS populated once the fetch resolves,
   // but categoryKey stays ""). Sync it once real categories arrive.
   useEffect(() => {
-    if (!categoryKey && categories.length > 0) setCategoryKey(categories[0].key);
+    if (!categoryKey && categories.length > 0)
+      setCategoryKey(categories[0].key);
   }, [categories, categoryKey]);
 
-  const categoryName = (key: string) => categories.find((c) => c.key === key)?.name ?? key;
+  const categoryName = (key: string) =>
+    categories.find((c) => c.key === key)?.name ?? key;
 
   const submit = () => {
     if (!name.trim() || !categoryKey) return;
@@ -58,15 +59,17 @@ function ModelRows({ brand }: { brand: VehicleBrand }) {
         <select
           value={categoryKey}
           onChange={(e) => setCategoryKey(e.target.value)}
-          className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-ink outline-none focus:border-primary/50"
-        >
+          className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-ink outline-none focus:border-primary/50">
           {categories.map((c) => (
             <option key={c.key} value={c.key}>
               {c.name}
             </option>
           ))}
         </select>
-        <Button size="sm" onClick={submit} disabled={create.isPending || !name.trim() || !categoryKey}>
+        <Button
+          size="sm"
+          onClick={submit}
+          disabled={create.isPending || !name.trim() || !categoryKey}>
           <Plus className="size-4" /> Add model
         </Button>
       </div>
@@ -76,30 +79,43 @@ function ModelRows({ brand }: { brand: VehicleBrand }) {
           <span
             key={m.id}
             className={`flex items-center gap-1.5 rounded-pill border px-3 py-1 text-sm ${
-              m.active ? "border-line bg-surface/60 text-ink" : "border-line bg-surface/30 text-muted line-through"
-            }`}
-          >
+              m.active
+                ? "border-line bg-surface/60 text-ink"
+                : "border-line bg-surface/30 text-muted line-through"
+            }`}>
             {m.name}
-            <span className="text-xs text-muted">· {categoryName(m.categoryKey)}</span>
+            <span className="text-xs text-muted">
+              · {categoryName(m.categoryKey)}
+            </span>
             <button
-              onClick={() => update.mutate({ brandId: brand.id, modelId: m.id, active: !m.active })}
+              onClick={() =>
+                update.mutate({
+                  brandId: brand.id,
+                  modelId: m.id,
+                  active: !m.active,
+                })
+              }
               disabled={update.isPending}
               className="text-muted hover:text-primary"
-              aria-label={m.active ? `Deactivate ${m.name}` : `Activate ${m.name}`}
-            >
+              aria-label={
+                m.active ? `Deactivate ${m.name}` : `Activate ${m.name}`
+              }>
               {m.active ? "•" : "○"}
             </button>
             <button
-              onClick={() => remove.mutate({ brandId: brand.id, modelId: m.id })}
+              onClick={() =>
+                remove.mutate({ brandId: brand.id, modelId: m.id })
+              }
               disabled={remove.isPending}
               aria-label={`Remove ${m.name}`}
-              className="text-muted hover:text-red-500"
-            >
+              className="text-muted hover:text-red-500">
               <X className="size-3.5" />
             </button>
           </span>
         ))}
-        {models.length === 0 && <p className="text-sm text-muted">No models added yet.</p>}
+        {models.length === 0 && (
+          <p className="text-sm text-muted">No models added yet.</p>
+        )}
       </div>
     </div>
   );
@@ -111,13 +127,6 @@ export function VehicleBrands() {
   const update = useUpdateVehicleBrand();
   const remove = useDeleteVehicleBrand();
   const [name, setName] = useState("");
-  const [search, setSearch] = useState("");
-
-  const filteredBrands = useMemo(() => {
-    if (!search.trim()) return brands;
-    const q = search.toLowerCase().trim();
-    return brands.filter((b) => b.name.toLowerCase().includes(q));
-  }, [brands, search]);
 
   const submit = () => {
     if (!name.trim()) return;
@@ -129,15 +138,18 @@ export function VehicleBrands() {
       <div>
         <h1 className="font-display text-3xl text-ink">Vehicle Brands</h1>
         <p className="mt-1 text-muted">
-          Manage car brands and their models. Each model carries its own category — a brand like Hyundai can span
-          Hatchback, Sedan and SUV models all at once.
+          Manage car brands and their models. Each model carries its own
+          category — a brand like Hyundai can span Hatchback, Sedan and SUV
+          models all at once.
         </p>
       </div>
 
       <GlassCard>
         <div className="flex items-center gap-2">
           <Car className="size-5 text-primary" />
-          <p className="font-display text-lg font-semibold text-ink">Add a brand</p>
+          <p className="font-display text-lg font-semibold text-ink">
+            Add a brand
+          </p>
         </div>
         <div className="mt-4 flex gap-2">
           <Input
@@ -153,68 +165,42 @@ export function VehicleBrands() {
         </div>
       </GlassCard>
 
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <p className="font-display text-lg font-semibold text-ink">Brands & Models</p>
-            <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-muted">
-              {filteredBrands.length} {filteredBrands.length === 1 ? "brand" : "brands"}
-            </span>
-          </div>
-
-          <div className="relative min-w-[240px] max-w-sm">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search brands…"
-              className="h-10 w-full rounded-2xl border border-line bg-surface pl-9 pr-8 text-xs text-ink outline-none transition-all placeholder:text-muted focus:border-primary/50"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink cursor-pointer"
-                aria-label="Clear search"
-              >
-                <X className="size-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          {filteredBrands.map((b) => (
-            <GlassCard key={b.id}>
-              <div className="flex items-center justify-between gap-2">
-                <p className={`font-display text-lg font-semibold ${b.active ? "text-ink" : "text-muted line-through"}`}>
-                  {b.name}
-                </p>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={update.isPending}
-                    onClick={() => update.mutate({ id: b.id, active: !b.active })}
-                  >
-                    {b.active ? "Active" : "Inactive"}
-                  </Button>
-                  <Button variant="ghost" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(b.id)}>
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {brands.map((b) => (
+          <GlassCard key={b.id}>
+            <div className="flex items-center justify-between gap-2">
+              <p
+                className={`font-display text-lg font-semibold ${b.active ? "text-ink" : "text-muted line-through"}`}>
+                {b.name}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={update.isPending}
+                  onClick={() =>
+                    update.mutate({ id: b.id, active: !b.active })
+                  }>
+                  {b.active ? "Active" : "Inactive"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(b.id)}>
+                  <Trash2 className="size-4" />
+                </Button>
               </div>
-              <ModelRows brand={b} />
-            </GlassCard>
-          ))}
-          {filteredBrands.length === 0 && (
-            <GlassCard className="py-12 text-center text-muted lg:col-span-2">
-              {search ? `No brands match "${search}".` : "No brands yet. Add one above."}
-            </GlassCard>
-          )}
-        </div>
+            </div>
+            <ModelRows brand={b} />
+          </GlassCard>
+        ))}
+        {brands.length === 0 && (
+          <GlassCard className="py-12 text-center text-muted lg:col-span-2">
+            No brands yet. Add one above.
+          </GlassCard>
+        )}
       </div>
     </div>
   );
 }
-

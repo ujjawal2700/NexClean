@@ -1,8 +1,8 @@
 /**
  * Device push token for a browser.
  *
- * When the VITE_FIREBASE_* web config + VAPID key are provided, this returns a
- * real Firebase Cloud Messaging web token (registering the background service
+ * When the runtime Firebase web config + VAPID public key are provided, this
+ * returns a real Firebase Cloud Messaging web token (registering the background service
  * worker and requesting notification permission along the way), so the backend
  * can deliver real OS-level pushes.
  *
@@ -12,6 +12,7 @@
  */
 
 import { resolveNotificationPath } from "./notificationLink";
+import { getPublicRuntimeConfig, type FirebasePublicConfig } from "./runtimeConfig";
 
 const KEY = "nexclean-device-token";
 
@@ -23,30 +24,6 @@ export function getOrCreateDeviceToken(): string {
     localStorage.setItem(KEY, token);
   }
   return token;
-}
-
-type FirebaseConfig = {
-  apiKey: string;
-  authDomain?: string;
-  projectId: string;
-  storageBucket?: string;
-  messagingSenderId: string;
-  appId: string;
-};
-
-/** Read the Firebase web config from env, or null when it isn't fully set. */
-function firebaseConfig(): FirebaseConfig | null {
-  const e = import.meta.env;
-  const cfg = {
-    apiKey: e.VITE_FIREBASE_API_KEY,
-    authDomain: e.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: e.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: e.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: e.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: e.VITE_FIREBASE_APP_ID,
-  };
-  if (!cfg.apiKey || !cfg.projectId || !cfg.messagingSenderId || !cfg.appId) return null;
-  return cfg as FirebaseConfig;
 }
 
 // Firebase compat SDK is loaded lazily from the CDN, and only when configured.
@@ -92,8 +69,18 @@ export function saveDeviceToken(token: string): void {
  */
 export async function getPushToken(options?: { requestPermission?: boolean }): Promise<string> {
   const fallback = getOrCreateDeviceToken();
-  const config = firebaseConfig();
-  const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
+  const { firebase } = await getPublicRuntimeConfig();
+  const config: Omit<FirebasePublicConfig, "vapidKey"> | null = firebase
+    ? {
+        apiKey: firebase.apiKey,
+        authDomain: firebase.authDomain,
+        projectId: firebase.projectId,
+        storageBucket: firebase.storageBucket,
+        messagingSenderId: firebase.messagingSenderId,
+        appId: firebase.appId,
+      }
+    : null;
+  const vapidKey = firebase?.vapidKey;
 
   if (
     !config ||
@@ -177,8 +164,8 @@ export function clearStoredDeviceToken(): void {
   localStorage.removeItem(KEY);
 }
 
-export function isFirebaseConfigured(): boolean {
-  return !!(firebaseConfig() && import.meta.env.VITE_FIREBASE_VAPID_KEY);
+export async function isFirebaseConfigured(): Promise<boolean> {
+  return Boolean((await getPublicRuntimeConfig()).firebase);
 }
 
 export function isPushSupported(): boolean {
@@ -193,5 +180,3 @@ export function getNotificationPermission(): NotificationPermission | "unsupport
   if (!isPushSupported()) return "unsupported";
   return Notification.permission;
 }
-
-

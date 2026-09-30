@@ -222,7 +222,12 @@ test.describe("Admin — dashboard & bookings", () => {
       const { token: customerToken } = await loginAsNewCustomerApi(request);
       const bookingId = await createUnlocatedBooking(request, customerToken);
       const { token: adminToken } = await loginAsAdminApi(request);
-      const { userId: agentId } = await loginAsAgentApi(request);
+      const { token: agentToken, userId: agentId } = await loginAsAgentApi(request);
+      const online = await request.patch(apiUrl("/agent/online"), {
+        headers: authHeader(agentToken),
+        data: { online: true },
+      });
+      expect(online.ok()).toBeTruthy();
 
       const res = await request.patch(apiUrl(`/admin/bookings/${bookingId}/assign`), {
         headers: authHeader(adminToken),
@@ -232,6 +237,24 @@ test.describe("Admin — dashboard & bookings", () => {
       const body = await res.json();
       expect(body.data.dispatchStatus).toBe("assigned");
       expect(body.data.assignedAgentId).toBe(agentId);
+    });
+
+    test("PATCH /admin/bookings/:id/assign rejects an offline verified agent", async ({ request }) => {
+      const { token: customerToken } = await loginAsNewCustomerApi(request);
+      const bookingId = await createUnlocatedBooking(request, customerToken);
+      const { token: adminToken } = await loginAsAdminApi(request);
+      const { token: agentToken, userId: agentId } = await loginAsAgentApi(request);
+      await request.patch(apiUrl("/agent/online"), {
+        headers: authHeader(agentToken),
+        data: { online: false },
+      });
+
+      const res = await request.patch(apiUrl(`/admin/bookings/${bookingId}/assign`), {
+        headers: authHeader(adminToken),
+        data: { agentId },
+      });
+      expect(res.status()).toBe(409);
+      expect((await res.json()).message).toContain("offline");
     });
 
     test("POST /admin/bookings/:id/auto-assign rejects a booking with no saved location", async ({ request }) => {

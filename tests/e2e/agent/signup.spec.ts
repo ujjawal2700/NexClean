@@ -50,6 +50,7 @@ async function fillDetails(page: import("@playwright/test").Page, opts: { name: 
   await page.locator('input[name="phone"]').fill(opts.phone);
   await page.locator('select[name="city"]').selectOption(TEST_CITY);
   await page.locator('select[name="area"]').selectOption(opts.area);
+  await page.locator('input[name="legalConsent"]').check();
 }
 
 /**
@@ -77,7 +78,13 @@ async function passOtpStep(page: import("@playwright/test").Page) {
 }
 
 test.describe("Agent signup", () => {
-  test.beforeEach(async ({ request }) => {
+  test.beforeEach(async ({ page, request }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "nexclean-cookie-consent",
+        JSON.stringify({ version: 1, necessary: true, functional: false, updatedAt: new Date().toISOString() }),
+      );
+    });
     await seedLocation(request);
   });
 

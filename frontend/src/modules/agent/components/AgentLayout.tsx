@@ -170,7 +170,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 pb-28 pt-6 sm:px-5 sm:pt-8 md:pb-16">
+      <main className="mobile-content-with-nav mx-auto max-w-5xl px-4 pt-6 sm:px-5 sm:pt-8">
         {showLocationNudge && (
           <div className="mb-5 flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
             <MapPinOff className="size-4 shrink-0" />
@@ -180,7 +180,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/90 backdrop-blur-xl md:hidden">
+      <nav className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/95 backdrop-blur-xl md:hidden">
         <div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">
           {NAV.map((item) => (
             <NavLink

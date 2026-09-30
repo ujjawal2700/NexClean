@@ -1,9 +1,13 @@
 import { z } from "zod";
 import { createBookingSchema } from "../booking/booking.validation";
-import { isValidSlotLive } from "../../shared/slots";
+import { TIME_SLOTS, SLOT_LIST } from "../../shared/slots";
 
 export const createOrderSchema = z.object({
   booking: createBookingSchema,
+  // The total the customer can currently see. It is never trusted as the
+  // charge amount; it only lets the server reject a stale checkout before a
+  // gateway is opened with a newly-administered price.
+  expectedAmount: z.number().nonnegative().finite().optional(),
 });
 
 export const previewAmountSchema = z.object({
@@ -18,7 +22,7 @@ export const previewAmountSchema = z.object({
   // `date`: this is a read-only quote, and rejecting a past date here would
   // surface as a confusing "invalid date" on a screen the customer can't fix.
   date: z.string().datetime({ message: "date must be an ISO datetime" }).optional(),
-  slot: z.string().refine((s) => !s || isValidSlotLive(s), { message: "Invalid time slot" }).optional(),
+  slot: z.enum(TIME_SLOTS, { errorMap: () => ({ message: `slot must be one of: ${SLOT_LIST}` }) }).optional(),
 });
 
 export const verifyPaymentSchema = z.object({

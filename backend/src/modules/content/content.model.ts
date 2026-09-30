@@ -12,6 +12,7 @@ const contentSchema = new Schema(
     contact: { type: Object, required: true },
     help: { type: Object, required: true },
     landing: { type: Object, required: true },
+    legalContentVersion: { type: Number, default: 0 },
   },
   {
     timestamps: true,

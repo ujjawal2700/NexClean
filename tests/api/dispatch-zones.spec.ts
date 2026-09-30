@@ -1,6 +1,6 @@
 import { test, expect } from "../fixtures/base";
 import type { APIRequestContext } from "@playwright/test";
-import { DEMO_OTP, authHeader, freshPhone, loginAsAdmin, loginAsNewCustomer } from "../fixtures/api-client";
+import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader, freshPhone, loginAsAdmin, loginAsNewCustomer } from "../fixtures/api-client";
 
 /**
  * Integration proof for zone-based dispatch (see backend/src/modules/dispatch/
@@ -53,6 +53,7 @@ async function createFreshVerifiedAgent(request: APIRequestContext): Promise<{ t
       aadharNumber: "123456789012",
       aadharFront: FAKE_AADHAR_IMAGE,
       aadharBack: FAKE_AADHAR_IMAGE,
+      ...LEGAL_ACCEPTANCE,
     },
   });
   const verify = await (await request.post("/auth/verify-otp", { data: { phone, code: DEMO_OTP } })).json();

@@ -36,6 +36,18 @@ const addressSchema = new Schema(
   { _id: true, toJSON: subdocJson },
 );
 
+const legalConsentSchema = new Schema(
+  {
+    privacyPolicyVersion: { type: String, required: true },
+    termsVersion: { type: String, required: true },
+    acceptedAt: { type: Date, required: true },
+    source: { type: String, enum: ["customer_signup", "agent_signup"], required: true },
+    ipAddress: { type: String, default: "" },
+    userAgent: { type: String, default: "" },
+  },
+  { _id: false },
+);
+
 const userSchema = new Schema(
   {
     phone: { type: String, required: true, unique: true, index: true },
@@ -55,6 +67,9 @@ const userSchema = new Schema(
     addresses: { type: [addressSchema], default: [] },
     activePlan: { type: String, default: null },
     deviceTokens: { type: [String], default: [] },
+    // Versioned proof that the person explicitly accepted the legal documents.
+    // Request metadata is audit-only and removed from normal API responses.
+    legalConsent: { type: legalConsentSchema, default: undefined },
 
     // Referrals + wallet (customers only)
     referralCode: { type: String, default: null },
@@ -130,6 +145,7 @@ const userSchema = new Schema(
         delete ret._id;
         delete ret.__v;
         delete ret.deviceTokens; // never expose push tokens to clients
+        delete ret.legalConsent;
         // Never expose an agent's precise live GPS or internal dispatch state.
         delete ret.liveLocation;
         delete ret.locationUpdatedAt;

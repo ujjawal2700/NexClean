@@ -1,7 +1,7 @@
 import type { APIRequestContext } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { authHeader, freshPhone, DEMO_OTP } from "./api-client";
+import { authHeader, freshPhone, DEMO_OTP, LEGAL_ACCEPTANCE } from "./api-client";
 
 /**
  * Helpers shared across the "operational half" admin e2e specs
@@ -53,7 +53,7 @@ export async function loginByPhoneApi(request: APIRequestContext, phone: string)
 
 export async function loginAsNewCustomerApi(request: APIRequestContext) {
   const phone = freshPhone();
-  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   return loginByPhoneApi(request, phone);
 }
 
@@ -161,6 +161,7 @@ export async function seedPendingAgent(request: APIRequestContext, namePrefix = 
         aadharNumber: "123456789012",
         aadharFront: TINY_IMAGE_DATA_URI,
         aadharBack: TINY_IMAGE_DATA_URI,
+        ...LEGAL_ACCEPTANCE,
       },
     });
     if (!res.ok()) {
@@ -177,7 +178,7 @@ export async function seedNamedCustomer(request: APIRequestContext, name: string
     // A fresh phone must be registered before it can verify an OTP — see
     // loginAsNewCustomerApi, which does the same signup step. Without this,
     // verify-otp rejects the phone as NOT_REGISTERED.
-    await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
+    await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
     const { token, userId } = await loginByPhoneApi(request, phone);
     const res = await request.patch(apiUrl("/users/me"), { headers: authHeader(token), data: { name } });
     if (!res.ok()) {

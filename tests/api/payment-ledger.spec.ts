@@ -1,6 +1,6 @@
 import { test, expect } from "../fixtures/base";
 import type { APIRequestContext } from "@playwright/test";
-import { authHeader, loginAsAdmin, loginAsAgent, loginAsNewCustomer } from "../fixtures/api-client";
+import { authHeader, createVerifiedOnlineAgent, loginAsAdmin, loginAsNewCustomer } from "../fixtures/api-client";
 
 /** 1x1 transparent PNG — the smallest thing the upload path accepts. */
 const TINY_PNG =
@@ -116,7 +116,7 @@ test.describe("Payments ledger", () => {
 
   test("completing the job marks the cash as collected, and it can then be settled", async ({ request }) => {
     const { token: adminToken } = await loginAsAdmin(request);
-    const { token: agentToken, userId: agentId } = await loginAsAgent(request);
+    const { token: agentToken, userId: agentId } = await createVerifiedOnlineAgent(request);
     const { token: customerToken } = await loginAsNewCustomer(request);
     const packageId = await firstPackageId(request);
 
@@ -149,7 +149,7 @@ test.describe("Payments ledger", () => {
 
   test("collected cash is counted in the admin payment stats", async ({ request }) => {
     const { token: adminToken } = await loginAsAdmin(request);
-    const { token: agentToken, userId: agentId } = await loginAsAgent(request);
+    const { token: agentToken, userId: agentId } = await createVerifiedOnlineAgent(request);
     const { token: customerToken } = await loginAsNewCustomer(request);
     const packageId = await firstPackageId(request);
 

@@ -32,7 +32,6 @@ const PERMISSION_SECTIONS = [
   { key: "reports", label: "Analytics Reports" },
   { key: "bookings", label: "Bookings & Dispatch" },
   { key: "off-peak-hours", label: "Off-Peak Hours" },
-  { key: "time-slots", label: "Time Slots" },
   { key: "area-alerts", label: "Area Alerts" },
   { key: "chat", label: "Support Chat" },
   { key: "customers", label: "Customers" },

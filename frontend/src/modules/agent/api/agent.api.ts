@@ -54,6 +54,8 @@ export type AgentSignupBasicInput = {
   city: string;
   area?: string;
   code: string;
+  privacyAccepted: true;
+  termsAccepted: true;
 };
 
 export function useAgentSignupBasic() {
@@ -71,6 +73,8 @@ export type AgentSignupInput = {
   aadharNumber: string;
   aadharFront: string;
   aadharBack: string;
+  privacyAccepted?: true;
+  termsAccepted?: true;
 };
 
 export function useAgentSignup() {
@@ -143,6 +147,14 @@ export function useToggleOnline() {
 export function useHeartbeat() {
   return useMutation({
     mutationFn: () => apiFetch<AgentProfile>("/agent/heartbeat", { method: "PATCH" }),
+  });
+}
+
+/** REST location fallback for networks/proxies that cannot maintain WebSockets. */
+export function sendLocationHeartbeat(lat: number, lng: number) {
+  return apiFetch<AgentProfile>("/agent/heartbeat", {
+    method: "PATCH",
+    body: { lat, lng },
   });
 }
 

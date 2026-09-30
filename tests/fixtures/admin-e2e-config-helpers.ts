@@ -1,5 +1,5 @@
 import { request as pwRequest, type APIRequestContext, type Page } from "@playwright/test";
-import { DEMO_OTP, authHeader, freshPhone } from "./api-client";
+import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader, freshPhone } from "./api-client";
 import { API_BASE_URL } from "../playwright.config";
 
 /**
@@ -65,7 +65,7 @@ export async function loginAsFreshCustomer(api: APIRequestContext) {
   // A fresh phone must be registered before it can verify an OTP, or
   // verify-otp rejects it as NOT_REGISTERED — same absolute-URL requirement
   // as everything else in this file, see the module doc above.
-  await api.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone } });
+  await api.post(`${API_BASE_URL}/auth/customer/signup`, { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   return mintTokenForPhone(api, phone);
 }
 

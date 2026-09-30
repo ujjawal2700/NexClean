@@ -7,6 +7,8 @@ import { test, expect } from "@playwright/test";
 test.describe("Customer guest browsing", () => {
   const skip = async (page: import("@playwright/test").Page) => {
     await page.goto("/app/login");
+    const cookieChoice = page.getByRole("button", { name: "Necessary only" });
+    if (await cookieChoice.isVisible()) await cookieChoice.click();
     await page.getByRole("button", { name: "Skip for now, just browse" }).click();
     await page.waitForURL(/\/app$/);
   };

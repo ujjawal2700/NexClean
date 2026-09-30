@@ -52,11 +52,34 @@ test.describe("Payment (mock mode — no Razorpay keys in this environment)", ()
     expect(orderBody.data.mock).toBe(true);
     expect(orderBody.data.orderId).toBeTruthy();
 
-    const verify = await request.post("/payments/verify", { headers: authHeader(token), data: { booking } });
+    const verify = await request.post("/payments/verify", {
+      headers: authHeader(token),
+      data: { booking, razorpay_order_id: orderBody.data.orderId },
+    });
     expect(verify.ok()).toBeTruthy();
     const verifyBody = await verify.json();
     expect(verifyBody.data.id).toBeTruthy();
     expect(verifyBody.data.status).toBe("upcoming");
+  });
+
+  test("rejects checkout when the displayed price is stale", async ({ request }) => {
+    const { token } = await loginAsNewCustomer(request);
+    const packageId = await firstPackageId(request);
+    const booking = bookingDraft(packageId);
+    const preview = await request.post("/payments/preview", {
+      headers: authHeader(token),
+      data: { vehicleType: booking.vehicleType, packageId },
+    });
+    const quoted = (await preview.json()).data.price as number;
+
+    const order = await request.post("/payments/order", {
+      headers: authHeader(token),
+      data: { booking, expectedAmount: quoted - 10 },
+    });
+    expect(order.status()).toBe(409);
+    const body = await order.json();
+    expect(body.message).toContain("price has been updated");
+    expect(body.details).toMatchObject({ code: "PRICE_CHANGED", currentAmount: quoted });
   });
 
   test("order requires auth", async ({ request }) => {

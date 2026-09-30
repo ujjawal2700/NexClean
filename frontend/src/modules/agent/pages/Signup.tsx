@@ -17,6 +17,7 @@ import {
 import { cn } from "@shared/lib/utils";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Logo } from "@shared/components/brand/Logo";
+import { LegalConsent } from "@shared/components/LegalConsent";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { Badge } from "@shared/ui/Badge";
@@ -44,6 +45,7 @@ export function Signup() {
   const [step, setStep] = useState<Step>("details");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [legalConsent, setLegalConsent] = useState(false);
   // City and area come from the admin-managed Locations list. This used to be a
   // free-text "area / society" box, which produced spellings that matched
   // nothing — area alerts and the admin's own filters compare on this string.
@@ -108,6 +110,7 @@ export function Signup() {
     // Only insist on an area when the admin has actually listed some for that
     // city — otherwise a newly added city would block signups entirely.
     if (zones.length > 0 && !area.trim()) return setError("Choose the area you'll operate in");
+    if (!legalConsent) return setError("Please accept the Privacy Policy and Terms & Conditions");
     setError("");
     setToast("");
     phoneRef.current = phone;
@@ -149,6 +152,8 @@ export function Signup() {
         city: city.trim(),
         area: area.trim(),
         code: otp,
+        privacyAccepted: true,
+        termsAccepted: true,
       });
       if (res.token && res.user) {
         setToken(res.token);
@@ -173,6 +178,7 @@ export function Signup() {
         aadharNumber,
         aadharFront,
         aadharBack,
+        ...(legalConsent ? { privacyAccepted: true as const, termsAccepted: true as const } : {}),
       });
       if (res.token && res.user) {
         setToken(res.token);
@@ -251,6 +257,7 @@ export function Signup() {
                   }}
                   onArea={setArea}
                 />
+                <LegalConsent checked={legalConsent} onChange={setLegalConsent} />
                 {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-500">{error}</p>}
                 <Button className="w-full" onClick={submitDetails} disabled={sendSignupOtp.isPending}>
                   {sendSignupOtp.isPending ? (
@@ -349,6 +356,7 @@ export function Signup() {
                   <KycTile label="Aadhar front" value={aadharFront} onPick={setAadharFront} />
                   <KycTile label="Aadhar back" value={aadharBack} onPick={setAadharBack} />
                 </div>
+                {!legalConsent && <LegalConsent checked={legalConsent} onChange={setLegalConsent} />}
                 {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-500">{error}</p>}
                 <Button className="w-full" onClick={submitKyc} disabled={signup.isPending}>
                   {signup.isPending ? (

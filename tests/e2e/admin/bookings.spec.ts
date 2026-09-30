@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { loginAdminUI } from "../../fixtures/ui-helpers";
 import { seedAssignableBooking } from "../../fixtures/admin-e2e-ops-helpers";
+import { createVerifiedOnlineAgent } from "../../fixtures/api-client";
 
 test.describe("Admin Bookings", () => {
   let bookingId: string;
@@ -11,6 +12,10 @@ test.describe("Admin Bookings", () => {
     // whatever else is already in the shared dev DB.
     const { booking } = await seedAssignableBooking(request);
     bookingId = booking.id;
+    // The UI intentionally lists only live, idle cleaners. Give every test a
+    // dedicated eligible option rather than relying on seeded agents whose
+    // heartbeat may be stale or whose previous test left them on a job.
+    await createVerifiedOnlineAgent(request);
 
     await loginAdminUI(page);
     await page.goto("/admin/bookings");

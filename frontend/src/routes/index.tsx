@@ -30,8 +30,12 @@ const Privacy = lazy(() =>
 const Terms = lazy(() => import("@modules/landing/pages/Terms").then((m) => ({ default: m.Terms })));
 const Refund = lazy(() =>
   import("@modules/landing/pages/Refund").then((m) => ({ default: m.Refund })),
-);const Support = lazy(() =>
+);
+const Support = lazy(() =>
   import("@modules/landing/pages/Support").then((m) => ({ default: m.Support })),
+);
+const CustomerNotFound = lazy(() =>
+  import("@modules/customer/pages/NotFound").then((m) => ({ default: m.CustomerNotFound })),
 );
 
 /**
@@ -65,8 +69,8 @@ export function AppRoutes() {
         {/* Admin module (web-based, role-routed) */}
         <Route path="/admin/*" element={<AdminApp />} />
 
-        {/* Fallback */}
-        <Route path="*" element={<LandingPage />} />
+        {/* Customer-facing fallback for every unknown public URL. */}
+        <Route path="*" element={<CustomerNotFound />} />
       </Routes>
     </Suspense>
   );

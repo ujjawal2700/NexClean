@@ -4,9 +4,9 @@ import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
 import { ApiError } from "@shared/lib/api";
 import { formatMoney } from "@shared/lib/format";
-import { TIME_SLOTS, availableSlotsForDate, upcomingDates } from "../data/catalog";
+import { availableSlotsForDate, upcomingDates } from "../data/catalog";
 import { isOffPeakSlot, windowsForDate } from "../data/offPeakHours";
-import { useOffPeakHours, useTimeSlots } from "../api/queries";
+import { useOffPeakHours } from "../api/queries";
 import {
   usePreviewReschedule,
   useRescheduleBooking,
@@ -32,20 +32,18 @@ export function RescheduleModal({
   onClose: () => void;
 }) {
   const { data: offPeakConfig } = useOffPeakHours();
-  const { data: timeSlotsData } = useTimeSlots();
-  const configuredSlots = timeSlotsData?.slots ?? TIME_SLOTS;
   const preview = usePreviewReschedule();
   const reschedule = useRescheduleBooking();
   const rescheduleOrder = useRescheduleOrder();
 
-  const dates = useMemo(() => upcomingDates(7, configuredSlots), [configuredSlots]);
+  const dates = useMemo(() => upcomingDates(7), []);
   const [date, setDate] = useState<string | null>(null);
   const [slot, setSlot] = useState<string | null>(null);
   const [quote, setQuote] = useState<RescheduleQuote | null>(null);
   const [error, setError] = useState("");
   const [payingOnline, setPayingOnline] = useState(false);
 
-  const slots = availableSlotsForDate(date, configuredSlots);
+  const slots = availableSlotsForDate(date);
   const offPeakWindows = windowsForDate(offPeakConfig, date);
 
   // Re-quote whenever the chosen slot changes. The server is authoritative about

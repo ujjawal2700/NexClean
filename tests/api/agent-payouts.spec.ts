@@ -1,6 +1,6 @@
 import { test, expect } from "../fixtures/base";
 import type { APIRequestContext } from "@playwright/test";
-import { authHeader, loginAsAdmin, loginAsAgent, loginAsNewCustomer } from "../fixtures/api-client";
+import { authHeader, createVerifiedOnlineAgent, loginAsAdmin, loginAsAgent, loginAsNewCustomer } from "../fixtures/api-client";
 
 /** 1x1 transparent PNG — the smallest thing the upload path accepts. */
 const TINY_PNG =
@@ -101,7 +101,7 @@ test.describe("Agent payout rule", () => {
 
   test("an open job is quoted at the current percentage, and re-quoted when it changes", async ({ request }) => {
     const { token: adminToken } = await loginAsAdmin(request);
-    const { token: agentToken, userId: agentId } = await loginAsAgent(request);
+    const { token: agentToken, userId: agentId } = await createVerifiedOnlineAgent(request);
     await setRule(request, adminToken, DEFAULT_RULE);
 
     const bookingId = await seedAssignedJob(request, adminToken, agentId);
@@ -115,7 +115,7 @@ test.describe("Agent payout rule", () => {
 
   test("a flat rule pays the same on every job, and the floor and cap clamp it", async ({ request }) => {
     const { token: adminToken } = await loginAsAdmin(request);
-    const { token: agentToken, userId: agentId } = await loginAsAgent(request);
+    const { token: agentToken, userId: agentId } = await createVerifiedOnlineAgent(request);
     const bookingId = await seedAssignedJob(request, adminToken, agentId);
 
     // Amounts are derived from the seeded package price so this doesn't break
@@ -139,7 +139,7 @@ test.describe("Agent payout rule", () => {
 
   test("a payout never exceeds the price the job was sold for", async ({ request }) => {
     const { token: adminToken } = await loginAsAdmin(request);
-    const { token: agentToken, userId: agentId } = await loginAsAgent(request);
+    const { token: agentToken, userId: agentId } = await createVerifiedOnlineAgent(request);
     const bookingId = await seedAssignedJob(request, adminToken, agentId);
     const { price } = await jobById(request, agentToken, bookingId);
 
@@ -149,7 +149,7 @@ test.describe("Agent payout rule", () => {
 
   test("completed earnings are frozen — changing the rule later does not rewrite them", async ({ request }) => {
     const { token: adminToken } = await loginAsAdmin(request);
-    const { token: agentToken, userId: agentId } = await loginAsAgent(request);
+    const { token: agentToken, userId: agentId } = await createVerifiedOnlineAgent(request);
 
     await setRule(request, adminToken, { mode: "percent", percent: 70, flatAmount: 0, minPayout: 0, maxPayout: 0 });
     const bookingId = await seedAssignedJob(request, adminToken, agentId);

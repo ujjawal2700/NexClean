@@ -1,7 +1,6 @@
-import { useState, useMemo } from "react";
-import { Banknote, Clock, CheckCircle2, XCircle, Landmark, Search, X } from "lucide-react";
+import { useState } from "react";
+import { Banknote, Clock, CheckCircle2, XCircle, Landmark } from "lucide-react";
 import { cn } from "@shared/lib/utils";
-
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -17,7 +16,10 @@ import {
 } from "../api/admin.api";
 import { ConfirmActionModal } from "../components/PersonFormModal";
 import { StatCard } from "../components/StatCard";
-import { PAYOUT_REQUEST_STATUS_STYLE, PAYOUT_REQUEST_STATUS_LABEL } from "../lib/status";
+import {
+  PAYOUT_REQUEST_STATUS_STYLE,
+  PAYOUT_REQUEST_STATUS_LABEL,
+} from "../lib/status";
 import type { AdminPayoutRequest, PayoutRequestStatus } from "../types";
 
 const TABS: { key: PayoutRequestStatus | "all"; label: string }[] = [
@@ -34,37 +36,7 @@ export function PayoutRequests() {
   const approve = useApprovePayoutRequest();
   const reject = useRejectPayoutRequest();
   const markPaid = useMarkPayoutRequestPaid();
-
-  const [search, setSearch] = useState("");
-
-  const filteredRequests = useMemo(() => {
-    if (!search.trim()) return requests;
-    const q = search.toLowerCase().trim();
-    return requests.filter((r) => {
-      const name = (r.agent?.name ?? "").toLowerCase();
-      const phone = (r.agent?.phone ?? "").toLowerCase();
-      const bank = (r.bankSnapshot?.bankName ?? "").toLowerCase();
-      const acc = (r.bankSnapshot?.accountNumber ?? "").toLowerCase();
-      const ifsc = (r.bankSnapshot?.ifsc ?? "").toLowerCase();
-      const branch = (r.bankSnapshot?.branch ?? "").toLowerCase();
-      const holder = (r.bankSnapshot?.holderName ?? "").toLowerCase();
-      const amountStr = String(r.amount);
-      return (
-        name.includes(q) ||
-        phone.includes(q) ||
-        bank.includes(q) ||
-        acc.includes(q) ||
-        ifsc.includes(q) ||
-        branch.includes(q) ||
-        holder.includes(q) ||
-        amountStr.includes(q)
-      );
-    });
-
-  }, [requests, search]);
-
-  const paginated = usePagination(filteredRequests, 10);
-
+  const paginated = usePagination(requests, 10);
 
   const [error, setError] = useState("");
   const [rejecting, setRejecting] = useState<AdminPayoutRequest | null>(null);
@@ -75,14 +47,23 @@ export function PayoutRequests() {
   // Tallies are computed from whatever tab is loaded rather than a separate
   // stats call — this list is never large enough (payout requests, not every
   // payment ever made) to make a second aggregate query worth the round trip.
-  const pendingTotal = requests.filter((r) => r.status === "pending").reduce((s, r) => s + r.amount, 0);
-  const approvedTotal = requests.filter((r) => r.status === "approved").reduce((s, r) => s + r.amount, 0);
-  const paidTotal = requests.filter((r) => r.status === "paid").reduce((s, r) => s + r.amount, 0);
+  const pendingTotal = requests
+    .filter((r) => r.status === "pending")
+    .reduce((s, r) => s + r.amount, 0);
+  const approvedTotal = requests
+    .filter((r) => r.status === "approved")
+    .reduce((s, r) => s + r.amount, 0);
+  const paidTotal = requests
+    .filter((r) => r.status === "paid")
+    .reduce((s, r) => s + r.amount, 0);
 
   const handleApprove = (id: string) => {
     setError("");
     approve.mutate(id, {
-      onError: (e) => setError(e instanceof ApiError ? e.message : "Couldn't approve this request"),
+      onError: (e) =>
+        setError(
+          e instanceof ApiError ? e.message : "Couldn't approve this request",
+        ),
     });
   };
 
@@ -96,7 +77,10 @@ export function PayoutRequests() {
           setRejecting(null);
           setRejectReason("");
         },
-        onError: (e) => setError(e instanceof ApiError ? e.message : "Couldn't decline this request"),
+        onError: (e) =>
+          setError(
+            e instanceof ApiError ? e.message : "Couldn't decline this request",
+          ),
       },
     );
   };
@@ -111,7 +95,10 @@ export function PayoutRequests() {
           setPaying(null);
           setTransactionRef("");
         },
-        onError: (e) => setError(e instanceof ApiError ? e.message : "Couldn't mark this as paid"),
+        onError: (e) =>
+          setError(
+            e instanceof ApiError ? e.message : "Couldn't mark this as paid",
+          ),
       },
     );
   };
@@ -120,57 +107,49 @@ export function PayoutRequests() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-3xl text-ink">Payout Requests</h1>
-        <p className="mt-1 text-muted">Cleaners cashing out their earned balance to their bank account.</p>
+        <p className="mt-1 text-muted">
+          Cleaners cashing out their earned balance to their bank account.
+        </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Awaiting review" value={formatMoney(pendingTotal)} icon={Clock} />
-        <StatCard label="Approved, not yet sent" value={formatMoney(approvedTotal)} icon={Banknote} />
-        <StatCard label="Paid out" value={formatMoney(paidTotal)} icon={CheckCircle2} />
+        <StatCard
+          label="Awaiting review"
+          value={formatMoney(pendingTotal)}
+          icon={Clock}
+        />
+        <StatCard
+          label="Approved, not yet sent"
+          value={formatMoney(approvedTotal)}
+          icon={Banknote}
+        />
+        <StatCard
+          label="Paid out"
+          value={formatMoney(paidTotal)}
+          icon={CheckCircle2}
+        />
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={cn(
-                "rounded-pill border px-3.5 py-1.5 text-sm font-medium transition-colors",
-                tab === t.key
-                  ? "border-primary/40 bg-primary/10 text-primary"
-                  : "border-line bg-surface text-muted hover:text-ink",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="relative min-w-[240px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search agent, phone, bank, UPI…"
-            className="h-9 w-full rounded-xl border border-line bg-surface pl-9 pr-8 text-xs text-ink outline-none transition-all placeholder:text-muted focus:border-primary/50"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink cursor-pointer"
-              aria-label="Clear search"
-            >
-              <X className="size-3.5" />
-            </button>
-          )}
-        </div>
+      <div className="flex flex-wrap gap-2">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={cn(
+              "rounded-pill border px-3.5 py-1.5 text-sm font-medium transition-colors",
+              tab === t.key
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-line bg-surface text-muted hover:text-ink",
+            )}>
+            {t.label}
+          </button>
+        ))}
       </div>
-
 
       {error && (
-        <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">{error}</p>
+        <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
+          {error}
+        </p>
       )}
 
       <GlassCard className="overflow-x-auto">
@@ -189,36 +168,57 @@ export function PayoutRequests() {
             {paginated.pageItems.map((r) => (
               <tr key={r.id} className="border-t border-line/70 align-top">
                 <td className="px-2 py-3">
-                  <p className="font-medium text-ink">{r.agent?.name ?? "Deleted agent"}</p>
+                  <p className="font-medium text-ink">
+                    {r.agent?.name ?? "Deleted agent"}
+                  </p>
                   <p className="text-xs text-muted">{r.agent?.phone}</p>
                 </td>
-                <td className="px-2 py-3 text-ink-soft">{formatDate(r.createdAt)}</td>
+                <td className="px-2 py-3 text-ink-soft">
+                  {formatDate(r.createdAt)}
+                </td>
                 <td className="px-2 py-3 text-ink-soft">
                   <p className="flex items-center gap-1.5 font-medium text-ink">
-                    <Landmark className="size-3.5 text-muted" /> {r.bankSnapshot.bankName}
+                    <Landmark className="size-3.5 text-muted" />{" "}
+                    {r.bankSnapshot.bankName}
                   </p>
-                  <p className="mt-0.5 text-xs text-muted">{r.bankSnapshot.holderName}</p>
+                  <p className="mt-0.5 text-xs text-muted">
+                    {r.bankSnapshot.holderName}
+                  </p>
                   <p className="text-xs text-muted">
                     {r.bankSnapshot.accountNumber} · {r.bankSnapshot.ifsc}
                   </p>
                   <p className="text-xs text-muted">{r.bankSnapshot.branch}</p>
                 </td>
                 <td className="px-2 py-3">
-                  <span className={cn("rounded-pill px-2.5 py-0.5 text-xs font-medium", PAYOUT_REQUEST_STATUS_STYLE[r.status])}>
+                  <span
+                    className={cn(
+                      "rounded-pill px-2.5 py-0.5 text-xs font-medium",
+                      PAYOUT_REQUEST_STATUS_STYLE[r.status],
+                    )}>
                     {PAYOUT_REQUEST_STATUS_LABEL[r.status]}
                   </span>
                   {r.status === "rejected" && r.rejectionReason && (
-                    <p className="mt-1 max-w-[220px] text-xs text-muted">{r.rejectionReason}</p>
+                    <p className="mt-1 max-w-[220px] text-xs text-muted">
+                      {r.rejectionReason}
+                    </p>
                   )}
                   {r.status === "paid" && r.transactionRef && (
-                    <p className="mt-1 text-xs text-muted">Ref: {r.transactionRef}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      Ref: {r.transactionRef}
+                    </p>
                   )}
                 </td>
-                <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(r.amount)}</td>
+                <td className="px-2 py-3 text-right font-medium text-ink">
+                  {formatMoney(r.amount)}
+                </td>
                 <td className="px-2 py-3 text-right">
                   {r.status === "pending" && (
                     <div className="flex justify-end gap-1.5">
-                      <Button variant="ghost" size="sm" disabled={approve.isPending} onClick={() => handleApprove(r.id)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={approve.isPending}
+                        onClick={() => handleApprove(r.id)}>
                         <CheckCircle2 className="size-4" /> Approve
                       </Button>
                       <Button
@@ -229,8 +229,7 @@ export function PayoutRequests() {
                           setError("");
                           setRejectReason("");
                           setRejecting(r);
-                        }}
-                      >
+                        }}>
                         <XCircle className="size-4" /> Decline
                       </Button>
                     </div>
@@ -244,8 +243,7 @@ export function PayoutRequests() {
                           setError("");
                           setTransactionRef("");
                           setPaying(r);
-                        }}
-                      >
+                        }}>
                         <Banknote className="size-4" /> Mark paid
                       </Button>
                       <Button
@@ -256,29 +254,39 @@ export function PayoutRequests() {
                           setError("");
                           setRejectReason("");
                           setRejecting(r);
-                        }}
-                      >
+                        }}>
                         <XCircle className="size-4" /> Decline
                       </Button>
                     </div>
                   )}
-                  {(r.status === "paid" || r.status === "rejected") && <span className="text-xs text-muted">—</span>}
+                  {(r.status === "paid" || r.status === "rejected") && (
+                    <span className="text-xs text-muted">—</span>
+                  )}
                 </td>
               </tr>
             ))}
             {!isLoading && paginated.pageItems.length === 0 && (
               <tr className="border-t border-line/70">
-                <td colSpan={6} className="px-2 py-8 text-center text-sm text-muted">
-                  {search
-                    ? `No payout requests match "${search}".`
-                    : `No ${tab === "all" ? "" : PAYOUT_REQUEST_STATUS_LABEL[tab as PayoutRequestStatus].toLowerCase() + " "}payout requests.`}
+                <td
+                  colSpan={6}
+                  className="px-2 py-8 text-center text-sm text-muted">
+                  No{" "}
+                  {tab === "all"
+                    ? ""
+                    : PAYOUT_REQUEST_STATUS_LABEL[
+                        tab as PayoutRequestStatus
+                      ].toLowerCase() + " "}
+                  payout requests.
                 </td>
               </tr>
             )}
-
           </tbody>
         </table>
-        <Pagination page={paginated.page} totalPages={paginated.totalPages} onPageChange={paginated.setPage} />
+        <Pagination
+          page={paginated.page}
+          totalPages={paginated.totalPages}
+          onPageChange={paginated.setPage}
+        />
       </GlassCard>
 
       <ConfirmActionModal
@@ -287,11 +295,16 @@ export function PayoutRequests() {
         description={
           <div className="space-y-2">
             <p>
-              <span className="font-medium text-ink">{rejecting?.agent?.name}</span>'s request for{" "}
-              {rejecting && formatMoney(rejecting.amount)} goes back into their available balance to request again.
+              <span className="font-medium text-ink">
+                {rejecting?.agent?.name}
+              </span>
+              's request for {rejecting && formatMoney(rejecting.amount)} goes
+              back into their available balance to request again.
             </p>
             <label className="block space-y-1">
-              <span className="text-xs font-semibold text-muted">Reason (shown to the agent)</span>
+              <span className="text-xs font-semibold text-muted">
+                Reason (shown to the agent)
+              </span>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
@@ -315,12 +328,18 @@ export function PayoutRequests() {
         description={
           <div className="space-y-2">
             <p>
-              Confirms {formatMoney(paying?.amount ?? 0)} has actually been sent to{" "}
-              <span className="font-medium text-ink">{paying?.agent?.name}</span>'s bank account — this app doesn't
-              move the money itself, it only records that you did.
+              Confirms {formatMoney(paying?.amount ?? 0)} has actually been sent
+              to{" "}
+              <span className="font-medium text-ink">
+                {paying?.agent?.name}
+              </span>
+              's bank account — this app doesn't move the money itself, it only
+              records that you did.
             </p>
             <label className="block space-y-1">
-              <span className="text-xs font-semibold text-muted">Transaction reference (optional)</span>
+              <span className="text-xs font-semibold text-muted">
+                Transaction reference (optional)
+              </span>
               <Input
                 name="transactionRef"
                 value={transactionRef}

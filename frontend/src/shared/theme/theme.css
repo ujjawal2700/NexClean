@@ -46,6 +46,14 @@
 @layer base {
   :root {
     color-scheme: light;
+    /* Browser/PWA safe area. Android edge-to-edge and three-button navigation
+       can occupy the bottom edge; installed apps get a small fallback even on
+       WebViews that report a zero safe-area inset. */
+    --mobile-system-bottom: max(
+      env(safe-area-inset-bottom, 0px),
+      env(safe-area-max-inset-bottom, 0px),
+      0.75rem
+    );
     /* Fluid typography: 14px on 320px → 16px on 768px+ */
     font-size: clamp(0.875rem, 0.5rem + 1.5625vw, 1rem);
   }
@@ -114,6 +122,35 @@
     background: color-mix(in srgb, var(--color-primary) 35%, transparent);
     border-radius: 999px;
     border: 2px solid var(--color-bg);
+  }
+}
+
+@media (display-mode: standalone) and (max-width: 767px) {
+  :root {
+    --mobile-system-bottom: max(
+      env(safe-area-inset-bottom, 0px),
+      env(safe-area-max-inset-bottom, 0px),
+      1rem
+    );
+  }
+}
+
+/* Keep fixed mobile navigation and its page content above Android/iOS system UI. */
+.mobile-bottom-nav {
+  padding-bottom: var(--mobile-system-bottom);
+}
+
+.mobile-content-with-nav {
+  padding-bottom: calc(6.5rem + var(--mobile-system-bottom));
+}
+
+.account-dialog-actions {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 1.25rem);
+}
+
+@media (min-width: 768px) {
+  .mobile-content-with-nav {
+    padding-bottom: 4rem;
   }
 }
 

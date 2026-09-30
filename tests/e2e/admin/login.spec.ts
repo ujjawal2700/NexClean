@@ -3,12 +3,12 @@ import { ADMIN_EMAIL, ADMIN_PASSWORD } from "../../fixtures/api-client";
 import { loginAdminUI } from "../../fixtures/ui-helpers";
 
 test.describe("Admin Login", () => {
-  test("renders the sign-in form with a pre-filled email", async ({ page }) => {
+  test("renders the sign-in form without exposing credentials", async ({ page }) => {
     await page.goto("/admin/login");
     await expect(page.locator("h1")).toHaveText("Sign in to manage NexClean");
     await expect(page.getByText("Admin Console")).toBeVisible();
-    await expect(page.locator('input[name="email"]')).toHaveValue(ADMIN_EMAIL);
-    await expect(page.getByText("Demo: superadmin@gmail.com / password123")).toBeVisible();
+    await expect(page.locator('input[name="email"]')).toHaveValue("");
+    await expect(page.getByText(/Demo:.*password123/)).toHaveCount(0);
   });
 
   test("wrong password is rejected with a visible inline error", async ({ page }) => {
@@ -45,6 +45,7 @@ test.describe("Admin Login", () => {
 
   test("empty password shows client-side validation without hitting the API", async ({ page }) => {
     await page.goto("/admin/login");
+    await page.locator('input[name="email"]').fill(ADMIN_EMAIL);
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByText("Enter your password")).toBeVisible();
     await expect(page).toHaveURL(/\/admin\/login$/);

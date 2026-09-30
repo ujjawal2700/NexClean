@@ -48,5 +48,5 @@ export type ServiceCoverage = { serviceable: boolean; zonesConfigured: boolean }
  * plays no part in this, only the drawn zone polygons do.
  */
 export function checkServiceCoverage(lat: number, lng: number): Promise<ServiceCoverage> {
-  return apiFetch<ServiceCoverage>(`/catalog/service-check?lat=${lat}&lng=${lng}`);
+  return apiFetch<ServiceCoverage>(`/catalog/service-check?lat=${lat}&lng=${lng}`, { cache: "no-store" });
 }

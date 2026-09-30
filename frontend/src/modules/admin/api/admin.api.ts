@@ -49,9 +49,7 @@ import type {
   AssignableAgent,
   AdminPayoutRequest,
   PayoutRequestStatus,
-  TimeSlotConfig,
 } from "../types";
-
 
 
 const keys = {
@@ -94,9 +92,7 @@ const keys = {
   dispatch: ["admin", "dispatch"] as const,
   assignable: (id: string) => ["admin", "bookings", id, "assignable"] as const,
   payoutRequests: (status?: string) => ["admin", "payout-requests", status ?? "all"] as const,
-  timeSlots: ["admin", "time-slots"] as const,
 };
-
 
 
 function useAuthedQuery<T>(
@@ -329,7 +325,10 @@ export function useUpdatePricing() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: Partial<Pricing>) => apiFetch<Pricing>("/admin/pricing", { method: "PUT", body: patch }),
-    onSuccess: (data) => qc.setQueryData(keys.pricing, data),
+    onSuccess: (data) => {
+      qc.setQueryData(keys.pricing, data);
+      qc.invalidateQueries({ queryKey: ["catalog", "vehicle-categories"] });
+    },
   });
 }
 
@@ -448,7 +447,9 @@ export function useRescheduleBooking() {
 
 /** Live dispatch queue (searching / offered / pending / scheduled). */
 export const useDispatchQueue = () =>
-  useAuthedQuery<DispatchQueueItem[]>(keys.dispatch, "/admin/dispatch/queue", { refetchInterval: 15_000 });
+  // Socket events are immediate; this short reconciliation interval covers a
+  // dropped event or a temporarily unavailable cross-worker Redis adapter.
+  useAuthedQuery<DispatchQueueItem[]>(keys.dispatch, "/admin/dispatch/queue", { refetchInterval: 3_000 });
 
 /** Cleaners assignable to a booking, ranked by distance. Fetched lazily when a picker opens. */
 export function useAssignableAgents(bookingId: string | null) {
@@ -457,6 +458,7 @@ export function useAssignableAgents(bookingId: string | null) {
     queryKey: bookingId ? keys.assignable(bookingId) : ["admin", "assignable", "none"],
     queryFn: () => apiFetch<AssignableAgent[]>(`/admin/bookings/${bookingId}/assignable-agents`),
     enabled: authenticated && !!bookingId,
+    refetchInterval: bookingId ? 3_000 : false,
   });
 }
 
@@ -606,7 +608,11 @@ export function useCreateZone() {
       active?: boolean;
     }) =>
       apiFetch<ServiceZone>("/admin/zones", { method: "POST", body: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.zones }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.zones });
+      qc.invalidateQueries({ queryKey: ["public", "zones"] });
+      qc.invalidateQueries({ queryKey: ["public", "cities"] });
+    },
   });
 }
 
@@ -622,7 +628,11 @@ export function useUpdateZone() {
       coordinates?: [number, number][];
     }) =>
       apiFetch<ServiceZone>(`/admin/zones/${vars.id}`, { method: "PATCH", body: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.zones }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.zones });
+      qc.invalidateQueries({ queryKey: ["public", "zones"] });
+      qc.invalidateQueries({ queryKey: ["public", "cities"] });
+    },
   });
 }
 
@@ -630,7 +640,11 @@ export function useDeleteZone() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiFetch<null>(`/admin/zones/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.zones }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.zones });
+      qc.invalidateQueries({ queryKey: ["public", "zones"] });
+      qc.invalidateQueries({ queryKey: ["public", "cities"] });
+    },
   });
 }
 
@@ -651,7 +665,10 @@ export function useCreateVehicleCategory() {
   return useMutation({
     mutationFn: (vars: { name: string; basePrice: number; imageUrl?: string }) =>
       apiFetch<VehicleCategory>("/admin/vehicle-categories", { method: "POST", body: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleCategories }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.vehicleCategories });
+      qc.invalidateQueries({ queryKey: ["catalog", "vehicle-categories"] });
+    },
   });
 }
 
@@ -660,7 +677,10 @@ export function useUpdateVehicleCategory() {
   return useMutation({
     mutationFn: (vars: { id: string; name?: string; basePrice?: number; imageUrl?: string; active?: boolean; sortOrder?: number }) =>
       apiFetch<VehicleCategory>(`/admin/vehicle-categories/${vars.id}`, { method: "PATCH", body: vars }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleCategories }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.vehicleCategories });
+      qc.invalidateQueries({ queryKey: ["catalog", "vehicle-categories"] });
+    },
   });
 }
 
@@ -668,7 +688,10 @@ export function useDeleteVehicleCategory() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiFetch<null>(`/admin/vehicle-categories/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.vehicleCategories }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.vehicleCategories });
+      qc.invalidateQueries({ queryKey: ["catalog", "vehicle-categories"] });
+    },
   });
 }
 
@@ -1011,21 +1034,3 @@ export function useDeleteStaff() {
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.staff }),
   });
 }
-
-/* ----------------------------- Time Slots ---------------------------------- */
-
-export const useTimeSlots = () =>
-  useAuthedQuery<TimeSlotConfig>(keys.timeSlots, "/admin/time-slots");
-
-export function useUpdateTimeSlots() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (vars: { slots: string[] }) =>
-      apiFetch<TimeSlotConfig>("/admin/time-slots", { method: "PUT", body: vars }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.timeSlots });
-    },
-  });
-}
-
-

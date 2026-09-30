@@ -118,11 +118,20 @@ export async function computePrice(
   };
 }
 
-export async function createBooking(userId: string, input: CreateBookingInput) {
+export type ComputedBookingPrice = Awaited<ReturnType<typeof computePrice>>;
+
+export async function createBooking(
+  userId: string,
+  input: CreateBookingInput,
+  // Only internal payment code supplies this. It is the server-computed
+  // snapshot stored with a gateway order, never a value accepted from a
+  // browser request.
+  pricedAtOrder?: ComputedBookingPrice,
+) {
   const {
     pkg, price, discountAmount, discountCodeId, discountCodeLabel, isSpecialCoupon,
     coinsRedeemed, coinDiscount, offPeakLocked, offPeakDiscountAmount,
-  } = await computePrice(userId, input);
+  } = pricedAtOrder ?? await computePrice(userId, input);
 
   // Debit the redeemed coins up front so a discounted booking can never be
   // created without the coins actually being spent (throws if balance is short).

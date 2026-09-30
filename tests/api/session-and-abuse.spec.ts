@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { authHeader, DEMO_OTP, freshPhone } from "../fixtures/api-client";
+import { authHeader, DEMO_OTP, freshPhone, LEGAL_ACCEPTANCE } from "../fixtures/api-client";
 import { apiUrl, loginAsAdminApi, loginAsAgentApi, loginAsNewCustomerApi, loginByPhoneApi } from "../fixtures/admin-api-helpers";
 
 /**
@@ -110,7 +110,7 @@ test.describe("Referral farming", () => {
     const code = (await (await request.get(apiUrl("/users/me/referrals"), { headers: authHeader(token) })).json()).data.referralCode;
 
     const res = await request.post(apiUrl("/auth/customer/signup"), {
-      data: { name: "Self Referrer", phone, referralCode: code },
+      data: { name: "Self Referrer", phone, referralCode: code, ...LEGAL_ACCEPTANCE },
     });
     expect(res.status()).toBe(400);
   });
@@ -127,7 +127,7 @@ test.describe("Referral farming", () => {
       const phone = freshPhone();
       const signup = await request.post(apiUrl("/auth/customer/signup"), {
         headers: { "x-device-id": device },
-        data: { name: `Farm Signup ${"x".repeat(i + 1)}`, phone, referralCode: code },
+        data: { name: `Farm Signup ${"x".repeat(i + 1)}`, phone, referralCode: code, ...LEGAL_ACCEPTANCE },
       });
       // The account is always created — blocking signups on a shared IP would
       // lock out real customers behind carrier NAT.

@@ -112,6 +112,8 @@ async function newVerifiedAgent(admin) {
       aadharNumber: "123456789012",
       aadharFront: FAKE_AADHAR,
       aadharBack: FAKE_AADHAR,
+      privacyAccepted: true,
+      termsAccepted: true,
     },
   });
   const verify = await call("/auth/verify-otp", { method: "POST", body: { phone, code: DEMO_OTP } });

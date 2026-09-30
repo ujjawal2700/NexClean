@@ -3,6 +3,7 @@ import { Logo } from "@shared/components/brand/Logo";
 import { Container } from "@shared/components/layout/Container";
 import { useSectionLink } from "@shared/hooks/useSectionLink";
 import { useSiteContent } from "@shared/hooks/useSiteContent";
+import { COOKIE_SETTINGS_EVENT } from "@shared/lib/cookieConsent";
 
 export function Footer() {
   const goToSection = useSectionLink();
@@ -47,7 +48,17 @@ export function Footer() {
 
         <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-line/60 pt-8 text-sm text-muted sm:flex-row">
           <p>{footer.bottomLeft.replace("{year}", String(new Date().getFullYear()))}</p>
-          <p>{footer.bottomRight}</p>
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event(COOKIE_SETTINGS_EVENT))}
+              className="transition-colors hover:text-primary hover:underline"
+            >
+              Cookie settings
+            </button>
+            <span aria-hidden="true">·</span>
+            <p>{footer.bottomRight}</p>
+          </div>
         </div>
       </Container>
     </footer>

@@ -1,6 +1,6 @@
 import { test, expect } from "../fixtures/base";
 import type { APIRequestContext } from "@playwright/test";
-import { DEMO_OTP, authHeader, freshPhone, loginAsAdmin, loginAsAgent, loginAsNewCustomer } from "../fixtures/api-client";
+import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader, freshPhone, loginAsAdmin, loginAsAgent, loginAsNewCustomer } from "../fixtures/api-client";
 
 // Coordinates the seeded demo agents are set up around (matches booking.spec.ts).
 const NEAR_LAT = 22.7196;
@@ -43,6 +43,7 @@ async function createFreshVerifiedAgent(request: APIRequestContext): Promise<{ t
       aadharNumber: "123456789012",
       aadharFront: FAKE_AADHAR_IMAGE,
       aadharBack: FAKE_AADHAR_IMAGE,
+      ...LEGAL_ACCEPTANCE,
     },
   });
   const verify = await (

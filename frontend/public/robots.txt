@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /agent
+Disallow: /app
+
+Sitemap: https://nexclean.in/sitemap.xml

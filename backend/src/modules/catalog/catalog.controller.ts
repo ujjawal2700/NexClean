@@ -12,7 +12,6 @@ import { listActiveBrands } from "../brand/brand.service";
 import { listActiveModelsForBrand } from "../brand/vehicleModel.service";
 import { City, ServiceZone } from "../location/location.model";
 import { checkServiceability } from "../location/location.service";
-import { getLiveSlots } from "../dispatch/slotConfig.service";
 
 
 export function getPackages(_req: Request, res: Response): Response {
@@ -25,6 +24,7 @@ export async function getContentCtl(_req: Request, res: Response): Promise<Respo
 
 /** Active vehicle categories with their current base price — admin-managed, not a fixed list. */
 export async function getVehicleCategoriesCtl(_req: Request, res: Response): Promise<Response> {
+  res.set("Cache-Control", "no-store");
   return ok(res, await listActiveCategories());
 }
 
@@ -76,6 +76,7 @@ export async function getVehicleModelsCtl(req: Request, res: Response): Promise<
  * Used in customer signup to show the city picker without requiring auth.
  */
 export async function getCitiesCtl(_req: Request, res: Response): Promise<Response> {
+  res.set("Cache-Control", "no-store");
   const cities = await City.find({ active: true }).sort({ name: 1 }).select("name active");
   return ok(
     res,
@@ -88,6 +89,7 @@ export async function getCitiesCtl(_req: Request, res: Response): Promise<Respon
  * Query param: ?cityId=<id>
  */
 export async function getZonesByCityCtl(req: Request, res: Response): Promise<Response> {
+  res.set("Cache-Control", "no-store");
   const cityId = String(req.query.cityId ?? "");
   if (!cityId) throw ApiError.badRequest("cityId query param is required");
   const zones = await ServiceZone.find({ city: cityId, active: true }).sort({ name: 1 }).select("name active");
@@ -103,17 +105,13 @@ export async function getZonesByCityCtl(req: Request, res: Response): Promise<Re
  * city, which plays no part in dispatch or coverage. Query params: ?lat=&lng=
  */
 export async function getServiceCheckCtl(req: Request, res: Response): Promise<Response> {
+  // Coverage is operational configuration. A browser/proxy must not reuse a
+  // response after an admin moves or enables a zone.
+  res.set("Cache-Control", "no-store");
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     throw ApiError.badRequest("lat and lng query params are required");
   }
   return ok(res, await checkServiceability([lng, lat]));
-}
-
-/**
- * Public endpoint: returns live active booking time slots configured by admin.
- */
-export function getTimeSlotsCtl(_req: Request, res: Response): Response {
-  return ok(res, { slots: getLiveSlots() });
 }

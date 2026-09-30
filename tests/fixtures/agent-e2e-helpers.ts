@@ -50,6 +50,17 @@ function withApiPrefix(ctx: APIRequestContext): APIRequestContext {
 }
 
 export const test = base.extend<{}>({
+  page: async ({ page }, use) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("nexclean-cookie-consent", JSON.stringify({
+        version: 1,
+        necessary: true,
+        functional: false,
+        updatedAt: new Date().toISOString(),
+      }));
+    });
+    await use(page);
+  },
   request: async ({ playwright }, use) => {
     const ctx = await playwright.request.newContext();
     await use(withApiPrefix(ctx));

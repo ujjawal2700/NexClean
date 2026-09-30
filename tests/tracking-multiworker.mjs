@@ -87,7 +87,7 @@ async function newVerifiedAgent(base, adminToken) {
   const phone = freshPhone();
   await call(base, "/auth/agent/signup", {
     method: "POST",
-    body: { name: uniqueName("Cluster Agent"), phone, area: "Test Zone",
+    body: { name: uniqueName("Cluster Agent"), phone, area: "Test Zone", privacyAccepted: true, termsAccepted: true,
       aadharNumber: "123456789012", aadharFront: FAKE, aadharBack: FAKE },
   });
   const v = await call(base, "/auth/verify-otp", { method: "POST", body: { phone, code: DEMO_OTP } });

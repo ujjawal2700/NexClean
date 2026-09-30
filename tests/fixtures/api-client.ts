@@ -2,6 +2,7 @@ import type { APIRequestContext } from "@playwright/test";
 
 /** Demo OTP always accepted by the backend regardless of what was actually "sent" (see backend/src/config/env.ts DEMO_OTP). */
 export const DEMO_OTP = process.env.DEMO_OTP ?? "123456";
+export const LEGAL_ACCEPTANCE = { privacyAccepted: true, termsAccepted: true } as const;
 
 /** One of the demo agents seeded on backend startup (see backend/src/config/seed.ts). Verified, online. */
 export const SEED_AGENT_PHONE = "9000000001";
@@ -63,7 +64,7 @@ export function apiUrl(path: string): string {
  * existing number 400s and is ignored, it never touches that account's role.
  */
 export async function loginByPhone(request: APIRequestContext, phone: string): Promise<{ token: string; userId: string }> {
-  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   await request.post(apiUrl("/auth/send-otp"), { data: { phone } });
   const res = await request.post(apiUrl("/auth/verify-otp"), { data: { phone, code: DEMO_OTP } });
   const data = await unwrap<{ token: string; user: { id: string } }>(res, "verify-otp");
@@ -73,13 +74,56 @@ export async function loginByPhone(request: APIRequestContext, phone: string): P
 /** Logs in as a fresh, newly registered customer. */
 export async function loginAsNewCustomer(request: APIRequestContext) {
   const phone = freshPhone();
-  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone } });
+  await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   return loginByPhone(request, phone);
 }
 
 /** Logs in as the seeded demo agent or specified agent. */
 export async function loginAsAgent(request: APIRequestContext, phone: string = SEED_AGENT_PHONE) {
   return loginByPhone(request, phone);
+}
+
+const TEST_AGENT_IMAGE =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+/**
+ * Creates a dedicated verified cleaner and brings them online with a current
+ * location. Assignment tests must not reuse the seeded cleaner: an earlier
+ * test may legitimately leave that cleaner holding an offer or working a job.
+ */
+export async function createVerifiedOnlineAgent(
+  request: APIRequestContext,
+  coords: { lat: number; lng: number } = { lat: 22.7196, lng: 75.8577 },
+): Promise<{ token: string; userId: string }> {
+  const phone = freshPhone();
+  const signup = await request.post(apiUrl("/auth/agent/signup"), {
+    data: {
+      name: uniqueName("Assignment Cleaner"),
+      phone,
+      city: "Indore",
+      area: "Test Area",
+      aadharNumber: "123456789012",
+      aadharFront: TEST_AGENT_IMAGE,
+      aadharBack: TEST_AGENT_IMAGE,
+      ...LEGAL_ACCEPTANCE,
+    },
+  });
+  await unwrap(signup, "agent signup");
+
+  const agent = await loginByPhone(request, phone);
+  const { token: adminToken } = await loginAsAdmin(request);
+  const verified = await request.patch(apiUrl(`/admin/agents/${agent.userId}/status`), {
+    headers: authHeader(adminToken),
+    data: { status: "verified" },
+  });
+  await unwrap(verified, "agent verification");
+
+  const online = await request.patch(apiUrl("/agent/online"), {
+    headers: authHeader(agent.token),
+    data: { online: true, ...coords },
+  });
+  await unwrap(online, "agent online update");
+  return agent;
 }
 
 /** Logs in as the seeded super admin. */

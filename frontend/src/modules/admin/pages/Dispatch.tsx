@@ -13,7 +13,7 @@ import {
   ChevronDown,
   Navigation2,
 } from "lucide-react";
-import { SOCKET_URL } from "@shared/lib/api";
+import { SOCKET_URL, ApiError } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -76,6 +76,7 @@ export function Dispatch() {
       auth: { role: "admin" },
     });
     const refresh = () => qc.invalidateQueries({ queryKey: ["admin", "dispatch"] });
+    socket.on("connect", refresh);
     socket.on("dispatch_update", refresh);
     socket.on("dispatch_pending", refresh);
     return () => {
@@ -284,6 +285,7 @@ function AssignControls({
   const autoAssign = useAutoAssignBooking();
   const { data: agents = [], isLoading } = useAssignableAgents(open ? item.id : null);
   const ref = useRef<HTMLDivElement>(null);
+  const [controlError, setControlError] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -301,7 +303,15 @@ function AssignControls({
         size="sm"
         title="Auto-assign the nearest available cleaner"
         disabled={autoAssign.isPending || !item.hasLocation}
-        onClick={() => autoAssign.mutate(item.id)}
+        onClick={() => {
+          setControlError("");
+          autoAssign.mutate(item.id, {
+            onError: (e) => {
+              setControlError(e instanceof ApiError ? e.message : "Couldn't assign a cleaner");
+              setOpen(true);
+            },
+          });
+        }}
       >
         {autoAssign.isPending ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
         <span className="hidden sm:inline">Auto</span>
@@ -317,14 +327,20 @@ function AssignControls({
               <Loader2 className="size-4 animate-spin" /> Finding cleaners…
             </p>
           ) : agents.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-muted">No verified cleaners found.</p>
+            <p className="px-3 py-4 text-sm text-muted">No online, available cleaners found.</p>
           ) : (
             agents.map((a) => (
               <button
                 key={a.id}
                 onClick={() => {
-                  assign.mutate({ id: item.id, agentId: a.id });
-                  setOpen(false);
+                  setControlError("");
+                  assign.mutate(
+                    { id: item.id, agentId: a.id },
+                    {
+                      onSuccess: () => setOpen(false),
+                      onError: (e) => setControlError(e instanceof ApiError ? e.message : "Couldn't assign this cleaner"),
+                    },
+                  );
                 }}
                 className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-primary/5"
               >
@@ -334,17 +350,13 @@ function AssignControls({
                     {a.distanceKm != null ? `${a.distanceKm} km` : a.area || "—"}
                   </span>
                 </span>
-                <span
-                  className={cn(
-                    "shrink-0 rounded-pill px-2 py-0.5 text-[10px] font-medium",
-                    a.online ? "bg-emerald-500/10 text-emerald-600" : "bg-ink/5 text-muted",
-                  )}
-                >
-                  {a.online ? "online" : "offline"}
+                <span className="shrink-0 rounded-pill bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
+                  online
                 </span>
               </button>
             ))
           )}
+          {controlError && <p role="alert" className="px-3 py-2 text-xs leading-5 text-red-500">{controlError}</p>}
         </div>
       )}
     </div>

@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import {
   GoogleMap,
-  useJsApiLoader,
   Polygon,
   Polyline,
   Marker,
@@ -37,7 +36,7 @@ import {
   useDeleteZone,
   useZoneAgents,
 } from "../api/admin.api";
-import { GOOGLE_MAPS_LOADER_OPTIONS } from "@shared/lib/googleMaps";
+import { useGoogleMaps } from "@shared/hooks/useGoogleMaps";
 import type { ServiceZone } from "../types";
 
 const defaultCenter = { lat: 12.9716, lng: 77.5946 }; // Bengaluru default
@@ -378,7 +377,7 @@ export function Locations() {
   const projectionOverlayRef = useRef<google.maps.OverlayView | null>(null);
 
   // Load Google Maps SDK
-  const { isLoaded } = useJsApiLoader(GOOGLE_MAPS_LOADER_OPTIONS);
+  const isLoaded = useGoogleMaps() === true;
 
   // Agents currently, live, inside the selected existing zone
   const { data: liveZoneAgents = [] } = useZoneAgents(
@@ -1153,12 +1152,15 @@ export function Locations() {
           {activeTab === "zones" && (
             <Button
               onClick={() => {
+                if (!isLoaded) return;
                 setSelectedZone(null);
                 setIsBoundaryEditing(false);
                 setDrawingPoints([]);
                 setCursorPos(null);
                 setDrawingMode(drawingMode ? null : "polygon");
               }}
+              disabled={!isLoaded && !drawingMode}
+              title={!isLoaded ? "Google Maps must finish loading before drawing a zone" : undefined}
               variant={drawingMode ? "outline" : "primary"}
               className="h-11 rounded-2xl px-5 text-xs font-semibold shrink-0">
               {drawingMode ? (
@@ -1592,8 +1594,8 @@ export function Locations() {
                   Loading Google Maps...
                 </p>
                 <p className="text-xs text-muted mt-1 max-w-xs">
-                  Connecting to Google Maps services. Ensure your
-                  VITE_GOOGLE_MAPS_KEY is active.
+                  Connecting to Google Maps services. Check the server-side
+                  browser key and its allowed web origins if this persists.
                 </p>
               </div>
             )}

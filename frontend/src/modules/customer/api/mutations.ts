@@ -72,7 +72,14 @@ export function useVerifyOtp() {
 
 export function useCustomerSignup() {
   return useMutation({
-    mutationFn: (vars: { name: string; phone: string; email?: string; referralCode?: string }) =>
+    mutationFn: (vars: {
+      name: string;
+      phone: string;
+      email?: string;
+      referralCode?: string;
+      privacyAccepted: true;
+      termsAccepted: true;
+    }) =>
       apiFetch<{ sent: boolean }>("/auth/customer/signup", { method: "POST", body: vars }),
   });
 }
@@ -227,8 +234,8 @@ export type OrderResponse = {
 
 export function useCreateOrder() {
   return useMutation({
-    mutationFn: (booking: CreateBookingInput) =>
-      apiFetch<OrderResponse>("/payments/order", { method: "POST", body: { booking } }),
+    mutationFn: ({ booking, expectedAmount }: { booking: CreateBookingInput; expectedAmount: number }) =>
+      apiFetch<OrderResponse>("/payments/order", { method: "POST", body: { booking, expectedAmount } }),
   });
 }
 

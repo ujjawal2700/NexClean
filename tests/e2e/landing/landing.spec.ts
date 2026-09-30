@@ -13,6 +13,18 @@ import { test, expect } from "@playwright/test";
 const SECTION_IDS = ["story", "how-it-works", "vehicles", "nearby", "why", "plans", "app", "reviews"];
 
 test.describe("Landing page", () => {
+  test("offers clear cookie choices and remembers essential-only selection", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Your privacy choices" })).toBeVisible();
+    await page.getByRole("button", { name: "Manage choices" }).click();
+    await expect(page.getByText("Strictly necessary")).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: /Functional/ })).not.toBeChecked();
+    await page.getByRole("button", { name: "Necessary only" }).click();
+    await expect(page.getByRole("heading", { name: "Your privacy choices" })).toBeHidden();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Your privacy choices" })).toBeHidden();
+  });
+
   test("renders every story section, with no console errors", async ({ page }) => {
     const errors: string[] = [];
     page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
@@ -57,10 +69,19 @@ test.describe("Landing page", () => {
     await expect(page.locator("#plans")).toBeInViewport({ timeout: 10_000 });
   });
 
-  test("an unknown path falls back to the landing page rather than a blank screen", async ({ page }) => {
+  test("an unknown path renders the customer-friendly 404 page", async ({ page }) => {
     await page.goto("/definitely-not-a-real-route");
-    await expect(page.locator("h1")).toBeVisible();
-    await expect(page.locator("main#main")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "This page took a wrong turn." })).toBeVisible();
+    await expect(page.getByText("Error 404")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Back to homepage" })).toHaveAttribute("href", "/");
+    await expect(page).toHaveTitle("Page not found | NexClean");
+  });
+
+  test("an unknown customer-app path renders the 404 instead of silently redirecting", async ({ page }) => {
+    await page.goto("/app/definitely-not-a-real-route");
+    await expect(page.getByRole("heading", { name: "This page took a wrong turn." })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Customer dashboard" })).toHaveAttribute("href", "/app");
+    await expect(page).toHaveURL(/\/app\/definitely-not-a-real-route$/);
   });
 
   test("is usable at a phone viewport", async ({ page }) => {

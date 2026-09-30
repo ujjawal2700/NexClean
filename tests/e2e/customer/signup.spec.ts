@@ -2,6 +2,17 @@ import { test, expect } from "@playwright/test";
 import { DEMO_OTP, freshPhone } from "../../fixtures/api-client";
 
 test.describe("Customer signup", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("nexclean-cookie-consent", JSON.stringify({
+        version: 1,
+        necessary: true,
+        functional: false,
+        updatedAt: new Date().toISOString(),
+      }));
+    });
+  });
+
   test("details step rejects a short name and an invalid phone", async ({ page }) => {
     await page.goto("/app/signup");
     await expect(page.locator("h1")).toHaveText("Join NexClean");
@@ -19,6 +30,34 @@ test.describe("Customer signup", () => {
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Enter a valid 10-digit number")).toBeVisible();
     await expect(page.locator("h1")).toHaveText("Join NexClean");
+  });
+
+  test("legal links open focused, blocking content dialogs and restore focus after Okay", async ({ page }) => {
+    await page.goto("/app/signup");
+
+    const termsTrigger = page.getByRole("button", { name: "Terms & Conditions" });
+    await termsTrigger.click();
+    const termsDialog = page.getByRole("dialog", { name: "Terms & Conditions" });
+    await expect(termsDialog).toBeVisible();
+    await expect(termsDialog.getByText("Agreement to these terms")).toBeAttached();
+    const termsContent = termsDialog.getByRole("region", { name: "Terms & Conditions content" });
+    await termsContent.hover();
+    await page.mouse.wheel(0, 700);
+    await expect.poll(() => termsContent.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await expect(page.locator("#root")).toHaveAttribute("inert", "");
+    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+    await termsDialog.getByRole("button", { name: "Okay" }).click();
+    await expect(termsDialog).toBeHidden();
+    await expect(termsTrigger).toBeFocused();
+    await expect(page.locator("#root")).not.toHaveAttribute("inert", "");
+
+    const privacyTrigger = page.getByRole("button", { name: "Privacy Policy" });
+    await privacyTrigger.click();
+    const privacyDialog = page.getByRole("dialog", { name: "Privacy Policy" });
+    await expect(privacyDialog).toBeVisible();
+    await expect(privacyDialog.getByText("Why we collect and use it")).toBeAttached();
+    await privacyDialog.getByRole("button", { name: "Okay" }).click();
+    await expect(privacyTrigger).toBeFocused();
   });
 
   // KNOWN APP BUG (not a test bug) — see frontend/src/modules/customer/pages/Signup.tsx:34.
@@ -39,6 +78,7 @@ test.describe("Customer signup", () => {
     await page.locator('input[name="name"]').fill("Aisha Sharma");
     await page.locator('input[name="email"]').fill(`aisha-${phone}@example.com`);
     await page.locator('input[name="phone"]').fill(phone);
+    await page.locator('input[name="legalConsent"]').check();
     await page.getByRole("button", { name: "Continue" }).click();
 
     await expect(page.locator("h1")).toHaveText("Select your city");
@@ -62,6 +102,7 @@ test.describe("Customer signup", () => {
     await page.goto("/app/signup");
     await page.locator('input[name="name"]').fill("Someone Else");
     await page.locator('input[name="phone"]').fill(phone);
+    await page.locator('input[name="legalConsent"]').check();
     await page.getByRole("button", { name: "Continue" }).click();
 
     await expect(page.locator("h1")).toHaveText("Select your city");
@@ -81,6 +122,7 @@ test.describe("Customer signup", () => {
     await page.goto("/app/signup");
     await page.locator('input[name="name"]').fill("First Timer");
     await page.locator('input[name="phone"]').fill(phone);
+    await page.locator('input[name="legalConsent"]').check();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.locator("h1")).toHaveText("Select your city");
     await page.getByRole("button", { name: "My city isn't listed" }).click();
@@ -97,6 +139,7 @@ test.describe("Customer signup", () => {
     await page.goto("/app/signup");
     await page.locator('input[name="name"]').fill("Second Timer");
     await page.locator('input[name="phone"]').fill(phone);
+    await page.locator('input[name="legalConsent"]').check();
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.locator("h1")).toHaveText("Select your city");
     await page.getByRole("button", { name: "My city isn't listed" }).click();

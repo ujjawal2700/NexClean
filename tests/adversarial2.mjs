@@ -42,7 +42,7 @@ const main = async () => {
   console.log(`\n[D2] self-referral farming`);
   console.log(`   referrer code  : ${code ?? "(unreadable) " + JSON.stringify(summary.body?.data)?.slice(0, 200)}`);
   if (code) {
-    const r = await call("/auth/customer/signup", { method: "POST", body: { name: "Self Referrer", phone: freshPhone(), referralCode: code } });
+    const r = await call("/auth/customer/signup", { method: "POST", body: { name: "Self Referrer", phone: freshPhone(), referralCode: code, privacyAccepted: true, termsAccepted: true } });
     console.log(`   signup w/ code : ${r.status} ${r.body?.message ?? ""}`);
     const w = await call("/wallet", { token: referrer.token });
     console.log(`   referrer wallet: ${JSON.stringify(w.body?.data)}`);

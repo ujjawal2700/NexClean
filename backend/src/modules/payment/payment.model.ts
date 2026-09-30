@@ -13,6 +13,10 @@ const paymentSchema = new Schema(
     // booking is rebuilt from this on verify, so a client cannot swap in a
     // costlier package after paying for a cheaper one.
     bookingDraft: { type: Schema.Types.Mixed, default: null },
+    // Server-generated breakdown frozen when the order is opened. This keeps
+    // the resulting booking identical to the amount charged even if an admin
+    // changes pricing while the gateway sheet is already open.
+    pricingSnapshot: { type: Schema.Types.Mixed, default: null },
     status: { type: String, enum: ["created", "paid", "mock", "refunded"], default: "created", index: true },
 
     /**

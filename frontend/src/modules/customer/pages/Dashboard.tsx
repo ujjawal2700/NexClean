@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, CalendarPlus, MapPin, Sparkles, Plus, CreditCard, Bell } from "lucide-react";
+import { ArrowRight, CalendarPlus, MapPin, Sparkles, Plus, CreditCard, Bell, Crown } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { Skeleton } from "@shared/ui/Skeleton";
-import { useMe, useBookings, usePromoBanners, useVehicleCategories, useCategoryLabel, useNotifications } from "../api/queries";
+import { useMe, useBookings, usePromoBanners, useVehicleCategories, useCategoryLabel, useNotifications, usePlans } from "../api/queries";
 import { useIsGuest } from "../store/sessionStore";
 import { PACKAGES } from "../data/catalog";
 import { formatDate, formatMoney, greeting } from "@shared/lib/format";
@@ -27,6 +27,7 @@ export function Dashboard() {
   const { data: banners = [] } = usePromoBanners();
   const { data: categories = [] } = useVehicleCategories();
   const { data: notifications = [] } = useNotifications();
+  const { data: plans = [], isLoading: plansLoading } = usePlans();
   const categoryLabel = useCategoryLabel();
   const isGuest = useIsGuest();
 
@@ -37,6 +38,19 @@ export function Dashboard() {
   const vehicles = me?.vehicles ?? [];
   const activePlan = me?.activePlan ?? null;
   const next = bookings.filter((b) => b.status === "upcoming")[0];
+  const hasBookingHistory = bookings.length > 0;
+  const showMembershipFeature = !bookingsLoading && !next && hasBookingHistory;
+  const preferredVehicleType = vehicles[0]?.type;
+  const featuredPlans = [...plans]
+    .filter((plan) => plan.active)
+    .sort((a, b) => {
+      if (a.id === "premium") return -1;
+      if (b.id === "premium") return 1;
+      return a.price - b.price;
+    })
+    .slice(0, 2);
+  const planPrice = (plan: (typeof plans)[number]) =>
+    (preferredVehicleType && plan.prices[preferredVehicleType]) || plan.price;
   const cheapestBase = categories.length ? Math.min(...categories.map((c) => c.basePrice)) : 0;
   const categoryImageMap = new Map(categories.map((c) => [c.key, c.imageUrl]));
 
@@ -128,8 +142,14 @@ export function Dashboard() {
         {/* next booking */}
         <GlassCard className="flex flex-col">
           <div className="flex items-center justify-between">
-            <p className="font-display text-lg font-semibold text-ink">Next booking</p>
-            <Sparkles className="size-5 text-primary" />
+            <p className="font-display text-lg font-semibold text-ink">
+              {showMembershipFeature ? "Membership plans" : "Next booking"}
+            </p>
+            {showMembershipFeature ? (
+              <Crown className="size-5 text-amber-500" />
+            ) : (
+              <Sparkles className="size-5 text-primary" />
+            )}
           </div>
           {bookingsLoading ? (
             <div className="mt-4 flex-1 space-y-3">
@@ -154,11 +174,67 @@ export function Dashboard() {
                 <Link to="/app/bookings">View details</Link>
               </Button>
             </div>
-          ) : (
+          ) : !hasBookingHistory ? (
             <div className="mt-4 flex flex-1 flex-col items-start justify-center">
               <p className="text-sm text-muted">No upcoming bookings yet.</p>
               <Button asChild size="sm" className="mt-3">
                 <Link to="/app/book">Book your first clean</Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-4 flex flex-1 flex-col" data-testid="returning-customer-memberships">
+              <div className="flex items-start gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-amber-500/10 text-amber-600">
+                  <Crown className="size-5" />
+                </span>
+                <div>
+                  <p className="font-display font-semibold text-ink">
+                    {activePlan ? "Your membership" : "Save with a membership"}
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted">
+                    {activePlan
+                      ? "Manage your plan and upcoming monthly washes."
+                      : "Choose a monthly plan for regular doorstep care."}
+                  </p>
+                </div>
+              </div>
+
+              {!activePlan && (
+                <div className="mt-4 space-y-2">
+                  {plansLoading ? (
+                    <>
+                      <Skeleton className="h-12 w-full rounded-xl" />
+                      <Skeleton className="h-12 w-full rounded-xl" />
+                    </>
+                  ) : featuredPlans.length > 0 ? (
+                    featuredPlans.map((plan) => (
+                      <Link
+                        key={plan.id}
+                        to="/app/plans"
+                        className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface-muted/50 px-3 py-2 transition-colors hover:border-primary/35 hover:bg-primary/5"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-ink">{plan.name}</span>
+                          <span className="text-xs text-muted">
+                            {plan.washesPerMonth < 0 ? "Unlimited washes" : `${plan.washesPerMonth} washes/month`}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold text-primary">
+                          {formatMoney(planPrice(plan))}/mo
+                        </span>
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted">Membership options are being updated.</p>
+                  )}
+                </div>
+              )}
+
+              <Button asChild variant="outline" size="sm" className="mt-4 w-fit">
+                <Link to="/app/plans">
+                  {activePlan ? "Manage membership" : "Explore all plans"}
+                  <ArrowRight className="size-4" />
+                </Link>
               </Button>
             </div>
           )}

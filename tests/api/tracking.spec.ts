@@ -2,6 +2,7 @@ import { test, expect } from "../fixtures/base";
 import type { APIRequestContext } from "@playwright/test";
 import {
   DEMO_OTP,
+  LEGAL_ACCEPTANCE,
   authHeader,
   freshPhone,
   loginAsAdmin,
@@ -62,6 +63,7 @@ async function freshVerifiedAgent(request: APIRequestContext) {
       aadharNumber: "123456789012",
       aadharFront: FAKE_AADHAR_IMAGE,
       aadharBack: FAKE_AADHAR_IMAGE,
+      ...LEGAL_ACCEPTANCE,
     },
   });
   const verify = await (
@@ -345,7 +347,10 @@ test.describe("Tracking — authorization revocation", () => {
     // creating the booking first hands the offer to a seeded agent (or exhausts
     // the search into the admin queue) and this never sees an offer at all.
     const { token: adminToken } = await loginAsAdmin(request);
-    for (const phone of ["9000000001", "9000000002", "9000000003", "9000000004"]) {
+    const agentRows = (await (
+      await request.get("/admin/agents", { headers: authHeader(adminToken) })
+    ).json()).data as Array<{ phone: string }>;
+    for (const { phone } of agentRows) {
       try {
         const { token } = await loginByPhone(request, phone);
         await request.patch("/agent/online", { headers: authHeader(token), data: { online: false } });
