@@ -30,6 +30,21 @@ test.describe("Admin Login", () => {
     await expect(page.locator("h1")).toHaveText("Dashboard");
   });
 
+  test("logout asks for confirmation on mobile before ending the admin session", async ({ page }) => {
+    await loginAdminUI(page);
+    await page.setViewportSize({ width: 320, height: 720 });
+
+    await page.getByRole("button", { name: "Log out" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Log out of NexClean?" })).toBeVisible();
+    await dialog.getByRole("button", { name: "Stay signed in" }).click();
+    await expect(page).toHaveURL(/\/admin$/);
+
+    await page.getByRole("button", { name: "Log out" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Log out", exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/login$/);
+  });
+
   test("the show/hide password toggle actually changes the input's type attribute", async ({ page }) => {
     await page.goto("/admin/login");
     const passwordInput = page.locator('input[name="password"]');

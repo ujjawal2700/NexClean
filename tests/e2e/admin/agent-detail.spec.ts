@@ -78,7 +78,7 @@ test.describe("Admin Agent Detail", () => {
       (r) => r.url().includes(`/admin/agents/${id}/status`) && r.request().method() === "PATCH",
     );
     await suspendBtn.click();
-    await page.getByRole("dialog").getByRole("button", { name: "Suspend", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Suspend agent", exact: true }).click();
     expect((await suspendRespPromise).ok()).toBeTruthy();
 
     const reinstateBtn = page.getByRole("button", { name: /Reinstate/i });

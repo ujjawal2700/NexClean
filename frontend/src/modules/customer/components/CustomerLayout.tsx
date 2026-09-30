@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
+import { motion } from "motion/react";
 import { LayoutDashboard, CalendarPlus, ClipboardList, CreditCard, User, Bell, LogIn, Lock } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
@@ -148,13 +149,19 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
       {/* mobile tab bar */}
       <nav
         data-testid="customer-mobile-nav"
-        className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/95 backdrop-blur-xl md:hidden"
+        aria-label="Customer navigation"
+        className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-30 md:hidden"
       >
-        <div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">
+        <motion.div
+          className="mobile-bottom-nav-shell mx-auto flex max-w-md items-center justify-around"
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: "spring", stiffness: 340, damping: 28, mass: 0.75 }}
+        >
           {NAV.map((item) => {
             const locked = isGuest && item.authRequired;
             const className =
-              "flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-[10px] font-medium transition-colors";
+              "mobile-bottom-nav-item relative flex flex-1 items-stretch justify-stretch rounded-2xl text-[10px] font-medium";
             return locked ? (
               <button
                 key={item.to}
@@ -163,11 +170,17 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
                 className={cn(className, "text-muted")}
                 aria-label={`${item.label} — login required`}
               >
-                <span className="relative">
-                  <item.icon className="size-5" />
-                  <Lock className="absolute -right-1.5 -top-1 size-2.5" />
-                </span>
-                {item.label}
+                <motion.span
+                  className="relative z-10 flex w-full flex-col items-center gap-1 py-2"
+                  whileTap={{ scale: 0.9 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                >
+                  <span className="relative">
+                    <item.icon className="size-5" />
+                    <Lock className="absolute -right-1.5 -top-1 size-2.5" />
+                  </span>
+                  {item.label}
+                </motion.span>
               </button>
             ) : (
               <NavLink
@@ -176,12 +189,27 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
                 end={item.end}
                 className={({ isActive }) => cn(className, isActive ? "text-primary" : "text-muted")}
               >
-                <item.icon className="size-5" />
-                {item.label}
+                {({ isActive }) => (
+                  <motion.span
+                    className="relative z-10 flex w-full flex-col items-center gap-1 py-2"
+                    whileTap={{ scale: 0.9 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                  >
+                    {isActive && (
+                      <motion.span
+                        layoutId="customer-mobile-nav-active"
+                        className="mobile-bottom-nav-active absolute inset-0"
+                        transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.7 }}
+                      />
+                    )}
+                    <item.icon className="relative z-10 size-5" strokeWidth={isActive ? 2.35 : 2} />
+                    <span className="relative z-10">{item.label}</span>
+                  </motion.span>
+                )}
               </NavLink>
             );
           })}
-        </div>
+        </motion.div>
       </nav>
     </div>
   );

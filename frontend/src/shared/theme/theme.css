@@ -135,13 +135,91 @@
   }
 }
 
-/* Keep fixed mobile navigation and its page content above Android/iOS system UI. */
+/*
+ * Floating mobile navigation.
+ *
+ * The outer gutter lifts the interactive capsule clear of Android's gesture
+ * area. The transparent fixed wrapper may extend behind the system controls,
+ * but the glass surface and every tap target remain above them.
+ */
 .mobile-bottom-nav {
-  padding-bottom: var(--mobile-system-bottom);
+  pointer-events: none;
+  padding:
+    0 max(0.75rem, env(safe-area-inset-right, 0px))
+    calc(var(--mobile-system-bottom) + 0.75rem)
+    max(0.75rem, env(safe-area-inset-left, 0px));
+}
+
+.mobile-bottom-nav-shell {
+  pointer-events: auto;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 4.25rem;
+  padding: 0.375rem;
+  border: 1px solid color-mix(in srgb, #ffffff 78%, var(--color-line));
+  border-radius: 1.75rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(244, 248, 255, 0.72));
+  box-shadow:
+    0 18px 44px -16px rgba(26, 31, 54, 0.38),
+    0 6px 18px -8px rgba(79, 124, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  -webkit-backdrop-filter: blur(26px) saturate(185%);
+  backdrop-filter: blur(26px) saturate(185%);
+}
+
+.mobile-bottom-nav-shell::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 18% -30%, rgba(255, 255, 255, 0.96), transparent 52%),
+    radial-gradient(circle at 82% 135%, rgba(79, 124, 255, 0.16), transparent 52%);
+  pointer-events: none;
+}
+
+.mobile-bottom-nav-item {
+  -webkit-tap-highlight-color: transparent;
+  outline-offset: 2px;
+  transition: color 220ms ease;
+}
+
+.mobile-bottom-nav-active {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(79, 124, 255, 0.14));
+  box-shadow:
+    0 9px 22px -12px rgba(79, 124, 255, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(79, 124, 255, 0.1);
+}
+
+.mobile-bottom-nav-active::after {
+  content: "";
+  position: absolute;
+  top: -55%;
+  left: -35%;
+  width: 70%;
+  height: 190%;
+  transform: rotate(18deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  opacity: 0.65;
+  animation: mobile-nav-glass-sheen 2.8s ease-in-out infinite;
+}
+
+@keyframes mobile-nav-glass-sheen {
+  0%, 28% { transform: translateX(-45%) rotate(18deg); opacity: 0; }
+  42% { opacity: 0.65; }
+  68%, 100% { transform: translateX(245%) rotate(18deg); opacity: 0; }
 }
 
 .mobile-content-with-nav {
-  padding-bottom: calc(6.5rem + var(--mobile-system-bottom));
+  padding-bottom: calc(7.25rem + var(--mobile-system-bottom));
 }
 
 .account-dialog-actions {
@@ -151,6 +229,12 @@
 @media (min-width: 768px) {
   .mobile-content-with-nav {
     padding-bottom: 4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-bottom-nav-active::after {
+    animation: none;
   }
 }
 

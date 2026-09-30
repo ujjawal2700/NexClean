@@ -61,20 +61,43 @@ test.describe("Customer login", () => {
 
     const nav = page.getByTestId("customer-mobile-nav");
     await expect(nav).toBeVisible();
+    const shell = nav.locator(".mobile-bottom-nav-shell");
+    await expect(shell).toBeVisible();
+    await expect.poll(async () =>
+      shell.evaluate((element) => window.innerHeight - element.getBoundingClientRect().bottom),
+    ).toBeGreaterThanOrEqual(20);
     const layout = await nav.evaluate((element) => {
       const navStyle = getComputedStyle(element);
+      const shell = element.querySelector<HTMLElement>(".mobile-bottom-nav-shell");
       const main = document.querySelector("main");
       const box = element.getBoundingClientRect();
+      const shellBox = shell?.getBoundingClientRect();
       return {
         paddingBottom: Number.parseFloat(navStyle.paddingBottom),
         contentPaddingBottom: main ? Number.parseFloat(getComputedStyle(main).paddingBottom) : 0,
         navBottom: box.bottom,
+        shellBottom: shellBox?.bottom ?? box.bottom,
+        shellLeft: shellBox?.left ?? 0,
+        shellRadius: shell ? Number.parseFloat(getComputedStyle(shell).borderRadius) : 0,
         viewportHeight: window.innerHeight,
       };
     });
     expect(layout.paddingBottom).toBeGreaterThanOrEqual(10);
-    expect(layout.contentPaddingBottom).toBeGreaterThan(90);
+    expect(layout.contentPaddingBottom).toBeGreaterThan(100);
     expect(layout.navBottom).toBeLessThanOrEqual(layout.viewportHeight);
+    expect(layout.viewportHeight - layout.shellBottom).toBeGreaterThanOrEqual(20);
+    expect(layout.shellLeft).toBeGreaterThan(8);
+    expect(layout.shellRadius).toBeGreaterThanOrEqual(20);
+
+    // The translucent active pill is a single shared-layout element. It
+    // should spring horizontally to the newly selected tab, not blink out and
+    // reappear as a disconnected highlight.
+    const activePill = nav.locator(".mobile-bottom-nav-active");
+    await expect(activePill).toHaveCount(1);
+    const beforeX = (await activePill.boundingBox())?.x ?? 0;
+    await nav.getByRole("link", { name: "Plans" }).click();
+    await expect(page).toHaveURL(/\/app\/plans$/);
+    await expect.poll(async () => (await activePill.boundingBox())?.x ?? 0).toBeGreaterThan(beforeX + 100);
   });
 
   test("rejects an invalid phone number", async ({ page }) => {

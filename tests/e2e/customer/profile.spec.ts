@@ -101,21 +101,44 @@ test.describe("Profile page", () => {
     await expect(page.getByRole("link", { name: /Help & Support/ })).toBeVisible();
   });
 
+  test("long account email wraps inside the summary card at 320px", async ({ page }) => {
+    const longEmail = "customer.with.a.very.long.address.for.small.screens@examplemaildomain.com";
+    await page.setViewportSize({ width: 320, height: 865 });
+    await page.goto("/app/profile/edit");
+    await expect(page.locator('input[name="name"]')).not.toHaveValue("");
+    await page.locator('input[name="email"]').fill(longEmail);
+    await page.getByRole("button", { name: "Save Profile Changes" }).click();
+    await expect(page.getByText("Profile details saved successfully")).toBeVisible();
+    await page.goto("/app/profile");
+
+    const card = page.getByTestId("account-summary-card");
+    const email = page.getByTestId("account-summary-email");
+    await expect(email).toHaveText(longEmail);
+
+    const [cardBox, emailBox] = await Promise.all([card.boundingBox(), email.boundingBox()]);
+    expect(cardBox).not.toBeNull();
+    expect(emailBox).not.toBeNull();
+    expect(emailBox!.x).toBeGreaterThanOrEqual(cardBox!.x);
+    expect(emailBox!.x + emailBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 0.5);
+    expect(emailBox!.height).toBeGreaterThan(20);
+  });
+
   test("logout flow: confirm modal, Cancel keeps the session", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
     await page.getByRole("button", { name: "Log out" }).click();
-    await expect(page.getByRole("heading", { name: "Log Out" })).toBeVisible();
-    await page.getByRole("button", { name: "Cancel" }).click();
-    await expect(page.getByRole("heading", { name: "Log Out" })).not.toBeVisible();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Log out of NexClean?" })).toBeVisible();
+    await dialog.getByRole("button", { name: "Stay signed in" }).click();
+    await expect(dialog).not.toBeVisible();
     // Still logged in.
     await expect(page.locator("h1")).toHaveText("Profile");
   });
 
   test("logout flow: confirming clears the session and redirects to login", async ({ page }) => {
     await page.getByRole("button", { name: "Log out" }).click();
-    await expect(page.getByRole("heading", { name: "Log Out" })).toBeVisible();
-    // Two buttons named "Log out"/"Log Out" exist once the modal is open —
-    // scope to the modal's red confirm button (last in DOM order).
-    await page.getByRole("button", { name: "Log out" }).last().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Log out of NexClean?" })).toBeVisible();
+    await dialog.getByRole("button", { name: "Log out", exact: true }).click();
     await page.waitForURL(/\/app\/login$/);
 
     // Visiting /app directly afterwards redirects back to login.

@@ -95,6 +95,7 @@ test.describe("Admin Agents", () => {
   });
 
   test("suspend then reinstate the seeded agent via PATCH status", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 720 });
     await page.locator('input[name="search"]').fill(SEED_AGENT_PHONE);
     const card = page.locator("div.glass", { hasText: "Rohit Kumar" });
     await expect(card).toBeVisible();
@@ -106,6 +107,19 @@ test.describe("Admin Agents", () => {
       (r) => /\/admin\/agents\/.+\/status$/.test(r.url()) && r.request().method() === "PATCH",
     );
     await suspendBtn.click();
+    const suspendDialog = page.getByRole("dialog");
+    await expect(suspendDialog.getByRole("heading", { name: "Suspend this agent?" })).toBeVisible();
+    await expect
+      .poll(async () => {
+        const box = await suspendDialog.boundingBox();
+        return box ? box.y + box.height : Number.POSITIVE_INFINITY;
+      })
+      .toBeLessThanOrEqual(720.5);
+    const dialogBox = await suspendDialog.boundingBox();
+    expect(dialogBox).not.toBeNull();
+    expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
+    expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(320.5);
+    await suspendDialog.getByRole("button", { name: "Suspend agent", exact: true }).click();
     const suspendResp = await suspendRespPromise;
     expect(suspendResp.ok()).toBeTruthy();
 
@@ -116,6 +130,7 @@ test.describe("Admin Agents", () => {
       (r) => /\/admin\/agents\/.+\/status$/.test(r.url()) && r.request().method() === "PATCH",
     );
     await reinstateBtn.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Reinstate", exact: true }).click();
     const reinstateResp = await reinstateRespPromise;
     expect(reinstateResp.ok()).toBeTruthy();
 

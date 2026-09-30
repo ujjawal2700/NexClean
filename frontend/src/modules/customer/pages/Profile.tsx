@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
+import { LogoutConfirmDialog } from "@shared/components/LogoutConfirmDialog";
 import { useMe, useNotifications } from "../api/queries";
 import { useDeactivateAccount } from "../api/mutations";
 
@@ -78,15 +79,17 @@ export function Profile() {
       <h1 className="font-display text-2xl text-ink sm:text-3xl">Profile</h1>
 
       {/* User Header Info Card */}
-      <GlassCard className="flex flex-col sm:flex-row items-center gap-5 p-6 bg-gradient-to-br from-surface to-surface-muted/30">
+      <GlassCard className="flex flex-col items-center gap-5 overflow-hidden bg-gradient-to-br from-surface to-surface-muted/30 p-5 sm:flex-row sm:p-6">
         <div className="size-20 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-display text-2xl font-bold text-primary shadow-sm shrink-0">
           {getInitials()}
         </div>
-        <div className="text-center sm:text-left space-y-1 min-w-0 flex-1">
-          <h2 className="font-display text-2xl font-bold text-ink truncate">
+        <div className="min-w-0 w-full flex-1 space-y-1 text-center sm:text-left">
+          <h2 className="font-display text-2xl font-bold text-ink [overflow-wrap:anywhere]">
             {me?.name || "Member"}
           </h2>
-          <p className="text-sm text-ink-soft truncate">{me?.email}</p>
+          <p className="max-w-full text-sm text-ink-soft [overflow-wrap:anywhere]">
+            {me?.email}
+          </p>
           <div className="flex items-center justify-center sm:justify-start gap-1.5 text-xs text-muted pt-1">
             <Calendar className="size-3.5" />
             <span>
@@ -103,31 +106,33 @@ export function Profile() {
       </GlassCard>
 
       {/* Account Details Card */}
-      <GlassCard className="space-y-4">
+      <GlassCard className="space-y-4 p-5 sm:p-6" data-testid="account-summary-card">
         <div className="flex items-center justify-between border-b border-line/50 pb-2">
           <h3 className="font-display text-lg font-semibold text-ink">
             Account Summary
           </h3>
         </div>
-        <div className="grid gap-3 text-sm">
-          <div className="flex items-center gap-3 py-1.5 border-b border-line/30 last:border-0">
-            <User className="size-4 text-muted shrink-0" />
-            <span className="text-muted w-24">Full name</span>
-            <span className="font-medium text-ink truncate">
+        <div className="grid text-sm">
+          <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 border-b border-line/30 py-2.5 sm:grid-cols-[1.25rem_6rem_minmax(0,1fr)] sm:items-center sm:gap-y-0">
+            <User className="mt-0.5 size-4 shrink-0 text-muted sm:mt-0" />
+            <span className="text-xs text-muted sm:text-sm">Full name</span>
+            <span className="col-start-2 min-w-0 font-medium text-ink [overflow-wrap:anywhere] sm:col-start-3 sm:row-start-1">
               {me?.name || "—"}
             </span>
           </div>
-          <div className="flex items-center gap-3 py-1.5 border-b border-line/30 last:border-0">
-            <Mail className="size-4 text-muted shrink-0" />
-            <span className="text-muted w-24">Email</span>
-            <span className="font-medium text-ink truncate">
+          <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 border-b border-line/30 py-2.5 sm:grid-cols-[1.25rem_6rem_minmax(0,1fr)] sm:items-center sm:gap-y-0">
+            <Mail className="mt-0.5 size-4 shrink-0 text-muted sm:mt-0" />
+            <span className="text-xs text-muted sm:text-sm">Email</span>
+            <span
+              className="col-start-2 min-w-0 font-medium text-ink [overflow-wrap:anywhere] sm:col-start-3 sm:row-start-1"
+              data-testid="account-summary-email">
               {me?.email || "—"}
             </span>
           </div>
-          <div className="flex items-center gap-3 py-1.5 last:border-0">
-            <Phone className="size-4 text-muted shrink-0" />
-            <span className="text-muted w-24">Mobile</span>
-            <span className="font-medium text-ink truncate">
+          <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 py-2.5 sm:grid-cols-[1.25rem_6rem_minmax(0,1fr)] sm:items-center sm:gap-y-0">
+            <Phone className="mt-0.5 size-4 shrink-0 text-muted sm:mt-0" />
+            <span className="text-xs text-muted sm:text-sm">Mobile</span>
+            <span className="col-start-2 min-w-0 font-medium text-ink [overflow-wrap:anywhere] sm:col-start-3 sm:row-start-1">
               +91 {me?.phone || "—"}
             </span>
           </div>
@@ -305,39 +310,12 @@ export function Profile() {
         </Button>
       </div>
 
-      {/* Custom Logout Confirmation Modal */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/30 backdrop-blur-sm animate-fade-in">
-          <GlassCard className="w-full max-w-sm space-y-6 bg-surface p-6 shadow-xl border border-line">
-            <div className="space-y-2 text-center">
-              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-ink/5 text-ink">
-                <LogOut className="size-6" />
-              </div>
-              <h3 className="font-display text-lg font-bold text-ink">
-                Log Out
-              </h3>
-              <p className="text-sm text-muted leading-relaxed">
-                Are you sure you want to log out of your account? You will need
-                to log back in to manage your bookings and subscriptions.
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 rounded-xl cursor-pointer">
-                Cancel
-              </Button>
-              <Button
-                onClick={confirmLogout}
-                className="flex-1 rounded-xl bg-ink text-surface hover:bg-ink/90 cursor-pointer">
-                Log out
-              </Button>
-            </div>
-          </GlassCard>
-        </div>
-      )}
+      <LogoutConfirmDialog
+        open={showLogoutConfirm}
+        audience="customer"
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+      />
 
       {/* Custom Deactivate Confirmation Modal */}
       {showDeactivateConfirm && (

@@ -33,6 +33,7 @@ import {
 } from "../api/admin.api";
 import {
   PersonFormModal,
+  ConfirmActionModal,
   ConfirmDeleteModal,
 } from "../components/PersonFormModal";
 import { ExportDateRangeModal } from "../components/ExportDateRangeModal";
@@ -109,6 +110,10 @@ export function Agents() {
   // null = closed, "new" = create, otherwise the agent being edited.
   const [editing, setEditing] = useState<AdminAgent | "new" | null>(null);
   const [deleting, setDeleting] = useState<AdminAgent | null>(null);
+  const [statusChange, setStatusChange] = useState<{
+    agent: AdminAgent;
+    status: "verified" | "suspended";
+  } | null>(null);
   const [formError, setFormError] = useState("");
   const [showExportModal, setShowExportModal] = useState(false);
 
@@ -350,9 +355,10 @@ export function Agents() {
                   size="sm"
                   variant="outline"
                   className="flex-1"
-                  onClick={() =>
-                    setAgentStatus.mutate({ id: a.id, status: "suspended" })
-                  }>
+                  onClick={() => {
+                    setFormError("");
+                    setStatusChange({ agent: a, status: "suspended" });
+                  }}>
                   <Ban className="size-4" /> Suspend
                 </Button>
               )}
@@ -361,9 +367,10 @@ export function Agents() {
                   size="sm"
                   variant="outline"
                   className="flex-1"
-                  onClick={() =>
-                    setAgentStatus.mutate({ id: a.id, status: "verified" })
-                  }>
+                  onClick={() => {
+                    setFormError("");
+                    setStatusChange({ agent: a, status: "verified" });
+                  }}>
                   <RotateCcw className="size-4" /> Reinstate
                 </Button>
               )}
@@ -401,6 +408,42 @@ export function Agents() {
           };
           if (editing === "new") createAgent.mutate(v, done);
           else if (editing) updateAgent.mutate({ id: editing.id, ...v }, done);
+        }}
+      />
+
+      <ConfirmActionModal
+        open={statusChange !== null}
+        title={statusChange?.status === "suspended" ? "Suspend this agent?" : "Reinstate this agent?"}
+        description={
+          statusChange?.status === "suspended" ? (
+            <>
+              <span className="font-semibold text-ink">{statusChange.agent.name}</span> will be signed out on every device and blocked from signing in or receiving new jobs. Existing assigned jobs stay assigned until you reassign them.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold text-ink">{statusChange?.agent.name}</span> will regain access and can start receiving dispatch offers immediately.
+            </>
+          )
+        }
+        confirmLabel={statusChange?.status === "suspended" ? "Suspend agent" : "Reinstate"}
+        cancelLabel={statusChange?.status === "suspended" ? "Keep active" : "Cancel"}
+        destructive={statusChange?.status === "suspended"}
+        pending={setAgentStatus.isPending}
+        error={formError}
+        onClose={() => {
+          setStatusChange(null);
+          setFormError("");
+        }}
+        onConfirm={() => {
+          if (!statusChange) return;
+          setFormError("");
+          setAgentStatus.mutate(
+            { id: statusChange.agent.id, status: statusChange.status },
+            {
+              onSuccess: () => setStatusChange(null),
+              onError: (error: unknown) => setFormError((error as Error)?.message ?? "Couldn't change the agent status"),
+            },
+          );
         }}
       />
 

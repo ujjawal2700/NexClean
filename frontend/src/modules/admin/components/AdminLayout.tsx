@@ -38,6 +38,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
+import { LogoutConfirmDialog } from "@shared/components/LogoutConfirmDialog";
 import { useAdminSession } from "../store/sessionStore";
 import { useAgents, useLeads, useAdminMe } from "../api/admin.api";
 
@@ -420,13 +421,20 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     setSession,
   } = useAdminSession();
   const [open, setOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const { data: me, error } = useAdminMe();
 
-  const onLogout = () => {
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
     clear();
     qc.clear();
     navigate("/admin/login");
+  };
+
+  const onLogout = () => {
+    setOpen(false);
+    setShowLogoutConfirm(true);
   };
 
   useEffect(() => {
@@ -437,7 +445,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (error) {
-      onLogout();
+      confirmLogout();
     }
   }, [error]);
 
@@ -529,6 +537,13 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 
         <main className="px-5 py-8 md:px-8">{children}</main>
       </div>
+
+      <LogoutConfirmDialog
+        open={showLogoutConfirm}
+        audience="admin"
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+      />
     </div>
   );
 }

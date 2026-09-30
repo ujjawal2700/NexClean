@@ -15,16 +15,19 @@ export function EditProfile() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-5 sm:space-y-6">
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer shrink-0"
+          className="grid size-10 shrink-0 place-items-center rounded-2xl border border-line bg-surface text-ink-soft shadow-sm transition-colors hover:border-primary/30 hover:text-primary"
           aria-label="Back"
         >
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-2xl text-ink sm:text-3xl">Edit Profile</h1>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Account settings</p>
+          <h1 className="font-display text-2xl text-ink sm:text-3xl">Edit Profile</h1>
+        </div>
       </div>
 
       <UserProfileEdit

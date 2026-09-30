@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
 import { LayoutDashboard, ListChecks, Wallet, User, MapPinOff, Bell } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
@@ -136,6 +137,7 @@ function NotificationBell() {
 }
 
 export function AgentLayout({ children }: { children: ReactNode }) {
+  const location = useLocation();
   const navigate = useNavigate();
   const { data: me } = useAgentMe();
   useAgentHeartbeat();
@@ -143,6 +145,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
   const dispatch = useAgentDispatch();
 
   const showLocationNudge = (me?.online ?? false) && !dispatch.locating;
+  const hideMobileNav = location.pathname === "/agent/profile/edit";
 
   return (
     <div className="min-h-dvh overflow-x-hidden bg-bg">
@@ -185,7 +188,11 @@ export function AgentLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mobile-content-with-nav mx-auto max-w-5xl px-4 pt-6 sm:px-5 sm:pt-8">
+      <main
+        className={cn(
+          "mx-auto max-w-5xl px-4 pt-6 sm:px-5 sm:pt-8",
+          hideMobileNav ? "pb-8" : "mobile-content-with-nav",
+        )}>
         {showLocationNudge && (
           <div className="mb-5 flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
             <MapPinOff className="size-4 shrink-0" />
@@ -195,8 +202,16 @@ export function AgentLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      <nav className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-30 border-t border-line/70 bg-surface/95 backdrop-blur-xl md:hidden">
-        <div className="mx-auto flex max-w-md items-center justify-around px-2 py-2">
+      {!hideMobileNav && <nav
+        data-testid="agent-mobile-nav"
+        aria-label="Agent navigation"
+        className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-30 md:hidden">
+        <motion.div
+          className="mobile-bottom-nav-shell mx-auto flex max-w-md items-center justify-around"
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: "spring", stiffness: 340, damping: 28, mass: 0.75 }}
+        >
           {NAV.map((item) => (
             <NavLink
               key={item.to}
@@ -204,17 +219,32 @@ export function AgentLayout({ children }: { children: ReactNode }) {
               end={item.end}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-[10px] font-medium transition-colors",
+                  "mobile-bottom-nav-item relative flex flex-1 items-stretch justify-stretch rounded-2xl text-[10px] font-medium",
                   isActive ? "text-primary" : "text-muted",
                 )
               }
             >
-              <item.icon className="size-5" />
-              {item.label}
+              {({ isActive }) => (
+                <motion.span
+                  className="relative z-10 flex w-full flex-col items-center gap-1 py-2"
+                  whileTap={{ scale: 0.9 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                >
+                  {isActive && (
+                    <motion.span
+                      layoutId="agent-mobile-nav-active"
+                      className="mobile-bottom-nav-active absolute inset-0"
+                      transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.7 }}
+                    />
+                  )}
+                  <item.icon className="relative z-10 size-5" strokeWidth={isActive ? 2.35 : 2} />
+                  <span className="relative z-10">{item.label}</span>
+                </motion.span>
+              )}
             </NavLink>
           ))}
-        </div>
-      </nav>
+        </motion.div>
+      </nav>}
     </div>
   );
 }

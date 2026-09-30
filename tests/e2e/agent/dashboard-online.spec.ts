@@ -19,6 +19,24 @@ test.describe("Agent dashboard + online toggle", () => {
     await expect(page.getByText("Potential")).toBeVisible();
   });
 
+  test("mobile navigation floats above the Android system-control area", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAgentUI(page, SEED_AGENT_PHONE);
+
+    const nav = page.getByTestId("agent-mobile-nav");
+    const shell = nav.locator(".mobile-bottom-nav-shell");
+    await expect(shell).toBeVisible();
+    await expect.poll(async () =>
+      shell.evaluate((element) => window.innerHeight - element.getBoundingClientRect().bottom),
+    ).toBeGreaterThanOrEqual(20);
+
+    const activePill = nav.locator(".mobile-bottom-nav-active");
+    const beforeX = (await activePill.boundingBox())?.x ?? 0;
+    await nav.getByRole("link", { name: "Jobs" }).click();
+    await expect(page).toHaveURL(/\/agent\/jobs$/);
+    await expect.poll(async () => (await activePill.boundingBox())?.x ?? 0).toBeGreaterThan(beforeX + 50);
+  });
+
   test("online toggle flips state, shows the offline banner, and persists across reload", async ({ page }) => {
     await loginAgentUI(page, SEED_AGENT_PHONE);
     const toggle = page.locator("header").getByRole("button", { name: /Online|Offline/ });

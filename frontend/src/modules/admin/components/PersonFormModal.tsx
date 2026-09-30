@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Loader2, X, AlertTriangle } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { useVehicleCategories, useCities, useZones } from "../api/admin.api";
@@ -829,6 +830,7 @@ export function ConfirmActionModal({
   title,
   description,
   confirmLabel,
+  cancelLabel = "Cancel",
   destructive = false,
   pending,
   error,
@@ -839,45 +841,115 @@ export function ConfirmActionModal({
   title: string;
   description: ReactNode;
   confirmLabel: string;
+  cancelLabel?: string;
   destructive?: boolean;
   pending: boolean;
   error?: string;
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  if (!open) return null;
+  const titleId = useId();
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !pending) onClose();
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, onClose, pending]);
+
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true">
-      <div className="w-full max-w-md rounded-card border border-line bg-surface p-6 shadow-[var(--shadow-lift)]">
-        <h2 className="font-display text-xl text-ink">{title}</h2>
-        <div className="mt-2 text-sm text-muted">{description}</div>
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto p-0 sm:items-center sm:p-4"
+          initial={reduceMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}>
+          <motion.button
+            type="button"
+            className="absolute inset-0 cursor-default bg-slate-950/55 backdrop-blur-[3px]"
+            aria-label="Close confirmation"
+            onClick={() => !pending && onClose()}
+          />
 
-        {error && (
-          <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">
-            {error}
-          </p>
-        )}
+          <motion.section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            initial={reduceMotion ? false : { opacity: 0, y: 36, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 420, damping: 34 }}
+            className="relative max-h-[calc(100dvh-0.75rem)] w-full overflow-y-auto rounded-t-[2rem] border border-line/80 bg-surface/95 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-20px_70px_-28px_rgba(15,23,42,0.5)] backdrop-blur-xl sm:max-w-md sm:rounded-[2rem] sm:p-6 sm:shadow-[var(--shadow-lift)]">
+            <div className="mx-auto mb-4 h-1 w-11 rounded-full bg-line sm:hidden" />
 
-        <div className="mt-6 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose} disabled={pending}>
-            Cancel
-          </Button>
-          <Button
-            onClick={onConfirm}
-            disabled={pending}
-            className={
-              destructive
-                ? "bg-red-500 text-white hover:bg-red-600 focus-visible:outline-red-500"
-                : undefined
-            }>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            {confirmLabel}
-          </Button>
-        </div>
-      </div>
-    </div>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={onClose}
+              disabled={pending}
+              className="absolute right-4 top-4 grid size-9 place-items-center rounded-full border border-line/70 bg-surface-muted/70 text-muted transition-colors hover:text-ink disabled:opacity-50 sm:right-5 sm:top-5">
+              <X className="size-4" />
+            </button>
+
+            <div
+              className={
+                destructive
+                  ? "grid size-12 place-items-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-600"
+                  : "grid size-12 place-items-center rounded-2xl border border-primary/20 bg-primary/10 text-primary"
+              }>
+              <AlertTriangle className="size-5" />
+            </div>
+
+            <p className={destructive ? "mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-red-600" : "mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-primary"}>
+              {destructive ? "Account access" : "Confirm change"}
+            </p>
+            <h2 id={titleId} className="mt-1 pr-10 font-display text-2xl font-semibold text-ink">
+              {title}
+            </h2>
+
+            <div className="mt-4 rounded-2xl border border-line/80 bg-surface-muted/55 p-4 text-sm leading-6 text-muted">
+              {description}
+            </div>
+
+            {destructive && (
+              <div className="mt-3 flex items-start gap-2.5 rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-4 py-3 text-xs leading-5 text-red-700 dark:text-red-300">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <span>This takes effect immediately. You can reinstate the agent later.</span>
+              </div>
+            )}
+
+            {error && (
+              <p role="alert" className="mt-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">
+                {error}
+              </p>
+            )}
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <Button variant="outline" onClick={onClose} disabled={pending} className="w-full px-3">
+                {cancelLabel}
+              </Button>
+              <Button
+                onClick={onConfirm}
+                disabled={pending}
+                className={destructive ? "w-full bg-red-600 px-3 text-white shadow-none hover:bg-red-700 hover:shadow-none focus-visible:ring-red-500/40" : "w-full px-3"}>
+                {pending && <Loader2 className="size-4 animate-spin" />}
+                {confirmLabel}
+              </Button>
+            </div>
+          </motion.section>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

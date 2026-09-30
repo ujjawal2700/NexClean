@@ -325,7 +325,8 @@ export function AgentDetail() {
             </>
           )
         }
-        confirmLabel={statusChange === "suspended" ? "Suspend" : statusChange === "verified" ? "Verify" : "Move to pending"}
+        confirmLabel={statusChange === "suspended" ? "Suspend agent" : statusChange === "verified" ? "Verify" : "Move to pending"}
+        cancelLabel={statusChange === "suspended" ? "Keep active" : "Cancel"}
         destructive={statusChange === "suspended"}
         pending={setAgentStatus.isPending}
         error={formError}

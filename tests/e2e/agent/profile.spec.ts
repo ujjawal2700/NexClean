@@ -9,6 +9,7 @@ test.describe("Agent profile", () => {
     await expect(page.locator("h1")).toHaveText("Profile");
     await expect(page.getByRole("heading", { name: "Rohit Kumar" })).toBeVisible();
     await expect(page.getByText(`+91 ${SEED_AGENT_PHONE}`)).toBeVisible();
+    await expect(page.getByTestId("agent-account-email")).toBeVisible();
   });
 
   test("online/offline toggle on the profile page updates availability", async ({ page, context }) => {
@@ -33,18 +34,18 @@ test.describe("Agent profile", () => {
     await page.goto("/agent/profile");
 
     await page.getByRole("button", { name: "Log out" }).click();
-    await expect(page.getByRole("heading", { name: "Log Out" })).toBeVisible();
-    await expect(page.getByText("Are you sure you want to log out", { exact: false })).toBeVisible();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Log out of NexClean?" })).toBeVisible();
+    await expect(dialog.getByText("live job updates", { exact: false })).toBeVisible();
 
     // Cancel keeps the session.
-    await page.getByRole("button", { name: "Cancel" }).click();
-    await expect(page.getByRole("heading", { name: "Log Out" })).not.toBeVisible();
+    await dialog.getByRole("button", { name: "Stay signed in" }).click();
+    await expect(dialog).not.toBeVisible();
     await expect(page).toHaveURL(/\/agent\/profile$/);
 
     // Confirm logs out.
     await page.getByRole("button", { name: "Log out" }).click();
-    await page.getByRole("heading", { name: "Log Out" }).waitFor();
-    await page.locator("button", { hasText: "Log out" }).last().click();
+    await page.getByRole("dialog").getByRole("button", { name: "Log out", exact: true }).click();
     await expect(page).toHaveURL(/\/agent\/login$/);
   });
 
@@ -114,5 +115,52 @@ test.describe("Edit profile", () => {
     await page.goto("/agent/profile/edit");
     await page.getByRole("button", { name: "Back" }).click();
     await expect(page).toHaveURL(/\/agent\/profile$/);
+  });
+
+  test("mobile edit page hides the bottom navbar and keeps actions inside the viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 865 });
+    await loginAgentUI(page, SEED_AGENT_PHONE);
+    await page.goto("/agent/profile/edit");
+
+    await expect(page.getByTestId("agent-mobile-nav")).toHaveCount(0);
+    const otpButton = page.getByRole("button", { name: "Request OTP to Change Password" });
+    await expect(otpButton).toBeVisible();
+    const box = await otpButton.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(320.5);
+  });
+
+  test("saved email appears in the agent account summary", async ({ page }) => {
+    const updatedEmail = "rohit.agent.profile@example.com";
+    await loginAgentUI(page, SEED_AGENT_PHONE);
+    await page.goto("/agent/profile/edit");
+    await expect(page.locator('input[name="name"]')).not.toHaveValue("");
+    const emailInput = page.locator('input[name="email"]');
+    const originalEmail = await emailInput.inputValue();
+
+    const saveEmail = async (email: string) => {
+      await emailInput.fill(email);
+      const patched = page.waitForResponse(
+        (response) => response.url().includes("/users/me") && response.request().method() === "PATCH" && response.ok(),
+      );
+      await page.getByRole("button", { name: "Save Profile Changes" }).click();
+      await patched;
+    };
+
+    try {
+      await saveEmail(updatedEmail);
+      await page.goto("/agent/profile");
+      await expect(page.getByTestId("agent-account-email")).toHaveText(updatedEmail);
+    } finally {
+      await page.goto("/agent/profile/edit");
+      await expect(page.locator('input[name="name"]')).not.toHaveValue("");
+      await page.locator('input[name="email"]').fill(originalEmail);
+      const restored = page.waitForResponse(
+        (response) => response.url().includes("/users/me") && response.request().method() === "PATCH" && response.ok(),
+      );
+      await page.getByRole("button", { name: "Save Profile Changes" }).click();
+      await restored;
+    }
   });
 });

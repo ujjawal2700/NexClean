@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAgentSession } from "../store/sessionStore";
 import {
   User,
+  Mail,
   Phone,
   Star,
   BadgeCheck,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
+import { LogoutConfirmDialog } from "@shared/components/LogoutConfirmDialog";
 import {
   useAgentMe,
   useToggleOnline,
@@ -118,7 +120,7 @@ export function Profile() {
       </GlassCard>
 
       {/* Account Summary Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <GlassCard className="p-4 text-center">
           <p className="font-display text-xl font-bold text-primary">
             {me?.rating ? `${Number(me.rating).toFixed(1)}★` : "New"}
@@ -135,7 +137,7 @@ export function Profile() {
             Jobs done
           </p>
         </GlassCard>
-        <GlassCard className="p-4 text-center">
+        <GlassCard className="col-span-2 p-4 text-center sm:col-span-1">
           <p className="font-display text-xl font-bold text-emerald-600 capitalize">
             {verified ? "Verified" : (me?.agentStatus ?? "—")}
           </p>
@@ -146,24 +148,33 @@ export function Profile() {
       </div>
 
       {/* Account Details Card */}
-      <GlassCard className="space-y-4">
+      <GlassCard className="space-y-4 p-5 sm:p-6">
         <div className="flex items-center justify-between border-b border-line/50 pb-2">
           <h3 className="font-display text-lg font-semibold text-ink">
             Account Summary
           </h3>
         </div>
-        <div className="grid gap-3 text-sm">
-          <div className="flex items-center gap-3 py-1.5 border-b border-line/30 last:border-0">
-            <User className="size-4 text-muted shrink-0" />
-            <span className="text-muted w-24">Full name</span>
-            <span className="font-medium text-ink truncate">
+        <div className="grid text-sm">
+          <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 border-b border-line/30 py-2.5 sm:grid-cols-[1.25rem_6rem_minmax(0,1fr)] sm:items-center sm:gap-y-0">
+            <User className="mt-0.5 size-4 shrink-0 text-muted sm:mt-0" />
+            <span className="text-xs text-muted sm:text-sm">Full name</span>
+            <span className="col-start-2 min-w-0 font-medium text-ink [overflow-wrap:anywhere] sm:col-start-3 sm:row-start-1">
               {me?.name || "—"}
             </span>
           </div>
-          <div className="flex items-center gap-3 py-1.5 last:border-0">
-            <Phone className="size-4 text-muted shrink-0" />
-            <span className="text-muted w-24">Mobile</span>
-            <span className="font-medium text-ink truncate">
+          <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 border-b border-line/30 py-2.5 sm:grid-cols-[1.25rem_6rem_minmax(0,1fr)] sm:items-center sm:gap-y-0">
+            <Mail className="mt-0.5 size-4 shrink-0 text-muted sm:mt-0" />
+            <span className="text-xs text-muted sm:text-sm">Email</span>
+            <span
+              className="col-start-2 min-w-0 font-medium text-ink [overflow-wrap:anywhere] sm:col-start-3 sm:row-start-1"
+              data-testid="agent-account-email">
+              {me?.email || "Not added"}
+            </span>
+          </div>
+          <div className="grid grid-cols-[1.25rem_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 py-2.5 sm:grid-cols-[1.25rem_6rem_minmax(0,1fr)] sm:items-center sm:gap-y-0">
+            <Phone className="mt-0.5 size-4 shrink-0 text-muted sm:mt-0" />
+            <span className="text-xs text-muted sm:text-sm">Mobile</span>
+            <span className="col-start-2 min-w-0 font-medium text-ink [overflow-wrap:anywhere] sm:col-start-3 sm:row-start-1">
               +91 {me?.phone || "—"}
             </span>
           </div>
@@ -214,7 +225,7 @@ export function Profile() {
                     Edit profile
                   </p>
                   <p className="text-xs text-muted truncate">
-                    Update full name
+                    Contact details &amp; security
                   </p>
                 </div>
                 <ChevronRight className="size-4 shrink-0 text-muted" />
@@ -231,7 +242,7 @@ export function Profile() {
                     Edit profile
                   </p>
                   <p className="text-xs text-muted truncate">
-                    Update full name
+                    Contact details &amp; security
                   </p>
                 </div>
                 <ChevronRight className="size-4 shrink-0 text-muted" />
@@ -321,39 +332,12 @@ export function Profile() {
         </Button>
       </div>
 
-      {/* Custom Logout Confirmation Modal */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/30 backdrop-blur-sm animate-fade-in">
-          <GlassCard className="w-full max-w-sm space-y-6 bg-surface p-6 shadow-xl border border-line">
-            <div className="space-y-2 text-center">
-              <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-ink/5 text-ink">
-                <LogOut className="size-6" />
-              </div>
-              <h3 className="font-display text-lg font-bold text-ink">
-                Log Out
-              </h3>
-              <p className="text-sm text-muted leading-relaxed">
-                Are you sure you want to log out of your agent account? You will
-                need to log back in to accept cleaning jobs and check payouts.
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 rounded-xl cursor-pointer">
-                Cancel
-              </Button>
-              <Button
-                onClick={confirmLogout}
-                className="flex-1 rounded-xl bg-ink text-surface hover:bg-ink/90 cursor-pointer">
-                Log out
-              </Button>
-            </div>
-          </GlassCard>
-        </div>
-      )}
+      <LogoutConfirmDialog
+        open={showLogoutConfirm}
+        audience="agent"
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+      />
 
       {/* Custom Deactivate Confirmation Modal */}
       {showDeactivateConfirm && (

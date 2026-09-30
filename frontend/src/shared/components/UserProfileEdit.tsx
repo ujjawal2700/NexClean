@@ -225,28 +225,31 @@ export function UserProfileEdit({
       : "U";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-4 sm:space-y-6">
       {/* Header Profile Summary */}
-      <GlassCard className="flex flex-col sm:flex-row items-center gap-5">
-        <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-accent text-2xl font-bold text-white shadow-md">
+      <GlassCard className="flex items-start gap-3 overflow-hidden bg-gradient-to-br from-primary/[0.08] via-surface to-surface p-5 sm:items-center sm:gap-5 sm:p-6">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-accent text-lg font-bold text-white shadow-md sm:size-16 sm:text-2xl">
           {initialChar}
         </span>
 
-        <div className="flex-1 text-center sm:text-left">
-          <div className="flex items-center justify-center sm:justify-start gap-2">
-            <h2 className="font-display text-2xl font-bold text-ink">{name || "User Profile"}</h2>
-            <span className="rounded-full bg-primary/10 px-3 py-0.5 text-xs font-semibold text-primary border border-primary/20">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="min-w-0 font-display text-xl font-bold text-ink [overflow-wrap:anywhere] sm:text-2xl">
+              {name || "User Profile"}
+            </h2>
+            <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary sm:px-3 sm:text-xs">
               {roleLabel}
             </span>
           </div>
-          <p className="mt-1 text-sm text-muted">
-            {email || "No email set"} · {hasPhone ? `+91 ${phone}` : "No valid 10-digit mobile number added"}
-          </p>
+          <div className="mt-2 grid min-w-0 gap-0.5 text-xs text-muted sm:text-sm">
+            <p className="min-w-0 [overflow-wrap:anywhere]">{email || "No email set"}</p>
+            <p>{hasPhone ? `+91 ${phone}` : "No valid 10-digit mobile number added"}</p>
+          </div>
         </div>
       </GlassCard>
 
       {/* Section 1: Edit Profile Details */}
-      <GlassCard className="space-y-5">
+      <GlassCard className="space-y-5 p-5 sm:p-6">
         <div className="flex items-center gap-2 border-b border-line/60 pb-3">
           <UserIcon className="size-5 text-primary" />
           <h3 className="font-display text-lg font-semibold text-ink">Personal Information</h3>
@@ -303,8 +306,8 @@ export function UserProfileEdit({
             />
           </div>
 
-          <div className="pt-2">
-            <Button type="submit" size="sm" disabled={profileSaving}>
+          <div className="pt-1 sm:pt-2">
+            <Button type="submit" size="sm" disabled={profileSaving} className="w-full sm:w-auto">
               {profileSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Save Profile Changes
             </Button>
@@ -313,7 +316,7 @@ export function UserProfileEdit({
       </GlassCard>
 
       {/* Section 2: Password Reset with OTP Verification */}
-      <GlassCard className="space-y-5">
+      <GlassCard className="space-y-5 p-5 sm:p-6">
         <div className="flex items-center gap-2 border-b border-line/60 pb-3">
           <ShieldCheck className="size-5 text-primary" />
           <h3 className="font-display text-lg font-semibold text-ink">Password &amp; Security</h3>
@@ -321,7 +324,7 @@ export function UserProfileEdit({
 
         {/* Notice if no valid 10-digit phone number set */}
         {!hasPhone ? (
-          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-700 space-y-2">
+          <div className="space-y-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-700 sm:p-5">
             <div className="flex items-center gap-2 font-semibold text-amber-800">
               <AlertTriangle className="size-5 text-amber-600" />
               <span>10-Digit Mobile Number Required</span>
@@ -333,9 +336,9 @@ export function UserProfileEdit({
         ) : (
           <div className="space-y-5">
             {/* Step 1 & 2: OTP Verification Card */}
-            <div className="rounded-2xl border border-line bg-surface-muted/40 p-5 space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
+            <div className="space-y-4 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:p-5">
+              <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+                <div className="min-w-0">
                   <p className="font-semibold text-ink text-sm">Security OTP Verification</p>
                   <p className="text-xs text-muted mt-0.5">
                     An OTP will be sent to <span className="font-medium text-ink">+91 {phone}</span> to confirm ownership before changing password.
@@ -360,14 +363,19 @@ export function UserProfileEdit({
               )}
 
               {otpStep === "idle" && (
-                <Button size="sm" variant="outline" onClick={handleSendOtp} disabled={otpSending}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSendOtp}
+                  disabled={otpSending}
+                  className="h-auto min-h-9 w-full whitespace-normal py-2.5 text-center sm:w-auto">
                   {otpSending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                   Request OTP to Change Password
                 </Button>
               )}
 
               {otpStep === "sent" && (
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
                   <Input
                     name="otpCode"
                     inputMode="numeric"
@@ -377,11 +385,11 @@ export function UserProfileEdit({
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                     className="tracking-widest font-mono text-center"
                   />
-                  <Button size="sm" onClick={handleVerifyOtp} disabled={otpVerifying || !otpCode}>
+                  <Button size="sm" onClick={handleVerifyOtp} disabled={otpVerifying || !otpCode} className="w-full sm:w-auto">
                     {otpVerifying ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
                     Verify OTP
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={handleSendOtp} disabled={otpSending}>
+                  <Button size="sm" variant="ghost" onClick={handleSendOtp} disabled={otpSending} className="w-full sm:w-auto">
                     Resend
                   </Button>
                 </div>
@@ -465,7 +473,7 @@ export function UserProfileEdit({
               </div>
 
               <div className="pt-1">
-                <Button type="submit" size="sm" disabled={otpStep !== "verified" || passwordSaving}>
+                <Button type="submit" size="sm" disabled={otpStep !== "verified" || passwordSaving} className="w-full sm:w-auto">
                   {passwordSaving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
                   Update Password
                 </Button>
