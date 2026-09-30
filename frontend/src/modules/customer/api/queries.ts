@@ -27,6 +27,7 @@ export const notificationsKey = ["notifications"] as const;
 export const plansKey = ["catalog", "plans"] as const;
 export const promoBannersKey = ["catalog", "promo-banners"] as const;
 export const offPeakHoursKey = ["catalog", "off-peak-hours"] as const;
+export const timeSlotsKey = ["catalog", "time-slots"] as const;
 export const paymentModeKey = ["catalog", "payment-mode"] as const;
 export const referralsKey = ["referrals"] as const;
 export const walletKey = ["wallet"] as const;
@@ -95,6 +96,15 @@ export function useOffPeakHours() {
     queryKey: offPeakHoursKey,
     queryFn: () => apiFetch<OffPeakHoursConfig>("/catalog/off-peak-hours"),
     staleTime: 5 * 60_000,
+  });
+}
+
+/** Active bookable time slots configured by the admin (public catalog). */
+export function useTimeSlots() {
+  return useQuery({
+    queryKey: timeSlotsKey,
+    queryFn: () => apiFetch<{ slots: string[] }>("/catalog/time-slots"),
+    staleTime: 60_000,
   });
 }
 
@@ -179,7 +189,7 @@ export function useActiveSession() {
   const customerAuthed = useSessionStore((s) => s.authenticated);
   const adminAuthed = useAdminSession((s) => s.authenticated);
   const agentAuthed = useAgentSession((s) => s.authenticated);
-  
+
   if (path.startsWith("/admin")) return adminAuthed;
   if (path.startsWith("/agent")) return agentAuthed;
   return customerAuthed;

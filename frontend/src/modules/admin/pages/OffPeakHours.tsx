@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock, Plus, Trash2, Save, Loader2, Globe, AlertCircle, Check, Sparkles } from "lucide-react";
+import {
+  Clock,
+  Plus,
+  Trash2,
+  Save,
+  Loader2,
+  Globe,
+  AlertCircle,
+  Check,
+  Sparkles,
+} from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -9,6 +19,7 @@ import {
   useOffPeakHours,
   useUpdateOffPeakHours,
   useSuggestOffPeakHours,
+  useTimeSlots,
   type OffPeakWindowInput,
 } from "../api/admin.api";
 import type { WeekdayIndex, OffPeakSuggestion } from "../types";
@@ -41,7 +52,13 @@ function toMinutes(value: string): number | null {
 }
 
 /** Draft row — kept as raw strings so a half-typed "0" isn't rejected mid-keystroke. */
-type DraftWindow = { key: string; day: WeekdayIndex; start: string; end: string; label: string };
+type DraftWindow = {
+  key: string;
+  day: WeekdayIndex;
+  start: string;
+  end: string;
+  label: string;
+};
 
 let rowCounter = 0;
 const nextKey = () => `w${++rowCounter}`;
@@ -53,7 +70,11 @@ const nextKey = () => `w${++rowCounter}`;
  */
 function validateDraft(rows: DraftWindow[]): Map<string, string> {
   const errors = new Map<string, string>();
-  const parsed = rows.map((r) => ({ ...r, startMin: toMinutes(r.start), endMin: toMinutes(r.end) }));
+  const parsed = rows.map((r) => ({
+    ...r,
+    startMin: toMinutes(r.start),
+    endMin: toMinutes(r.end),
+  }));
 
   for (const row of parsed) {
     if (row.startMin === null) {
@@ -68,7 +89,8 @@ function validateDraft(rows: DraftWindow[]): Map<string, string> {
   // Overlap check, per day, only across rows that parsed cleanly.
   const byDay = new Map<number, typeof parsed>();
   for (const row of parsed) {
-    if (errors.has(row.key) || row.startMin === null || row.endMin === null) continue;
+    if (errors.has(row.key) || row.startMin === null || row.endMin === null)
+      continue;
     byDay.set(row.day, [...(byDay.get(row.day) ?? []), row]);
   }
   for (const [, dayRows] of byDay) {
@@ -114,9 +136,17 @@ function SuggestionPanel({
   onUse: (s: OffPeakSuggestion) => void;
   onDismiss: () => void;
 }) {
+  const { data: timeSlotsData } = useTimeSlots();
+  const gridSlots =
+    timeSlotsData?.slots && timeSlotsData.slots.length > 0
+      ? timeSlotsData.slots
+      : GRID_SLOTS;
+
   // Tint each cell by how busy it is relative to the busiest slot that week, so
   // the shape of demand is readable at a glance rather than by reading numbers.
-  const busiest = suggestion ? Math.max(1, ...suggestion.grid.map((c) => c.count)) : 1;
+  const busiest = suggestion
+    ? Math.max(1, ...suggestion.grid.map((c) => c.count))
+    : 1;
 
   return (
     <GlassCard className="space-y-5">
@@ -126,9 +156,9 @@ function SuggestionPanel({
             <Sparkles className="size-5 text-primary" /> Suggest from history
           </p>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            Reads completed bookings and proposes the quiet windows. Bookings won by an off-peak
-            coupon are left out, so this measures demand at full price rather than the discount's own
-            effect.
+            Reads completed bookings and proposes the quiet windows. Bookings
+            won by an off-peak coupon are left out, so this measures demand at
+            full price rather than the discount's own effect.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={onRun} disabled={pending}>
@@ -154,7 +184,8 @@ function SuggestionPanel({
       {suggestion && (
         <div className="space-y-4">
           <p className="text-xs text-muted">
-            {suggestion.totalBookings} booking{suggestion.totalBookings === 1 ? "" : "s"} over the last{" "}
+            {suggestion.totalBookings} booking
+            {suggestion.totalBookings === 1 ? "" : "s"} over the last{" "}
             {suggestion.lookbackWeeks} weeks
             {suggestion.excludedDiscounted > 0 &&
               ` · ${suggestion.excludedDiscounted} discounted booking${
@@ -166,8 +197,10 @@ function SuggestionPanel({
             <table className="w-full border-collapse text-center text-xs">
               <thead>
                 <tr>
-                  <th className="p-1.5 text-left font-medium text-muted">&nbsp;</th>
-                  {GRID_SLOTS.map((slot) => (
+                  <th className="p-1.5 text-left font-medium text-muted">
+                    &nbsp;
+                  </th>
+                  {gridSlots.map((slot) => (
                     <th key={slot} className="p-1.5 font-medium text-muted">
                       {slot.replace(" ", "")}
                     </th>
@@ -176,12 +209,18 @@ function SuggestionPanel({
               </thead>
               <tbody>
                 {WEEKDAYS.map((day) => {
-                  const summary = suggestion.days.find((d) => d.day === day.index);
+                  const summary = suggestion.days.find(
+                    (d) => d.day === day.index,
+                  );
                   return (
                     <tr key={day.index}>
-                      <td className="p-1.5 text-left text-muted">{day.short}</td>
-                      {GRID_SLOTS.map((slot) => {
-                        const cell = suggestion.grid.find((c) => c.day === day.index && c.slot === slot);
+                      <td className="p-1.5 text-left text-muted">
+                        {day.short}
+                      </td>
+                      {gridSlots.map((slot) => {
+                        const cell = suggestion.grid.find(
+                          (c) => c.day === day.index && c.slot === slot,
+                        );
                         const count = cell?.count ?? 0;
                         return (
                           <td key={slot} className="p-0.5">
@@ -196,11 +235,12 @@ function SuggestionPanel({
                               )}
                               style={
                                 summary?.enoughData && !cell?.offPeak
-                                  ? { background: `rgba(178, 106, 18, ${(count / busiest) * 0.22})` }
+                                  ? {
+                                      background: `rgba(178, 106, 18, ${(count / busiest) * 0.22})`,
+                                    }
                                   : undefined
                               }
-                              title={`${day.label} ${slot}: ${count} booking${count === 1 ? "" : "s"}`}
-                            >
+                              title={`${day.label} ${slot}: ${count} booking${count === 1 ? "" : "s"}`}>
                               {count}
                             </span>
                           </td>
@@ -215,10 +255,15 @@ function SuggestionPanel({
 
           <div className="flex flex-wrap items-center gap-4 text-[11px] text-muted">
             <span className="flex items-center gap-1.5">
-              <span className="size-3 rounded bg-emerald-500/25" /> proposed off-peak
+              <span className="size-3 rounded bg-emerald-500/25" /> proposed
+              off-peak
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="size-3 rounded" style={{ background: "rgba(178, 106, 18, 0.22)" }} /> busier
+              <span
+                className="size-3 rounded"
+                style={{ background: "rgba(178, 106, 18, 0.22)" }}
+              />{" "}
+              busier
             </span>
             {suggestion.days.some((d) => !d.enoughData) && (
               <span>
@@ -235,14 +280,16 @@ function SuggestionPanel({
             <Button
               size="sm"
               onClick={() => onUse(suggestion)}
-              disabled={suggestion.windows.length === 0}
-            >
-              Load {suggestion.windows.length} window{suggestion.windows.length === 1 ? "" : "s"} into the editor
+              disabled={suggestion.windows.length === 0}>
+              Load {suggestion.windows.length} window
+              {suggestion.windows.length === 1 ? "" : "s"} into the editor
             </Button>
             <Button variant="ghost" size="sm" onClick={onDismiss}>
               Dismiss
             </Button>
-            <span className="text-xs text-muted">Nothing is saved until you press Save changes.</span>
+            <span className="text-xs text-muted">
+              Nothing is saved until you press Save changes.
+            </span>
           </div>
         </div>
       )}
@@ -290,26 +337,40 @@ export function OffPeakHours() {
   const hasErrors = errors.size > 0;
 
   const feeValue = Number(fee);
-  const feeInvalid = fee.trim() === "" || !Number.isFinite(feeValue) || feeValue < 0;
+  const feeInvalid =
+    fee.trim() === "" || !Number.isFinite(feeValue) || feeValue < 0;
 
   const dirty = useMemo(() => {
     if (!config) return false;
     if (config.timezone !== timezone || config.active !== active) return true;
-    if (!feeInvalid && Math.round(feeValue) !== (config.peakUpgradeFee ?? 0)) return true;
+    if (!feeInvalid && Math.round(feeValue) !== (config.peakUpgradeFee ?? 0))
+      return true;
     if (config.windows.length !== rows.length) return true;
     return config.windows.some((w, i) => {
       const r = rows[i];
-      return !r || r.day !== w.day || r.start !== w.start || r.end !== w.end || (r.label ?? "") !== (w.label ?? "");
+      return (
+        !r ||
+        r.day !== w.day ||
+        r.start !== w.start ||
+        r.end !== w.end ||
+        (r.label ?? "") !== (w.label ?? "")
+      );
     });
   }, [config, rows, timezone, active, feeValue, feeInvalid]);
 
   const addRow = (day: WeekdayIndex) =>
-    setRows((prev) => [...prev, { key: nextKey(), day, start: "08:00", end: "12:00", label: "" }]);
+    setRows((prev) => [
+      ...prev,
+      { key: nextKey(), day, start: "08:00", end: "12:00", label: "" },
+    ]);
 
   const patchRow = (key: string, patch: Partial<DraftWindow>) =>
-    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+    setRows((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, ...patch } : r)),
+    );
 
-  const removeRow = (key: string) => setRows((prev) => prev.filter((r) => r.key !== key));
+  const removeRow = (key: string) =>
+    setRows((prev) => prev.filter((r) => r.key !== key));
 
   /**
    * Load a proposal into the editor as an unsaved draft. Nothing reaches the
@@ -336,7 +397,9 @@ export function OffPeakHours() {
         onSuccess: (result) => setSuggestion(result),
         onError: (e) =>
           setSuggestError(
-            e instanceof ApiError ? e.message : "Couldn't read booking history. Please try again.",
+            e instanceof ApiError
+              ? e.message
+              : "Couldn't read booking history. Please try again.",
           ),
       },
     );
@@ -352,7 +415,12 @@ export function OffPeakHours() {
       label: r.label.trim() || undefined,
     }));
     update.mutate(
-      { timezone: timezone.trim(), active, peakUpgradeFee: Math.round(feeValue), windows },
+      {
+        timezone: timezone.trim(),
+        active,
+        peakUpgradeFee: Math.round(feeValue),
+        windows,
+      },
       {
         onSuccess: () => {
           setSavedAt(Date.now());
@@ -361,7 +429,11 @@ export function OffPeakHours() {
           setHydrated(false);
         },
         onError: (e) =>
-          setSaveError(e instanceof ApiError ? e.message : "Couldn't save off-peak hours. Please try again."),
+          setSaveError(
+            e instanceof ApiError
+              ? e.message
+              : "Couldn't save off-peak hours. Please try again.",
+          ),
       },
     );
   };
@@ -396,10 +468,11 @@ export function OffPeakHours() {
         <div>
           <h1 className="font-display text-3xl text-ink">Off-Peak Hours</h1>
           <p className="mt-1 max-w-2xl text-muted">
-            Mark the quiet windows on each weekday — the hours you want to fill. Coupons marked{" "}
-            <span className="font-medium text-ink">off-peak hours only</span> apply just to bookings
-            whose time slot falls inside one of these windows. Everything else is a peak slot, sold at
-            full price.
+            Mark the quiet windows on each weekday — the hours you want to fill.
+            Coupons marked{" "}
+            <span className="font-medium text-ink">off-peak hours only</span>{" "}
+            apply just to bookings whose time slot falls inside one of these
+            windows. Everything else is a peak slot, sold at full price.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -408,7 +481,9 @@ export function OffPeakHours() {
               <Check className="size-4" /> Saved
             </span>
           )}
-          <Button onClick={save} disabled={update.isPending || hasErrors || feeInvalid || !dirty}>
+          <Button
+            onClick={save}
+            disabled={update.isPending || hasErrors || feeInvalid || !dirty}>
             {update.isPending ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> Saving…
@@ -433,7 +508,9 @@ export function OffPeakHours() {
       <GlassCard className="space-y-5">
         <div className="flex items-center gap-2">
           <Globe className="size-5 text-primary" />
-          <p className="font-display text-lg font-semibold text-ink">Configuration</p>
+          <p className="font-display text-lg font-semibold text-ink">
+            Configuration
+          </p>
         </div>
 
         <button
@@ -441,12 +518,15 @@ export function OffPeakHours() {
           onClick={() => setActive((a) => !a)}
           className={cn(
             "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all",
-            active ? "border-primary/50 bg-primary/5" : "border-line bg-surface hover:border-primary/40",
-          )}
-        >
+            active
+              ? "border-primary/50 bg-primary/5"
+              : "border-line bg-surface hover:border-primary/40",
+          )}>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-ink">
-              {active ? "Off-peak discounts are live" : "Off-peak discounts are paused"}
+              {active
+                ? "Off-peak discounts are live"
+                : "Off-peak discounts are paused"}
             </p>
             <p className="text-xs text-muted">
               {active
@@ -458,8 +538,7 @@ export function OffPeakHours() {
             className={cn(
               "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
               active ? "justify-end bg-primary" : "justify-start bg-line",
-            )}
-          >
+            )}>
             <span className="size-5 rounded-full bg-white shadow" />
           </span>
         </button>
@@ -485,8 +564,7 @@ export function OffPeakHours() {
                   timezone === tz
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-line text-muted hover:border-primary/40 hover:text-ink",
-                )}
-              >
+                )}>
                 {tz}
               </button>
             ))}
@@ -507,7 +585,8 @@ export function OffPeakHours() {
         </div>
 
         <p className="text-xs text-muted">
-          {rows.length} window{rows.length === 1 ? "" : "s"} · {totalWeeklyHours.toFixed(1)} discounted hours per week
+          {rows.length} window{rows.length === 1 ? "" : "s"} ·{" "}
+          {totalWeeklyHours.toFixed(1)} discounted hours per week
         </p>
       </GlassCard>
 
@@ -525,25 +604,34 @@ export function OffPeakHours() {
         {WEEKDAYS.map((day) => {
           const dayRows = rows.filter((r) => r.day === day.index);
           return (
-            <GlassCard key={day.index} className="space-y-4" data-testid={`off-peak-day-${day.index}`}>
+            <GlassCard
+              key={day.index}
+              className="space-y-4"
+              data-testid={`off-peak-day-${day.index}`}>
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Clock className="size-5 text-primary" />
-                  <p className="font-display text-lg font-semibold text-ink">{day.label}</p>
+                  <p className="font-display text-lg font-semibold text-ink">
+                    {day.label}
+                  </p>
                   <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] text-muted">
                     {dayRows.length === 0
                       ? "No discounted hours"
                       : `${dayRows.length} window${dayRows.length === 1 ? "" : "s"}`}
                   </span>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => addRow(day.index)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addRow(day.index)}>
                   <Plus className="size-4" /> Add window
                 </Button>
               </div>
 
               {dayRows.length === 0 ? (
                 <p className="text-sm text-muted">
-                  Full price all day — off-peak coupons never apply on a {day.label}.
+                  Full price all day — off-peak coupons never apply on a{" "}
+                  {day.label}.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -554,15 +642,18 @@ export function OffPeakHours() {
                         key={row.key}
                         className={cn(
                           "rounded-2xl border p-3",
-                          error ? "border-red-300/60 bg-red-50/40" : "border-line bg-surface/60",
-                        )}
-                      >
+                          error
+                            ? "border-red-300/60 bg-red-50/40"
+                            : "border-line bg-surface/60",
+                        )}>
                         <div className="flex flex-wrap items-center gap-3">
                           <div className="flex items-center gap-2">
                             <input
                               type="time"
                               value={row.start}
-                              onChange={(e) => patchRow(row.key, { start: e.target.value })}
+                              onChange={(e) =>
+                                patchRow(row.key, { start: e.target.value })
+                              }
                               aria-label={`${day.label} window start`}
                               className="h-11 rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-primary/50"
                             />
@@ -570,7 +661,9 @@ export function OffPeakHours() {
                             <input
                               type="time"
                               value={row.end}
-                              onChange={(e) => patchRow(row.key, { end: e.target.value })}
+                              onChange={(e) =>
+                                patchRow(row.key, { end: e.target.value })
+                              }
                               aria-label={`${day.label} window end`}
                               className="h-11 rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-primary/50"
                             />
@@ -578,7 +671,9 @@ export function OffPeakHours() {
                           <input
                             type="text"
                             value={row.label}
-                            onChange={(e) => patchRow(row.key, { label: e.target.value })}
+                            onChange={(e) =>
+                              patchRow(row.key, { label: e.target.value })
+                            }
                             placeholder="Label (optional) — e.g. Sunday morning rush"
                             maxLength={60}
                             aria-label={`${day.label} window label`}
@@ -588,12 +683,13 @@ export function OffPeakHours() {
                             variant="ghost"
                             size="sm"
                             onClick={() => removeRow(row.key)}
-                            aria-label="Remove window"
-                          >
+                            aria-label="Remove window">
                             <Trash2 className="size-4" />
                           </Button>
                         </div>
-                        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+                        {error && (
+                          <p className="mt-2 text-xs text-red-600">{error}</p>
+                        )}
                       </div>
                     );
                   })}
@@ -605,9 +701,10 @@ export function OffPeakHours() {
       </div>
 
       <p className="text-center text-xs text-muted">
-        A window covers its start time up to — but not including — its end time, so 08:00→12:00 and
-        12:00→14:00 sit back to back without overlapping. To span midnight, add one window ending at
-        23:59 and another starting at 00:00 on the following day.
+        A window covers its start time up to — but not including — its end time,
+        so 08:00→12:00 and 12:00→14:00 sit back to back without overlapping. To
+        span midnight, add one window ending at 23:59 and another starting at
+        00:00 on the following day.
       </p>
     </div>
   );

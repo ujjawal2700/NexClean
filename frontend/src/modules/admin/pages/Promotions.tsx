@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Trash2, Percent, Image as ImageIcon, Loader2, Clock, FileSpreadsheet } from "lucide-react";
+import { Plus, Trash2, Percent, Image as ImageIcon, Loader2, Clock, FileSpreadsheet, Search, X } from "lucide-react";
+
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -46,8 +47,16 @@ function DiscountCodesSection() {
   const [offPeakOnly, setOffPeakOnly] = useState(false);
   const [error, setError] = useState("");
   const [showExportModal, setShowExportModal] = useState(false);
+  const [search, setSearch] = useState("");
 
-  const paginated = usePagination(codes, 5);
+  const filteredCodes = useMemo(() => {
+    if (!search.trim()) return codes;
+    const q = search.toLowerCase().trim();
+    return codes.filter((c) => c.code.toLowerCase().includes(q));
+  }, [codes, search]);
+
+  const paginated = usePagination(filteredCodes, 10);
+
 
   const exportExcel = (range: { from: Date | null; to: Date | null }) => {
     const rows = codes.filter((c) => {
@@ -180,47 +189,80 @@ function DiscountCodesSection() {
         <Plus className="size-4" /> Add discount code
       </Button>
 
-      <div className="space-y-2">
-        {paginated.pageItems.map((c) => (
-          <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface/60 p-3">
-            <div className="min-w-0">
-              <p className={`flex flex-wrap items-center gap-2 font-mono text-sm font-semibold ${c.active ? "text-ink" : "text-muted line-through"}`}>
-                {c.code}
-                {c.offPeakOnly && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 font-sans text-[10px] font-medium text-amber-600">
-                    <Clock className="size-3" /> Off-peak only
-                  </span>
-                )}
-              </p>
-              <p className="text-xs text-muted">
-                {c.type === "percent" ? `${c.value}% off` : `${formatMoney(c.value)} off`}
-                {c.minOrderValue ? ` · min order ${formatMoney(c.minOrderValue)}` : ""}
-                {c.validTill ? ` · valid till ${new Date(c.validTill).toLocaleDateString("en-IN")}` : ""}
-                {` · used ${c.usageCount}×`}
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={update.isPending}
-                onClick={() => update.mutate({ id: c.id, active: !c.active })}
+      <div className="space-y-3 pt-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-xs font-medium text-muted">
+            Showing {filteredCodes.length} {filteredCodes.length === 1 ? "coupon" : "coupons"}
+          </span>
+
+          <div className="relative min-w-[220px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search coupon code…"
+              className="h-9 w-full rounded-xl border border-line bg-surface pl-8 pr-7 text-xs text-ink outline-none transition-all placeholder:text-muted focus:border-primary/50"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink cursor-pointer"
+                aria-label="Clear search"
               >
-                {c.active ? "Active" : "Inactive"}
-              </Button>
-              <Button variant="ghost" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(c.id)}>
-                <Trash2 className="size-4" />
-              </Button>
-            </div>
+                <X className="size-3.5" />
+              </button>
+            )}
           </div>
-        ))}
-        {codes.length === 0 && <p className="text-sm text-muted">No discount codes yet. Add one above.</p>}
-        <Pagination
-          page={paginated.page}
-          totalPages={paginated.totalPages}
-          onPageChange={paginated.setPage}
-        />
+        </div>
+
+        <div className="space-y-2">
+          {paginated.pageItems.map((c) => (
+            <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface/60 p-3">
+              <div className="min-w-0">
+                <p className={`flex flex-wrap items-center gap-2 font-mono text-sm font-semibold ${c.active ? "text-ink" : "text-muted line-through"}`}>
+                  {c.code}
+                  {c.offPeakOnly && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 font-sans text-[10px] font-medium text-amber-600">
+                      <Clock className="size-3" /> Off-peak only
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-muted">
+                  {c.type === "percent" ? `${c.value}% off` : `${formatMoney(c.value)} off`}
+                  {c.minOrderValue ? ` · min order ${formatMoney(c.minOrderValue)}` : ""}
+                  {c.validTill ? ` · valid till ${new Date(c.validTill).toLocaleDateString("en-IN")}` : ""}
+                  {` · used ${c.usageCount}×`}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={update.isPending}
+                  onClick={() => update.mutate({ id: c.id, active: !c.active })}
+                >
+                  {c.active ? "Active" : "Inactive"}
+                </Button>
+                <Button variant="ghost" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(c.id)}>
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+          {filteredCodes.length === 0 && (
+            <p className="py-6 text-center text-sm text-muted">
+              {search ? `No coupons match "${search}".` : "No discount codes yet. Add one above."}
+            </p>
+          )}
+          <Pagination
+            page={paginated.page}
+            totalPages={paginated.totalPages}
+            onPageChange={paginated.setPage}
+          />
+        </div>
       </div>
+
     </GlassCard>
   );
 }

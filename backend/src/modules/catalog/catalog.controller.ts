@@ -12,6 +12,7 @@ import { listActiveBrands } from "../brand/brand.service";
 import { listActiveModelsForBrand } from "../brand/vehicleModel.service";
 import { City, ServiceZone } from "../location/location.model";
 import { checkServiceability } from "../location/location.service";
+import { getLiveSlots } from "../dispatch/slotConfig.service";
 
 
 export function getPackages(_req: Request, res: Response): Response {
@@ -108,4 +109,11 @@ export async function getServiceCheckCtl(req: Request, res: Response): Promise<R
     throw ApiError.badRequest("lat and lng query params are required");
   }
   return ok(res, await checkServiceability([lng, lat]));
+}
+
+/**
+ * Public endpoint: returns live active booking time slots configured by admin.
+ */
+export function getTimeSlotsCtl(_req: Request, res: Response): Response {
+  return ok(res, { slots: getLiveSlots() });
 }

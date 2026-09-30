@@ -22,7 +22,8 @@ import { AdminRole } from "./adminRole.model";
 import { User } from "../user/user.model";
 import { env } from "../../config/env";
 import { hashPassword } from "../../shared/utils/crypto";
-import { TIME_SLOTS, SLOT_LIST } from "../../shared/slots";
+import { SLOT_LIST, isValidSlotLive } from "../../shared/slots";
+import { getSlotConfig, updateSlotConfig } from "../dispatch/slotConfig.service";
 
 /** A positive price per vehicle category key — keys are admin-managed, not a fixed set. */
 const pricesSchema = z.record(z.string(), z.number().positive());
@@ -69,7 +70,7 @@ export async function autoAssignBooking(req: Request, res: Response): Promise<Re
 
 const rescheduleSchema = z.object({
   date: z.string().min(1),
-  slot: z.enum(TIME_SLOTS),
+  slot: z.string().refine(isValidSlotLive, { message: "Invalid time slot selected" }),
   /** Let a peak upgrade through without charging — a recorded goodwill decision. */
   waiveUpgrade: z.boolean().optional(),
 });
@@ -1150,6 +1151,30 @@ export async function deleteStaff(req: Request, res: Response): Promise<Response
   }
   await staff.deleteOne();
   return ok(res, { success: true }, "Staff account deleted successfully");
+}
+
+export async function getTimeSlots(_req: Request, res: Response): Promise<Response> {
+  const config = await getSlotConfig();
+  return ok(res, {
+    slots: config.slots,
+    updatedAt: config.updatedAt,
+  });
+}
+
+export async function updateTimeSlots(req: Request, res: Response): Promise<Response> {
+  const { slots } = req.body;
+  if (!Array.isArray(slots) || slots.length === 0) {
+    throw ApiError.badRequest("slots must be a non-empty array of time strings");
+  }
+  try {
+    const updated = await updateSlotConfig(slots);
+    return ok(res, {
+      slots: updated.slots,
+      updatedAt: updated.updatedAt,
+    }, "Time slots updated successfully");
+  } catch (err: any) {
+    throw ApiError.badRequest(err?.message || "Failed to update time slots");
+  }
 }
 
 

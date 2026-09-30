@@ -5,6 +5,7 @@ import { env, assertProductionConfig } from "./config/env";
 import { initSocket } from "./shared/services/socket";
 import { initFcm } from "./shared/services/fcm";
 import { startDispatchWorker, resumeDispatch, stopDispatchWorker } from "./modules/dispatch/dispatch.service";
+import { initSlotCache } from "./modules/dispatch/slotConfig.service";
 
 // Fail fast before binding a port: a production server running on development
 // secrets is worse than one that never starts.
@@ -37,6 +38,7 @@ initSocket(server).catch((err: unknown) => {
 // Connect to MongoDB after the server is already listening so the health
 // endpoint stays available even if the database is temporarily unreachable.
 connectDb()
+  .then(() => initSlotCache())
   .then(() => seedDemoData())
   .then(async () => {
     if (!isPrimaryInstance) return;

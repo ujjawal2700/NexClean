@@ -7,7 +7,10 @@ import {
   Phone,
   Lock,
   Unlock,
+  Search,
+  X,
 } from "lucide-react";
+
 import { Button } from "@shared/ui/Button";
 import { useSupportConfig, useSupportTickets, useTicketMessages } from "../../customer/api/queries";
 import {
@@ -38,6 +41,7 @@ export function ChatPanel() {
   const [messageText, setMessageText] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [localOnlineStatus, setLocalOnlineStatus] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Refs
   const socketRef = useRef<Socket | null>(null);
@@ -53,8 +57,24 @@ export function ChatPanel() {
       if (selectedRoleFilter === "customer" && userRole !== "customer") return false;
       if (selectedRoleFilter === "agent" && !isAgent) return false;
     }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const userObj = typeof t.user === "object" && t.user ? t.user : null;
+      const name = (userObj?.name ?? "").toLowerCase();
+      const email = (userObj?.email ?? "").toLowerCase();
+      const phone = (userObj?.phone ?? "").toLowerCase();
+      const subject = (t.subject ?? "").toLowerCase();
+      const matches =
+        name.includes(q) ||
+        email.includes(q) ||
+        phone.includes(q) ||
+        subject.includes(q);
+      if (!matches) return false;
+    }
     return true;
   });
+
+
 
   // Load ticket message history when ticket changes
   const { data: historyMessages } = useTicketMessages(selectedTicketId);
@@ -300,13 +320,37 @@ export function ChatPanel() {
             </button>
           </div>
 
+          {/* Search bar */}
+          <div className="relative border-b border-line bg-surface/40 p-2 shrink-0">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search user, phone, message…"
+                className="h-8.5 w-full rounded-xl border border-line bg-surface pl-8 pr-7 text-xs text-ink outline-none transition-all placeholder:text-muted focus:border-primary/50"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink cursor-pointer"
+                  aria-label="Clear search"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Ticket Queue list */}
           <div className="flex-1 overflow-y-auto divide-y divide-line/60" data-lenis-prevent="true">
             {filteredTickets.length === 0 ? (
               <div className="p-8 text-center text-xs text-muted italic">
-                No {activeTab} tickets found.
+                {searchQuery ? `No ${activeTab} tickets match "${searchQuery}".` : `No ${activeTab} tickets found.`}
               </div>
             ) : (
+
               filteredTickets.map((t) => {
                 const userObj = typeof t.user === "object" && t.user ? t.user : null;
                 const userName = userObj?.name || "Customer";

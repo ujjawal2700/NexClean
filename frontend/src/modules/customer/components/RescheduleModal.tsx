@@ -4,9 +4,9 @@ import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
 import { ApiError } from "@shared/lib/api";
 import { formatMoney } from "@shared/lib/format";
-import { availableSlotsForDate, upcomingDates } from "../data/catalog";
+import { TIME_SLOTS, availableSlotsForDate, upcomingDates } from "../data/catalog";
 import { isOffPeakSlot, windowsForDate } from "../data/offPeakHours";
-import { useOffPeakHours } from "../api/queries";
+import { useOffPeakHours, useTimeSlots } from "../api/queries";
 import {
   usePreviewReschedule,
   useRescheduleBooking,
@@ -24,20 +24,28 @@ import type { Booking } from "../types";
  * what is owed and how to settle it. Picking a quiet slot says nothing about
  * money at all, because nothing is owed.
  */
-export function RescheduleModal({ booking, onClose }: { booking: Booking; onClose: () => void }) {
+export function RescheduleModal({
+  booking,
+  onClose,
+}: {
+  booking: Booking;
+  onClose: () => void;
+}) {
   const { data: offPeakConfig } = useOffPeakHours();
+  const { data: timeSlotsData } = useTimeSlots();
+  const configuredSlots = timeSlotsData?.slots ?? TIME_SLOTS;
   const preview = usePreviewReschedule();
   const reschedule = useRescheduleBooking();
   const rescheduleOrder = useRescheduleOrder();
 
-  const dates = useMemo(() => upcomingDates(7), []);
+  const dates = useMemo(() => upcomingDates(7, configuredSlots), [configuredSlots]);
   const [date, setDate] = useState<string | null>(null);
   const [slot, setSlot] = useState<string | null>(null);
   const [quote, setQuote] = useState<RescheduleQuote | null>(null);
   const [error, setError] = useState("");
   const [payingOnline, setPayingOnline] = useState(false);
 
-  const slots = availableSlotsForDate(date);
+  const slots = availableSlotsForDate(date, configuredSlots);
   const offPeakWindows = windowsForDate(offPeakConfig, date);
 
   // Re-quote whenever the chosen slot changes. The server is authoritative about
@@ -54,7 +62,11 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
         onSuccess: (result) => !cancelled && setQuote(result),
         onError: (e) =>
           !cancelled &&
-          setError(e instanceof ApiError ? e.message : "Couldn't price that change. Try another slot."),
+          setError(
+            e instanceof ApiError
+              ? e.message
+              : "Couldn't price that change. Try another slot.",
+          ),
       },
     );
     return () => {
@@ -71,7 +83,11 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
       {
         onSuccess: onClose,
         onError: (e) =>
-          setError(e instanceof ApiError ? e.message : "Couldn't move the booking. Please try again."),
+          setError(
+            e instanceof ApiError
+              ? e.message
+              : "Couldn't move the booking. Please try again.",
+          ),
       },
     );
   };
@@ -88,7 +104,11 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
     setError("");
     setPayingOnline(true);
     try {
-      const order = await rescheduleOrder.mutateAsync({ id: booking.id, date, slot });
+      const order = await rescheduleOrder.mutateAsync({
+        id: booking.id,
+        date,
+        slot,
+      });
 
       const loaded = await loadRazorpay();
       if (!loaded) throw new Error("Couldn't load the payment gateway");
@@ -121,7 +141,11 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
         modal: { ondismiss: () => setPayingOnline(false) },
       });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn't start the payment. Please try again.");
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : "Couldn't start the payment. Please try again.",
+      );
       setPayingOnline(false);
     }
   };
@@ -134,12 +158,17 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
       <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-card bg-surface p-5 shadow-xl sm:rounded-card sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="font-display text-xl font-semibold text-ink">Move this booking</h3>
+            <h3 className="font-display text-xl font-semibold text-ink">
+              Move this booking
+            </h3>
             <p className="mt-0.5 text-sm text-muted">
               {booking.packageName} · {booking.vehicleName}
             </p>
           </div>
-          <button onClick={onClose} className="text-muted hover:text-ink" aria-label="Close">
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-ink"
+            aria-label="Close">
             <X className="size-5" />
           </button>
         </div>
@@ -148,7 +177,8 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
         <div className="mt-2 flex gap-2.5 overflow-x-auto pb-2">
           {dates.map((d) => {
             const iso = d.toISOString();
-            const selected = date && new Date(date).toDateString() === d.toDateString();
+            const selected =
+              date && new Date(date).toDateString() === d.toDateString();
             return (
               <button
                 key={iso}
@@ -161,12 +191,13 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
                   selected
                     ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                     : "border-line bg-surface hover:border-primary/40",
-                )}
-              >
+                )}>
                 <span className="text-[11px] font-medium text-muted">
                   {d.toLocaleDateString("en-IN", { weekday: "short" })}
                 </span>
-                <span className="font-display text-lg font-semibold text-ink">{d.getDate()}</span>
+                <span className="font-display text-lg font-semibold text-ink">
+                  {d.getDate()}
+                </span>
                 <span className="text-[11px] text-muted">
                   {d.toLocaleDateString("en-IN", { month: "short" })}
                 </span>
@@ -180,7 +211,8 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
           {offPeakWindows.length > 0 && (
             <span className="flex items-center gap-1.5 text-[11px] text-emerald-600">
               <span className="size-1.5 rounded-full bg-emerald-500" />
-              Cheaper {offPeakWindows.map((w) => `${w.start}–${w.end}`).join(", ")}
+              Cheaper{" "}
+              {offPeakWindows.map((w) => `${w.start}–${w.end}`).join(", ")}
             </span>
           )}
         </div>
@@ -207,9 +239,12 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
                         ? "border-emerald-400/50 bg-emerald-50/40 text-ink-soft hover:border-primary/40"
                         : "border-line bg-surface text-ink-soft hover:border-primary/40",
                   )}
-                  title={offPeak ? `${s} — off-peak slot, discounts apply` : undefined}
-                  data-off-peak={offPeak ? "true" : undefined}
-                >
+                  title={
+                    offPeak
+                      ? `${s} — off-peak slot, discounts apply`
+                      : undefined
+                  }
+                  data-off-peak={offPeak ? "true" : undefined}>
                   {s}
                   {offPeak && (
                     <span
@@ -265,7 +300,10 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
         <div className="mt-5 flex flex-wrap gap-2">
           {quote?.requiresPayment ? (
             <>
-              <Button onClick={() => confirm("cash")} disabled={busy || !ready} className="flex-1">
+              <Button
+                onClick={() => confirm("cash")}
+                disabled={busy || !ready}
+                className="flex-1">
                 {reschedule.isPending ? (
                   <>
                     <Loader2 className="size-4 animate-spin" /> Moving…
@@ -281,14 +319,16 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
                   variant="outline"
                   onClick={payOnlineThenMove}
                   disabled={busy || !ready}
-                  className="flex-1"
-                >
+                  className="flex-1">
                   Pay now online
                 </Button>
               )}
             </>
           ) : (
-            <Button onClick={() => confirm()} disabled={busy || !ready} className="flex-1">
+            <Button
+              onClick={() => confirm()}
+              disabled={busy || !ready}
+              className="flex-1">
               {reschedule.isPending ? (
                 <>
                   <Loader2 className="size-4 animate-spin" /> Moving…
@@ -298,7 +338,10 @@ export function RescheduleModal({ booking, onClose }: { booking: Booking; onClos
               )}
             </Button>
           )}
-          <Button variant="ghost" onClick={onClose} disabled={reschedule.isPending}>
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            disabled={reschedule.isPending}>
             Cancel
           </Button>
         </div>

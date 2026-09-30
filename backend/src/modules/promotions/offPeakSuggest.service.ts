@@ -1,6 +1,6 @@
 import { Booking } from "../booking/booking.model";
 import { getOffPeakHoursConfig } from "./offPeakHours.service";
-import { TIME_SLOTS } from "../../shared/slots";
+import { getLiveSlots } from "../../shared/slots";
 import { ApiError } from "../../shared/utils/ApiError";
 import { formatHHMM, parseSlotToMinutes, WEEKDAY_NAMES, type WeekdayIndex } from "../../shared/timeWindows";
 
@@ -163,8 +163,9 @@ export async function suggestOffPeakWindows(options: SuggestOptions = {}): Promi
   const days: DaySummary[] = [];
   const windows: SuggestionResult["windows"] = [];
 
+  const liveSlots = getLiveSlots();
   for (let day = 0 as WeekdayIndex; day <= 6; day = (day + 1) as WeekdayIndex) {
-    const dayCounts = TIME_SLOTS.map((slot) => counts.get(`${day}|${slot}`) ?? 0);
+    const dayCounts = liveSlots.map((slot) => counts.get(`${day}|${slot}`) ?? 0);
     const total = dayCounts.reduce((a, b) => a + b, 0);
     const dayMedian = median(dayCounts);
     // Below the minimum, the medians are noise and the feature would
@@ -173,7 +174,7 @@ export async function suggestOffPeakWindows(options: SuggestOptions = {}): Promi
     const threshold = dayMedian * sensitivity;
 
     const quietSlots: string[] = [];
-    TIME_SLOTS.forEach((slot, i) => {
+    liveSlots.forEach((slot, i) => {
       const count = dayCounts[i];
       const offPeak = enoughData && count <= threshold;
       if (offPeak) quietSlots.push(slot);

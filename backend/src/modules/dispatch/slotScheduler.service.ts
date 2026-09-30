@@ -3,14 +3,9 @@ import { Booking, type BookingDocument } from "../booking/booking.model";
 import { notifyUser, pushToUser } from "../notification/notification.service";
 import { emitToUser, emitToAdmins } from "../../shared/services/socket";
 import { offerNext, emitDispatchUpdate } from "./dispatch.service";
-// Re-exported for backwards compatibility. The list itself lives in
-// shared/slots.ts — a second copy here could drift from the one the booking
-// validator enforces, and this module is what decides when a job is overdue.
-import { TIME_SLOTS as SLOTS } from "../../shared/slots";
+import { getLiveSlots } from "./slotConfig.service.js";
 import { RescheduleConfig } from "./rescheduleConfig.model";
 import { getOffPeakHoursConfig, isOffPeakSlotWithConfig } from "../promotions/offPeakHours.service";
-
-export const TIME_SLOTS: readonly string[] = SLOTS;
 
 /**
  * Sweep settings, persisted. These were module-level `let`s until they were
@@ -137,7 +132,8 @@ export async function sweepAndRescheduleMissedSlots(): Promise<{ processed: numb
       continue;
     }
 
-    const currentSlotIdx = TIME_SLOTS.indexOf(b.slot);
+    const liveSlots = getLiveSlots();
+    const currentSlotIdx = liveSlots.indexOf(b.slot);
     let nextSlot: string | null = null;
     let nextDate: Date | null = null;
 
@@ -152,8 +148,8 @@ export async function sweepAndRescheduleMissedSlots(): Promise<{ processed: numb
     // matters more than protecting the margin on it.
     if (!isPastDate) {
       const laterSlots: string[] = [];
-      for (let i = currentSlotIdx + 1; i < TIME_SLOTS.length; i++) {
-        const candidateSlot = TIME_SLOTS[i];
+      for (let i = currentSlotIdx + 1; i < liveSlots.length; i++) {
+        const candidateSlot = liveSlots[i];
         const { start: candidateStart } = getSlotTimeRange(bDate, candidateSlot);
         if (candidateStart.getTime() > now.getTime() + 15 * 60 * 1000) laterSlots.push(candidateSlot);
       }
@@ -175,7 +171,7 @@ export async function sweepAndRescheduleMissedSlots(): Promise<{ processed: numb
     if (!nextSlot || !nextDate) {
       const tomorrow = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
       nextDate = tomorrow;
-      nextSlot = TIME_SLOTS[0]; // First slot of tomorrow (08:00 AM)
+      nextSlot = liveSlots[0] ?? "08:00 AM"; // First slot of tomorrow
     }
 
     const prevSlot = b.slot;

@@ -1,6 +1,7 @@
-import { useState } from "react";
-import { Banknote, Clock, CheckCircle2, XCircle, Landmark } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Banknote, Clock, CheckCircle2, XCircle, Landmark, Search, X } from "lucide-react";
 import { cn } from "@shared/lib/utils";
+
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -33,7 +34,37 @@ export function PayoutRequests() {
   const approve = useApprovePayoutRequest();
   const reject = useRejectPayoutRequest();
   const markPaid = useMarkPayoutRequestPaid();
-  const paginated = usePagination(requests, 10);
+
+  const [search, setSearch] = useState("");
+
+  const filteredRequests = useMemo(() => {
+    if (!search.trim()) return requests;
+    const q = search.toLowerCase().trim();
+    return requests.filter((r) => {
+      const name = (r.agent?.name ?? "").toLowerCase();
+      const phone = (r.agent?.phone ?? "").toLowerCase();
+      const bank = (r.bankSnapshot?.bankName ?? "").toLowerCase();
+      const acc = (r.bankSnapshot?.accountNumber ?? "").toLowerCase();
+      const ifsc = (r.bankSnapshot?.ifsc ?? "").toLowerCase();
+      const branch = (r.bankSnapshot?.branch ?? "").toLowerCase();
+      const holder = (r.bankSnapshot?.holderName ?? "").toLowerCase();
+      const amountStr = String(r.amount);
+      return (
+        name.includes(q) ||
+        phone.includes(q) ||
+        bank.includes(q) ||
+        acc.includes(q) ||
+        ifsc.includes(q) ||
+        branch.includes(q) ||
+        holder.includes(q) ||
+        amountStr.includes(q)
+      );
+    });
+
+  }, [requests, search]);
+
+  const paginated = usePagination(filteredRequests, 10);
+
 
   const [error, setError] = useState("");
   const [rejecting, setRejecting] = useState<AdminPayoutRequest | null>(null);
@@ -98,22 +129,45 @@ export function PayoutRequests() {
         <StatCard label="Paid out" value={formatMoney(paidTotal)} icon={CheckCircle2} />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "rounded-pill border px-3.5 py-1.5 text-sm font-medium transition-colors",
-              tab === t.key
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-line bg-surface text-muted hover:text-ink",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={cn(
+                "rounded-pill border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                tab === t.key
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-line bg-surface text-muted hover:text-ink",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative min-w-[240px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search agent, phone, bank, UPI…"
+            className="h-9 w-full rounded-xl border border-line bg-surface pl-9 pr-8 text-xs text-ink outline-none transition-all placeholder:text-muted focus:border-primary/50"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink cursor-pointer"
+              aria-label="Clear search"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
       </div>
+
 
       {error && (
         <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-600">{error}</p>
@@ -215,11 +269,13 @@ export function PayoutRequests() {
             {!isLoading && paginated.pageItems.length === 0 && (
               <tr className="border-t border-line/70">
                 <td colSpan={6} className="px-2 py-8 text-center text-sm text-muted">
-                  No {tab === "all" ? "" : PAYOUT_REQUEST_STATUS_LABEL[tab as PayoutRequestStatus].toLowerCase() + " "}
-                  payout requests.
+                  {search
+                    ? `No payout requests match "${search}".`
+                    : `No ${tab === "all" ? "" : PAYOUT_REQUEST_STATUS_LABEL[tab as PayoutRequestStatus].toLowerCase() + " "}payout requests.`}
                 </td>
               </tr>
             )}
+
           </tbody>
         </table>
         <Pagination page={paginated.page} totalPages={paginated.totalPages} onPageChange={paginated.setPage} />

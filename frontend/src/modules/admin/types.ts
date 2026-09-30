@@ -565,4 +565,11 @@ export type AdminStaff = {
   createdAt?: string;
 };
 
+/** DB-backed bookable time slot configuration — owned by the admin. */
+export type TimeSlotConfig = {
+  slots: string[];
+  updatedAt?: string;
+};
+
+
 

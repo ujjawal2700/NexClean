@@ -108,6 +108,10 @@ adminRouter.get("/off-peak-hours", requirePermission("off-peak-hours"), asyncHan
 adminRouter.get("/off-peak-hours/suggest", requirePermission("off-peak-hours"), asyncHandler(c.suggestOffPeakHours));
 adminRouter.put("/off-peak-hours", requirePermission("off-peak-hours"), asyncHandler(c.updateOffPeakHoursHandler));
 
+// Time slots — bookable customer time windows
+adminRouter.get("/time-slots", requirePermission("time-slots"), asyncHandler(c.getTimeSlots));
+adminRouter.put("/time-slots", requirePermission("time-slots"), asyncHandler(c.updateTimeSlots));
+
 adminRouter.get("/campaigns", requirePermission("promotions"), asyncHandler(c.campaigns));
 adminRouter.get("/campaigns/audience-sizes", requirePermission("promotions"), asyncHandler(c.campaignAudienceSizes));
 adminRouter.get("/campaigns/audiences", requirePermission("promotions"), asyncHandler(c.campaignAudiences));

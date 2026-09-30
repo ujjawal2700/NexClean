@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Plus, Trash2, X, Car } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { Plus, Trash2, X, Car, Search } from "lucide-react";
+
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -110,6 +111,13 @@ export function VehicleBrands() {
   const update = useUpdateVehicleBrand();
   const remove = useDeleteVehicleBrand();
   const [name, setName] = useState("");
+  const [search, setSearch] = useState("");
+
+  const filteredBrands = useMemo(() => {
+    if (!search.trim()) return brands;
+    const q = search.toLowerCase().trim();
+    return brands.filter((b) => b.name.toLowerCase().includes(q));
+  }, [brands, search]);
 
   const submit = () => {
     if (!name.trim()) return;
@@ -145,34 +153,68 @@ export function VehicleBrands() {
         </div>
       </GlassCard>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {brands.map((b) => (
-          <GlassCard key={b.id}>
-            <div className="flex items-center justify-between gap-2">
-              <p className={`font-display text-lg font-semibold ${b.active ? "text-ink" : "text-muted line-through"}`}>
-                {b.name}
-              </p>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={update.isPending}
-                  onClick={() => update.mutate({ id: b.id, active: !b.active })}
-                >
-                  {b.active ? "Active" : "Inactive"}
-                </Button>
-                <Button variant="ghost" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(b.id)}>
-                  <Trash2 className="size-4" />
-                </Button>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <p className="font-display text-lg font-semibold text-ink">Brands & Models</p>
+            <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-muted">
+              {filteredBrands.length} {filteredBrands.length === 1 ? "brand" : "brands"}
+            </span>
+          </div>
+
+          <div className="relative min-w-[240px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search brands…"
+              className="h-10 w-full rounded-2xl border border-line bg-surface pl-9 pr-8 text-xs text-ink outline-none transition-all placeholder:text-muted focus:border-primary/50"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink cursor-pointer"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          {filteredBrands.map((b) => (
+            <GlassCard key={b.id}>
+              <div className="flex items-center justify-between gap-2">
+                <p className={`font-display text-lg font-semibold ${b.active ? "text-ink" : "text-muted line-through"}`}>
+                  {b.name}
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={update.isPending}
+                    onClick={() => update.mutate({ id: b.id, active: !b.active })}
+                  >
+                    {b.active ? "Active" : "Inactive"}
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={remove.isPending} onClick={() => remove.mutate(b.id)}>
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-            <ModelRows brand={b} />
-          </GlassCard>
-        ))}
-        {brands.length === 0 && (
-          <GlassCard className="py-12 text-center text-muted lg:col-span-2">No brands yet. Add one above.</GlassCard>
-        )}
+              <ModelRows brand={b} />
+            </GlassCard>
+          ))}
+          {filteredBrands.length === 0 && (
+            <GlassCard className="py-12 text-center text-muted lg:col-span-2">
+              {search ? `No brands match "${search}".` : "No brands yet. Add one above."}
+            </GlassCard>
+          )}
+        </div>
       </div>
     </div>
   );
 }
+

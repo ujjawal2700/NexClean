@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, X, Wand2, Calendar, Loader2, Eye, FileSpreadsheet } from "lucide-react";
+import {
+  Search,
+  X,
+  Wand2,
+  Calendar,
+  Loader2,
+  Eye,
+  FileSpreadsheet,
+} from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -21,6 +29,7 @@ import {
   type AdminRescheduleQuote,
   useSetBookingStatus,
   useCategoryLabel,
+  useTimeSlots,
 } from "../api/admin.api";
 import { type BookingStatus, type AdminBooking } from "../types";
 import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
@@ -61,9 +70,17 @@ function RescheduleModal({
 }) {
   const reschedule = useRescheduleBooking();
   const quoteReschedule = useRescheduleQuote();
-  const initialDate = booking.date ? new Date(booking.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+  const { data: timeSlotsData } = useTimeSlots();
+  const activeSlots =
+    timeSlotsData?.slots && timeSlotsData.slots.length > 0
+      ? timeSlotsData.slots
+      : TIME_SLOTS;
+
+  const initialDate = booking.date
+    ? new Date(booking.date).toISOString().split("T")[0]
+    : new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(initialDate);
-  const [slot, setSlot] = useState(booking.slot || TIME_SLOTS[0]);
+  const [slot, setSlot] = useState(booking.slot || activeSlots[0]);
   const [waive, setWaive] = useState(false);
   const [quote, setQuote] = useState<AdminRescheduleQuote | null>(null);
 
@@ -87,7 +104,7 @@ function RescheduleModal({
     if (!date || !slot) return;
     reschedule.mutate(
       { id: booking.id, date, slot, waiveUpgrade: waive || undefined },
-      { onSuccess: () => onClose() }
+      { onSuccess: () => onClose() },
     );
   };
 
@@ -100,19 +117,22 @@ function RescheduleModal({
           </h3>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-muted hover:text-ink"
-          >
+            className="rounded-lg p-1 text-muted hover:text-ink">
             <X className="size-5" />
           </button>
         </div>
 
         <p className="text-sm text-muted">
-          Reschedule <span className="font-medium text-ink">{booking.vehicleName}</span> ({booking.customerName}) to a new date & time slot.
+          Reschedule{" "}
+          <span className="font-medium text-ink">{booking.vehicleName}</span> (
+          {booking.customerName}) to a new date & time slot.
         </p>
 
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Select Date</label>
+            <label className="mb-1 block text-xs font-medium text-muted">
+              Select Date
+            </label>
             <input
               type="date"
               value={date}
@@ -122,13 +142,14 @@ function RescheduleModal({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Select Time Slot</label>
+            <label className="mb-1 block text-xs font-medium text-muted">
+              Select Time Slot
+            </label>
             <select
               value={slot}
               onChange={(e) => setSlot(e.target.value)}
-              className="h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-primary/50"
-            >
-              {TIME_SLOTS.map((s) => (
+              className="h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-primary/50">
+              {activeSlots.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -142,11 +163,16 @@ function RescheduleModal({
             way around the off-peak rule. */}
         {quote?.requiresPayment && (
           <div className="rounded-2xl border border-amber-300/50 bg-amber-50/50 p-3 text-sm">
-            <p className="font-medium text-ink">Peak slot — this change is chargeable</p>
+            <p className="font-medium text-ink">
+              Peak slot — this change is chargeable
+            </p>
             <p className="mt-1 text-xs text-muted">
-              {formatMoney(quote.reclaim)} discount to reclaim + {formatMoney(quote.fee)} fee ={" "}
-              <span className="font-medium text-ink">{formatMoney(quote.totalDue)}</span> added to the
-              customer's bill.
+              {formatMoney(quote.reclaim)} discount to reclaim +{" "}
+              {formatMoney(quote.fee)} fee ={" "}
+              <span className="font-medium text-ink">
+                {formatMoney(quote.totalDue)}
+              </span>{" "}
+              added to the customer's bill.
             </p>
             <label className="mt-3 flex cursor-pointer items-start gap-2">
               <input
@@ -156,7 +182,8 @@ function RescheduleModal({
                 className="mt-0.5 size-4 accent-[color:var(--color-primary,#4F7CFF)]"
               />
               <span className="text-xs text-ink-soft">
-                Waive it — move at no extra cost. Recorded against this booking with your name.
+                Waive it — move at no extra cost. Recorded against this booking
+                with your name.
               </span>
             </label>
           </div>
@@ -166,7 +193,10 @@ function RescheduleModal({
           <Button variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>
-          <Button size="sm" onClick={submit} disabled={reschedule.isPending || !date || !slot}>
+          <Button
+            size="sm"
+            onClick={submit}
+            disabled={reschedule.isPending || !date || !slot}>
             {reschedule.isPending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : quote?.requiresPayment && !waive ? (
@@ -195,10 +225,12 @@ function AgentCell({ booking }: { booking: AdminBooking }) {
     <div className="flex items-center gap-1.5">
       <select
         value={booking.assignedAgentId ?? ""}
-        onChange={(e) => e.target.value && assign.mutate({ id: booking.id, agentId: e.target.value })}
+        onChange={(e) =>
+          e.target.value &&
+          assign.mutate({ id: booking.id, agentId: e.target.value })
+        }
         disabled={assign.isPending}
-        className="h-9 rounded-xl border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-primary/50"
-      >
+        className="h-9 rounded-xl border border-line bg-surface px-2 text-xs text-ink outline-none focus:border-primary/50">
         <option value="">{booking.agentName ?? "Unassigned"}</option>
         {verifiedAgents.map((a) => (
           <option key={a.id} value={a.id}>
@@ -210,8 +242,7 @@ function AgentCell({ booking }: { booking: AdminBooking }) {
         title="Auto-assign nearest available agent"
         disabled={autoAssign.isPending}
         onClick={() => autoAssign.mutate(booking.id)}
-        className="grid size-8 shrink-0 place-items-center rounded-xl border border-line text-muted transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50"
-      >
+        className="grid size-8 shrink-0 place-items-center rounded-xl border border-line text-muted transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50">
         <Wand2 className="size-3.5" />
       </button>
     </div>
@@ -231,8 +262,7 @@ function StatusCell({ booking }: { booking: AdminBooking }) {
           "inline-flex h-8 items-center rounded-pill px-2.5 text-xs font-medium",
           BOOKING_STATUS_STYLE[booking.status],
         )}
-        title="Cancelled bookings cannot be reopened"
-      >
+        title="Cancelled bookings cannot be reopened">
         {BOOKING_STATUS_LABEL.cancelled}
       </span>
     );
@@ -241,13 +271,17 @@ function StatusCell({ booking }: { booking: AdminBooking }) {
   return (
     <select
       value={booking.status}
-      onChange={(e) => setStatus.mutate({ id: booking.id, status: e.target.value as BookingStatus })}
+      onChange={(e) =>
+        setStatus.mutate({
+          id: booking.id,
+          status: e.target.value as BookingStatus,
+        })
+      }
       disabled={setStatus.isPending}
       className={cn(
         "h-8 rounded-pill border-none px-2.5 text-xs font-medium outline-none",
         BOOKING_STATUS_STYLE[booking.status],
-      )}
-    >
+      )}>
       {STATUS_OPTIONS.map((s) => (
         <option key={s.id} value={s.id}>
           {s.label}
@@ -263,7 +297,8 @@ export function Bookings() {
   const categoryLabel = useCategoryLabel();
   const [filter, setFilter] = useState<BookingStatus | "all">("all");
   const [query, setQuery] = useState("");
-  const [rescheduleBookingTarget, setRescheduleBookingTarget] = useState<AdminBooking | null>(null);
+  const [rescheduleBookingTarget, setRescheduleBookingTarget] =
+    useState<AdminBooking | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
 
   const list = bookings.filter((b) => {
@@ -326,15 +361,17 @@ export function Bookings() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-3xl text-ink">Bookings</h1>
-          <p className="mt-1 text-muted">{bookings.length} total · assign agents, reschedule & control status.</p>
+          <p className="mt-1 text-muted">
+            {bookings.length} total · assign agents, reschedule & control
+            status.
+          </p>
         </div>
         <Button
           variant="outline"
           size="sm"
           onClick={() => setShowExportModal(true)}
           disabled={list.length === 0}
-          className="shrink-0"
-        >
+          className="shrink-0">
           <FileSpreadsheet className="size-4" /> Export Excel
         </Button>
       </div>
@@ -347,9 +384,10 @@ export function Bookings() {
               onClick={() => setFilter(f.id)}
               className={cn(
                 "rounded-pill px-3.5 py-1.5 text-sm font-medium transition-colors",
-                filter === f.id ? "bg-primary text-white" : "text-muted hover:text-ink",
-              )}
-            >
+                filter === f.id
+                  ? "bg-primary text-white"
+                  : "text-muted hover:text-ink",
+              )}>
               {f.label}
             </button>
           ))}
@@ -381,69 +419,80 @@ export function Bookings() {
           </thead>
           <tbody>
             {isLoading && <SkeletonTableRows rows={6} cols={8} />}
-            {!isLoading && paginated.pageItems.map((b) => (
-              <tr key={b.id} className="border-t border-line/70">
-                <td className="px-2 py-3">
-                  <Link
-                    to={`/admin/bookings/${b.id}`}
-                    className="font-medium text-ink hover:text-primary transition-colors block"
-                    data-testid={`booking-link-${b.id}`}
-                  >
-                    {b.vehicleName}
-                  </Link>
-                  <p className="text-xs text-muted">
-                    {categoryLabel(b.vehicleType)} · <Link to={`/admin/bookings/${b.id}`} className="hover:underline hover:text-primary">#{b.id}</Link>
-                  </p>
-                  {b.offPeakLocked && (
-                    <span
-                      className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
-                      title={`Discounted ${formatMoney(b.offPeakDiscountAmount)} for booking off-peak — moving to a peak slot is chargeable`}
-                    >
-                      Off-peak {formatMoney(b.offPeakDiscountAmount)}
-                    </span>
-                  )}
-                </td>
-                <td className="px-2 py-3 text-ink-soft">{b.customerName}</td>
-                <td className="px-2 py-3 text-ink-soft">{formatDate(b.date)} · {b.slot}</td>
-                <td className="px-2 py-3 text-ink-soft">{b.society}</td>
-                <td className="px-2 py-3">
-                  <AgentCell booking={b} />
-                </td>
-                <td className="px-2 py-3">
-                  <StatusCell booking={b} />
-                </td>
-                <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(b.price)}</td>
-                <td className="px-2 py-3 text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Link to={`/admin/bookings/${b.id}`}>
-                      <Button variant="ghost" size="sm" title="View booking details and live tracking" data-testid={`view-booking-${b.id}`}>
-                        <Eye className="size-3.5" /> Details
-                      </Button>
+            {!isLoading &&
+              paginated.pageItems.map((b) => (
+                <tr key={b.id} className="border-t border-line/70">
+                  <td className="px-2 py-3">
+                    <Link
+                      to={`/admin/bookings/${b.id}`}
+                      className="font-medium text-ink hover:text-primary transition-colors block"
+                      data-testid={`booking-link-${b.id}`}>
+                      {b.vehicleName}
                     </Link>
-                    {b.status === "upcoming" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setRescheduleBookingTarget(b)}
-                        title="Reschedule Booking"
-                      >
-                        <Calendar className="size-3.5" /> Reschedule
-                      </Button>
+                    <p className="text-xs text-muted">
+                      {categoryLabel(b.vehicleType)} ·{" "}
+                      <Link
+                        to={`/admin/bookings/${b.id}`}
+                        className="hover:underline hover:text-primary">
+                        #{b.id}
+                      </Link>
+                    </p>
+                    {b.offPeakLocked && (
+                      <span
+                        className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700"
+                        title={`Discounted ${formatMoney(b.offPeakDiscountAmount)} for booking off-peak — moving to a peak slot is chargeable`}>
+                        Off-peak {formatMoney(b.offPeakDiscountAmount)}
+                      </span>
                     )}
-                    {(b.status === "upcoming" || b.status === "in_progress") && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={cancelBooking.isPending}
-                        onClick={() => cancelBooking.mutate(b.id)}
-                      >
-                        <X className="size-4" /> Cancel
-                      </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-2 py-3 text-ink-soft">{b.customerName}</td>
+                  <td className="px-2 py-3 text-ink-soft">
+                    {formatDate(b.date)} · {b.slot}
+                  </td>
+                  <td className="px-2 py-3 text-ink-soft">{b.society}</td>
+                  <td className="px-2 py-3">
+                    <AgentCell booking={b} />
+                  </td>
+                  <td className="px-2 py-3">
+                    <StatusCell booking={b} />
+                  </td>
+                  <td className="px-2 py-3 text-right font-medium text-ink">
+                    {formatMoney(b.price)}
+                  </td>
+                  <td className="px-2 py-3 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Link to={`/admin/bookings/${b.id}`}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="View booking details and live tracking"
+                          data-testid={`view-booking-${b.id}`}>
+                          <Eye className="size-3.5" /> Details
+                        </Button>
+                      </Link>
+                      {b.status === "upcoming" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setRescheduleBookingTarget(b)}
+                          title="Reschedule Booking">
+                          <Calendar className="size-3.5" /> Reschedule
+                        </Button>
+                      )}
+                      {(b.status === "upcoming" ||
+                        b.status === "in_progress") && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={cancelBooking.isPending}
+                          onClick={() => cancelBooking.mutate(b.id)}>
+                          <X className="size-4" /> Cancel
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
             {!isLoading && list.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-2 py-12 text-center text-muted">

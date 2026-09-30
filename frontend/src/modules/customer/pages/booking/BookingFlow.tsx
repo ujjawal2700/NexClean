@@ -21,7 +21,10 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
-import { BrandModelSelect, type VehicleSelection } from "../../components/BrandModelSelect";
+import {
+  BrandModelSelect,
+  type VehicleSelection,
+} from "../../components/BrandModelSelect";
 import { ApiError } from "@shared/lib/api";
 import {
   useMe,
@@ -29,17 +32,34 @@ import {
   useCategoryLabel,
   useWallet,
   useOffPeakHours,
+  useTimeSlots,
   usePaymentMode,
 } from "../../api/queries";
 import { isOffPeakSlot, windowsForDate } from "../../data/offPeakHours";
-import { useVerifyPayment, useCreateOrder, usePreviewDiscount } from "../../api/mutations";
+import {
+  useVerifyPayment,
+  useCreateOrder,
+  usePreviewDiscount,
+} from "../../api/mutations";
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import type { PreviewAmountResponse } from "../../api/mutations";
 import { ServicePinPicker } from "@shared/components/map/ServicePinPicker";
 import { AddAddressModal } from "@shared/components/address/AddAddressModal";
 import type { LatLng } from "@shared/lib/maps";
-import { PACKAGES, availableSlotsForDate, upcomingDates, priceFor } from "../../data/catalog";
-import type { CarType, Booking, Vehicle, Address, VehicleCategory } from "../../types";
+import {
+  PACKAGES,
+  TIME_SLOTS,
+  availableSlotsForDate,
+  upcomingDates,
+  priceFor,
+} from "../../data/catalog";
+import type {
+  CarType,
+  Booking,
+  Vehicle,
+  Address,
+  VehicleCategory,
+} from "../../types";
 import { formatMoney } from "@shared/lib/format";
 import { Stepper, STEP_LABELS } from "./Stepper";
 
@@ -110,22 +130,33 @@ export function BookingFlow() {
 
   useEffect(() => {
     if (step < 2) {
-      sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ step, draft }));
+      sessionStorage.setItem(
+        DRAFT_STORAGE_KEY,
+        JSON.stringify({ step, draft }),
+      );
     } else {
       sessionStorage.removeItem(DRAFT_STORAGE_KEY);
     }
   }, [step, draft]);
 
   const [discountInput, setDiscountInput] = useState("");
-  const [appliedDiscount, setAppliedDiscount] = useState<PreviewAmountResponse | null>(null);
+  const [appliedDiscount, setAppliedDiscount] =
+    useState<PreviewAmountResponse | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [coinsToRedeem, setCoinsToRedeem] = useState(0);
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
 
-  const basePriceFor = (key: string) => categories.find((c) => c.key === key)?.basePrice ?? 0;
-  const pkg = useMemo(() => PACKAGES.find((p) => p.id === draft.packageId) ?? null, [draft.packageId]);
-  const total = draft.vehicleType && pkg ? priceFor(basePriceFor(draft.vehicleType), pkg) : 0;
+  const basePriceFor = (key: string) =>
+    categories.find((c) => c.key === key)?.basePrice ?? 0;
+  const pkg = useMemo(
+    () => PACKAGES.find((p) => p.id === draft.packageId) ?? null,
+    [draft.packageId],
+  );
+  const total =
+    draft.vehicleType && pkg
+      ? priceFor(basePriceFor(draft.vehicleType), pkg)
+      : 0;
   const payable = appliedDiscount ? appliedDiscount.price : total;
   const address = addresses.find((a) => a.id === draft.addressId) ?? null;
   const walletCoins = wallet?.coins ?? 0;
@@ -157,7 +188,9 @@ export function BookingFlow() {
     try {
       await refreshQuote(discountInput.trim(), coinsToRedeem);
     } catch (e) {
-      setDiscountError(e instanceof ApiError ? e.message : "Invalid discount code");
+      setDiscountError(
+        e instanceof ApiError ? e.message : "Invalid discount code",
+      );
     }
   };
 
@@ -166,16 +199,22 @@ export function BookingFlow() {
     setDiscountError("");
     try {
       await refreshQuote(undefined, coinsToRedeem);
-    } catch { /* leave prior quote in place */ }
+    } catch {
+      /* leave prior quote in place */
+    }
   };
 
   const toggleCoins = async () => {
     const next = coinsToRedeem > 0 ? 0 : walletCoins;
-    const code = appliedDiscount?.discountCode ? discountInput.trim() : undefined;
+    const code = appliedDiscount?.discountCode
+      ? discountInput.trim()
+      : undefined;
     try {
       await refreshQuote(code, next);
       setCoinsToRedeem(next);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   };
 
   /**
@@ -201,7 +240,9 @@ export function BookingFlow() {
       } catch (e) {
         if (cancelled) return;
         setDiscountError(
-          e instanceof ApiError ? e.message : "That code doesn't apply to the time slot you picked",
+          e instanceof ApiError
+            ? e.message
+            : "That code doesn't apply to the time slot you picked",
         );
         setDiscountInput("");
         // Drop only the code — any coins the customer redeemed should survive.
@@ -229,7 +270,8 @@ export function BookingFlow() {
   ][step];
 
   const pay = async () => {
-    if (!draft.vehicleType || !pkg || !draft.date || !draft.slot || !address) return;
+    if (!draft.vehicleType || !pkg || !draft.date || !draft.slot || !address)
+      return;
     setPayError("");
     setProcessing(true);
 
@@ -241,7 +283,9 @@ export function BookingFlow() {
       slot: draft.slot,
       addressLabel: address.label,
       addressLine: address.line,
-      discountCode: appliedDiscount?.discountCode ? discountInput.trim() : undefined,
+      discountCode: appliedDiscount?.discountCode
+        ? discountInput.trim()
+        : undefined,
       coinsToRedeem: coinsToRedeem > 0 ? coinsToRedeem : undefined,
       // The dropped pin wins over the address's geocode — it is the more
       // precise of the two, and the one the customer will watch the cleaner
@@ -267,7 +311,9 @@ export function BookingFlow() {
       const order = await createOrder.mutateAsync(bookingInput);
 
       if (order.mock) {
-        const booking = await verifyPayment.mutateAsync({ booking: bookingInput });
+        const booking = await verifyPayment.mutateAsync({
+          booking: bookingInput,
+        });
         setConfirmed(booking);
         setProcessing(false);
         return;
@@ -287,10 +333,15 @@ export function BookingFlow() {
         theme: { color: "#4F7CFF" },
         handler: async (r) => {
           try {
-            const booking = await verifyPayment.mutateAsync({ booking: bookingInput, ...r });
+            const booking = await verifyPayment.mutateAsync({
+              booking: bookingInput,
+              ...r,
+            });
             setConfirmed(booking);
           } catch (e) {
-            setPayError(e instanceof ApiError ? e.message : "Payment verification failed");
+            setPayError(
+              e instanceof ApiError ? e.message : "Payment verification failed",
+            );
           } finally {
             setProcessing(false);
           }
@@ -300,7 +351,9 @@ export function BookingFlow() {
         modal: { ondismiss: () => setProcessing(false) },
       });
     } catch (e) {
-      setPayError(e instanceof ApiError ? e.message : "Payment failed. Please try again.");
+      setPayError(
+        e instanceof ApiError ? e.message : "Payment failed. Please try again.",
+      );
       setProcessing(false);
     }
   };
@@ -313,11 +366,12 @@ export function BookingFlow() {
         <button
           onClick={() => navigate(-1)}
           className="flex shrink-0 items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer"
-          aria-label="Back"
-        >
+          aria-label="Back">
           <ArrowLeft className="size-4" />
         </button>
-        <h1 className="font-display text-xl font-semibold text-ink sm:text-2xl">Book a cleaning</h1>
+        <h1 className="font-display text-xl font-semibold text-ink sm:text-2xl">
+          Book a cleaning
+        </h1>
       </div>
 
       <Stepper current={step} />
@@ -331,12 +385,22 @@ export function BookingFlow() {
               initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -24 }}
-              transition={{ duration: 0.3 }}
-            >
-              {step === 0 && <VehicleStep draft={draft} set={set} vehicles={vehicles} categoryLabel={categoryLabel} />}
-              {step === 1 && <PackageStep draft={draft} set={set} categories={categories} />}
+              transition={{ duration: 0.3 }}>
+              {step === 0 && (
+                <VehicleStep
+                  draft={draft}
+                  set={set}
+                  vehicles={vehicles}
+                  categoryLabel={categoryLabel}
+                />
+              )}
+              {step === 1 && (
+                <PackageStep draft={draft} set={set} categories={categories} />
+              )}
               {step === 2 && <ScheduleStep draft={draft} set={set} />}
-              {step === 3 && <AddressStep draft={draft} set={set} addresses={addresses} />}
+              {step === 3 && (
+                <AddressStep draft={draft} set={set} addresses={addresses} />
+              )}
               {step === 4 && (
                 <PaymentSummary
                   draft={draft}
@@ -365,7 +429,9 @@ export function BookingFlow() {
             <div className="mt-6 flex items-center justify-between rounded-2xl border border-line bg-surface-muted/60 px-4 py-3 lg:hidden">
               <span className="text-sm text-muted">Estimated total</span>
               <span className="font-display text-lg font-semibold text-ink">
-                {appliedDiscount ? formatMoney(appliedDiscount.price) : formatMoney(total)}
+                {appliedDiscount
+                  ? formatMoney(appliedDiscount.price)
+                  : formatMoney(total)}
               </span>
             </div>
           )}
@@ -376,16 +442,20 @@ export function BookingFlow() {
               variant="ghost"
               onClick={() => setStep((s) => Math.max(0, s - 1))}
               disabled={step === 0}
-              className="shrink-0"
-            >
+              className="shrink-0">
               <ArrowLeft className="size-4" /> Back
             </Button>
             {step < 4 ? (
-              <Button onClick={() => setStep((s) => s + 1)} disabled={!canContinue}>
+              <Button
+                onClick={() => setStep((s) => s + 1)}
+                disabled={!canContinue}>
                 Continue <ArrowRight className="size-4" />
               </Button>
             ) : (
-              <Button onClick={pay} disabled={processing} className="min-w-36 sm:min-w-44">
+              <Button
+                onClick={pay}
+                disabled={processing}
+                className="min-w-36 sm:min-w-44">
                 {processing ? (
                   <>
                     <Loader2 className="size-4 animate-spin" /> Processing…
@@ -396,7 +466,9 @@ export function BookingFlow() {
               </Button>
             )}
           </div>
-          {payError && <p className="mt-3 text-right text-sm text-red-500">{payError}</p>}
+          {payError && (
+            <p className="mt-3 text-right text-sm text-red-500">{payError}</p>
+          )}
         </div>
 
         {/* live summary */}
@@ -435,36 +507,55 @@ function VehicleStep({
   categoryLabel: (key: string) => string;
 }) {
   const { data: categories = [] } = useVehicleCategories();
-  const usingSavedVehicle = vehicles.some((v) => v.name === draft.vehicleName && v.type === draft.vehicleType);
+  const usingSavedVehicle = vehicles.some(
+    (v) => v.name === draft.vehicleName && v.type === draft.vehicleType,
+  );
 
   const onResolved = (selection: VehicleSelection | null) => {
-    if (selection) set({ vehicleType: selection.categoryKey, vehicleName: `${selection.brand} ${selection.model}` });
+    if (selection)
+      set({
+        vehicleType: selection.categoryKey,
+        vehicleName: `${selection.brand} ${selection.model}`,
+      });
   };
 
   return (
     <div>
-      <StepHeading title="Which vehicle?" subtitle="Choose from your garage or search your brand & model." />
+      <StepHeading
+        title="Which vehicle?"
+        subtitle="Choose from your garage or search your brand & model."
+      />
 
       {vehicles.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
           {vehicles.map((v) => {
-            const selected = draft.vehicleName === v.name && draft.vehicleType === v.type;
+            const selected =
+              draft.vehicleName === v.name && draft.vehicleType === v.type;
             return (
               <button
                 key={v.id}
-                onClick={() => set({ vehicleType: v.type, vehicleName: v.name })}
+                onClick={() =>
+                  set({ vehicleType: v.type, vehicleName: v.name })
+                }
                 className={cn(
                   "flex items-center gap-3 rounded-card border p-4 text-left transition-all",
                   selected
                     ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                     : "border-line bg-surface hover:border-primary/40",
-                )}
-              >
+                )}>
                 <div className="w-20 shrink-0">
-                  <CarSilhouette type={v.type} imageUrl={categories.find((c) => c.key === v.type)?.imageUrl} uid={`pick-${v.id}`} />
+                  <CarSilhouette
+                    type={v.type}
+                    imageUrl={
+                      categories.find((c) => c.key === v.type)?.imageUrl
+                    }
+                    uid={`pick-${v.id}`}
+                  />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate font-display font-semibold text-ink">{v.name}</p>
+                  <p className="truncate font-display font-semibold text-ink">
+                    {v.name}
+                  </p>
                   <p className="text-sm text-muted">{categoryLabel(v.type)}</p>
                 </div>
                 {selected && <Check className="ml-auto size-5 text-primary" />}
@@ -474,14 +565,17 @@ function VehicleStep({
         </div>
       )}
 
-      <p className="mb-3 mt-6 text-sm font-medium text-muted">Or search your brand &amp; model</p>
+      <p className="mb-3 mt-6 text-sm font-medium text-muted">
+        Or search your brand &amp; model
+      </p>
       <div className="grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
         <BrandModelSelect onResolved={onResolved} />
       </div>
 
       {!usingSavedVehicle && draft.vehicleType && (
         <p className="mt-3 flex items-center gap-1.5 text-sm text-muted">
-          <Check className="size-4 text-primary" /> {draft.vehicleName} · {categoryLabel(draft.vehicleType)}
+          <Check className="size-4 text-primary" /> {draft.vehicleName} ·{" "}
+          {categoryLabel(draft.vehicleType)}
         </p>
       )}
     </div>
@@ -497,14 +591,20 @@ function PackageStep({
   set: (p: Partial<Draft>) => void;
   categories: VehicleCategory[];
 }) {
-  const basePriceFor = (key: string) => categories.find((c) => c.key === key)?.basePrice ?? 0;
+  const basePriceFor = (key: string) =>
+    categories.find((c) => c.key === key)?.basePrice ?? 0;
   return (
     <div>
-      <StepHeading title="Choose a package" subtitle="Pricing shown for your selected vehicle." />
+      <StepHeading
+        title="Choose a package"
+        subtitle="Pricing shown for your selected vehicle."
+      />
       <div className="space-y-3">
         {PACKAGES.map((p) => {
           const selected = draft.packageId === p.id;
-          const price = draft.vehicleType ? priceFor(basePriceFor(draft.vehicleType), p) : null;
+          const price = draft.vehicleType
+            ? priceFor(basePriceFor(draft.vehicleType), p)
+            : null;
           return (
             <button
               key={p.id}
@@ -514,11 +614,12 @@ function PackageStep({
                 selected
                   ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                   : "border-line bg-surface hover:border-primary/40",
-              )}
-            >
+              )}>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="font-display text-lg font-semibold text-ink">{p.name}</p>
+                  <p className="font-display text-lg font-semibold text-ink">
+                    {p.name}
+                  </p>
                   <span className="flex items-center gap-1 text-xs text-muted">
                     <Clock className="size-3.5" /> {p.durationLabel}
                   </span>
@@ -526,7 +627,9 @@ function PackageStep({
                 <p className="mt-0.5 text-sm text-muted">{p.tagline}</p>
                 <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
                   {p.features.map((f) => (
-                    <li key={f} className="flex items-center gap-1.5 text-xs text-ink-soft">
+                    <li
+                      key={f}
+                      className="flex items-center gap-1.5 text-xs text-ink-soft">
                       <Check className="size-3 text-primary" /> {f}
                     </li>
                   ))}
@@ -534,14 +637,15 @@ function PackageStep({
               </div>
               <div className="text-right">
                 {price !== null && (
-                  <p className="font-display text-xl font-semibold text-ink">{formatMoney(price)}</p>
+                  <p className="font-display text-xl font-semibold text-ink">
+                    {formatMoney(price)}
+                  </p>
                 )}
                 <span
                   className={cn(
                     "mt-2 inline-grid size-6 place-items-center rounded-full",
                     selected ? "bg-primary text-white" : "border border-line",
-                  )}
-                >
+                  )}>
                   {selected && <Check className="size-3.5" />}
                 </span>
               </div>
@@ -553,29 +657,44 @@ function PackageStep({
   );
 }
 
-function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) => void }) {
-  const dates = upcomingDates(7);
-  const slots = availableSlotsForDate(draft.date);
+function ScheduleStep({
+  draft,
+  set,
+}: {
+  draft: Draft;
+  set: (p: Partial<Draft>) => void;
+}) {
+  const { data: timeSlotsData } = useTimeSlots();
+  const configuredSlots = timeSlotsData?.slots ?? TIME_SLOTS;
+  const dates = upcomingDates(7, configuredSlots);
+  const slots = availableSlotsForDate(draft.date, configuredSlots);
   const { data: offPeakConfig } = useOffPeakHours();
   const offPeakWindows = windowsForDate(offPeakConfig, draft.date);
 
   // When a date is selected, if the currently chosen slot is no longer valid, clear it.
   const selectDate = (iso: string) => {
-    const available = availableSlotsForDate(iso);
+    const available = availableSlotsForDate(iso, configuredSlots);
     const slotStillValid = draft.slot && available.includes(draft.slot);
     set({ date: iso, slot: slotStillValid ? draft.slot : null });
   };
 
   return (
     <div>
-      <StepHeading title="Pick a date & time" subtitle="When should the specialist arrive?" />
+      <StepHeading
+        title="Pick a date & time"
+        subtitle="When should the specialist arrive?"
+      />
 
       {/* Date picker — horizontal scroll ONLY within this row, never the page */}
       <div className="-mx-0 w-full">
-        <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
+        <div
+          className="flex gap-2.5 overflow-x-auto pb-2"
+          style={{ WebkitOverflowScrolling: "touch" }}>
           {dates.map((d) => {
             const iso = d.toISOString();
-            const selected = draft.date && new Date(draft.date).toDateString() === d.toDateString();
+            const selected =
+              draft.date &&
+              new Date(draft.date).toDateString() === d.toDateString();
             return (
               <button
                 key={iso}
@@ -585,12 +704,13 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
                   selected
                     ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                     : "border-line bg-surface hover:border-primary/40",
-                )}
-              >
+                )}>
                 <span className="text-[11px] font-medium text-muted">
                   {d.toLocaleDateString("en-IN", { weekday: "short" })}
                 </span>
-                <span className="font-display text-lg font-semibold text-ink">{d.getDate()}</span>
+                <span className="font-display text-lg font-semibold text-ink">
+                  {d.getDate()}
+                </span>
                 <span className="text-[11px] text-muted">
                   {d.toLocaleDateString("en-IN", { month: "short" })}
                 </span>
@@ -605,7 +725,8 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
         {offPeakWindows.length > 0 && (
           <span className="flex items-center gap-1.5 text-[11px] text-emerald-600">
             <span className="size-1.5 rounded-full bg-emerald-500" />
-            Cheaper {offPeakWindows.map((w) => `${w.start}–${w.end}`).join(", ")}
+            Cheaper{" "}
+            {offPeakWindows.map((w) => `${w.start}–${w.end}`).join(", ")}
           </span>
         )}
       </div>
@@ -636,9 +757,12 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
                 // would append to the button's accessible name and the control
                 // would stop being addressable as plainly "11:00 AM". The
                 // legend above the grid carries the meaning in text.
-                title={offPeak ? `${slot} — off-peak slot, discounts apply` : undefined}
-                data-off-peak={offPeak ? "true" : undefined}
-              >
+                title={
+                  offPeak
+                    ? `${slot} — off-peak slot, discounts apply`
+                    : undefined
+                }
+                data-off-peak={offPeak ? "true" : undefined}>
                 {slot}
                 {offPeak && (
                   <span
@@ -653,7 +777,8 @@ function ScheduleStep({ draft, set }: { draft: Draft; set: (p: Partial<Draft>) =
       )}
       {offPeakWindows.length > 0 && (
         <p className="mt-3 text-xs text-muted">
-          Slots marked with a green dot are our quieter hours — discount codes apply to these.
+          Slots marked with a green dot are our quieter hours — discount codes
+          apply to these.
         </p>
       )}
     </div>
@@ -671,9 +796,13 @@ function AddressStep({
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const selectedAddress = addresses.find((a) => a.id === draft.addressId) ?? null;
+  const selectedAddress =
+    addresses.find((a) => a.id === draft.addressId) ?? null;
   const addressCenter: LatLng | null = selectedAddress?.coordinates
-    ? { lat: selectedAddress.coordinates[1], lng: selectedAddress.coordinates[0] }
+    ? {
+        lat: selectedAddress.coordinates[1],
+        lng: selectedAddress.coordinates[0],
+      }
     : null;
 
   // A pin belongs to the address it was dropped on. Switching addresses has to
@@ -690,7 +819,10 @@ function AddressStep({
 
   return (
     <div>
-      <StepHeading title="Where should we come?" subtitle="Select a saved address or add a new one." />
+      <StepHeading
+        title="Where should we come?"
+        subtitle="Select a saved address or add a new one."
+      />
 
       {addresses.length > 0 ? (
         <div className="space-y-3">
@@ -706,14 +838,15 @@ function AddressStep({
                     ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                     : "border-line bg-surface hover:border-primary/40",
                 )}
-                data-testid={`select-address-${a.id}`}
-              >
+                data-testid={`select-address-${a.id}`}>
                 <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
                   <MapPin className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-display font-semibold text-ink">{a.label}</p>
+                    <p className="font-display font-semibold text-ink">
+                      {a.label}
+                    </p>
                     {a.coordinates && a.coordinates.length === 2 && (
                       <span className="rounded-pill bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
                         📍 Pinned
@@ -730,9 +863,17 @@ function AddressStep({
       ) : (
         <div className="py-8 text-center rounded-2xl border border-dashed border-line bg-surface-muted/40 p-6">
           <MapPin className="mx-auto size-8 text-muted" />
-          <p className="mt-2 font-display font-semibold text-ink">No addresses added yet</p>
-          <p className="text-xs text-muted mt-0.5">Add your address with exact map coordinates to continue.</p>
-          <Button size="sm" className="mt-4" onClick={() => setShowAddModal(true)} data-testid="add-first-address-btn">
+          <p className="mt-2 font-display font-semibold text-ink">
+            No addresses added yet
+          </p>
+          <p className="text-xs text-muted mt-0.5">
+            Add your address with exact map coordinates to continue.
+          </p>
+          <Button
+            size="sm"
+            className="mt-4"
+            onClick={() => setShowAddModal(true)}
+            data-testid="add-first-address-btn">
             <Plus className="size-4" /> Add your address
           </Button>
         </div>
@@ -743,9 +884,12 @@ function AddressStep({
           <div className="mb-2.5 flex items-center gap-2">
             <Crosshair className="size-4 text-primary" />
             <div>
-              <p className="font-display text-sm font-semibold text-ink">Drop your exact pin</p>
+              <p className="font-display text-sm font-semibold text-ink">
+                Drop your exact pin
+              </p>
               <p className="text-xs text-muted">
-                Move the map so the pin sits on your car. Your cleaner navigates to this exact spot.
+                Move the map so the pin sits on your car. Your cleaner navigates
+                to this exact spot.
               </p>
             </div>
           </div>
@@ -758,10 +902,16 @@ function AddressStep({
       )}
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-        <Button variant="outline" size="sm" onClick={() => setShowAddModal(true)} data-testid="add-new-address-btn">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowAddModal(true)}
+          data-testid="add-new-address-btn">
           <Plus className="size-4" /> Add a new address
         </Button>
-        <Link to="/app/profile/addresses?add=true" className="text-xs text-muted hover:text-primary transition-colors">
+        <Link
+          to="/app/profile/addresses?add=true"
+          className="text-xs text-muted hover:text-primary transition-colors">
           Manage all saved addresses
         </Link>
       </div>
@@ -819,7 +969,10 @@ function PaymentSummary({
   // choice that doesn't exist and that nothing downstream acted on.
   return (
     <div>
-      <StepHeading title="Payment" subtitle="Review your total and confirm the booking." />
+      <StepHeading
+        title="Payment"
+        subtitle="Review your total and confirm the booking."
+      />
 
       <div>
         <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-ink">
@@ -838,8 +991,7 @@ function PaymentSummary({
             <button
               onClick={clearDiscount}
               className="grid size-8 place-items-center rounded-full text-muted hover:bg-red-50 hover:text-red-500"
-              aria-label="Remove discount code"
-            >
+              aria-label="Remove discount code">
               <X className="size-4" />
             </button>
           </div>
@@ -857,8 +1009,7 @@ function PaymentSummary({
             <Button
               variant="outline"
               onClick={applyDiscount}
-              disabled={!discountInput.trim() || applying}
-            >
+              disabled={!discountInput.trim() || applying}>
               {applying ? <Loader2 className="size-4 animate-spin" /> : "Apply"}
             </Button>
           </div>
@@ -875,14 +1026,15 @@ function PaymentSummary({
               coinsUsed > 0
                 ? "border-amber-400/50 bg-amber-400/10 ring-2 ring-amber-400/20"
                 : "border-line bg-surface hover:border-amber-400/40",
-            )}
-          >
+            )}>
             <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
               <Coins className="size-4.5" />
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-ink">
-                {coinsUsed > 0 ? "Coins applied" : `Use your ${walletCoins.toLocaleString("en-IN")} coins`}
+                {coinsUsed > 0
+                  ? "Coins applied"
+                  : `Use your ${walletCoins.toLocaleString("en-IN")} coins`}
               </p>
               <p className="text-xs text-muted">
                 {coinsUsed > 0 && coinDiscount > 0
@@ -893,9 +1045,10 @@ function PaymentSummary({
             <span
               className={cn(
                 "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
-                coinsUsed > 0 ? "bg-amber-500 justify-end" : "bg-line justify-start",
-              )}
-            >
+                coinsUsed > 0
+                  ? "bg-amber-500 justify-end"
+                  : "bg-line justify-start",
+              )}>
               <span className="size-5 rounded-full bg-white shadow" />
             </span>
           </button>
@@ -914,22 +1067,32 @@ function PaymentSummary({
           )}
           {!!appliedDiscount?.discountAmount && (
             <div className="flex items-center justify-between">
-              <dt className="text-muted">Discount ({appliedDiscount.discountCode})</dt>
-              <dd className="text-emerald-600">−{formatMoney(appliedDiscount.discountAmount)}</dd>
+              <dt className="text-muted">
+                Discount ({appliedDiscount.discountCode})
+              </dt>
+              <dd className="text-emerald-600">
+                −{formatMoney(appliedDiscount.discountAmount)}
+              </dd>
             </div>
           )}
           {coinDiscount > 0 && (
             <div className="flex items-center justify-between">
-              <dt className="text-muted">Coins ({coinsUsed.toLocaleString("en-IN")})</dt>
+              <dt className="text-muted">
+                Coins ({coinsUsed.toLocaleString("en-IN")})
+              </dt>
               <dd className="text-emerald-600">−{formatMoney(coinDiscount)}</dd>
             </div>
           )}
-          <div className={cn(
-            "flex items-center justify-between",
-            (!!appliedDiscount?.discountAmount || coinDiscount > 0) && "border-t border-line pt-2.5",
-          )}>
+          <div
+            className={cn(
+              "flex items-center justify-between",
+              (!!appliedDiscount?.discountAmount || coinDiscount > 0) &&
+                "border-t border-line pt-2.5",
+            )}>
             <dt className="font-medium text-ink">Amount to pay</dt>
-            <dd className="font-display text-lg font-semibold text-ink">{formatMoney(total)}</dd>
+            <dd className="font-display text-lg font-semibold text-ink">
+              {formatMoney(total)}
+            </dd>
           </div>
         </dl>
         <p className="mt-3 border-t border-line pt-3 text-xs text-muted">
@@ -940,7 +1103,8 @@ function PaymentSummary({
       </div>
       {draft.vehicleType && (
         <p className="mt-4 text-xs text-muted">
-          Securing your slot for {categoryLabel(draft.vehicleType)} · {draft.slot}
+          Securing your slot for {categoryLabel(draft.vehicleType)} ·{" "}
+          {draft.slot}
         </p>
       )}
     </div>
@@ -979,12 +1143,18 @@ function OrderSummary({
   return (
     <GlassCard className="hidden h-fit lg:block lg:sticky lg:top-24">
       <p className="font-display text-lg font-semibold text-ink">Summary</p>
-      <p className="mt-1 text-xs text-muted">Step {step + 1} of {STEP_LABELS.length}</p>
+      <p className="mt-1 text-xs text-muted">
+        Step {step + 1} of {STEP_LABELS.length}
+      </p>
       <dl className="mt-5 space-y-3">
         {rows.map((r) => (
-          <div key={r.label} className="flex items-start justify-between gap-4 text-sm">
+          <div
+            key={r.label}
+            className="flex items-start justify-between gap-4 text-sm">
             <dt className="text-muted">{r.label}</dt>
-            <dd className="max-w-[60%] text-right font-medium text-ink">{r.value}</dd>
+            <dd className="max-w-[60%] text-right font-medium text-ink">
+              {r.value}
+            </dd>
           </div>
         ))}
         {discount?.discountCode && discount.discountAmount > 0 && (
@@ -997,7 +1167,9 @@ function OrderSummary({
         )}
         {discount && discount.coinDiscount > 0 && (
           <div className="flex items-start justify-between gap-4 text-sm">
-            <dt className="text-muted">Coins ({discount.coinsRedeemed.toLocaleString("en-IN")})</dt>
+            <dt className="text-muted">
+              Coins ({discount.coinsRedeemed.toLocaleString("en-IN")})
+            </dt>
             <dd className="max-w-[60%] text-right font-medium text-amber-600">
               −{formatMoney(discount.coinDiscount)}
             </dd>
@@ -1040,13 +1212,15 @@ function Confirmation({ booking }: { booking: Booking }) {
         initial={{ scale: 0, rotate: -20 }}
         animate={{ scale: 1, rotate: 0 }}
         transition={{ type: "spring", stiffness: 200, damping: 14 }}
-        className="mx-auto grid size-20 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-white shadow-[var(--shadow-glow)]"
-      >
+        className="mx-auto grid size-20 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-white shadow-[var(--shadow-glow)]">
         <CheckCircle2 className="size-10" />
       </motion.div>
-      <h1 className="mt-6 font-display text-3xl font-semibold text-ink">Booking confirmed!</h1>
+      <h1 className="mt-6 font-display text-3xl font-semibold text-ink">
+        Booking confirmed!
+      </h1>
       <p className="mt-2 text-muted">
-        We're finding you the nearest available cleaner — taking you to live tracking…
+        We're finding you the nearest available cleaner — taking you to live
+        tracking…
       </p>
       <p className="mt-1 text-xs text-muted">
         Booking ID <span className="font-medium text-ink">{booking.id}</span>
@@ -1060,7 +1234,10 @@ function Confirmation({ booking }: { booking: Booking }) {
             label="When"
             value={`${new Date(booking.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })} · ${booking.slot}`}
           />
-          <Row label="Address" value={`${booking.addressLabel} — ${booking.addressLine}`} />
+          <Row
+            label="Address"
+            value={`${booking.addressLabel} — ${booking.addressLine}`}
+          />
           {!!booking.discountAmount && (
             <Row
               label={`Discount${booking.discountCode ? ` (${booking.discountCode})` : ""}`}
@@ -1100,7 +1277,9 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <span className="text-muted">{label}</span>
-      <span className="max-w-[60%] text-right font-medium text-ink">{value}</span>
+      <span className="max-w-[60%] text-right font-medium text-ink">
+        {value}
+      </span>
     </div>
   );
 }

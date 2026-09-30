@@ -49,7 +49,9 @@ import type {
   AssignableAgent,
   AdminPayoutRequest,
   PayoutRequestStatus,
+  TimeSlotConfig,
 } from "../types";
+
 
 
 const keys = {
@@ -92,7 +94,9 @@ const keys = {
   dispatch: ["admin", "dispatch"] as const,
   assignable: (id: string) => ["admin", "bookings", id, "assignable"] as const,
   payoutRequests: (status?: string) => ["admin", "payout-requests", status ?? "all"] as const,
+  timeSlots: ["admin", "time-slots"] as const,
 };
+
 
 
 function useAuthedQuery<T>(
@@ -1005,6 +1009,22 @@ export function useDeleteStaff() {
   return useMutation({
     mutationFn: (id: string) => apiFetch<{ success: boolean }>(`/admin/staff/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.staff }),
+  });
+}
+
+/* ----------------------------- Time Slots ---------------------------------- */
+
+export const useTimeSlots = () =>
+  useAuthedQuery<TimeSlotConfig>(keys.timeSlots, "/admin/time-slots");
+
+export function useUpdateTimeSlots() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { slots: string[] }) =>
+      apiFetch<TimeSlotConfig>("/admin/time-slots", { method: "PUT", body: vars }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.timeSlots });
+    },
   });
 }
 

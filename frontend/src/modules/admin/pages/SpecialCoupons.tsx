@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Sparkles, Search, RotateCcw, UserPlus, Clock, FileSpreadsheet } from "lucide-react";
+import { Plus, Sparkles, Search, RotateCcw, UserPlus, Clock, FileSpreadsheet, X } from "lucide-react";
+
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
@@ -239,11 +240,15 @@ function CouponRow({ coupon }: { coupon: SpecialCoupon }) {
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-mono text-sm font-semibold text-ink">{coupon.code}</p>
             <Badge className={statusBadgeClass(coupon.status)}>{coupon.status}</Badge>
+            <span className="rounded-md bg-surface-muted px-1.5 py-0.5 font-mono text-[10px] text-muted">
+              Batch #{coupon.batchId.slice(-6)}
+            </span>
             {coupon.offPeakOnly && (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600">
                 <Clock className="size-3" /> Off-peak only
               </span>
             )}
+
           </div>
           <p className="text-xs text-muted">
             {discountLabel(coupon)}
@@ -309,44 +314,85 @@ function CouponRow({ coupon }: { coupon: SpecialCoupon }) {
 
 function CouponBatches() {
   const { data: coupons = [], isLoading } = useSpecialCoupons();
+  const [search, setSearch] = useState("");
 
-  const batches = useMemo(() => {
-    const map = new Map<string, SpecialCoupon[]>();
-    for (const c of coupons) {
-      const list = map.get(c.batchId) ?? [];
-      list.push(c);
-      map.set(c.batchId, list);
-    }
-    return Array.from(map.entries());
-  }, [coupons]);
+  const filteredCoupons = useMemo(() => {
+    if (!search.trim()) return coupons;
+    const q = search.toLowerCase().trim();
+    return coupons.filter((c) => {
+      const code = c.code.toLowerCase();
+      const customerName = (c.assignedCustomer?.name ?? "").toLowerCase();
+      const customerPhone = (c.assignedCustomer?.phone ?? "").toLowerCase();
+      const batch = c.batchId.toLowerCase();
+      const status = c.status.toLowerCase();
+      return (
+        code.includes(q) ||
+        customerName.includes(q) ||
+        customerPhone.includes(q) ||
+        batch.includes(q) ||
+        status.includes(q)
+      );
+    });
+  }, [coupons, search]);
 
-  const paginated = usePagination(batches, 5);
+  const paginated = usePagination(filteredCoupons, 10);
 
   if (isLoading) return <p className="text-sm text-muted">Loading coupons…</p>;
-  if (batches.length === 0) return <p className="text-sm text-muted">No special coupons yet. Generate a batch above.</p>;
+  if (coupons.length === 0) return <p className="text-sm text-muted">No special coupons yet. Generate a batch above.</p>;
 
   return (
-    <div className="space-y-5">
-      {paginated.pageItems.map(([batchId, batch]) => (
-        <GlassCard key={batchId} className="space-y-3">
-          <p className="text-sm font-semibold text-ink">
-            Batch of {batch.length} · generated {new Date(batch[0].createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-          </p>
-          <div className="space-y-2">
-            {batch.map((c) => (
-              <CouponRow key={c.id} coupon={c} />
-            ))}
-          </div>
-        </GlassCard>
-      ))}
+    <GlassCard className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-5 text-primary" />
+          <p className="font-display text-lg font-semibold text-ink">Coupons List</p>
+          <span className="rounded-full bg-surface-muted px-2.5 py-0.5 text-xs font-medium text-muted">
+            {filteredCoupons.length} {filteredCoupons.length === 1 ? "coupon" : "coupons"}
+          </span>
+        </div>
+
+        <div className="relative min-w-[240px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search code, customer, batch…"
+            className="h-10 w-full rounded-2xl border border-line bg-surface pl-9 pr-8 text-xs text-ink outline-none transition-all placeholder:text-muted focus:border-primary/50"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink cursor-pointer"
+              aria-label="Clear search"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {paginated.pageItems.map((c) => (
+          <CouponRow key={c.id} coupon={c} />
+        ))}
+      </div>
+
+      {filteredCoupons.length === 0 && (
+        <p className="py-8 text-center text-sm text-muted">
+          {search ? `No special coupons match "${search}".` : "No special coupons found."}
+        </p>
+      )}
+
       <Pagination
         page={paginated.page}
         totalPages={paginated.totalPages}
         onPageChange={paginated.setPage}
       />
-    </div>
+    </GlassCard>
   );
 }
+
 
 export function SpecialCoupons() {
   // React Query dedupes this against CouponBatches' own useSpecialCoupons()

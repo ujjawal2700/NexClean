@@ -41,7 +41,13 @@ import { Button } from "@shared/ui/Button";
 import { useAdminSession } from "../store/sessionStore";
 import { useAgents, useLeads, useAdminMe } from "../api/admin.api";
 
-type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean; permission: string };
+type NavItem = {
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  end?: boolean;
+  permission: string;
+};
 type NavGroup = { id: string; label: string; items: NavItem[] };
 
 /**
@@ -54,28 +60,85 @@ const NAV_GROUPS: NavGroup[] = [
     id: "overview",
     label: "Overview",
     items: [
-      { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true, permission: "dashboard" },
-      { to: "/admin/reports", label: "Reports", icon: BarChart3, permission: "reports" },
+      {
+        to: "/admin",
+        label: "Dashboard",
+        icon: LayoutDashboard,
+        end: true,
+        permission: "dashboard",
+      },
+      {
+        to: "/admin/reports",
+        label: "Reports",
+        icon: BarChart3,
+        permission: "reports",
+      },
     ],
   },
   {
     id: "operations",
     label: "Operations",
     items: [
-      { to: "/admin/bookings", label: "Bookings", icon: CalendarRange, permission: "bookings" },
-      { to: "/admin/dispatch", label: "Dispatch", icon: Radio, permission: "bookings" },
-      { to: "/admin/off-peak-hours", label: "Off-Peak Hours", icon: Clock, permission: "off-peak-hours" },
-      { to: "/admin/area-alerts", label: "Area Alerts", icon: Radar, permission: "area-alerts" },
-      { to: "/admin/support", label: "Support Chat", icon: MessageSquare, permission: "chat" },
+      {
+        to: "/admin/bookings",
+        label: "Bookings",
+        icon: CalendarRange,
+        permission: "bookings",
+      },
+      {
+        to: "/admin/dispatch",
+        label: "Dispatch",
+        icon: Radio,
+        permission: "bookings",
+      },
+      {
+        to: "/admin/off-peak-hours",
+        label: "Off-Peak Hours",
+        icon: Clock,
+        permission: "off-peak-hours",
+      },
+      {
+        to: "/admin/time-slots",
+        label: "Time Slots",
+        icon: Clock,
+        permission: "time-slots",
+      },
+      {
+        to: "/admin/area-alerts",
+        label: "Area Alerts",
+        icon: Radar,
+        permission: "area-alerts",
+      },
+      {
+        to: "/admin/support",
+        label: "Support Chat",
+        icon: MessageSquare,
+        permission: "chat",
+      },
     ],
   },
   {
     id: "people",
     label: "People",
     items: [
-      { to: "/admin/customers", label: "Customers", icon: Contact2, permission: "customers" },
-      { to: "/admin/agents", label: "Agents", icon: Users, permission: "agents" },
-      { to: "/admin/agent-verification", label: "Agent Verification", icon: BadgeCheck, permission: "agents" },
+      {
+        to: "/admin/customers",
+        label: "Customers",
+        icon: Contact2,
+        permission: "customers",
+      },
+      {
+        to: "/admin/agents",
+        label: "Agents",
+        icon: Users,
+        permission: "agents",
+      },
+      {
+        to: "/admin/agent-verification",
+        label: "Agent Verification",
+        icon: BadgeCheck,
+        permission: "agents",
+      },
       { to: "/admin/leads", label: "Leads", icon: Rocket, permission: "leads" },
     ],
   },
@@ -86,38 +149,115 @@ const NAV_GROUPS: NavGroup[] = [
     id: "finance",
     label: "Finance",
     items: [
-      { to: "/admin/payments", label: "Payments", icon: Wallet, permission: "payments" },
-      { to: "/admin/refunds", label: "Refunds", icon: Undo2, permission: "payments" },
-      { to: "/admin/agent-payouts", label: "Agent Payouts", icon: HandCoins, permission: "agent-payouts" },
-      { to: "/admin/payout-requests", label: "Payout Requests", icon: Banknote, permission: "payout-requests" },
-      { to: "/admin/pricing", label: "Pricing", icon: Tag, permission: "pricing" },
-      { to: "/admin/plans", label: "Plans", icon: CreditCard, permission: "plans" },
+      {
+        to: "/admin/payments",
+        label: "Payments",
+        icon: Wallet,
+        permission: "payments",
+      },
+      {
+        to: "/admin/refunds",
+        label: "Refunds",
+        icon: Undo2,
+        permission: "payments",
+      },
+      {
+        to: "/admin/agent-payouts",
+        label: "Agent Payouts",
+        icon: HandCoins,
+        permission: "agent-payouts",
+      },
+      {
+        to: "/admin/payout-requests",
+        label: "Payout Requests",
+        icon: Banknote,
+        permission: "payout-requests",
+      },
+      {
+        to: "/admin/pricing",
+        label: "Pricing",
+        icon: Tag,
+        permission: "pricing",
+      },
+      {
+        to: "/admin/plans",
+        label: "Plans",
+        icon: CreditCard,
+        permission: "plans",
+      },
     ],
   },
   {
     id: "catalog",
     label: "Catalog",
     items: [
-      { to: "/admin/vehicle-categories", label: "Vehicle Categories", icon: Layers, permission: "vehicle-categories" },
-      { to: "/admin/vehicle-brands", label: "Vehicle Brands", icon: Car, permission: "vehicle-brands" },
-      { to: "/admin/locations", label: "Locations", icon: MapPin, permission: "locations" },
+      {
+        to: "/admin/vehicle-categories",
+        label: "Vehicle Categories",
+        icon: Layers,
+        permission: "vehicle-categories",
+      },
+      {
+        to: "/admin/vehicle-brands",
+        label: "Vehicle Brands",
+        icon: Car,
+        permission: "vehicle-brands",
+      },
+      {
+        to: "/admin/locations",
+        label: "Locations",
+        icon: MapPin,
+        permission: "locations",
+      },
     ],
   },
   {
     id: "growth",
     label: "Growth",
     items: [
-      { to: "/admin/promotions", label: "Coupon & Promotions", icon: Ticket, permission: "promotions" },
-      { to: "/admin/special-coupons", label: "Special Coupons", icon: Sparkles, permission: "special-coupons" },
-      { to: "/admin/referrals", label: "Referrals", icon: Gift, permission: "referrals" },
-      { to: "/admin/notifications", label: "Notifications", icon: Megaphone, permission: "notifications" },
-      { to: "/admin/content", label: "Content", icon: FileText, permission: "content" },
+      {
+        to: "/admin/promotions",
+        label: "Coupon & Promotions",
+        icon: Ticket,
+        permission: "promotions",
+      },
+      {
+        to: "/admin/special-coupons",
+        label: "Special Coupons",
+        icon: Sparkles,
+        permission: "special-coupons",
+      },
+      {
+        to: "/admin/referrals",
+        label: "Referrals",
+        icon: Gift,
+        permission: "referrals",
+      },
+      {
+        to: "/admin/notifications",
+        label: "Notifications",
+        icon: Megaphone,
+        permission: "notifications",
+      },
+      {
+        to: "/admin/content",
+        label: "Content",
+        icon: FileText,
+        permission: "content",
+      },
     ],
   },
   {
     id: "system",
     label: "System",
-    items: [{ to: "/admin/roles", label: "Role Management", icon: ShieldCheck, permission: "roles" }],
+    items: [
+      {
+        to: "/admin/roles",
+        label: "Role Management",
+        icon: ShieldCheck,
+        permission: "roles",
+      },
+    ],
   },
 ];
 
@@ -133,7 +273,6 @@ function loadCollapsed(): string[] {
   }
 }
 
-
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<string[]>(loadCollapsed);
@@ -148,11 +287,16 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => {
-      const hasPermission = permissions.includes("*") || permissions.includes(item.permission);
+      const hasPermission =
+        permissions.includes("*") || permissions.includes(item.permission);
       if (!hasPermission) return false;
       // Searching matches the group name too, so "money" surfaces everything
       // filed under it without the admin having to recall each screen's name.
-      return !query || item.label.toLowerCase().includes(query) || group.label.toLowerCase().includes(query);
+      return (
+        !query ||
+        item.label.toLowerCase().includes(query) ||
+        group.label.toLowerCase().includes(query)
+      );
     }),
     // A group whose every screen is off-limits to this role disappears entirely
     // rather than leaving an empty heading behind.
@@ -162,7 +306,9 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
 
   const toggleGroup = (id: string) => {
     setCollapsed((prev) => {
-      const next = prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id];
+      const next = prev.includes(id)
+        ? prev.filter((g) => g !== id)
+        : [...prev, id];
       try {
         localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next));
       } catch {
@@ -187,8 +333,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           <button
             onClick={() => setSearch("")}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
-            aria-label="Clear search"
-          >
+            aria-label="Clear search">
             <X className="size-3.5" />
           </button>
         )}
@@ -199,8 +344,11 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           // While searching, show every match; and never hide the group holding
           // the page you're currently on, or the sidebar loses its "you are
           // here" marker the moment that group is folded.
-          const holdsActive = group.items.some((i) => (i.end ? pathname === i.to : pathname.startsWith(i.to)));
-          const isOpen = !!query || holdsActive || !collapsed.includes(group.id);
+          const holdsActive = group.items.some((i) =>
+            i.end ? pathname === i.to : pathname.startsWith(i.to),
+          );
+          const isOpen =
+            !!query || holdsActive || !collapsed.includes(group.id);
 
           return (
             <div key={group.id} className="flex flex-col gap-1">
@@ -208,15 +356,20 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
                 type="button"
                 onClick={() => toggleGroup(group.id)}
                 aria-expanded={isOpen}
-                className="flex items-center justify-between px-3.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted transition-colors hover:text-ink"
-              >
+                className="flex items-center justify-between px-3.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted transition-colors hover:text-ink">
                 <span>{group.label}</span>
-                <ChevronDown className={cn("size-3 transition-transform", !isOpen && "-rotate-90")} />
+                <ChevronDown
+                  className={cn(
+                    "size-3 transition-transform",
+                    !isOpen && "-rotate-90",
+                  )}
+                />
               </button>
 
               {isOpen &&
                 group.items.map((item) => {
-                  const isVerification = item.to === "/admin/agent-verification";
+                  const isVerification =
+                    item.to === "/admin/agent-verification";
                   const isLeads = item.to === "/admin/leads";
                   return (
                     <NavLink
@@ -227,10 +380,11 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
                       className={({ isActive }) =>
                         cn(
                           "flex items-center justify-between rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors",
-                          isActive ? "bg-primary/10 text-primary" : "text-ink-soft hover:bg-surface-muted hover:text-ink",
+                          isActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-ink-soft hover:bg-surface-muted hover:text-ink",
                         )
-                      }
-                    >
+                      }>
                       <span className="flex items-center gap-3">
                         <item.icon className="size-[18px]" />
                         <span>{item.label}</span>
@@ -252,7 +406,9 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
         {totalItems === 0 && (
-          <p className="px-3 py-6 text-center text-xs text-muted">No sections match "{search}"</p>
+          <p className="px-3 py-6 text-center text-xs text-muted">
+            No sections match "{search}"
+          </p>
         )}
       </nav>
     </div>
@@ -262,8 +418,15 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
 export function AdminLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { token, name, clear, permissions = [], setSession } = useAdminSession();
+  const {
+    token,
+    name,
+    clear,
+    permissions = [],
+    setSession,
+  } = useAdminSession();
   const [open, setOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const { data: me, error } = useAdminMe();
 
@@ -271,6 +434,15 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     clear();
     qc.clear();
     navigate("/admin/login");
+  };
+
+  const handleLogoutClick = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutConfirm(false);
+    onLogout();
   };
 
   useEffect(() => {
@@ -284,6 +456,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       onLogout();
     }
   }, [error]);
+
 
   return (
     <div className="min-h-dvh bg-bg">
@@ -299,9 +472,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           <NavItems />
         </div>
         <button
-          onClick={onLogout}
-          className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-muted"
-        >
+          onClick={handleLogoutClick}
+          className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-muted">
           <LogOut className="size-[18px] " /> Log out
         </button>
       </aside>
@@ -309,7 +481,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       {/* mobile drawer */}
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-ink/30 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div
+            className="absolute inset-0 bg-ink/30 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          />
           <aside className="absolute inset-y-0 left-0 flex w-64 flex-col border-r border-line bg-surface px-4 py-5">
             <div className="flex items-center justify-between px-2.5">
               <Logo variant="full" />
@@ -317,13 +492,14 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 <X className="size-5 text-muted" />
               </button>
             </div>
-            <div className="mt-8 flex-1 overflow-y-auto" data-lenis-prevent="true">
+            <div
+              className="mt-8 flex-1 overflow-y-auto"
+              data-lenis-prevent="true">
               <NavItems onNavigate={() => setOpen(false)} />
             </div>
             <button
-              onClick={onLogout}
-              className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-ink-soft hover:bg-surface-muted"
-            >
+              onClick={handleLogoutClick}
+              className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-ink-soft hover:bg-surface-muted">
               <LogOut className="size-[18px]" /> Log out
             </button>
           </aside>
@@ -333,7 +509,10 @@ export function AdminLayout({ children }: { children: ReactNode }) {
       {/* main */}
       <div className="lg:pl-64">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-line/70 bg-surface/80 px-5 backdrop-blur-xl">
-          <button className="lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
+          <button
+            className="lg:hidden"
+            onClick={() => setOpen(true)}
+            aria-label="Open menu">
             <Menu className="size-6 text-ink" />
           </button>
           <div className="hidden lg:block" />
@@ -341,10 +520,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             <button
               onClick={() => navigate("/admin/profile")}
               title="Click to edit profile & change password"
-              className="flex items-center gap-3 rounded-2xl p-1.5 transition-all hover:bg-surface-muted/80 cursor-pointer group"
-            >
+              className="flex items-center gap-3 rounded-2xl p-1.5 transition-all hover:bg-surface-muted/80 cursor-pointer group">
               <div className="text-right">
-                <p className="text-sm font-medium text-ink group-hover:text-primary transition-colors">{name}</p>
+                <p className="text-sm font-medium text-ink group-hover:text-primary transition-colors">
+                  {name}
+                </p>
                 <p className="text-xs text-muted">
                   {permissions?.includes("*") ? "Super Admin" : "Staff Member"}
                 </p>
@@ -353,15 +533,57 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 {name.slice(0, 1).toUpperCase()}
               </span>
             </button>
-            <Button variant="ghost" size="sm" onClick={onLogout} className="lg:hidden" aria-label="Log out">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogoutClick}
+              className="lg:hidden"
+              aria-label="Log out">
               <LogOut className="size-4" />
             </Button>
           </div>
-
         </header>
 
         <main className="px-5 py-8 md:px-8">{children}</main>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-ink/40 backdrop-blur-sm"
+            onClick={() => setShowLogoutConfirm(false)}
+          />
+          <div className="relative w-full max-w-sm rounded-3xl border border-line bg-surface p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 grid size-12 place-items-center rounded-2xl bg-red-500/10 text-red-600">
+                <LogOut className="size-6" />
+              </div>
+              <h3 className="font-display text-lg font-semibold text-ink">Confirm Logout</h3>
+              <p className="mt-1.5 text-xs text-muted leading-relaxed">
+                Are you sure you want to log out of the admin console? You will need to sign in again to access administrative tools.
+              </p>
+            </div>
+
+            <div className="mt-6 flex items-center gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowLogoutConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white shadow-sm"
+                onClick={confirmLogout}
+              >
+                Log out
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
