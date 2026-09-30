@@ -46,7 +46,10 @@ export async function loginCustomerUI(page: Page, phone: string = freshPhone()):
   await expect(page.locator("h1")).toHaveText("Verify your number", { timeout: 15_000 });
   await page.locator('input[name="otp"]').fill(DEMO_OTP);
   await page.getByRole("button", { name: "Verify & continue" }).click();
-  await page.waitForURL(/\/app$/);
+  // These are React-router transitions, not document navigations. Waiting for
+  // Playwright's default `load` state can hang even after the destination is
+  // fully rendered when a long-lived browser resource is still open.
+  await expect(page).toHaveURL(/\/app$/, { timeout: 15_000 });
   return phone;
 }
 
@@ -62,7 +65,7 @@ export async function loginAgentUI(page: Page, phone: string = SEED_AGENT_PHONE)
   await expect(page.locator("h1")).toHaveText("Verify your number", { timeout: 15_000 });
   await page.locator('input[name="otp"]').fill(DEMO_OTP);
   await page.getByRole("button", { name: "Verify & continue" }).click();
-  await page.waitForURL(/\/agent$/);
+  await expect(page).toHaveURL(/\/agent$/, { timeout: 15_000 });
 }
 
 /** Logs the seeded super admin in through /admin/login and lands on /admin. */
@@ -79,7 +82,7 @@ export async function loginAdminUI(
   await emailInput.fill(email);
   await page.locator('input[name="password"]').fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL(/\/admin$/);
+  await expect(page).toHaveURL(/\/admin$/, { timeout: 15_000 });
 }
 
 /** Registers a one-shot native `window.confirm`/`window.alert` auto-accept handler before a triggering click. */

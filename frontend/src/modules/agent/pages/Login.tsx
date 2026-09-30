@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Link, useNavigate, Navigate } from "react-router-dom";
 import { Phone, ArrowRight, ArrowLeft, Loader2, BadgeCheck, UserX, Mail, MapPin, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { AccountNotFoundDialog } from "@shared/components/AccountNotFoundDialog";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Badge } from "@shared/ui/Badge";
 import { Input } from "@shared/ui/Input";
@@ -24,7 +25,9 @@ export function Login() {
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
   const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
+  const [showNotRegisteredModal, setShowNotRegisteredModal] = useState(false);
   const phoneRef = useRef("");
+  const phoneInputRef = useRef<HTMLInputElement>(null);
 
   const sendOtp = useSendOtp();
   const verifyOtp = useVerifyOtp();
@@ -39,7 +42,17 @@ export function Login() {
       await sendOtp.mutateAsync(phone);
       setStep("otp");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn't send OTP. Is the API running?");
+      const msg = e instanceof ApiError ? e.message : "";
+      if (msg.includes("NOT_REGISTERED")) {
+        setShowNotRegisteredModal(true);
+      } else if (msg.includes("ACCOUNT_DEACTIVATED")) {
+        setShowDeactivatedModal(true);
+        setError("Your agent account has been deactivated.");
+      } else if (msg.includes("NOT_AN_AGENT")) {
+        setError("This number belongs to a customer account. Use a different number to join as an agent.");
+      } else {
+        setError(msg || "Couldn't send OTP. Is the API running?");
+      }
     }
   };
 
@@ -57,7 +70,9 @@ export function Login() {
       navigate("/agent", { replace: true });
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
-      if (msg.includes("ACCOUNT_DEACTIVATED") || msg.includes("deactivated") || msg.includes("suspended")) {
+      if (msg.includes("NOT_REGISTERED")) {
+        setShowNotRegisteredModal(true);
+      } else if (msg.includes("ACCOUNT_DEACTIVATED") || msg.includes("deactivated") || msg.includes("suspended")) {
         setShowDeactivatedModal(true);
         setError("Your agent account has been deactivated.");
       } else {
@@ -85,6 +100,7 @@ export function Login() {
               <p className="mt-2 text-sm text-muted">Sign in to see today's jobs and start earning.</p>
               <div className="mt-6 space-y-4">
                 <Input
+                  ref={phoneInputRef}
                   name="phone"
                   type="tel"
                   autoComplete="tel"
@@ -211,6 +227,22 @@ export function Login() {
             </div>
           </GlassCard>
         </div>
+      )}
+
+      {showNotRegisteredModal && (
+        <AccountNotFoundDialog
+          audience="agent"
+          phone={phoneRef.current || phone}
+          onClose={() => {
+            setShowNotRegisteredModal(false);
+            window.requestAnimationFrame(() => phoneInputRef.current?.focus());
+          }}
+          onSignUp={() => {
+            const targetPhone = phoneRef.current || phone;
+            setShowNotRegisteredModal(false);
+            navigate(`/agent/signup?phone=${targetPhone}`);
+          }}
+        />
       )}
     </main>
   );

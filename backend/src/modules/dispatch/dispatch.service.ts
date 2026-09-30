@@ -15,12 +15,12 @@ import {
   revokeAgentTracking,
 } from "../tracking/tracking.service";
 import {
-  OFFER_TTL_MS,
   OFFER_BATCH,
   SWEEP_INTERVAL_MS,
   SUBSCRIPTION_LEAD_MS,
   REMINDER_TICK_MS,
 } from "./dispatch.config";
+import { getOfferTtlMs } from "./dispatchConfig.service";
 import { runBookingReminders } from "../booking/reminder.service";
 
 /* ----------------------------- helpers ---------------------------------- */
@@ -212,7 +212,7 @@ export async function offerNext(bookingId: string): Promise<void> {
         continue;
       }
 
-      const expiresAt = new Date(Date.now() + OFFER_TTL_MS);
+      const expiresAt = new Date(Date.now() + (await getOfferTtlMs()));
       // Claim the booking as well as the agent. Two HTTP/worker paths can both
       // enter offerNext (timeout + decline, reconnect recovery, etc.). The
       // agent lock alone is insufficient: each path could lock a different

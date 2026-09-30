@@ -29,6 +29,7 @@ import {
 } from "../api/admin.api";
 import type { DispatchQueueItem, DispatchStatus } from "../types";
 import { TrackingModal } from "../components/TrackingModal";
+import { OfferTimerCard } from "../components/OfferTimerCard";
 
 const STATUS_STYLE: Record<DispatchStatus, string> = {
   pending_admin: "bg-red-500/10 text-red-600 border-red-500/20",
@@ -127,6 +128,8 @@ export function Dispatch() {
           </span>
         </div>
       </div>
+
+      <OfferTimerCard />
 
       {pendingCount > 0 && (
         <div className="flex items-center gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-600">

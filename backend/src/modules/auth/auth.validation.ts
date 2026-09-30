@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const sendOtpSchema = z.object({
   phone: z.string().regex(/^\+?[\d\s]{10,15}$/, "Enter a valid phone number"),
+  /** Which app is logging in; lets login-OTP reject a number of the wrong kind up front. */
+  role: z.enum(["customer", "agent"]).optional(),
 });
 
 export const verifyOtpSchema = z.object({
@@ -26,7 +28,10 @@ export const customerSignupSchema = z.object({
   termsAccepted: z.literal(true, { errorMap: () => ({ message: "Terms & Conditions acceptance is required" }) }),
 });
 
-const dataUri = z.string().regex(/^data:image\/[a-zA-Z+]+;base64,/, "Upload a valid image");
+const dataUri = z
+  .string()
+  .max(500_000, "Image is too large. Convert it to WebP and try again")
+  .regex(/^data:image\/[a-zA-Z+]+;base64,/, "Upload a valid image");
 
 export const agentSignupSchema = z.object({
   name: z.string().trim().min(2, "Enter your full name"),

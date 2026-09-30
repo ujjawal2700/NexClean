@@ -1,10 +1,13 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { FileText, ShieldCheck } from "lucide-react";
 import { Button } from "@shared/ui/Button";
-import { Markdown } from "@shared/components/Markdown";
 import { useSiteContent } from "@shared/hooks/useSiteContent";
 import type { ProsePage } from "@shared/types/content";
+
+// Lazy: the markdown stack is ~115 kB and is only needed once someone opens
+// the Terms/Privacy dialog — not on every load of the login screen.
+const Markdown = lazy(() => import("@shared/components/Markdown").then((m) => ({ default: m.Markdown })));
 
 type LegalConsentProps = {
   checked: boolean;
@@ -120,7 +123,9 @@ function LegalDocumentDialog({
               "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2",
             ].join(" ")}
           >
-            <Markdown>{page.body}</Markdown>
+            <Suspense fallback={<p className="text-muted">Loading…</p>}>
+              <Markdown>{page.body}</Markdown>
+            </Suspense>
           </div>
         </div>
 

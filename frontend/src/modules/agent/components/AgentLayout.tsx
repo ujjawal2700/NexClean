@@ -12,6 +12,7 @@ import {
   useAgentNotifications,
 } from "../api/agent.api";
 import { useAgentDispatch } from "../hooks/useAgentDispatch";
+import { requestCurrentDeviceFix } from "../hooks/useDeviceLocation";
 import { OfferOverlay } from "./OfferOverlay";
 
 const HEARTBEAT_INTERVAL_MS = 25_000;
@@ -67,9 +68,23 @@ export function OnlineToggle() {
   const toggle = useToggleOnline();
   const online = me?.online ?? false;
   const isUnverified = me?.agentStatus !== "verified";
+  const handleToggle = async () => {
+    if (online) {
+      toggle.mutate({ online: false });
+      return;
+    }
+    try {
+      const fix = await requestCurrentDeviceFix();
+      toggle.mutate({ online: true, lat: fix.lat, lng: fix.lng });
+    } catch {
+      // Going online still succeeds; the existing location nudge explains how
+      // to enable GPS, and the shared watcher will recover if permission changes.
+      toggle.mutate({ online: true });
+    }
+  };
   return (
     <button
-      onClick={() => toggle.mutate(!online)}
+      onClick={() => void handleToggle()}
       disabled={toggle.isPending || isUnverified}
       className={cn(
         "flex items-center gap-2 rounded-pill border px-3 py-1.5 text-sm font-medium transition-colors",

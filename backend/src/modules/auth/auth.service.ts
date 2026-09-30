@@ -11,6 +11,7 @@ import type { CustomerSignupInput, AgentSignupInput, AgentSignupBasicInput } fro
 import { LEGAL_DOCUMENT_VERSION } from "../../shared/legalDocuments";
 import { verifyPassword, hashPassword } from "../../shared/utils/crypto";
 import { sendSmsOtp } from "../../shared/services/sms";
+import { uploadImage } from "../../shared/utils/cloudinary";
 
 /** Where a signup came from, used purely for referral-abuse detection. */
 export type SignupOrigin = { ip?: string; deviceId?: string; userAgent?: string };
@@ -102,12 +103,24 @@ export async function sendSignupOtp(rawPhone: string): Promise<{ sent: boolean }
   return sendOtp(phone);
 }
 
-/** Send an OTP for login, verifying first that a user exists with this phone. */
-export async function sendLoginOtp(rawPhone: string): Promise<{ sent: boolean }> {
+/**
+ * Send an OTP for login, verifying first that a user exists with this phone.
+ * With `role: "agent"` the account must also be an agent's — checked here so
+ * the agent app can say so before an OTP is spent, not after the code is typed.
+ */
+export async function sendLoginOtp(
+  rawPhone: string,
+  role?: "customer" | "agent",
+): Promise<{ sent: boolean }> {
   const phone = normalize(rawPhone);
   const existing = await User.findOne({ phone });
   if (!existing) {
     throw ApiError.notFound("NOT_REGISTERED: This mobile number is not registered. Kindly sign up first.");
+  }
+  if (role === "agent" && existing.role !== "agent") {
+    throw ApiError.badRequest(
+      "NOT_AN_AGENT: This number belongs to a customer account. Use a different number to sign up as an agent.",
+    );
   }
   if (existing.status === "suspended") {
     throw ApiError.forbidden("ACCOUNT_DEACTIVATED: Your account is deactivated. Please contact customer support for assistance.");
@@ -233,30 +246,32 @@ export async function customerSignup(input: CustomerSignupInput, origin: SignupO
 export async function agentSignup(input: AgentSignupInput, origin: SignupOrigin = {}) {
   const phone = normalize(input.phone);
   let user = await User.findOne({ phone });
-  
+  if (user && user.agentStatus !== "unverified" && user.agentStatus !== "pending") {
+    throw ApiError.badRequest("An account with this number already exists. Please log in.");
+  }
+  if ((!user || !user.legalConsent) && (!input.privacyAccepted || !input.termsAccepted)) {
+    throw ApiError.badRequest("Please accept the Privacy Policy and Terms & Conditions");
+  }
+
+  const [aadharFrontUrl, aadharBackUrl] = await Promise.all([
+    uploadImage(input.aadharFront, { folder: "nexclean/kyc" }),
+    uploadImage(input.aadharBack, { folder: "nexclean/kyc" }),
+  ]);
+
   if (user) {
-    if (user.agentStatus !== "unverified") {
-      throw ApiError.badRequest("An account with this number already exists. Please log in.");
-    }
     user.aadharNumber = input.aadharNumber;
-    user.aadharFrontUrl = input.aadharFront;
-    user.aadharBackUrl = input.aadharBack;
+    user.aadharFrontUrl = aadharFrontUrl;
+    user.aadharBackUrl = aadharBackUrl;
     user.agentStatus = "pending";
     // The KYC step re-submits the details form, so a cleaner who corrected
     // their location between the two steps gets the corrected value.
     if (input.city) user.city = input.city;
     if (input.area) user.area = input.area;
     if (!user.legalConsent) {
-      if (!input.privacyAccepted || !input.termsAccepted) {
-        throw ApiError.badRequest("Please accept the Privacy Policy and Terms & Conditions");
-      }
       user.legalConsent = legalConsent("agent_signup", origin);
     }
     await user.save();
   } else {
-    if (!input.privacyAccepted || !input.termsAccepted) {
-      throw ApiError.badRequest("Please accept the Privacy Policy and Terms & Conditions");
-    }
     user = await User.create({
       phone,
       name: input.name,
@@ -266,8 +281,8 @@ export async function agentSignup(input: AgentSignupInput, origin: SignupOrigin 
       online: false,
       agentStatus: "pending",
       aadharNumber: input.aadharNumber,
-      aadharFrontUrl: input.aadharFront,
-      aadharBackUrl: input.aadharBack,
+      aadharFrontUrl,
+      aadharBackUrl,
       legalConsent: legalConsent("agent_signup", origin),
     });
   }

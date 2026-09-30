@@ -1,14 +1,11 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
 import { LayoutDashboard, CalendarPlus, ClipboardList, CreditCard, User, Bell, LogIn, Lock } from "lucide-react";
-import { io, type Socket } from "socket.io-client";
-import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@shared/lib/utils";
-import { SOCKET_URL } from "@shared/lib/api";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
 import { getPushToken, saveDeviceToken } from "@shared/lib/push";
-import { useMe, useNotifications, bookingsKey, notificationsKey } from "../api/queries";
+import { useMe, useNotifications } from "../api/queries";
 import { useRegisterToken } from "../api/mutations";
 import { useSessionStore, useIsGuest } from "../store/sessionStore";
 
@@ -27,7 +24,6 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   const { data: notifications = [] } = useNotifications();
   const registerToken = useRegisterToken();
   const registered = useRef(false);
-  const qc = useQueryClient();
   const authenticated = useSessionStore((s) => s.authenticated);
   const isGuest = useIsGuest();
 
@@ -55,29 +51,8 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   }, [authenticated]);
 
 
-  // Live: refresh bookings/notifications the moment an update or notification occurs.
-  useEffect(() => {
-    if (!authenticated) return;
-    const socket: Socket = io(SOCKET_URL, {
-      withCredentials: true,
-      transports: ["websocket"],
-      auth: { role: "customer" },
-    });
-    socket.on("booking_assigned", () => {
-      qc.invalidateQueries({ queryKey: bookingsKey });
-      qc.invalidateQueries({ queryKey: notificationsKey });
-    });
-    socket.on("notification", () => {
-      qc.invalidateQueries({ queryKey: notificationsKey });
-      qc.invalidateQueries({ queryKey: bookingsKey });
-    });
-    socket.on("push_notification", () => {
-      qc.invalidateQueries({ queryKey: notificationsKey });
-    });
-    return () => {
-      socket.disconnect();
-    };
-  }, [authenticated, qc]);
+  // Live refreshes (bookings/notifications) come from the single customer
+  // socket in CustomerApp's CustomerCompletionListener.
 
   return (
     <div className="min-h-dvh overflow-x-hidden bg-bg">

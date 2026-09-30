@@ -11,7 +11,6 @@
  * sending them) — nothing breaks either way.
  */
 
-import { resolveNotificationPath } from "./notificationLink";
 import { getPublicRuntimeConfig, type FirebasePublicConfig } from "./runtimeConfig";
 
 const KEY = "nexclean-device-token";
@@ -133,15 +132,26 @@ export async function getPushToken(options?: { requestPermission?: boolean }): P
       messaging.onMessage((payload: any) => {
         const n = payload?.notification;
         if (n && Notification.permission === "granted") {
-          const notif = new Notification(n.title || "NexClean", { body: n.body || "", data: payload.data });
-          // Foreground push still needs to deep-link on click — the tab is
-          // already open, so there's no service worker in the loop to do it.
-          notif.onclick = () => {
-            const path = resolveNotificationPath(payload.data);
-            window.focus();
-            if (path) window.location.assign(path);
-            notif.close();
-          };
+          const data = payload.data || {};
+          // Shown through the service worker registration, not `new
+          // Notification()`: Android Chrome throws on that constructor, and it
+          // rendered without the app icon everywhere else. Same options as the
+          // background handler in firebase-messaging-sw.js so both look alike;
+          // the worker's notificationclick handler does the deep link.
+          registration
+            .showNotification(n.title || "NexClean", {
+              body: n.body || "",
+              icon: "/logo.png",
+              badge: "/logo.png",
+              data,
+              tag: data.bookingId || undefined,
+              renotify: !!data.bookingId,
+              requireInteraction: data.kind === "offer",
+              vibrate: data.kind === "offer" ? [600, 250, 600, 250, 600] : undefined,
+            } as NotificationOptions)
+            .catch(() => {
+              /* notification blocked or worker gone — the in-app feed still has it */
+            });
         }
       });
     }

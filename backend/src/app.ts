@@ -41,6 +41,11 @@ export function createApp(): Application {
         }
       },
       credentials: true,
+      // Every API call carries custom headers (X-Session-Role, X-Device-Id,
+      // JSON Content-Type), so the browser sends an OPTIONS preflight before
+      // each one when the API is on another origin. Without maxAge Chrome
+      // re-checks every 5 seconds, doubling the request count; 2h is Chrome's cap.
+      maxAge: 7200,
     }),
   );
   // Reject plaintext production traffic even if a proxy is accidentally

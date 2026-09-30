@@ -13,7 +13,7 @@ import { Stepper } from "@shared/ui/Stepper";
 import { useSendLoginOtp, useVerifyOtp } from "../api/mutations";
 import { meKey } from "../api/queries";
 import { useSessionStore } from "../store/sessionStore";
-import { AccountNotFoundDialog } from "../components/AccountNotFoundDialog";
+import { AccountNotFoundDialog } from "@shared/components/AccountNotFoundDialog";
 
 
 const DEMO_OTP = "123456";

@@ -2,13 +2,18 @@ import { test, expect } from "../fixtures/base";
 import type { APIRequestContext } from "@playwright/test";
 import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader, freshPhone, loginAsAdmin, loginAsAgent, loginAsNewCustomer } from "../fixtures/api-client";
 
-// Coordinates the seeded demo agents are set up around (matches booking.spec.ts).
-const NEAR_LAT = 22.7196;
-const NEAR_LNG = 75.8577;
+// Keep these dispatch-only agents far from the shared Indore/Bengaluru test
+// fleets. A full-suite run leaves several legitimate agents online; using the
+// same coordinates made those agents tie at 0 m and allowed the booking to be
+// offered to somebody other than the agent this spec was polling.
+const DISPATCH_LAT = -33.9249;
+const DISPATCH_LNG = 18.4241;
 
 // 1x1 transparent PNG — just needs to match the `data:image/...;base64,...` shape.
 const FAKE_AADHAR_IMAGE =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+const freshAgentTokens: string[] = [];
 
 async function firstPackageId(request: APIRequestContext): Promise<string> {
   const body = await (await request.get("/catalog/packages")).json();
@@ -26,7 +31,7 @@ async function firstPackageId(request: APIRequestContext): Promise<string> {
  * part of the full run.
  */
 async function createFreshVerifiedAgent(request: APIRequestContext): Promise<{ token: string; userId: string }> {
-  // Put seeded agents offline so this fresh agent is strictly the only online candidate
+  // Keep the shared demo fleet from competing with this test's candidate.
   for (const phone of ["9000000001", "9000000002", "9000000003", "9000000004"]) {
     try {
       const { token } = await loginAsAgent(request, phone);
@@ -54,13 +59,14 @@ async function createFreshVerifiedAgent(request: APIRequestContext): Promise<{ t
     headers: authHeader(adminToken),
     data: { status: "verified" },
   });
+  freshAgentTokens.push(verify.data.token);
   return { token: verify.data.token, userId: verify.data.user.id };
 }
 
 async function goOnlineNear(request: APIRequestContext, token: string) {
   const res = await request.patch("/agent/online", {
     headers: authHeader(token),
-    data: { online: true, lat: NEAR_LAT, lng: NEAR_LNG },
+    data: { online: true, lat: DISPATCH_LAT, lng: DISPATCH_LNG },
   });
   expect(res.ok()).toBeTruthy();
 }
@@ -130,8 +136,8 @@ test.describe("Agent", () => {
           slot: "11:00 AM",
           addressLabel: "Home",
           addressLine: "123 Test Street",
-          lat: NEAR_LAT,
-          lng: NEAR_LNG,
+          lat: DISPATCH_LAT,
+          lng: DISPATCH_LNG,
         },
       })
     ).json();
@@ -182,8 +188,8 @@ test.describe("Agent", () => {
           slot: "11:00 AM",
           addressLabel: "Home",
           addressLine: "123 Test Street",
-          lat: NEAR_LAT,
-          lng: NEAR_LNG,
+          lat: DISPATCH_LAT,
+          lng: DISPATCH_LNG,
         },
       })
     ).json();
@@ -229,10 +235,16 @@ test.describe("Agent", () => {
   });
 
   test.afterAll(async ({ request }) => {
+    for (const token of freshAgentTokens) {
+      await request.patch("/agent/online", { headers: authHeader(token), data: { online: false } });
+    }
     for (const phone of ["9000000001", "9000000002", "9000000003", "9000000004"]) {
       try {
         const { token } = await loginAsAgent(request, phone);
-        await request.patch("/agent/online", { headers: authHeader(token), data: { online: true, lat: NEAR_LAT, lng: NEAR_LNG } });
+        await request.patch("/agent/online", {
+          headers: authHeader(token),
+          data: { online: true, lat: 22.7196, lng: 75.8577 },
+        });
       } catch { /* ignore */ }
     }
   });

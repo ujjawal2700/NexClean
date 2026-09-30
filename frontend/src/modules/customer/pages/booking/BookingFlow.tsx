@@ -17,6 +17,7 @@ import {
   Radio,
   Crosshair,
   IndianRupee,
+  History,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
@@ -93,23 +94,60 @@ const EMPTY: Draft = {
   pin: null,
 };
 
+/**
+ * An unfinished booking, kept until the customer pays or chooses to start
+ * over. localStorage (not sessionStorage) so it survives closing the tab; the
+ * owner's id so a shared phone never offers one customer another's booking.
+ */
 const DRAFT_STORAGE_KEY = "nexclean-booking-draft";
 
-function getInitialBookingState(): { step: number; draft: Draft } {
-  if (!functionalStorageAllowed()) return { step: 0, draft: EMPTY };
+type SavedBooking = { step: number; draft: Draft; userId: string | null };
+
+function clearSavedBooking() {
   try {
-    const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (typeof parsed.step === "number" && parsed.step < 2 && parsed.draft) {
-        return { step: parsed.step, draft: { ...EMPTY, ...parsed.draft } };
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    // Drafts used to live in sessionStorage; drop any leftover copy.
+    sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/**
+ * A saved booking worth offering back, or null. A date or slot that has passed
+ * since it was saved is dropped, and the customer is sent back to Schedule to
+ * pick a new one rather than landing on a checkout they can't pay for.
+ */
+function readSavedBooking(): SavedBooking | null {
+  if (!functionalStorageAllowed()) return null;
+  try {
+    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<SavedBooking>;
+    if (typeof parsed.step !== "number" || !parsed.draft) return null;
+    const draft: Draft = { ...EMPTY, ...parsed.draft };
+    // Nothing chosen yet — nothing to continue.
+    if (!draft.vehicleType) return null;
+
+    let step = Math.min(Math.max(0, Math.floor(parsed.step)), STEP_LABELS.length - 1);
+    if (draft.date) {
+      const day = new Date(draft.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dayStart = new Date(day);
+      dayStart.setHours(0, 0, 0, 0);
+      const datePassed = Number.isNaN(day.getTime()) || dayStart < today;
+      const slotGone = !!draft.slot && !availableSlotsForDate(draft.date).includes(draft.slot);
+      if (datePassed || slotGone) {
+        draft.date = datePassed ? null : draft.date;
+        draft.slot = null;
+        step = Math.min(step, 2);
       }
     }
+    return { step, draft, userId: parsed.userId ?? null };
   } catch {
-    /* ignore storage errors */
+    return null;
   }
-  sessionStorage.removeItem(DRAFT_STORAGE_KEY);
-  return { step: 0, draft: EMPTY };
 }
 
 export function BookingFlow() {
@@ -125,25 +163,63 @@ export function BookingFlow() {
   const previewDiscount = usePreviewDiscount();
   const { data: wallet } = useWallet();
 
-  const [initialState] = useState(getInitialBookingState);
-  const [step, setStep] = useState(initialState.step);
-  const [draft, setDraft] = useState<Draft>(initialState.draft);
+  // A booking left unfinished earlier. Held here, not applied, until the
+  // customer chooses to continue it or start over.
+  const [saved, setSaved] = useState<SavedBooking | null>(readSavedBooking);
+  const [step, setStep] = useState(0);
+  const [draft, setDraft] = useState<Draft>(EMPTY);
   const [payError, setPayError] = useState("");
   const [processing, setProcessing] = useState(false);
   const [confirmed, setConfirmed] = useState<Booking | null>(null);
   const [priceChanged, setPriceChanged] = useState<number | null>(null);
 
+  // Someone else's draft on this device (they logged out, another customer
+  // logged in): never offer it.
+  const savedIsOthers = !!saved?.userId && !!me && saved.userId !== me.id;
   useEffect(() => {
-    if (!functionalStorageAllowed()) return;
-    if (step < 2) {
-      sessionStorage.setItem(
-        DRAFT_STORAGE_KEY,
-        JSON.stringify({ step, draft }),
-      );
-    } else {
-      sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+    if (savedIsOthers) {
+      clearSavedBooking();
+      setSaved(null);
     }
-  }, [step, draft]);
+  }, [savedIsOthers]);
+  // Wait for the profile before asking, so the check above has run.
+  const resumeOffer = saved && me && !savedIsOthers ? saved : null;
+
+  const continueSaved = () => {
+    if (!saved) return;
+    // The saved address may have been deleted since; send them back to pick
+    // one instead of resuming onto a Pay button that silently does nothing.
+    const addressGone = !!saved.draft.addressId && !addresses.some((a) => a.id === saved.draft.addressId);
+    setDraft(addressGone ? { ...saved.draft, addressId: null, pin: null } : saved.draft);
+    setStep(addressGone ? Math.min(saved.step, 3) : saved.step);
+    setSaved(null);
+  };
+  const startNew = () => {
+    clearSavedBooking();
+    setSaved(null);
+  };
+
+  // Save progress on every change until checkout. Paused while the resume
+  // question is open, or this would overwrite the saved booking with the
+  // empty form underneath before the customer has answered.
+  useEffect(() => {
+    if (saved || confirmed || !functionalStorageAllowed()) return;
+    if (!draft.vehicleType) {
+      clearSavedBooking();
+      return;
+    }
+    try {
+      const payload: SavedBooking = { step, draft, userId: me?.id ?? null };
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      /* storage full or blocked — booking still works, it just won't be kept */
+    }
+  }, [step, draft, saved, confirmed, me?.id]);
+
+  // Paid and confirmed: the booking exists now, nothing left to resume.
+  useEffect(() => {
+    if (confirmed) clearSavedBooking();
+  }, [confirmed]);
 
   const [discountInput, setDiscountInput] = useState("");
   const [appliedDiscount, setAppliedDiscount] =
@@ -517,6 +593,18 @@ export function BookingFlow() {
         />
       </div>
 
+      {resumeOffer && (
+        <ResumeBookingDialog
+          saved={resumeOffer}
+          vehicleLabel={
+            resumeOffer.draft.vehicleName ||
+            (resumeOffer.draft.vehicleType ? categoryLabel(resumeOffer.draft.vehicleType) : "")
+          }
+          onContinue={continueSaved}
+          onStartNew={startNew}
+        />
+      )}
+
       {priceChanged !== null && (
         <PriceChangedDialog
           amount={priceChanged}
@@ -524,6 +612,99 @@ export function BookingFlow() {
           onConfirm={acceptUpdatedPrice}
         />
       )}
+    </div>
+  );
+}
+
+function ResumeBookingDialog({
+  saved,
+  vehicleLabel,
+  onContinue,
+  onStartNew,
+}: {
+  saved: SavedBooking;
+  vehicleLabel: string;
+  onContinue: () => void;
+  onStartNew: () => void;
+}) {
+  const continueRef = useRef<HTMLButtonElement>(null);
+  const newRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    continueRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const keepFocusInside = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      event.preventDefault();
+      const next = document.activeElement === continueRef.current ? newRef.current : continueRef.current;
+      next?.focus();
+    };
+    document.addEventListener("keydown", keepFocusInside);
+    return () => {
+      document.removeEventListener("keydown", keepFocusInside);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  const { draft, step } = saved;
+  const pkg = PACKAGES.find((p) => p.id === draft.packageId);
+  const when = draft.date
+    ? `${new Date(draft.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}${
+        draft.slot ? ` · ${draft.slot}` : ""
+      }`
+    : null;
+  const rows = [
+    { label: "Vehicle", value: vehicleLabel },
+    { label: "Package", value: pkg?.name },
+    { label: "Schedule", value: when },
+  ].filter((r): r is { label: string; value: string } => !!r.value);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/55 p-4 backdrop-blur-sm" role="presentation">
+      <section
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="resume-booking-title"
+        aria-describedby="resume-booking-description"
+        className="w-full max-w-md rounded-[28px] border border-line bg-surface p-6 shadow-2xl sm:p-7"
+      >
+        <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <History className="size-7" />
+        </div>
+        <h2 id="resume-booking-title" className="font-display text-2xl font-semibold text-ink">
+          Continue where you left off?
+        </h2>
+        <p id="resume-booking-description" className="mt-2 text-sm leading-6 text-muted">
+          You have an unfinished booking. Pick up at the{" "}
+          <span className="font-semibold text-ink">{STEP_LABELS[step]}</span> step, or start a new one.
+        </p>
+
+        {rows.length > 0 && (
+          <dl className="mt-4 space-y-2 rounded-2xl border border-line bg-surface-muted/50 p-4 text-sm">
+            {rows.map((r) => (
+              <div key={r.label} className="flex items-start justify-between gap-4">
+                <dt className="shrink-0 text-muted">{r.label}</dt>
+                <dd className="min-w-0 text-right font-medium text-ink wrap-anywhere">{r.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+
+        <div className="mt-6 flex flex-col gap-2.5">
+          <Button ref={continueRef} onClick={onContinue} className="min-h-12 w-full justify-center text-base">
+            Continue booking
+            <ArrowRight className="size-4" />
+          </Button>
+          <Button
+            ref={newRef}
+            variant="outline"
+            onClick={onStartNew}
+            className="min-h-12 w-full justify-center text-base"
+          >
+            Start a new booking
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }

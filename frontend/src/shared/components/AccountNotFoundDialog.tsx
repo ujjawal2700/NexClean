@@ -3,14 +3,32 @@ import { createPortal } from "react-dom";
 import { ArrowRight, Phone, UserPlus, X } from "lucide-react";
 import { Button } from "@shared/ui/Button";
 
+type Audience = "customer" | "agent";
+
 type AccountNotFoundDialogProps = {
   phone: string;
   onClose: () => void;
   onSignUp: () => void;
+  /** Which app is asking — decides the wording. Defaults to the customer app. */
+  audience?: Audience;
 };
 
-/** Focused recovery dialog shown when a login number has no customer account. */
-export function AccountNotFoundDialog({ phone, onClose, onSignUp }: AccountNotFoundDialogProps) {
+const COPY: Record<Audience, { eyebrow: string; body: string; cta: string }> = {
+  customer: {
+    eyebrow: "New to NexClean?",
+    body: "We couldn't find a customer account connected to this mobile number. Create one to start booking doorstep car care.",
+    cta: "Create my account",
+  },
+  agent: {
+    eyebrow: "New to NexClean?",
+    body: "We couldn't find an agent account connected to this mobile number. Apply to join as a cleaning specialist and start taking jobs.",
+    cta: "Apply to join",
+  },
+};
+
+/** Focused recovery dialog shown when a login number has no account. */
+export function AccountNotFoundDialog({ phone, onClose, onSignUp, audience = "customer" }: AccountNotFoundDialogProps) {
+  const copy = COPY[audience];
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -94,12 +112,12 @@ export function AccountNotFoundDialog({ phone, onClose, onSignUp }: AccountNotFo
           <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-primary/10 text-primary ring-8 ring-primary/5">
             <UserPlus className="size-8" aria-hidden="true" />
           </div>
-          <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-primary">New to NexClean?</p>
+          <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-primary">{copy.eyebrow}</p>
           <h2 id={titleId} className="mt-2 font-display text-2xl font-semibold text-ink sm:text-3xl">
             Your account was not found
           </h2>
           <p id={descriptionId} className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted sm:text-base">
-            We couldn't find a customer account connected to this mobile number. Create one to start booking doorstep car care.
+            {copy.body}
           </p>
 
           <div className="mt-5 flex items-center justify-center gap-3 rounded-2xl border border-line bg-surface-muted/60 px-4 py-3.5">
@@ -115,7 +133,7 @@ export function AccountNotFoundDialog({ phone, onClose, onSignUp }: AccountNotFo
 
         <div className="account-dialog-actions space-y-3 border-t border-line/70 bg-surface-muted/35 px-6 pb-5 pt-5 sm:px-8 sm:pb-7">
           <Button ref={primaryActionRef} type="button" size="lg" className="h-[56px] w-full text-base" onClick={onSignUp}>
-            Create my account <ArrowRight className="size-5" />
+            {copy.cta} <ArrowRight className="size-5" />
           </Button>
           <Button type="button" variant="outline" size="lg" className="h-[56px] w-full text-base" onClick={onClose}>
             Use another number

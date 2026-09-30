@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Check,
@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ArrowLeft,
   Coins,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -36,6 +37,14 @@ import {
   useCancelBooking,
 } from "../api/mutations";
 import { useIsGuest } from "../store/sessionStore";
+import {
+  ScheduleSheet,
+  SheetSection,
+  OptionList,
+  DateStrip,
+  SlotGrid,
+  describeSchedule,
+} from "../components/ScheduleSheet";
 import type { SubscriptionPreview } from "../api/mutations";
 import { TIME_SLOTS } from "../data/catalog";
 import type { CarType, CatalogPlan, Booking } from "../types";
@@ -244,6 +253,9 @@ export function Subscriptions() {
     setScheduleError("");
     setIsScheduleOpen(true);
   };
+
+  const closeSchedule = useCallback(() => setIsScheduleOpen(false), []);
+  const closeReschedule = useCallback(() => setIsRescheduleOpen(false), []);
 
   const handleConfirmSchedule = async () => {
     if (
@@ -591,266 +603,92 @@ export function Subscriptions() {
 
         {/* MODAL 1: Schedule Wash */}
         {isScheduleOpen && (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-5 backdrop-blur-sm">
-            <GlassCard className="w-full max-w-lg overflow-y-auto overflow-x-hidden max-h-[90vh] border border-line shadow-2xl space-y-6">
-              <div className="flex items-center justify-between border-b border-line pb-3">
-                <h3 className="font-display text-xl font-bold text-ink">
-                  Schedule Subscription Wash
-                </h3>
-                <button
-                  onClick={() => setIsScheduleOpen(false)}
-                  className="text-muted hover:text-ink">
-                  <X className="size-5" />
-                </button>
-              </div>
+          <ScheduleSheet
+            title="Schedule a wash"
+            subtitle="Pick the car, place and time for this subscription wash."
+            error={scheduleError}
+            onClose={closeSchedule}
+            footer={
+              <ScheduleFooter
+                summary={describeSchedule(selectedDate, selectedSlot)}
+                confirmLabel="Schedule wash"
+                ready={!!(selectedVehicleId && selectedAddressId && selectedDate && selectedSlot)}
+                busy={busy}
+                pending={scheduleWash.isPending}
+                onConfirm={handleConfirmSchedule}
+                onCancel={closeSchedule}
+              />
+            }
+          >
+            <SheetSection step={1} title="Vehicle">
+              <OptionList
+                items={me?.vehicles ?? []}
+                value={selectedVehicleId}
+                onChange={setSelectedVehicleId}
+                icon={Car}
+                render={(v) => ({
+                  title: v.name,
+                  detail: [categoryLabel(v.type), v.plate].filter(Boolean).join(" · "),
+                })}
+                addLabel="Add a vehicle"
+                emptyText="You need a saved vehicle to schedule a wash."
+                addTo="/app/profile/vehicles"
+              />
+            </SheetSection>
 
-              {scheduleError && (
-                <div className="flex items-center gap-2 rounded-xl bg-red-50/15 border border-red-500/20 p-3.5 text-xs text-red-500">
-                  <AlertCircle className="size-4 shrink-0" />
-                  <span>{scheduleError}</span>
-                </div>
-              )}
+            <SheetSection step={2} title="Location">
+              <OptionList
+                items={me?.addresses ?? []}
+                value={selectedAddressId}
+                onChange={setSelectedAddressId}
+                icon={MapPin}
+                render={(a) => ({ title: a.label, detail: a.line })}
+                addLabel="Add an address"
+                emptyText="Tell us where the car will be parked."
+                addTo="/app/profile/addresses"
+              />
+            </SheetSection>
 
-              {/* Form Body */}
-              <div className="space-y-4">
-                {/* 1. Vehicle Selection */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted">
-                    Select Vehicle
-                  </label>
-                  {(me?.vehicles ?? []).length === 0 ? (
-                    <p className="mt-1.5 text-sm text-red-500">
-                      No vehicles found. Please add a vehicle in your profile
-                      first.
-                    </p>
-                  ) : (
-                    <select
-                      value={selectedVehicleId}
-                      onChange={(e) => setSelectedVehicleId(e.target.value)}
-                      className="mt-1.5 h-12 w-full rounded-2xl border border-line bg-surface px-4 text-sm text-ink outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25">
-                      {(me?.vehicles ?? []).map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name} ({categoryLabel(v.type)}) · {v.plate}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
+            <SheetSection step={3} title="Date">
+              <DateStrip dates={upcoming30Days()} value={selectedDate} onChange={setSelectedDate} />
+            </SheetSection>
 
-                {/* 2. Address Selection */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted">
-                    Select Location
-                  </label>
-                  {(me?.addresses ?? []).length === 0 ? (
-                    <p className="mt-1.5 text-sm text-red-500">
-                      No locations found. Please add an address in your profile
-                      first.
-                    </p>
-                  ) : (
-                    <select
-                      value={selectedAddressId}
-                      onChange={(e) => setSelectedAddressId(e.target.value)}
-                      className="mt-1.5 h-12 w-full rounded-2xl border border-line bg-surface px-4 text-sm text-ink outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/25">
-                      {(me?.addresses ?? []).map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.label} ({a.line})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                {/* 3. Date selection */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted">
-                    Pick Date
-                  </label>
-                  <div className="mt-1.5 flex gap-2 overflow-x-auto pb-1.5">
-                    {upcoming30Days().map((d) => {
-                      const iso = d.toISOString();
-                      const isSelected =
-                        selectedDate &&
-                        new Date(selectedDate).toDateString() ===
-                          d.toDateString();
-                      return (
-                        <button
-                          key={iso}
-                          onClick={() => setSelectedDate(iso)}
-                          className={cn(
-                            "flex w-16 shrink-0 flex-col items-center rounded-2xl border py-2.5 transition-all focus:outline-none",
-                            isSelected
-                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                              : "border-line bg-surface hover:border-primary/45",
-                          )}>
-                          <span className="text-[10px] text-muted uppercase">
-                            {d.toLocaleDateString("en-IN", {
-                              weekday: "short",
-                            })}
-                          </span>
-                          <span className="font-display text-base font-bold text-ink">
-                            {d.getDate()}
-                          </span>
-                          <span className="text-[9px] text-muted">
-                            {d.toLocaleDateString("en-IN", { month: "short" })}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 4. Slot selection */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted">
-                    Select Time Slot
-                  </label>
-                  <div className="mt-1.5 grid grid-cols-3 gap-2">
-                    {TIME_SLOTS.map((slot) => {
-                      const isSelected = selectedSlot === slot;
-                      return (
-                        <button
-                          key={slot}
-                          onClick={() => setSelectedSlot(slot)}
-                          className={cn(
-                            "rounded-xl border py-2 text-xs font-medium transition-all focus:outline-none",
-                            isSelected
-                              ? "border-primary bg-primary/5 text-primary ring-2 ring-primary/20"
-                              : "border-line bg-surface text-ink-soft hover:border-primary/45",
-                          )}>
-                          {slot}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Confirm Footer */}
-              <div className="flex gap-3 border-t border-line/50 pt-4">
-                <Button
-                  className="flex-1"
-                  onClick={handleConfirmSchedule}
-                  disabled={busy}>
-                  Schedule Wash
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setIsScheduleOpen(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </GlassCard>
-          </div>
+            <SheetSection step={4} title="Time slot">
+              <SlotGrid slots={TIME_SLOTS} value={selectedSlot} onChange={setSelectedSlot} />
+            </SheetSection>
+          </ScheduleSheet>
         )}
 
         {/* MODAL 2: Reschedule Wash */}
         {isRescheduleOpen && (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-5 backdrop-blur-sm">
-            <GlassCard className="w-full max-w-lg overflow-y-auto overflow-x-hidden max-h-[90vh] border border-line shadow-2xl space-y-6">
-              <div className="flex items-center justify-between border-b border-line pb-3">
-                <h3 className="font-display text-xl font-bold text-ink">
-                  Reschedule Wash
-                </h3>
-                <button
-                  onClick={() => setIsRescheduleOpen(false)}
-                  className="text-muted hover:text-ink">
-                  <X className="size-5" />
-                </button>
-              </div>
-
-              {scheduleError && (
-                <div className="flex items-center gap-2 rounded-xl bg-red-50/15 border border-red-500/20 p-3.5 text-xs text-red-500">
-                  <AlertCircle className="size-4 shrink-0" />
-                  <span>{scheduleError}</span>
-                </div>
-              )}
-
-              {/* Form Body */}
-              <div className="space-y-4">
-                {/* Date selection */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted">
-                    Pick New Date
-                  </label>
-                  <div className="mt-1.5 flex gap-2 overflow-x-auto pb-1.5">
-                    {upcoming30Days().map((d) => {
-                      const iso = d.toISOString();
-                      const isSelected =
-                        selectedDate &&
-                        new Date(selectedDate).toDateString() ===
-                          d.toDateString();
-                      return (
-                        <button
-                          key={iso}
-                          onClick={() => setSelectedDate(iso)}
-                          className={cn(
-                            "flex w-16 shrink-0 flex-col items-center rounded-2xl border py-2.5 transition-all focus:outline-none",
-                            isSelected
-                              ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                              : "border-line bg-surface hover:border-primary/45",
-                          )}>
-                          <span className="text-[10px] text-muted uppercase">
-                            {d.toLocaleDateString("en-IN", {
-                              weekday: "short",
-                            })}
-                          </span>
-                          <span className="font-display text-base font-bold text-ink">
-                            {d.getDate()}
-                          </span>
-                          <span className="text-[9px] text-muted">
-                            {d.toLocaleDateString("en-IN", { month: "short" })}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Slot selection */}
-                <div>
-                  <label className="text-xs font-semibold uppercase tracking-wider text-muted">
-                    Select Time Slot
-                  </label>
-                  <div className="mt-1.5 grid grid-cols-3 gap-2">
-                    {TIME_SLOTS.map((slot) => {
-                      const isSelected = selectedSlot === slot;
-                      return (
-                        <button
-                          key={slot}
-                          onClick={() => setSelectedSlot(slot)}
-                          className={cn(
-                            "rounded-xl border py-2 text-xs font-medium transition-all focus:outline-none",
-                            isSelected
-                              ? "border-primary bg-primary/5 text-primary ring-2 ring-primary/20"
-                              : "border-line bg-surface text-ink-soft hover:border-primary/45",
-                          )}>
-                          {slot}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Confirm Footer */}
-              <div className="flex gap-3 border-t border-line/50 pt-4">
-                <Button
-                  className="flex-1"
-                  onClick={handleConfirmReschedule}
-                  disabled={busy}>
-                  Confirm Reschedule
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => setIsRescheduleOpen(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </GlassCard>
-          </div>
+          <ScheduleSheet
+            title="Reschedule wash"
+            subtitle={
+              targetBooking
+                ? `Currently ${describeSchedule(targetBooking.date, targetBooking.slot)}`
+                : undefined
+            }
+            error={scheduleError}
+            onClose={closeReschedule}
+            footer={
+              <ScheduleFooter
+                summary={describeSchedule(selectedDate, selectedSlot)}
+                confirmLabel="Confirm new time"
+                ready={!!(selectedDate && selectedSlot)}
+                busy={busy}
+                pending={rescheduleWash.isPending}
+                onConfirm={handleConfirmReschedule}
+                onCancel={closeReschedule}
+              />
+            }
+          >
+            <SheetSection step={1} title="New date">
+              <DateStrip dates={upcoming30Days()} value={selectedDate} onChange={setSelectedDate} />
+            </SheetSection>
+            <SheetSection step={2} title="Time slot">
+              <SlotGrid slots={TIME_SLOTS} value={selectedSlot} onChange={setSelectedSlot} />
+            </SheetSection>
+          </ScheduleSheet>
         )}
       </div>
     );
@@ -1167,6 +1005,47 @@ export function Subscriptions() {
           </GlassCard>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Sticky footer for the schedule sheets: running summary + actions. */
+function ScheduleFooter({
+  summary,
+  confirmLabel,
+  ready,
+  busy,
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  summary: string | null;
+  confirmLabel: string;
+  ready: boolean;
+  busy: boolean;
+  pending: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="flex items-center gap-2 text-sm">
+        <Calendar className="size-4 shrink-0 text-primary" />
+        {summary ? (
+          <span className="min-w-0 truncate font-medium text-ink">{summary}</span>
+        ) : (
+          <span className="text-muted">Choose a date and time</span>
+        )}
+      </p>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row">
+        <Button variant="outline" className="min-h-12 sm:flex-1" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button className="min-h-12 sm:flex-[1.6]" onClick={onConfirm} disabled={!ready || busy}>
+          {pending && <Loader2 className="size-4 animate-spin" />}
+          {confirmLabel}
+        </Button>
+      </div>
     </div>
   );
 }

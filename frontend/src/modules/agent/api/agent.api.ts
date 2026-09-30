@@ -20,10 +20,15 @@ export const summaryKey = ["agent", "summary"] as const;
 
 /* -------------------------------- Auth ----------------------------------- */
 
+/**
+ * Login OTP. Goes through /send-login-otp with role "agent" so an unknown
+ * number (NOT_REGISTERED) or a customer's number (NOT_AN_AGENT) is caught
+ * before a code is sent, instead of after the agent has typed it.
+ */
 export function useSendOtp() {
   return useMutation({
     mutationFn: (phone: string) =>
-      apiFetch<{ sent: boolean }>("/auth/send-otp", { method: "POST", body: { phone } }),
+      apiFetch<{ sent: boolean }>("/auth/send-login-otp", { method: "POST", body: { phone, role: "agent" } }),
   });
 }
 
@@ -137,8 +142,8 @@ export function useJobPhoto() {
 export function useToggleOnline() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (online: boolean) =>
-      apiFetch<AgentProfile>("/agent/online", { method: "PATCH", body: { online } }),
+    mutationFn: (vars: { online: boolean; lat?: number; lng?: number }) =>
+      apiFetch<AgentProfile>("/agent/online", { method: "PATCH", body: vars }),
     onSuccess: (user) => qc.setQueryData(meKey, user),
   });
 }

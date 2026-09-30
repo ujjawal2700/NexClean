@@ -2,6 +2,13 @@ import { loginAgentUI } from "../../fixtures/ui-helpers";
 import { SEED_AGENT_PHONE } from "../../fixtures/api-client";
 import { test, expect, seedAssignedJob, tinyPngFile } from "../../fixtures/agent-e2e-helpers";
 
+// Job photos are intentionally geotagged before upload. Give this browser
+// context the same location permission/fix an agent device must provide.
+test.use({
+  permissions: ["geolocation"],
+  geolocation: { latitude: 22.7196, longitude: 75.8577 },
+});
+
 test.describe("Jobs list", () => {
   test("shows a seeded assigned job under Active/All, and hides it under Completed", async ({ page, request }) => {
     const { bookingId } = await seedAssignedJob(request);

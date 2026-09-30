@@ -44,7 +44,14 @@ test.describe("Agent dashboard + online toggle", () => {
     await expect(page.locator("header").getByRole("button", { name: /Online|Offline/ })).toHaveText("Offline");
 
     // Flip back to online.
+    const onlineRequest = page.waitForRequest((request) => {
+      if (!request.url().includes("/agent/online") || request.method() !== "PATCH") return false;
+      return (request.postDataJSON() as { online?: boolean }).online === true;
+    });
     await page.locator("header").getByRole("button", { name: /Online|Offline/ }).click();
+    const onlineBody = (await onlineRequest).postDataJSON() as { lat?: number; lng?: number };
+    expect(onlineBody.lat).toBeCloseTo(NEAR_LAT, 4);
+    expect(onlineBody.lng).toBeCloseTo(NEAR_LNG, 4);
     await expect(page.locator("header").getByRole("button", { name: /Online|Offline/ })).toHaveText("Online");
     await page.reload();
     await expect(page.locator("header").getByRole("button", { name: /Online|Offline/ })).toHaveText("Online");

@@ -56,7 +56,7 @@ test.describe("Agent login", () => {
     await expect(page.locator("h1")).toHaveText("Welcome, specialist");
   });
 
-  test("a phone that isn't registered as an agent is rejected after OTP verification", async ({ page, request }) => {
+  test("a customer-only phone is rejected before an agent OTP is sent", async ({ page, request }) => {
     const customerOnlyPhone = freshPhone();
     // Register this phone as a plain customer first (role defaults to "customer").
     await loginByPhone(request, customerOnlyPhone);
@@ -64,10 +64,10 @@ test.describe("Agent login", () => {
     await page.goto("/agent/login");
     await page.locator('input[name="phone"]').fill(customerOnlyPhone);
     await page.getByRole("button", { name: "Send OTP" }).click();
-    await expect(page.locator("h1")).toHaveText("Verify your number");
-    await page.locator('input[name="otp"]').fill(DEMO_OTP);
-    await page.getByRole("button", { name: "Verify & continue" }).click();
-    await expect(page.getByText("This number isn't registered as an agent.")).toBeVisible();
+    await expect(
+      page.getByText("This number belongs to a customer account. Use a different number to join as an agent."),
+    ).toBeVisible();
+    await expect(page.locator("h1")).toHaveText("Welcome, specialist");
     await expect(page).toHaveURL(/\/agent\/login$/);
   });
 

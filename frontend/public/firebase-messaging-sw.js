@@ -36,6 +36,9 @@ if (config.apiKey && config.projectId && config.messagingSenderId && config.appI
       renotify: !!data.bookingId,
       // A new job offer should demand attention.
       requireInteraction: data.kind === "offer",
+      // Buzz the phone for a new job offer even when the app is in the
+      // background (Android; iOS ignores vibration patterns).
+      vibrate: data.kind === "offer" ? [600, 250, 600, 250, 600] : undefined,
     });
   });
 }

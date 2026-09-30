@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { ApiError } from "@shared/lib/api";
-import { fileToCompressedDataUri } from "@shared/lib/imageUtils";
+import { getCurrentPosition } from "@shared/lib/geocode";
+import { addressFor, stampPhoto } from "@shared/lib/photoStamp";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
@@ -33,11 +34,15 @@ import {
 } from "../types";
 import { AreaAlertCard } from "../components/AreaAlertCard";
 import { JobNavigationCard } from "../components/JobNavigationCard";
+import { useDeviceLocation } from "../hooks/useDeviceLocation";
 
 type PhotoKind = "before" | "after";
 
 const MANDATORY_COUNT = 4;
 const MAX_COUNT = 8;
+
+/** A watched GPS fix younger than this is reused instead of waiting on a fresh one. */
+const FRESH_FIX_MS = 60_000;
 
 const SUGGESTED_SLOTS = [
   "1. Front View",
@@ -57,6 +62,7 @@ export function JobDetail() {
   const advance = useAdvanceJob();
   const jobPhoto = useJobPhoto();
   const job = jobs.find((j) => j.id === id);
+  const { fix: deviceFix } = useDeviceLocation();
 
   const [uploadingKind, setUploadingKind] = useState<PhotoKind | null>(null);
   const [uploadError, setUploadError] = useState("");
@@ -116,7 +122,40 @@ export function JobDetail() {
     setUploadError("");
 
     try {
-      const image = await fileToCompressedDataUri(file, 1400, 0.75);
+      // Every before/after photo is geotagged: address, coordinates and the
+      // date/time are burned into the image so it stands as proof of service.
+      const takenAt = new Date();
+      let coords: { lat: number; lng: number };
+      let accuracy: number | null = null;
+      if (deviceFix && takenAt.getTime() - deviceFix.at < FRESH_FIX_MS) {
+        coords = { lat: deviceFix.lat, lng: deviceFix.lng };
+      } else {
+        try {
+          const pos = await getCurrentPosition();
+          coords = pos.coords;
+          accuracy = pos.accuracy;
+        } catch (reason) {
+          setUploadError(
+            reason === "denied"
+              ? "Location permission is blocked. Allow location for this site, then retake the photo — job photos must be geotagged."
+              : "Couldn't get a GPS fix to geotag this photo. Turn on location services and try again.",
+          );
+          return;
+        }
+      }
+      const address = await addressFor(coords);
+      const image = await stampPhoto(
+        file,
+        {
+          coords,
+          accuracy,
+          address,
+          takenAt,
+          label: kind === "before" ? "BEFORE WASH" : "AFTER WASH",
+        },
+        1400,
+        0.75,
+      );
       await jobPhoto.mutateAsync({ id: job.id, kind, image, action: "add" });
     } catch (e) {
       setUploadError(
@@ -429,6 +468,7 @@ export function JobDetail() {
         ref={beforeFileInputRef}
         type="file"
         accept="image/*"
+        capture="environment"
         className="hidden"
         data-testid="upload-before-input"
         onChange={(e) => {
@@ -440,6 +480,7 @@ export function JobDetail() {
         ref={afterFileInputRef}
         type="file"
         accept="image/*"
+        capture="environment"
         className="hidden"
         data-testid="upload-after-input"
         onChange={(e) => {

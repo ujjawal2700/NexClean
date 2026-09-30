@@ -135,7 +135,7 @@ export async function approvePayoutRequest(id: string, adminId: string) {
   void notifyUser(String(request.agent), {
     type: "system",
     title: "✅ Payout approved",
-    body: `Your payout request of ${formatMoney(request.amount)} was approved and will be paid out shortly.`,
+    body: `Your ${formatMoney(request.amount)} payout is approved and will be paid shortly.`,
   }).catch((err) => console.error("payout approval notification failed:", (err as Error).message));
 
   return request.toJSON();

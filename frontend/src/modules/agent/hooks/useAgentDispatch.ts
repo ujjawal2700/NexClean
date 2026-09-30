@@ -37,10 +37,17 @@ function playPing() {
   } catch {
     /* autoplay blocked or unsupported */
   }
+}
+
+/** Ring-style buzz, repeated while a job offer is on screen. */
+const OFFER_VIBRATION = [600, 250, 600, 250, 600];
+const OFFER_VIBRATION_REPEAT_MS = 3_500;
+
+function vibrate(pattern: number | number[]) {
   try {
-    navigator.vibrate?.([200, 100, 200]);
+    navigator.vibrate?.(pattern);
   } catch {
-    /* unsupported */
+    /* unsupported (iOS Safari has no Vibration API) */
   }
 }
 
@@ -226,6 +233,30 @@ export function useAgentDispatch(): AgentDispatch {
       /* dispatch will time it out regardless */
     }
   }, [offer]);
+
+  // Keep the phone buzzing for as long as the offer is waiting, like an
+  // incoming call — one short buzz is easy to miss in a pocket. Stops the
+  // moment the offer is accepted, declined, revoked or runs out.
+  const offerKey = offer ? `${offer.bookingId}:${offer.expiresAt}` : null;
+  useEffect(() => {
+    if (!offer) return;
+    const deadline = new Date(offer.expiresAt).getTime();
+    const buzz = () => {
+      if (Date.now() >= deadline) {
+        window.clearInterval(id);
+        vibrate(0);
+        return;
+      }
+      vibrate(OFFER_VIBRATION);
+    };
+    const id = window.setInterval(buzz, OFFER_VIBRATION_REPEAT_MS);
+    buzz();
+    return () => {
+      window.clearInterval(id);
+      vibrate(0);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the offer's identity, not the object
+  }, [offerKey]);
 
   return { offer, accept, decline, accepting, error, locating };
 }

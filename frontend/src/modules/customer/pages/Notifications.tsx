@@ -79,13 +79,13 @@ export function Notifications() {
             <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
               <BellRing className="size-5" />
             </span>
-            <div className="flex-1">
-              <p className="font-display font-semibold text-ink">Enable OS Push Notifications</p>
+            <div className="min-w-0 flex-1">
+              <p className="font-display font-semibold text-ink">Enable push notifications</p>
               <p className="mt-1 text-xs text-muted">
                 Receive instant alerts for cleaner assignments, arrival updates, and exclusive offers even when your app is backgrounded.
               </p>
-              <Button size="sm" className="mt-3" onClick={enablePush} disabled={enabling}>
-                {enabling ? "Enabling..." : "Enable Push Notifications"}
+              <Button size="sm" className="mt-3 max-w-full" onClick={enablePush} disabled={enabling}>
+                {enabling ? "Enabling…" : "Turn on"}
               </Button>
             </div>
           </div>
@@ -141,11 +141,15 @@ export function Notifications() {
                   <Icon className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-display font-semibold text-ink">{n.title}</p>
-                    <span className="shrink-0 text-xs text-muted">{timeAgo(n.createdAt)}</span>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 font-display font-semibold text-ink [overflow-wrap:anywhere]">
+                      {n.title}
+                    </p>
+                    <span className="shrink-0 pt-0.5 text-xs text-muted">{timeAgo(n.createdAt)}</span>
                   </div>
-                  <p className="mt-1 text-sm text-ink-soft">{n.body}</p>
+                  <p className="mt-1 whitespace-pre-line text-sm text-ink-soft [overflow-wrap:anywhere]">
+                    {n.body}
+                  </p>
                 </div>
                 {!n.read && <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />}
               </GlassCard>

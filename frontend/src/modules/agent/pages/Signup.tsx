@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate, Link, Navigate } from "react-router-dom";
+import { useNavigate, useSearchParams, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   User,
@@ -23,7 +23,7 @@ import { Input } from "@shared/ui/Input";
 import { Badge } from "@shared/ui/Badge";
 import { Stepper } from "@shared/ui/Stepper";
 import { useAgentSession } from "../store/sessionStore";
-import { useAgentSignup, useSendSignupOtp, useVerifyOtpCodeOnly, meKey, useAgentSignupBasic, useAgentMe } from "../api/agent.api";
+import { useAgentSignup, useSendSignupOtp, meKey, useAgentSignupBasic, useAgentMe } from "../api/agent.api";
 import { usePublicCities, usePublicZones } from "@modules/customer/api/public";
 import { LocationPicker } from "../components/LocationPicker";
 import { fileToCompressedDataUri } from "@shared/lib/imageUtils";
@@ -38,13 +38,14 @@ export function Signup() {
   const signup = useAgentSignup();
   const signupBasic = useAgentSignupBasic();
   const sendSignupOtp = useSendSignupOtp();
-  const verifyOtpCodeOnly = useVerifyOtpCodeOnly();
   const { data: me, isLoading: isLoadingMe } = useAgentMe();
   const { data: cities = [], isLoading: citiesLoading } = usePublicCities();
 
   const [step, setStep] = useState<Step>("details");
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [searchParams] = useSearchParams();
+  // Carried over from the login screen's "account not found" dialog.
+  const [phone, setPhone] = useState(() => (searchParams.get("phone") ?? "").replace(/\D/g, "").slice(0, 10));
   const [legalConsent, setLegalConsent] = useState(false);
   // City and area come from the admin-managed Locations list. This used to be a
   // free-text "area / society" box, which produced spellings that matched
@@ -309,8 +310,8 @@ export function Signup() {
                     {resendSuccess}
                   </p>
                 )}
-                <Button className="w-full" onClick={verifyOtp} disabled={verifyOtpCodeOnly.isPending}>
-                  {verifyOtpCodeOnly.isPending ? (
+                <Button className="w-full" onClick={verifyOtp} disabled={signupBasic.isPending}>
+                  {signupBasic.isPending ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
                     <>Verify &amp; continue <ArrowRight className="size-4" /></>
@@ -396,54 +397,65 @@ function KycTile({
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [conversionError, setConversionError] = useState("");
   const done = value.length > 0;
 
   const handleFile = async (file?: File) => {
     if (!file) return;
     setBusy(true);
+    setConversionError("");
     try {
       const dataUri = await fileToCompressedDataUri(file);
       onPick(dataUri);
+    } catch (error) {
+      setConversionError(error instanceof Error ? error.message : "Couldn't convert this image to WebP");
     } finally {
       setBusy(false);
+      if (ref.current) ref.current.value = "";
     }
   };
 
   return (
-    <button
-      type="button"
-      onClick={() => ref.current?.click()}
-      disabled={busy}
-      aria-label={done ? `${label} uploaded, tap to replace` : `Upload ${label}`}
-      className={cn(
-        "relative grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors",
-        done ? "border-primary/40 bg-primary/5" : "border-line bg-surface hover:border-primary/40",
-        busy && "opacity-70",
-      )}
-    >
-      {busy ? (
-        <Loader2 className="size-6 animate-spin text-primary" />
-      ) : done ? (
-        <img src={value} alt={`${label} preview`} className="absolute inset-0 size-full object-cover" />
-      ) : (
-        <div className="text-center text-muted">
-          <Camera className="mx-auto size-6" />
-          <p className="mt-1 text-xs font-medium">{label}</p>
-        </div>
-      )}
-      {done && !busy && (
-        <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-white">
-          <Check className="size-3.5" />
-        </span>
-      )}
-      <input
-        ref={ref}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => handleFile(e.target.files?.[0])}
-      />
-    </button>
+    <div>
+      <button
+        type="button"
+        onClick={() => ref.current?.click()}
+        disabled={busy}
+        aria-label={done ? `${label} uploaded, tap to replace` : `Upload ${label}`}
+        className={cn(
+          "relative grid aspect-[4/3] w-full place-items-center overflow-hidden rounded-2xl border-2 border-dashed transition-colors",
+          done ? "border-primary/40 bg-primary/5" : "border-line bg-surface hover:border-primary/40",
+          busy && "opacity-70",
+        )}
+      >
+        {busy ? (
+          <div className="text-center text-primary">
+            <Loader2 className="mx-auto size-6 animate-spin" />
+            <p className="mt-1 text-[10px] font-medium">Converting to WebP…</p>
+          </div>
+        ) : done ? (
+          <img src={value} alt={`${label} preview`} className="absolute inset-0 size-full object-cover" />
+        ) : (
+          <div className="text-center text-muted">
+            <Camera className="mx-auto size-6" />
+            <p className="mt-1 text-xs font-medium">{label}</p>
+          </div>
+        )}
+        {done && !busy && (
+          <span className="absolute right-2 top-2 grid size-6 place-items-center rounded-full bg-primary text-white">
+            <Check className="size-3.5" />
+          </span>
+        )}
+        <input
+          ref={ref}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => void handleFile(e.target.files?.[0])}
+        />
+      </button>
+      {conversionError && <p className="mt-1 text-[10px] leading-tight text-red-500">{conversionError}</p>}
+    </div>
   );
 }

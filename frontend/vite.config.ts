@@ -34,7 +34,16 @@ export default defineConfig({
             "rgbcolor", "svg-pathdata", "html2canvas", "stackblur-canvas", "pako", "iobuffer",
           ];
           if (JSPDF_DEPS.some((dep) => id.includes(`/node_modules/${dep}/`))) return;
-          return "vendor";
+          // Only small libraries every screen uses share the eager vendor
+          // chunk. Everything else (xlsx for admin exports, react-markdown,
+          // Google Maps, socket.io…) is left to Rollup so it lands in the lazy
+          // chunk that actually imports it. A catch-all "vendor" here used to
+          // pull ~750 kB — mostly the admin-only xlsx — into every page load.
+          const EAGER_SHARED = [
+            "@tanstack", "zustand", "clsx", "tailwind-merge", "class-variance-authority",
+            "@radix-ui", "lucide-react",
+          ];
+          if (EAGER_SHARED.some((dep) => id.includes(`/node_modules/${dep}/`))) return "vendor";
         },
       },
     },

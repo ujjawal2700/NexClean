@@ -128,7 +128,7 @@ export async function sweepAndRescheduleMissedSlots(): Promise<{ processed: numb
       await notifyUser(cid, {
         type: "booking",
         title: "⚠️ Service Assignment Pending",
-        body: `We are currently experiencing high demand. Our admin team is manually assigning a cleaner for your ${b.packageName}.`,
+        body: `High demand right now. Our team is assigning a cleaner for your ${b.packageName}.`,
         data: { bookingId: String(b._id) },
       }).catch((err) => console.error("notify failed:", (err as Error).message));
 
@@ -202,20 +202,20 @@ export async function sweepAndRescheduleMissedSlots(): Promise<{ processed: numb
     if (isSameDayShift) {
       await pushToUser(cid, {
         title: "🚗 Search Area Expanded",
-        body: `No cleaner was immediately nearby for ${prevSlot}. We expanded our search radius and rescheduled your wash to ${nextSlot} today!`,
+        body: `No cleaner was free for ${prevSlot}. Your wash is moved to ${nextSlot} today.`,
         data: { bookingId: String(b._id), kind: "rescheduled" },
       }).catch((err) => console.error("push failed:", (err as Error).message));
 
       await notifyUser(cid, {
         type: "booking",
         title: "🚗 Search Area Expanded",
-        body: `No cleaner was available for ${prevSlot}. Search expanded & rescheduled to ${nextSlot} today.`,
+        body: `No cleaner was free for ${prevSlot}. Moved to ${nextSlot} today.`,
         data: { bookingId: String(b._id) },
       }).catch((err) => console.error("notify failed:", (err as Error).message));
     } else {
       await pushToUser(cid, {
         title: "📅 Rescheduled to Tomorrow",
-        body: `Cleaners were unavailable today. We've auto-rescheduled your ${b.packageName} to ${dateFormatted} at ${nextSlot}.`,
+        body: `No cleaners were free today. Your ${b.packageName} is moved to ${dateFormatted}, ${nextSlot}.`,
         data: { bookingId: String(b._id), kind: "rescheduled" },
       }).catch((err) => console.error("push failed:", (err as Error).message));
 

@@ -47,6 +47,32 @@ function describeError(err: GeolocationPositionError): string {
   return "Couldn't get a GPS fix — check your signal.";
 }
 
+/**
+ * Resolve a fresh fix from a direct user action (notably the Online button).
+ * Requesting here lets the browser show its permission prompt while the click
+ * gesture is still active, then sends the first coordinates in the same API
+ * call that marks the cleaner online.
+ */
+export function requestCurrentDeviceFix(): Promise<DeviceFix> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return Promise.reject(new Error("This device can't share its location."));
+  }
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        resolve({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
+          speed: Number.isFinite(pos.coords.speed) ? pos.coords.speed : null,
+          at: Date.now(),
+        }),
+      (err) => reject(new Error(describeError(err))),
+      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
+    );
+  });
+}
+
 function startWatch() {
   if (watchId !== null) return;
   if (typeof navigator === "undefined" || !navigator.geolocation) {

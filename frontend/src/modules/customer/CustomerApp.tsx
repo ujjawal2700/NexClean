@@ -35,9 +35,11 @@ type BookingProgress = {
 };
 
 /**
- * Customer-wide completion listener. It lives above the route groups so the
- * confirmation appears on both CustomerLayout pages and the standalone live
- * tracking screen.
+ * Customer-wide live listener: the app's one socket connection. It lives above
+ * the route groups so the completion confirmation appears on both
+ * CustomerLayout pages and the standalone live tracking screen — and so the
+ * connection isn't torn down and reopened every time the customer moves
+ * between those route groups (CustomerLayout remounts on that switch).
  */
 function CustomerCompletionListener() {
   const authenticated = useSessionStore((s) => s.authenticated);
@@ -51,7 +53,15 @@ function CustomerCompletionListener() {
     let alive = true;
     const reconcile = async (initial = false) => {
       try {
-        const bookings = await apiFetch<Booking[]>("/bookings", { cache: "no-store" });
+        // Through the query cache, not a bare fetch: on page load this shares
+        // the /bookings request the dashboard is already making instead of
+        // firing a second one, and the 5s safety poll refreshes the same data
+        // the screens render.
+        const bookings = await qc.fetchQuery({
+          queryKey: bookingsKey,
+          queryFn: () => apiFetch<Booking[]>("/bookings"),
+          staleTime: initial ? 30_000 : 0,
+        });
         if (!alive) return;
         const nextActive = new Set(bookings.filter((b) => b.status === "upcoming").map((b) => b.id));
         if (!initial) {
@@ -82,6 +92,18 @@ function CustomerCompletionListener() {
       } else if (progress.status === "upcoming") {
         activeBookingIds.current.add(progress.bookingId);
       }
+    });
+
+    socket.on("booking_assigned", () => {
+      qc.invalidateQueries({ queryKey: bookingsKey });
+      qc.invalidateQueries({ queryKey: notificationsKey });
+    });
+    socket.on("notification", () => {
+      qc.invalidateQueries({ queryKey: notificationsKey });
+      qc.invalidateQueries({ queryKey: bookingsKey });
+    });
+    socket.on("push_notification", () => {
+      qc.invalidateQueries({ queryKey: notificationsKey });
     });
 
     // WebSockets are immediate; this only runs while a service is active and

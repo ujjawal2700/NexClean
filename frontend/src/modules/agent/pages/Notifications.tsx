@@ -121,7 +121,7 @@ export function Notifications() {
               Without this you'll only see new jobs while the app is open on screen.
             </p>
             {enableError && (
-              <p className="mt-1.5 text-xs font-medium text-amber-600" data-testid="push-enable-error">
+              <p className="mt-1.5 text-xs font-medium text-amber-600 [overflow-wrap:anywhere]" data-testid="push-enable-error">
                 {enableError}
               </p>
             )}
@@ -200,12 +200,16 @@ export function Notifications() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="font-display font-semibold text-ink">{n.title}</p>
+                      <p className="min-w-0 font-display font-semibold text-ink [overflow-wrap:anywhere]">
+                        {n.title}
+                      </p>
                       {!n.read && (
                         <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />
                       )}
                     </div>
-                    <p className="mt-0.5 text-sm text-ink-soft">{n.body}</p>
+                    <p className="mt-0.5 whitespace-pre-line text-sm text-ink-soft [overflow-wrap:anywhere]">
+                      {n.body}
+                    </p>
                     <p className="mt-1.5 text-xs text-muted">
                       {formatDate(n.createdAt)} · {formatTime(n.createdAt)}
                     </p>

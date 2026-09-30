@@ -55,7 +55,15 @@ connectDb()
 const shutdown = (signal: string) => {
   console.log(`\n${signal} received — shutting down.`);
   stopDispatchWorker();
+  // server.close() only calls back once every open connection has ended, and a
+  // connected browser holds keep-alive and WebSocket connections open
+  // indefinitely. The listener was already closed, so the process sat alive
+  // but refusing connections (ERR_CONNECTION_REFUSED) — and `node --watch`,
+  // which waits for the old process to exit, never started the new one.
   server.close(() => process.exit(0));
+  server.closeAllConnections();
+  // Upgraded WebSockets aren't tracked by closeAllConnections; don't wait on them.
+  setTimeout(() => process.exit(0), 3_000).unref();
 };
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));

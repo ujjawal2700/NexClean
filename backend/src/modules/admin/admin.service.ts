@@ -205,7 +205,7 @@ export async function rescheduleBooking(
 
   await pushToUser(cid, {
     title: "📅 Service Rescheduled by Admin",
-    body: `Your ${booking.packageName} service has been rescheduled to ${dateFormatted} at ${input.slot}.`,
+    body: `Your ${booking.packageName} is now on ${dateFormatted} at ${input.slot}.`,
     data: { bookingId: String(booking._id), kind: "rescheduled" },
   }).catch((err: unknown) => console.error("reschedule push failed:", (err as Error).message));
 

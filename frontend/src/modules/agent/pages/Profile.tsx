@@ -25,6 +25,7 @@ import {
   useToggleOnline,
   useDeactivateAccount,
 } from "../api/agent.api";
+import { requestCurrentDeviceFix } from "../hooks/useDeviceLocation";
 
 export function Profile() {
   const navigate = useNavigate();
@@ -61,6 +62,19 @@ export function Profile() {
 
   const verified = me?.agentStatus === "verified";
   const isUnverified = me?.agentStatus !== "verified";
+
+  const handleOnlineToggle = async () => {
+    if (me?.online) {
+      toggleOnline.mutate({ online: false });
+      return;
+    }
+    try {
+      const fix = await requestCurrentDeviceFix();
+      toggleOnline.mutate({ online: true, lat: fix.lat, lng: fix.lng });
+    } catch {
+      toggleOnline.mutate({ online: true });
+    }
+  };
 
   // Get user initials for avatar
   const getInitials = () => {
@@ -175,7 +189,7 @@ export function Profile() {
           variant={me?.online ? "outline" : "primary"}
           size="sm"
           disabled={toggleOnline.isPending || isUnverified}
-          onClick={() => toggleOnline.mutate(!me?.online)}
+          onClick={() => void handleOnlineToggle()}
           className="rounded-xl px-4 py-2 text-xs font-semibold">
           {me?.online ? "Go offline" : "Go online"}
         </Button>

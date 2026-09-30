@@ -112,6 +112,26 @@ export async function updateRescheduleConfigCtl(req: Request, res: Response): Pr
   return ok(res, await updateRescheduleConfig(parsed.data), "Reschedule config updated");
 }
 
+import { getDispatchConfig, updateDispatchConfig } from "../dispatch/dispatchConfig.service";
+import { MIN_OFFER_TIMEOUT_SECONDS, MAX_OFFER_TIMEOUT_SECONDS } from "../dispatch/dispatchConfig.model";
+
+export async function getDispatchConfigCtl(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await getDispatchConfig());
+}
+
+const dispatchConfigSchema = z.object({
+  offerTimeoutSeconds: z.number().int().min(MIN_OFFER_TIMEOUT_SECONDS).max(MAX_OFFER_TIMEOUT_SECONDS),
+});
+export async function updateDispatchConfigCtl(req: Request, res: Response): Promise<Response> {
+  const parsed = dispatchConfigSchema.safeParse(req.body);
+  if (!parsed.success) {
+    throw ApiError.badRequest(
+      `Offer timer must be between ${MIN_OFFER_TIMEOUT_SECONDS} and ${MAX_OFFER_TIMEOUT_SECONDS} seconds`,
+    );
+  }
+  return ok(res, await updateDispatchConfig(parsed.data), "Dispatch settings updated");
+}
+
 export async function dispatchQueue(_req: Request, res: Response): Promise<Response> {
   return ok(res, await service.dispatchQueue());
 }

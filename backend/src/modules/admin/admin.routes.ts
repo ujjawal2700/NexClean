@@ -23,6 +23,8 @@ adminRouter.post("/bookings/:id/auto-assign", requirePermission("bookings"), asy
 adminRouter.get("/bookings/:id/assignable-agents", requirePermission("bookings"), asyncHandler(c.assignableAgents));
 adminRouter.get("/dispatch/queue", requirePermission("bookings"), asyncHandler(c.dispatchQueue));
 adminRouter.post("/dispatch/auto-assign-all", requirePermission("bookings"), asyncHandler(c.autoAssignAll));
+adminRouter.get("/dispatch/config", requirePermission("bookings"), asyncHandler(c.getDispatchConfigCtl));
+adminRouter.put("/dispatch/config", requirePermission("bookings"), asyncHandler(c.updateDispatchConfigCtl));
 adminRouter.get("/reschedule-config", requirePermission("bookings"), asyncHandler(c.getRescheduleConfigCtl));
 adminRouter.put("/reschedule-config", requirePermission("bookings"), asyncHandler(c.updateRescheduleConfigCtl));
 

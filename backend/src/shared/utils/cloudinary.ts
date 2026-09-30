@@ -14,7 +14,10 @@ if (cloudinaryEnabled) {
  * If Cloudinary is not enabled (missing env variables), it falls back to mock mode
  * returning a mock URL so the system continues to work locally.
  */
-export async function uploadImage(base64Data: string): Promise<string> {
+export async function uploadImage(
+  base64Data: string,
+  options: { folder?: string } = {},
+): Promise<string> {
   if (!cloudinaryEnabled) {
     console.log("☁️ [cloudinary:mock] Cloudinary credentials missing. Returning uploaded base64 data URL or mock fallback.");
     if (base64Data.startsWith("data:image/")) {
@@ -24,8 +27,10 @@ export async function uploadImage(base64Data: string): Promise<string> {
   }
 
   const result = await cloudinary.uploader.upload(base64Data, {
-    folder: "nexclean",
+    folder: options.folder ?? "nexclean",
+    resource_type: "image",
     format: "webp",
+    quality: "auto:good",
   });
   return result.secure_url;
 }

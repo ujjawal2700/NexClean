@@ -90,6 +90,7 @@ const keys = {
   roles: ["admin", "roles"] as const,
   staff: ["admin", "staff"] as const,
   dispatch: ["admin", "dispatch"] as const,
+  dispatchConfig: ["admin", "dispatch-config"] as const,
   assignable: (id: string) => ["admin", "bookings", id, "assignable"] as const,
   payoutRequests: (status?: string) => ["admin", "payout-requests", status ?? "all"] as const,
 };
@@ -450,6 +451,25 @@ export const useDispatchQueue = () =>
   // Socket events are immediate; this short reconciliation interval covers a
   // dropped event or a temporarily unavailable cross-worker Redis adapter.
   useAuthedQuery<DispatchQueueItem[]>(keys.dispatch, "/admin/dispatch/queue", { refetchInterval: 3_000 });
+
+export type DispatchConfig = {
+  /** How long one cleaner has to accept a job offer before it moves to the next. */
+  offerTimeoutSeconds: number;
+  minOfferTimeoutSeconds: number;
+  maxOfferTimeoutSeconds: number;
+};
+
+export const useDispatchConfig = () =>
+  useAuthedQuery<DispatchConfig>(keys.dispatchConfig, "/admin/dispatch/config");
+
+export function useUpdateDispatchConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { offerTimeoutSeconds: number }) =>
+      apiFetch<DispatchConfig>("/admin/dispatch/config", { method: "PUT", body: vars }),
+    onSuccess: (data) => qc.setQueryData(keys.dispatchConfig, data),
+  });
+}
 
 /** Cleaners assignable to a booking, ranked by distance. Fetched lazily when a picker opens. */
 export function useAssignableAgents(bookingId: string | null) {

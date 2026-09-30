@@ -15,7 +15,7 @@ export async function sendSignupOtp(req: Request, res: Response): Promise<Respon
 }
 
 export async function sendLoginOtp(req: Request, res: Response): Promise<Response> {
-  const result = await authService.sendLoginOtp(req.body.phone);
+  const result = await authService.sendLoginOtp(req.body.phone, req.body.role);
   return ok(res, result, "OTP sent");
 }
 

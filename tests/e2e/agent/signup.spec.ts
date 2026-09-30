@@ -223,7 +223,16 @@ test.describe("Agent signup", () => {
     await expect(page.getByAltText("Aadhar front preview")).toBeVisible();
     await expect(page.getByAltText("Aadhar back preview")).toBeVisible();
 
+    const submitted = page.waitForRequest(
+      (request) => request.url().includes("/auth/agent/signup") && request.method() === "POST",
+    );
     await page.getByRole("button", { name: "Submit application" }).click();
+    const request = await submitted;
+    const body = request.postDataJSON() as { aadharFront: string; aadharBack: string };
+    expect(body.aadharFront).toMatch(/^data:image\/webp;base64,/);
+    expect(body.aadharBack).toMatch(/^data:image\/webp;base64,/);
+    expect(body.aadharFront.length).toBeLessThan(500_000);
+    expect(body.aadharBack.length).toBeLessThan(500_000);
 
     // Brand new agent signups are agentStatus:"pending" -> KYC-gate status screen.
     await page.waitForURL(/\/agent$/);
