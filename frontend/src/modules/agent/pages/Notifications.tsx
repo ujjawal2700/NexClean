@@ -22,7 +22,9 @@ import {
   getNotificationPermission,
   saveDeviceToken,
   isPushSupported,
+  requestPushPermission,
 } from "@shared/lib/push";
+import { IosPushHint } from "@shared/components/IosPushHint";
 import {
   useAgentNotifications,
   useMarkAgentNotificationsRead,
@@ -68,12 +70,13 @@ export function Notifications() {
   }, []);
 
   const enablePush = async () => {
+    // Prompt first, synchronously inside the tap — Safari ignores a permission
+    // request made after an await, which is why iOS never asked.
+    const asked = requestPushPermission();
     setEnabling(true);
     setEnableError("");
     try {
-      // requestPermission is what makes the browser actually prompt. Without
-      // it this quietly resolves to a synthetic token that FCM can never
-      // deliver to — the button would look like it worked and change nothing.
+      await asked;
       const token = await getPushToken({ requestPermission: true });
       saveDeviceToken(token);
       await registerToken.mutateAsync(token);
@@ -107,6 +110,8 @@ export function Notifications() {
           <p className="text-sm text-muted">Job assignments, cancellations and account updates.</p>
         </div>
       </div>
+
+      <IosPushHint appName="NexClean Partner" />
 
       {/* Push opt-in. Only shown when it can change something — no point
           offering it on a browser that can't do push, or when it's already on. */}

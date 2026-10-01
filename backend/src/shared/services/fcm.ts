@@ -78,6 +78,9 @@ export async function initFcm() {
  * In mock mode (no Firebase creds) it logs the message and reports success,
  * so the whole Smart Area Alert flow is testable without external services.
  */
+/** Drop a push that can't be delivered within a day — it would only arrive stale. */
+const PUSH_TTL_SECONDS = 24 * 60 * 60;
+
 export async function sendPush(tokens: string[], payload: PushPayload): Promise<{ sent: number; mocked: boolean }> {
   // Deduplicate tokens array
   const valid = Array.from(new Set(tokens.filter(Boolean)));
@@ -108,6 +111,14 @@ export async function sendPush(tokens: string[], payload: PushPayload): Promise<
       tokens: realFcmTokens,
       notification: { title: payload.title, body: payload.body },
       data: stringifiedData,
+      // Web push delivery hints. Without Urgency "high" a phone in battery
+      // saver (Android Doze, iOS Low Power) may hold the push back or drop it,
+      // which is how some customers saw an area alert only in the app. TTL
+      // keeps an undeliverable push from arriving hours late and stale.
+      webpush: {
+        headers: { Urgency: "high", TTL: String(PUSH_TTL_SECONDS) },
+        notification: { icon: "/logo.png", badge: "/logo.png" },
+      },
     });
 
     // Clean up ONLY truly dead FCM tokens (do NOT delete synthetic tokens)
@@ -116,6 +127,11 @@ export async function sendPush(tokens: string[], payload: PushPayload): Promise<
       res.responses.forEach((resp, idx) => {
         if (!resp.success && resp.error) {
           const code = resp.error.code;
+          // Every other failure used to vanish silently, leaving no way to tell
+          // why a customer didn't get a push. Token tail only — never the whole token.
+          console.warn(
+            `✗ push to …${realFcmTokens[idx].slice(-8)} failed: ${code ?? "unknown"} ${resp.error.message ?? ""}`,
+          );
           if (
             code === "messaging/invalid-registration-token" ||
             code === "messaging/registration-token-not-registered"

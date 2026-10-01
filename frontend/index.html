@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
+    <!-- Installable web app. iOS only delivers web push to a site added to the
+         Home Screen as a standalone app, which needs this manifest. The agent
+         app swaps in agent.webmanifest so cleaners' icon opens /agent. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="NexClean" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />

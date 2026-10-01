@@ -5,7 +5,8 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { Skeleton } from "@shared/ui/Skeleton";
 import { cn } from "@shared/lib/utils";
-import { getPushToken, getNotificationPermission, saveDeviceToken } from "@shared/lib/push";
+import { getPushToken, getNotificationPermission, saveDeviceToken, requestPushPermission } from "@shared/lib/push";
+import { IosPushHint } from "@shared/components/IosPushHint";
 import { resolveNotificationPath } from "@shared/lib/notificationLink";
 import { useNotifications } from "../api/queries";
 import { useMarkNotificationsRead, useRegisterToken } from "../api/mutations";
@@ -42,11 +43,12 @@ export function Notifications() {
   }, []);
 
   const enablePush = async () => {
+    // Prompt first, synchronously inside the tap — Safari ignores a permission
+    // request made after an await, which is why iOS never asked.
+    const asked = requestPushPermission();
     setEnabling(true);
     try {
-      // requestPermission is what makes the browser actually prompt. Without
-      // it this resolves to the synthetic fallback token and the button looks
-      // like it worked while registering something FCM can never deliver to.
+      await asked;
       const token = await getPushToken({ requestPermission: true });
       saveDeviceToken(token);
       await registerToken.mutateAsync(token);
@@ -72,6 +74,8 @@ export function Notifications() {
           <h1 className="font-display text-2xl text-ink sm:text-3xl">Notifications</h1>
         </div>
       </div>
+
+      <IosPushHint />
 
       {permission !== "granted" && permission !== "unsupported" && (
         <GlassCard className="mb-6 border-primary/30 bg-primary/5">

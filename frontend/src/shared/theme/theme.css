@@ -69,6 +69,16 @@
     user-select: none;
   }
 
+  /* Holding a button or link must not pop the browser's link preview (iOS)
+     or start dragging a link/image ghost (Android). Text inputs are untouched. */
+  a,
+  button,
+  img,
+  [role="button"] {
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
+  }
+
   html {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -230,6 +240,35 @@
   .mobile-content-with-nav {
     padding-bottom: 4rem;
   }
+}
+
+/* The selection pill as a drop of liquid glass: it frosts what's behind it,
+   and while held it lifts, brightens and casts a softer, wider glow. Its
+   stretch/squash comes from LiquidTabBar's motion values. */
+.liquid-pill {
+  z-index: 0;
+  transform-origin: center;
+  will-change: transform, width;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(10px) saturate(170%);
+  backdrop-filter: blur(10px) saturate(170%);
+  transition: box-shadow 260ms ease, background 260ms ease;
+}
+
+.liquid-pill.is-dragging {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(79, 124, 255, 0.2));
+  box-shadow:
+    0 16px 30px -14px rgba(79, 124, 255, 0.75),
+    0 0 0 1px rgba(255, 255, 255, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -6px 14px -8px rgba(79, 124, 255, 0.35);
+}
+
+.no-callout {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

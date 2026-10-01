@@ -90,7 +90,7 @@ export async function subscribe(
   await user.save();
 
   // Buying a subscription is a qualifying referral milestone.
-  void maybeCreditReferrer(userId).catch((err) =>
+  void maybeCreditReferrer(userId, "subscription").catch((err) =>
     console.error("referral credit failed:", (err as Error).message),
   );
 

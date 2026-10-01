@@ -1,9 +1,9 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
-import { motion } from "motion/react";
 import { LayoutDashboard, CalendarPlus, ClipboardList, CreditCard, User, Bell, LogIn, Lock } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
+import { LiquidTabBar } from "@shared/components/LiquidTabBar";
 import { Button } from "@shared/ui/Button";
 import { getPushToken, saveDeviceToken } from "@shared/lib/push";
 import { useMe, useNotifications } from "../api/queries";
@@ -29,6 +29,12 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   const isGuest = useIsGuest();
 
   const unread = notifications.filter((n) => !n.read).length;
+
+  // The tab bar belongs to the five top-level tabs only. Nested screens
+  // (edit profile, refer & earn, vehicles, wallet, notifications, help…) have
+  // their own back button, and the bar there only competed with it.
+  const path = location.pathname.replace(/\/+$/, "") || "/";
+  const showMobileNav = NAV.some((item) => item.to === path);
 
   /** Guests never reach a locked screen: the tap goes straight to the login. */
   const goToLogin = (from?: string) => navigate("/app/login", { state: from ? { from } : undefined });
@@ -142,75 +148,24 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
       )}
 
       {/* content */}
-      <main className="mobile-content-with-nav mx-auto max-w-6xl px-4 pt-6 sm:px-5 sm:pt-8">
+      <main
+        className={cn(
+          "mx-auto max-w-6xl px-4 pt-6 sm:px-5 sm:pt-8",
+          showMobileNav ? "mobile-content-with-nav" : "pb-8",
+        )}
+      >
         {children}
       </main>
 
       {/* mobile tab bar */}
-      <nav
-        data-testid="customer-mobile-nav"
-        aria-label="Customer navigation"
-        className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-30 md:hidden"
-      >
-        <motion.div
-          className="mobile-bottom-nav-shell mx-auto flex max-w-md items-center justify-around"
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: "spring", stiffness: 340, damping: 28, mass: 0.75 }}
-        >
-          {NAV.map((item) => {
-            const locked = isGuest && item.authRequired;
-            const className =
-              "mobile-bottom-nav-item relative flex flex-1 items-stretch justify-stretch rounded-2xl text-[10px] font-medium";
-            return locked ? (
-              <button
-                key={item.to}
-                type="button"
-                onClick={() => goToLogin(item.to)}
-                className={cn(className, "text-muted")}
-                aria-label={`${item.label} — login required`}
-              >
-                <motion.span
-                  className="relative z-10 flex w-full flex-col items-center gap-1 py-2"
-                  whileTap={{ scale: 0.9 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                >
-                  <span className="relative">
-                    <item.icon className="size-5" />
-                    <Lock className="absolute -right-1.5 -top-1 size-2.5" />
-                  </span>
-                  {item.label}
-                </motion.span>
-              </button>
-            ) : (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) => cn(className, isActive ? "text-primary" : "text-muted")}
-              >
-                {({ isActive }) => (
-                  <motion.span
-                    className="relative z-10 flex w-full flex-col items-center gap-1 py-2"
-                    whileTap={{ scale: 0.9 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  >
-                    {isActive && (
-                      <motion.span
-                        layoutId="customer-mobile-nav-active"
-                        className="mobile-bottom-nav-active absolute inset-0"
-                        transition={{ type: "spring", stiffness: 380, damping: 30, mass: 0.7 }}
-                      />
-                    )}
-                    <item.icon className="relative z-10 size-5" strokeWidth={isActive ? 2.35 : 2} />
-                    <span className="relative z-10">{item.label}</span>
-                  </motion.span>
-                )}
-              </NavLink>
-            );
-          })}
-        </motion.div>
-      </nav>
+      {showMobileNav && (
+        <LiquidTabBar
+          testId="customer-mobile-nav"
+          ariaLabel="Customer navigation"
+          tabs={NAV.map((item) => ({ ...item, locked: isGuest && item.authRequired }))}
+          onLockedPress={goToLogin}
+        />
+      )}
     </div>
   );
 }

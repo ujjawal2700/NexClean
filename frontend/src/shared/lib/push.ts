@@ -190,3 +190,39 @@ export function getNotificationPermission(): NotificationPermission | "unsupport
   if (!isPushSupported()) return "unsupported";
   return Notification.permission;
 }
+
+/**
+ * Ask for notification permission. Call this FIRST in a tap handler, before
+ * any `await`: Safari only shows the prompt when it is requested directly from
+ * the user's gesture, and an awaited network call in between (getPushToken
+ * reads the runtime config first) uses that gesture up, so iOS silently denied
+ * the request. Chrome is lenient about this, which is why Android worked.
+ */
+export function requestPushPermission(): Promise<NotificationPermission | "unsupported"> {
+  if (!isPushSupported()) return Promise.resolve("unsupported");
+  if (Notification.permission !== "default") return Promise.resolve(Notification.permission);
+  return Notification.requestPermission();
+}
+
+function isIos(): boolean {
+  if (typeof navigator === "undefined") return false;
+  // iPadOS reports itself as a Mac; touch support tells them apart.
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+/**
+ * True on an iPhone/iPad browsing in Safari (or any iOS browser tab): iOS only
+ * offers web push to a site opened from the Home Screen, so the way to get
+ * notifications there is "Share → Add to Home Screen", not a permission prompt.
+ */
+export function needsHomeScreenForPush(): boolean {
+  return isIos() && !isStandalone();
+}
