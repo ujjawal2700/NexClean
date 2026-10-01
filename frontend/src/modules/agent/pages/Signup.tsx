@@ -408,7 +408,7 @@ function KycTile({
       const dataUri = await fileToCompressedDataUri(file);
       onPick(dataUri);
     } catch (error) {
-      setConversionError(error instanceof Error ? error.message : "Couldn't convert this image to WebP");
+      setConversionError(error instanceof Error ? error.message : "Couldn't optimize this photo. Please try another image.");
     } finally {
       setBusy(false);
       if (ref.current) ref.current.value = "";
@@ -431,7 +431,7 @@ function KycTile({
         {busy ? (
           <div className="text-center text-primary">
             <Loader2 className="mx-auto size-6 animate-spin" />
-            <p className="mt-1 text-[10px] font-medium">Converting to WebP…</p>
+            <p className="mt-1 text-[10px] font-medium">Optimizing photo…</p>
           </div>
         ) : done ? (
           <img src={value} alt={`${label} preview`} className="absolute inset-0 size-full object-cover" />
@@ -449,7 +449,7 @@ function KycTile({
         <input
           ref={ref}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
           capture="environment"
           className="hidden"
           onChange={(e) => void handleFile(e.target.files?.[0])}

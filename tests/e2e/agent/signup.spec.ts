@@ -229,8 +229,10 @@ test.describe("Agent signup", () => {
     await page.getByRole("button", { name: "Submit application" }).click();
     const request = await submitted;
     const body = request.postDataJSON() as { aadharFront: string; aadharBack: string };
-    expect(body.aadharFront).toMatch(/^data:image\/webp;base64,/);
-    expect(body.aadharBack).toMatch(/^data:image\/webp;base64,/);
+    // Chromium encodes WebP natively; WebKit/iOS uses the compressed JPEG
+    // fallback and Cloudinary converts it to WebP while storing the upload.
+    expect(body.aadharFront).toMatch(/^data:image\/(?:webp|jpeg);base64,/);
+    expect(body.aadharBack).toMatch(/^data:image\/(?:webp|jpeg);base64,/);
     expect(body.aadharFront.length).toBeLessThan(500_000);
     expect(body.aadharBack.length).toBeLessThan(500_000);
 
@@ -239,6 +241,49 @@ test.describe("Agent signup", () => {
     await expect(page.locator("h1")).toHaveText("Application under review");
     await expect(page.getByText("Test Cleaner", { exact: false })).toBeVisible();
     await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
+  });
+
+  test("iOS fallback compresses camera photos when canvas WebP encoding is unavailable", async ({ page }) => {
+    // Reproduce older iOS Safari/WebView behavior: it accepts a WebP encode
+    // request but silently returns PNG instead. The app must fall back without
+    // asking the agent to update their browser or abandon signup.
+    await page.addInitScript(() => {
+      const originalToBlob = HTMLCanvasElement.prototype.toBlob;
+      const originalToDataUrl = HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+        return originalToBlob.call(this, callback, type === "image/webp" ? "image/png" : type, quality);
+      };
+      HTMLCanvasElement.prototype.toDataURL = function (type, quality) {
+        return originalToDataUrl.call(this, type === "image/webp" ? "image/png" : type, quality);
+      };
+    });
+
+    const phone = freshPhone();
+    await page.goto("/agent/signup");
+    await fillDetails(page, { name: "IOS Camera Cleaner", phone, area: TEST_AREA });
+    await continueToOtp(page);
+    await passOtpStep(page);
+    await expect(page.locator("h1")).toHaveText("Identity verification");
+
+    await page.locator('input[name="aadhar"]').fill("123456789012");
+    const fileInputs = page.locator('input[type="file"]');
+    await fileInputs.nth(0).setInputFiles(tinyPngFile("ios-camera-front.png"));
+    await fileInputs.nth(1).setInputFiles(tinyPngFile("ios-camera-back.png"));
+    await expect(page.getByAltText("Aadhar front preview")).toBeVisible();
+    await expect(page.getByAltText("Aadhar back preview")).toBeVisible();
+    await expect(page.getByText(/cannot convert photos to WebP/i)).toHaveCount(0);
+
+    const submitted = page.waitForRequest(
+      (request) => request.url().includes("/auth/agent/signup") && request.method() === "POST",
+    );
+    await page.getByRole("button", { name: "Submit application" }).click();
+    const request = await submitted;
+    const body = request.postDataJSON() as { aadharFront: string; aadharBack: string };
+    expect(body.aadharFront).toMatch(/^data:image\/jpeg;base64,/);
+    expect(body.aadharBack).toMatch(/^data:image\/jpeg;base64,/);
+    expect(body.aadharFront.length).toBeLessThan(500_000);
+    expect(body.aadharBack.length).toBeLessThan(500_000);
+    await expect(page.locator("h1")).toHaveText("Application under review");
   });
 
   test("'Agent login' link goes back to the login page", async ({ page }) => {
