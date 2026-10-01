@@ -3,11 +3,24 @@ import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { requireRole, requirePermission } from "../../shared/middleware/auth";
 import * as c from "./admin.controller";
 import { listLeads, deleteLead, updateLeadStatus } from "../lead/lead.controller";
+import * as internalMessages from "../internalMessage/internalMessage.controller";
 
 
 export const adminRouter = Router();
 
 adminRouter.use(requireRole("admin"));
+
+// Every authenticated admin can manage their own login details regardless of
+// their operational role permissions.
+adminRouter.patch("/account/profile", asyncHandler(c.updateOwnProfile));
+adminRouter.patch("/account/email", asyncHandler(c.changeOwnEmail));
+adminRouter.patch("/account/password", asyncHandler(c.changeOwnPassword));
+
+adminRouter.get("/internal-messages/contacts", requirePermission("internal-messages"), asyncHandler(internalMessages.contacts));
+adminRouter.get("/internal-messages/conversations", requirePermission("internal-messages"), asyncHandler(internalMessages.conversations));
+adminRouter.post("/internal-messages/conversations", requirePermission("internal-messages"), asyncHandler(internalMessages.startConversation));
+adminRouter.get("/internal-messages/conversations/:conversationId/messages", requirePermission("internal-messages"), asyncHandler(internalMessages.messages));
+adminRouter.post("/internal-messages/conversations/:conversationId/messages", requirePermission("internal-messages"), asyncHandler(internalMessages.send));
 
 adminRouter.get("/stats", requirePermission("dashboard"), asyncHandler(c.stats));
 adminRouter.get("/reports", requirePermission("reports"), asyncHandler(c.reports));

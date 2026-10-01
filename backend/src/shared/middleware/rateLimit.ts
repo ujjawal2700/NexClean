@@ -42,6 +42,12 @@ const phoneOrIp: Options["keyGenerator"] = (req) => {
   return ipKeyGenerator(req.ip ?? "");
 };
 
+const emailOrIp: Options["keyGenerator"] = (req) => {
+  const email = (req.body as { email?: unknown } | undefined)?.email;
+  if (typeof email === "string" && email.trim()) return `email:${email.trim().toLowerCase()}`;
+  return ipKeyGenerator(req.ip ?? "");
+};
+
 /** OTP sends: each one bills a real SMS. */
 export const sendOtpLimiter = base({
   windowMs: 15 * 60 * 1000,
@@ -63,6 +69,20 @@ export const adminLoginLimiter = base({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   message: "Too many login attempts. Please wait a few minutes and try again.",
+});
+
+export const adminResetRequestLimiter = base({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  message: "Too many reset-code requests. Please wait a few minutes and try again.",
+  keyGenerator: emailOrIp,
+});
+
+export const adminResetLimiter = base({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  message: "Too many password-reset attempts. Please wait a few minutes and try again.",
+  keyGenerator: emailOrIp,
 });
 
 /** Cleaner-initiated pushes to every customer in an area. */

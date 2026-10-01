@@ -26,6 +26,7 @@ const NAV_PERMISSIONS = [
   { to: "/admin/reports", permission: "reports" },
   { to: "/admin/roles", permission: "roles" },
   { to: "/admin/support", permission: "chat" },
+  { to: "/admin/internal-messages", permission: "internal-messages" },
 ];
 
 export function PermissionGuard({

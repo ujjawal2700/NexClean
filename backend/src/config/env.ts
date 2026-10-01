@@ -86,6 +86,11 @@ export const env = {
   smsIndiaHubTemplateId: process.env.SMS_INDIA_HUB_TEMPLATE_ID ?? "",
   smsIndiaHubGwid: process.env.SMS_INDIA_HUB_GWID ?? "2",
   smsIndiaHubTemplate: process.env.SMS_INDIA_HUB_TEMPLATE ?? "Welcome to the NexClean powered by Appzeto.Your OTP for registration is {{otp}}.BGADEC",
+  // Admin password-reset emails are delivered through Resend's HTTP API.
+  // Local/test environments deliberately use a console mock so the complete
+  // reset flow remains testable without making external network calls.
+  resendApiKey: process.env.RESEND_API_KEY ?? "",
+  emailFrom: process.env.EMAIL_FROM ?? "NexClean Security <security@nexclean.in>",
 };
 
 export const pushEnabled = env.firebaseServiceAccount.length > 0;
@@ -100,6 +105,7 @@ export const smsEnabled =
   env.nodeEnv !== "test" &&
   (env.smsIndiaHubApiKey.length > 0 ||
     (env.smsIndiaHubUser.length > 0 && env.smsIndiaHubPassword.length > 0));
+export const emailEnabled = env.nodeEnv !== "test" && env.resendApiKey.length > 0;
 
 export const isProd = env.nodeEnv === "production";
 

@@ -193,7 +193,7 @@ test.describe("Admin — detail page actions", () => {
 
     // Suspend / Reinstate still work alongside the new actions, now behind a confirmation.
     await page.getByRole("button", { name: "Suspend", exact: true }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Suspend", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Suspend agent", exact: true }).click();
     await expect(page.getByRole("button", { name: "Reinstate" })).toBeVisible();
     await page.getByRole("button", { name: "Reinstate" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Verify", exact: true }).click();
@@ -337,12 +337,12 @@ test.describe("Admin — richer forms and verification", () => {
     // Cancelling leaves the status untouched.
     await page.getByRole("button", { name: "Suspend", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Suspend this agent?" })).toBeVisible();
-    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Keep active", exact: true }).click();
     await expect(panel.getByText("Verified", { exact: true })).toBeVisible();
 
     // Confirming applies it.
     await page.getByRole("button", { name: "Suspend", exact: true }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Suspend", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Suspend agent", exact: true }).click();
     await expect(panel.getByText("Suspended", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Reinstate" }).click();
@@ -355,4 +355,3 @@ test.describe("Admin — richer forms and verification", () => {
     await expect(page).toHaveURL(/\/admin\/agents$/);
   });
 });
-

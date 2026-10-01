@@ -271,6 +271,11 @@ export function getConnectedAdminsCount(): number {
   return adminConnections.size;
 }
 
+/** Whether this staff member currently has at least one connected admin client. */
+export function isAdminConnected(userId: string): boolean {
+  return (adminConnections.get(userId)?.size ?? 0) > 0;
+}
+
 export async function syncAndBroadcastSupportStatus() {
   if (!io) return;
 

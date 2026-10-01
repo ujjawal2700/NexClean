@@ -39,6 +39,7 @@ test.describe("Admin Login", () => {
     await expect(dialog.getByRole("heading", { name: "Log out of NexClean?" })).toBeVisible();
     await dialog.getByRole("button", { name: "Stay signed in" }).click();
     await expect(page).toHaveURL(/\/admin$/);
+    await expect(dialog).not.toBeVisible();
 
     await page.getByRole("button", { name: "Log out" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Log out", exact: true }).click();

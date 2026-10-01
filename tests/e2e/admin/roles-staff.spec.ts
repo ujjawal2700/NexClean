@@ -19,6 +19,7 @@ test.describe("Admin role & staff management", () => {
     // --- Create role with a couple of permissions ---
     await expect(page.getByRole("button", { name: "Roles & Permissions" })).toBeVisible();
     await page.getByRole("button", { name: "Create Role" }).click();
+    await expect(page.getByText("Internal Messages", { exact: true }).locator("xpath=ancestor::label/input")).toBeChecked();
     await page.locator('input[name="roleName"]').fill(roleName);
     // The permission checkboxes are visually-hidden (`sr-only`) inputs
     // overlapped by a decorative checkmark div at the same coordinates, so

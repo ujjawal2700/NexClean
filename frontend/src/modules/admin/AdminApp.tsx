@@ -33,6 +33,7 @@ import { Leads } from "./pages/Leads";
 import { Referrals } from "./pages/Referrals";
 import { RoleManagement } from "./pages/RoleManagement"; // Role Management Dashboard Page
 import { ChatPanel } from "./pages/ChatPanel";
+import { InternalMessages } from "./pages/InternalMessages";
 import { AdminProfile } from "./pages/AdminProfile";
 
 /**
@@ -283,6 +284,14 @@ export function AdminApp() {
             element={
               <PermissionGuard permission="chat">
                 <ChatPanel />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="internal-messages"
+            element={
+              <PermissionGuard permission="internal-messages">
+                <InternalMessages />
               </PermissionGuard>
             }
           />

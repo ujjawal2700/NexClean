@@ -116,6 +116,7 @@ test.describe("Admin — roles & staff", () => {
     expect(create.status()).toBe(201);
     const role = (await create.json()).data;
     expect(role.name).toBe(name);
+    expect(role.permissions).toContain("internal-messages");
 
     const del = await request.delete(apiUrl(`/admin/roles/${role.id}`), { headers: authHeader(token) });
     expect(del.ok()).toBeTruthy();
@@ -195,6 +196,79 @@ test.describe("Admin — roles & staff", () => {
 
     const delRole = await request.delete(apiUrl(`/admin/roles/${role.id}`), { headers: authHeader(token) });
     expect(delRole.ok()).toBeTruthy();
+  });
+
+  test("internal staff conversation persists messages and clears unread after reading", async ({ request }) => {
+    const { token: superToken } = await loginAsAdminApi(request);
+    const stamp = Date.now();
+    const roleResponse = await request.post(apiUrl("/admin/roles"), {
+      headers: authHeader(superToken),
+      data: { name: `Internal Chat Role ${stamp}`, permissions: ["dashboard"] },
+    });
+    const role = (await roleResponse.json()).data;
+    expect(role.permissions).toContain("internal-messages");
+
+    const staffEmail = `internal-chat-${stamp}@example.com`;
+    const password = "Passw0rd!23";
+    const staffResponse = await request.post(apiUrl("/admin/staff"), {
+      headers: authHeader(superToken),
+      data: { name: "Internal Chat Staff", email: staffEmail, password, adminRoleId: role.id },
+    });
+    const staff = (await staffResponse.json()).data;
+
+    try {
+      const login = await request.post(apiUrl("/auth/admin-login"), { data: { email: staffEmail, password } });
+      expect(login.ok()).toBeTruthy();
+      const staffToken = (await login.json()).data.token as string;
+
+      const contactsResponse = await request.get(apiUrl("/admin/internal-messages/contacts"), {
+        headers: authHeader(staffToken),
+      });
+      expect(contactsResponse.ok()).toBeTruthy();
+      const contacts = (await contactsResponse.json()).data as Array<{ id: string; name: string; roleName: string }>;
+      const superAdmin = contacts.find((contact) => contact.roleName === "Super Admin");
+      expect(superAdmin).toBeTruthy();
+
+      const start = await request.post(apiUrl("/admin/internal-messages/conversations"), {
+        headers: authHeader(staffToken),
+        data: { recipientId: superAdmin!.id },
+      });
+      expect(start.status()).toBe(201);
+      const conversationId = (await start.json()).data.id as string;
+
+      const sent = await request.post(apiUrl(`/admin/internal-messages/conversations/${conversationId}/messages`), {
+        headers: authHeader(staffToken),
+        data: { text: "Please review the afternoon operations handoff." },
+      });
+      expect(sent.status()).toBe(201);
+
+      const unread = await request.get(apiUrl("/admin/internal-messages/conversations"), {
+        headers: authHeader(superToken),
+      });
+      const unreadConversation = ((await unread.json()).data as Array<{ id: string; unreadCount: number }>).find(
+        (conversation) => conversation.id === conversationId,
+      );
+      expect(unreadConversation?.unreadCount).toBe(1);
+
+      const history = await request.get(apiUrl(`/admin/internal-messages/conversations/${conversationId}/messages`), {
+        headers: authHeader(superToken),
+      });
+      const messages = (await history.json()).data as Array<{ text: string; sender: { name: string; roleName: string } }>;
+      expect(messages.at(-1)?.text).toBe("Please review the afternoon operations handoff.");
+      expect(messages.at(-1)?.sender.name).toBe("Internal Chat Staff");
+      expect(messages.at(-1)?.sender.roleName).toBe(role.name);
+
+      const read = await request.get(apiUrl("/admin/internal-messages/conversations"), {
+        headers: authHeader(superToken),
+      });
+      const readConversation = ((await read.json()).data as Array<{ id: string; unreadCount: number }>).find(
+        (conversation) => conversation.id === conversationId,
+      );
+      expect(readConversation?.unreadCount).toBe(0);
+    } finally {
+      await request.delete(apiUrl(`/admin/staff/${staff.id}`), { headers: authHeader(superToken) });
+      await request.delete(apiUrl(`/admin/roles/${role.id}`), { headers: authHeader(superToken) });
+    }
   });
 });
 

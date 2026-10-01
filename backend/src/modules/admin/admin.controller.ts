@@ -21,11 +21,84 @@ import { getContent, updateContent } from "../content/content.service";
 import { AdminRole } from "./adminRole.model";
 import { User } from "../user/user.model";
 import { env } from "../../config/env";
-import { hashPassword } from "../../shared/utils/crypto";
+import { hashPassword, verifyPassword } from "../../shared/utils/crypto";
 import { TIME_SLOTS, SLOT_LIST } from "../../shared/slots";
+import { deleteConversationsForUser } from "../internalMessage/internalMessage.service";
 
 /** A positive price per vehicle category key — keys are admin-managed, not a fixed set. */
 const pricesSchema = z.record(z.string(), z.number().positive());
+
+const adminNameSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Name must be at least 2 characters")
+    .max(60)
+    .regex(/^[\p{L}\p{M}\s.'-]+$/u, "Name must contain letters only"),
+});
+const adminEmailSchema = z.object({
+  email: z.string().trim().email("Enter a valid email address").max(120),
+  currentPassword: z.string().min(1, "Current password is required"),
+});
+const strongAdminPassword = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(128)
+  .regex(/[a-z]/, "Password must include a lowercase letter")
+  .regex(/[A-Z]/, "Password must include an uppercase letter")
+  .regex(/\d/, "Password must include a number");
+const adminPasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: strongAdminPassword,
+});
+
+async function ownAdmin(userId: string) {
+  const user = await User.findOne({ _id: userId, role: "admin" });
+  if (!user) throw ApiError.notFound("Admin account not found");
+  return user;
+}
+
+export async function updateOwnProfile(req: Request, res: Response): Promise<Response> {
+  const parsed = adminNameSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "Invalid name");
+  const user = await ownAdmin(req.userId!);
+  user.name = parsed.data.name;
+  await user.save();
+  return ok(res, { id: user.id, name: user.name, email: user.email }, "Profile updated");
+}
+
+export async function changeOwnEmail(req: Request, res: Response): Promise<Response> {
+  const parsed = adminEmailSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "Invalid email change");
+  const user = await ownAdmin(req.userId!);
+  if (!user.password || !verifyPassword(parsed.data.currentPassword, user.password)) {
+    throw ApiError.unauthorized("Current password is incorrect");
+  }
+
+  const email = parsed.data.email.toLowerCase();
+  const duplicate = await User.exists({ _id: { $ne: user._id }, email });
+  if (duplicate) throw ApiError.conflict("This email address is already in use");
+  user.email = email;
+  await user.save();
+  return ok(res, { id: user.id, name: user.name, email: user.email }, "Login email updated");
+}
+
+export async function changeOwnPassword(req: Request, res: Response): Promise<Response> {
+  const parsed = adminPasswordSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "Invalid password change");
+  const user = await ownAdmin(req.userId!);
+  if (!user.password || !verifyPassword(parsed.data.currentPassword, user.password)) {
+    throw ApiError.unauthorized("Current password is incorrect");
+  }
+  if (verifyPassword(parsed.data.newPassword, user.password)) {
+    throw ApiError.badRequest("New password must be different from the current password");
+  }
+
+  user.password = hashPassword(parsed.data.newPassword);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  await user.save();
+  return ok(res, { changed: true }, "Password updated. Please sign in again.");
+}
 
 export async function stats(_req: Request, res: Response): Promise<Response> {
   return ok(res, await service.stats());
@@ -1045,7 +1118,7 @@ export async function createRole(req: Request, res: Response): Promise<Response>
 
   const role = await AdminRole.create({
     name: name.trim(),
-    permissions: Array.isArray(permissions) ? permissions : [],
+    permissions: Array.from(new Set(["internal-messages", ...(Array.isArray(permissions) ? permissions : [])])),
   });
   return created(res, role, "Role created successfully");
 }
@@ -1168,9 +1241,7 @@ export async function deleteStaff(req: Request, res: Response): Promise<Response
   if (!staff || staff.role !== "admin") {
     throw ApiError.notFound("Staff member not found");
   }
+  await deleteConversationsForUser(String(staff._id));
   await staff.deleteOne();
   return ok(res, { success: true }, "Staff account deleted successfully");
 }
-
-
-

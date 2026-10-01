@@ -566,3 +566,26 @@ export type AdminStaff = {
   createdAt?: string;
 };
 
+export type InternalMessageContact = {
+  id: string;
+  name: string;
+  email: string;
+  roleName: string;
+  online: boolean;
+};
+
+export type InternalConversation = {
+  id: string;
+  contact: InternalMessageContact;
+  lastMessagePreview: string;
+  lastMessageAt: string;
+  unreadCount: number;
+};
+
+export type InternalMessage = {
+  id: string;
+  conversationId: string;
+  sender: InternalMessageContact;
+  text: string;
+  createdAt: string;
+};

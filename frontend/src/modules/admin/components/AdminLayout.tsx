@@ -1,5 +1,6 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { io } from "socket.io-client";
 import {
   LayoutDashboard,
   CalendarRange,
@@ -32,15 +33,24 @@ import {
   Clock,
   Banknote,
   Undo2,
+  Mails,
 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@shared/lib/utils";
 import { Logo } from "@shared/components/brand/Logo";
 import { Button } from "@shared/ui/Button";
+import { SOCKET_URL } from "@shared/lib/api";
 import { LogoutConfirmDialog } from "@shared/components/LogoutConfirmDialog";
 import { useAdminSession } from "../store/sessionStore";
-import { useAgents, useLeads, useAdminMe } from "../api/admin.api";
+import {
+  internalMessageKeys,
+  useAgents,
+  useLeads,
+  useAdminMe,
+  useInternalConversations,
+} from "../api/admin.api";
+import type { InternalMessage } from "../types";
 
 type NavItem = {
   to: string;
@@ -109,6 +119,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Support Chat",
         icon: MessageSquare,
         permission: "chat",
+      },
+      {
+        to: "/admin/internal-messages",
+        label: "Internal Messages",
+        icon: Mails,
+        permission: "internal-messages",
       },
     ],
   },
@@ -268,7 +284,7 @@ function loadCollapsed(): string[] {
   }
 }
 
-function NavItems({ onNavigate }: { onNavigate?: () => void }) {
+function NavItems({ onNavigate, internalUnreadCount = 0 }: { onNavigate?: () => void; internalUnreadCount?: number }) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<string[]>(loadCollapsed);
   const { pathname } = useLocation();
@@ -366,6 +382,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
                   const isVerification =
                     item.to === "/admin/agent-verification";
                   const isLeads = item.to === "/admin/leads";
+                  const isInternalMessages = item.to === "/admin/internal-messages";
                   return (
                     <NavLink
                       key={item.to}
@@ -392,6 +409,11 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
                       {isLeads && leadCount > 0 && (
                         <span className="grid size-5 shrink-0 place-items-center rounded-full bg-amber-500 font-display text-[10px] font-semibold text-white">
                           {leadCount > 99 ? "99+" : leadCount}
+                        </span>
+                      )}
+                      {isInternalMessages && internalUnreadCount > 0 && (
+                        <span className="grid min-w-5 shrink-0 place-items-center rounded-full bg-primary px-1.5 font-display text-[10px] font-semibold leading-5 text-white">
+                          {internalUnreadCount > 99 ? "99+" : internalUnreadCount}
                         </span>
                       )}
                     </NavLink>
@@ -424,6 +446,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const { data: me, error } = useAdminMe();
+  const canUseInternalMessages = permissions.includes("*") || permissions.includes("internal-messages");
+  const { data: internalConversations = [] } = useInternalConversations(canUseInternalMessages);
+  const internalUnreadCount = internalConversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
 
   const confirmLogout = () => {
     setShowLogoutConfirm(false);
@@ -449,6 +474,29 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     }
   }, [error]);
 
+  useEffect(() => {
+    if (!canUseInternalMessages) return;
+    const socket = io(SOCKET_URL, {
+      withCredentials: true,
+      transports: ["websocket"],
+      auth: { role: "admin" },
+    });
+
+    socket.on("internal_message", (payload: { conversationId: string; message: InternalMessage }) => {
+      qc.setQueryData<InternalMessage[]>(internalMessageKeys.messages(payload.conversationId), (current = []) =>
+        current.some((message) => message.id === payload.message.id) ? current : [...current, payload.message],
+      );
+      qc.invalidateQueries({ queryKey: internalMessageKeys.conversations });
+    });
+    socket.on("internal_conversation_read", () => {
+      qc.invalidateQueries({ queryKey: internalMessageKeys.conversations });
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [canUseInternalMessages, qc]);
+
   return (
     <div className="min-h-dvh bg-bg">
       {/* desktop sidebar */}
@@ -460,7 +508,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </span>
         </div>
         <div className="mt-8 flex-1 overflow-y-auto" data-lenis-prevent="true">
-          <NavItems />
+          <NavItems internalUnreadCount={internalUnreadCount} />
         </div>
         <button
           onClick={onLogout}
@@ -486,7 +534,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
             <div
               className="mt-8 flex-1 overflow-y-auto"
               data-lenis-prevent="true">
-              <NavItems onNavigate={() => setOpen(false)} />
+              <NavItems onNavigate={() => setOpen(false)} internalUnreadCount={internalUnreadCount} />
             </div>
             <button
               onClick={onLogout}

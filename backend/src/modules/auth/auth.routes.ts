@@ -6,11 +6,19 @@ import {
   sendOtpSchema,
   verifyOtpSchema,
   adminLoginSchema,
+  adminPasswordResetRequestSchema,
+  adminPasswordResetSchema,
   customerSignupSchema,
   agentSignupSchema,
   agentSignupBasicSchema,
 } from "./auth.validation";
-import { sendOtpLimiter, verifyOtpLimiter, adminLoginLimiter } from "../../shared/middleware/rateLimit";
+import {
+  sendOtpLimiter,
+  verifyOtpLimiter,
+  adminLoginLimiter,
+  adminResetRequestLimiter,
+  adminResetLimiter,
+} from "../../shared/middleware/rateLimit";
 import * as authController from "./auth.controller";
 
 export const authRouter = Router();
@@ -21,6 +29,18 @@ authRouter.post("/send-login-otp", sendOtpLimiter, validateBody(sendOtpSchema), 
 authRouter.post("/verify-otp-code", verifyOtpLimiter, validateBody(verifyOtpSchema), asyncHandler(authController.verifyOtpCodeOnly));
 authRouter.post("/verify-otp", verifyOtpLimiter, validateBody(verifyOtpSchema), asyncHandler(authController.verifyOtp));
 authRouter.post("/admin-login", adminLoginLimiter, validateBody(adminLoginSchema), asyncHandler(authController.adminLogin));
+authRouter.post(
+  "/admin-password-reset/request",
+  adminResetRequestLimiter,
+  validateBody(adminPasswordResetRequestSchema),
+  asyncHandler(authController.requestAdminPasswordReset),
+);
+authRouter.post(
+  "/admin-password-reset/confirm",
+  adminResetLimiter,
+  validateBody(adminPasswordResetSchema),
+  asyncHandler(authController.resetAdminPassword),
+);
 authRouter.post(
   "/customer/signup",
   sendOtpLimiter,

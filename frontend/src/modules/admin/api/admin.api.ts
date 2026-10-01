@@ -49,6 +49,9 @@ import type {
   AssignableAgent,
   AdminPayoutRequest,
   PayoutRequestStatus,
+  InternalMessageContact,
+  InternalConversation,
+  InternalMessage,
 } from "../types";
 
 
@@ -93,6 +96,15 @@ const keys = {
   dispatchConfig: ["admin", "dispatch-config"] as const,
   assignable: (id: string) => ["admin", "bookings", id, "assignable"] as const,
   payoutRequests: (status?: string) => ["admin", "payout-requests", status ?? "all"] as const,
+  internalContacts: ["admin", "internal-messages", "contacts"] as const,
+  internalConversations: ["admin", "internal-messages", "conversations"] as const,
+  internalMessages: (conversationId: string) => ["admin", "internal-messages", "messages", conversationId] as const,
+};
+
+export const internalMessageKeys = {
+  contacts: keys.internalContacts,
+  conversations: keys.internalConversations,
+  messages: keys.internalMessages,
 };
 
 
@@ -123,7 +135,102 @@ export function useAdminLogin() {
   });
 }
 
+export function useRequestAdminPasswordReset() {
+  return useMutation({
+    mutationFn: (email: string) =>
+      apiFetch<{ accepted: true }>("/auth/admin-password-reset/request", {
+        method: "POST",
+        body: { email },
+      }),
+  });
+}
+
+export function useResetAdminPassword() {
+  return useMutation({
+    mutationFn: (vars: { email: string; code: string; newPassword: string }) =>
+      apiFetch<{ reset: true }>("/auth/admin-password-reset/confirm", {
+        method: "POST",
+        body: vars,
+      }),
+  });
+}
+
+export function useUpdateAdminProfile() {
+  return useMutation({
+    mutationFn: (name: string) =>
+      apiFetch<{ id: string; name: string; email: string }>("/admin/account/profile", {
+        method: "PATCH",
+        body: { name },
+      }),
+  });
+}
+
+export function useChangeAdminEmail() {
+  return useMutation({
+    mutationFn: (vars: { email: string; currentPassword: string }) =>
+      apiFetch<{ id: string; name: string; email: string }>("/admin/account/email", {
+        method: "PATCH",
+        body: vars,
+      }),
+  });
+}
+
+export function useChangeAdminPassword() {
+  return useMutation({
+    mutationFn: (vars: { currentPassword: string; newPassword: string }) =>
+      apiFetch<{ changed: true }>("/admin/account/password", {
+        method: "PATCH",
+        body: vars,
+      }),
+  });
+}
+
 export const useAdminMe = () => useAuthedQuery<{ id?: string; name: string; email?: string; phone?: string; permissions: string[] }>(["admin", "me"], "/auth/me");
+
+export const useInternalMessageContacts = (enabled = true) =>
+  useAuthedQuery<InternalMessageContact[]>(keys.internalContacts, "/admin/internal-messages/contacts", { enabled });
+
+export const useInternalConversations = (enabled = true) =>
+  useAuthedQuery<InternalConversation[]>(keys.internalConversations, "/admin/internal-messages/conversations", {
+    enabled,
+    staleTime: 0,
+  });
+
+export const useInternalMessages = (conversationId: string | null) =>
+  useAuthedQuery<InternalMessage[]>(
+    keys.internalMessages(conversationId ?? "none"),
+    `/admin/internal-messages/conversations/${conversationId}/messages`,
+    { enabled: Boolean(conversationId), staleTime: 0 },
+  );
+
+export function useStartInternalConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (recipientId: string) =>
+      apiFetch<{ id: string; contact: InternalMessageContact }>("/admin/internal-messages/conversations", {
+        method: "POST",
+        body: { recipientId },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.internalConversations }),
+  });
+}
+
+export function useSendInternalMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { conversationId: string; text: string }) =>
+      apiFetch<InternalMessage>(`/admin/internal-messages/conversations/${vars.conversationId}/messages`, {
+        method: "POST",
+        body: { text: vars.text },
+      }),
+    onSuccess: (message, vars) => {
+      qc.setQueryData<InternalMessage[]>(keys.internalMessages(vars.conversationId), (current = []) =>
+        current.some((item) => item.id === message.id) ? current : [...current, message],
+      );
+      qc.invalidateQueries({ queryKey: keys.internalConversations });
+    },
+  });
+}
 
 /* ------------------------------- Queries --------------------------------- */
 

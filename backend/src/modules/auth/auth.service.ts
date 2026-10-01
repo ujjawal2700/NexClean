@@ -2,7 +2,7 @@ import { Otp } from "./otp.model";
 import { User } from "../user/user.model";
 import { creditRefereeWelcome } from "../promotions/referral.service";
 import { generateUniqueReferralCode } from "../user/user.service";
-import { env, isProd } from "../../config/env";
+import { emailEnabled, env, isProd } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
 import { isSuperAdmin } from "../../shared/utils/superAdmin";
 import { signToken, type Role } from "../../shared/utils/jwt";
@@ -11,6 +11,7 @@ import type { CustomerSignupInput, AgentSignupInput, AgentSignupBasicInput } fro
 import { LEGAL_DOCUMENT_VERSION } from "../../shared/legalDocuments";
 import { verifyPassword, hashPassword } from "../../shared/utils/crypto";
 import { sendSmsOtp } from "../../shared/services/sms";
+import { sendAdminPasswordResetEmail } from "../../shared/services/email";
 import { uploadImage } from "../../shared/utils/cloudinary";
 
 /** Where a signup came from, used purely for referral-abuse detection. */
@@ -321,23 +322,25 @@ export async function adminLogin(email: string, password: string) {
   const emailLower = email.trim().toLowerCase();
   const isSuperAdminEmail = emailLower === env.adminEmail.toLowerCase();
 
-  // 1. Find user in MongoDB by email or superadmin handle
-  let user = await User.findOne({
-    $or: [
-      { email: emailLower, role: "admin" },
-      { phone: `admin:${emailLower}`, role: "admin" },
-    ],
-  }).populate("adminRoleId");
+  // Login identity is the account's current email. The synthetic phone value
+  // is an internal immutable super-admin marker, never a second login alias —
+  // otherwise an old email would keep working after the admin changed it.
+  let user = await User.findOne({ email: emailLower, role: "admin" }).populate("adminRoleId");
 
   // 2. If Super Admin logging in for the first time before record exists, seed user
   if (!user && isSuperAdminEmail) {
-    user = await User.create({
-      phone: `admin:${emailLower}`,
-      name: "Admin",
-      email: emailLower,
-      role: "admin",
-      password: hashPassword(env.adminPassword),
-    });
+    const designated = await User.findOne({ phone: `admin:${env.adminEmail}`, role: "admin" });
+    // A designated record with another email means the owner changed their
+    // login email. Do not silently recreate the old environment credential.
+    if (!designated) {
+      user = await User.create({
+        phone: `admin:${emailLower}`,
+        name: "Admin",
+        email: emailLower,
+        role: "admin",
+        password: hashPassword(env.adminPassword),
+      });
+    }
   }
 
   if (!user) {
@@ -380,6 +383,60 @@ export async function adminLogin(email: string, password: string) {
       permissions,
     },
   };
+}
+
+const adminResetKey = (email: string) => `admin-password-reset:${email.trim().toLowerCase()}`;
+
+/** Always returns the same response so the endpoint cannot enumerate admin accounts. */
+export async function requestAdminPasswordReset(rawEmail: string): Promise<{ accepted: true }> {
+  const email = rawEmail.trim().toLowerCase();
+  // Fail uniformly before account lookup when delivery is not configured, so
+  // the difference cannot be used to discover which addresses are admins.
+  if (isProd && !emailEnabled) {
+    throw ApiError.serviceUnavailable("Password-reset email is temporarily unavailable");
+  }
+  const user = await User.findOne({ email, role: "admin", status: { $ne: "suspended" } });
+  if (!user) return { accepted: true };
+
+  const code = generateOtp();
+  const key = adminResetKey(email);
+  const expiresAt = new Date(Date.now() + env.otpExpiryMin * 60 * 1000);
+  await Otp.findOneAndUpdate(
+    { phone: key },
+    { phone: key, code, expiresAt, attempts: 0 },
+    { upsert: true, new: true },
+  );
+
+  try {
+    await sendAdminPasswordResetEmail(email, code);
+  } catch (error) {
+    await Otp.deleteOne({ phone: key });
+    // Keep the public response indistinguishable from a request for an unknown
+    // email. Provider diagnostics are logged server-side by the mail service.
+    console.error("[email] Admin password-reset delivery failed", error);
+  }
+  return { accepted: true };
+}
+
+export async function resetAdminPassword(
+  rawEmail: string,
+  code: string,
+  newPassword: string,
+): Promise<{ reset: true }> {
+  const email = rawEmail.trim().toLowerCase();
+  const user = await User.findOne({ email, role: "admin", status: { $ne: "suspended" } });
+  if (!user) throw ApiError.badRequest("Invalid or expired reset code");
+
+  try {
+    await verifyOtpCode(adminResetKey(email), code);
+  } catch {
+    throw ApiError.badRequest("Invalid or expired reset code");
+  }
+
+  user.password = hashPassword(newPassword);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+  await user.save();
+  return { reset: true };
 }
 
 

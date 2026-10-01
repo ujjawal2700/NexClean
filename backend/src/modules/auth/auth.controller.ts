@@ -38,6 +38,17 @@ export async function adminLogin(req: Request, res: Response): Promise<Response>
   return ok(res, { token, user }, "Logged in");
 }
 
+export async function requestAdminPasswordReset(req: Request, res: Response): Promise<Response> {
+  const result = await authService.requestAdminPasswordReset(req.body.email);
+  return ok(res, result, "If an active admin account exists, a reset code has been sent.");
+}
+
+export async function resetAdminPassword(req: Request, res: Response): Promise<Response> {
+  const result = await authService.resetAdminPassword(req.body.email, req.body.code, req.body.newPassword);
+  clearSessionCookies(res, "admin");
+  return ok(res, result, "Password reset successfully. Sign in with your new password.");
+}
+
 /** Clear the session cookie(s) for this browser. */
 export async function logout(req: Request, res: Response): Promise<Response> {
   const role = String(req.body?.role ?? "").toLowerCase();

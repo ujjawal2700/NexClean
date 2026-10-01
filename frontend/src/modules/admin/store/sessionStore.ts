@@ -9,6 +9,7 @@ type SessionState = {
   name: string;
   permissions: string[];
   setSession: (token: string, name: string, permissions: string[]) => void;
+  setName: (name: string) => void;
   clear: () => void;
 };
 
@@ -27,6 +28,7 @@ export const useAdminSession = create<SessionState>()(
       name: "Admin",
       permissions: [],
       setSession: (token, name, permissions) => set({ token, name, permissions, authenticated: true }),
+      setName: (name) => set({ name }),
       clear: () => {
         // Ending the session has to reach the server now: the credential is an
         // httpOnly cookie, so clearing local state alone would leave a usable

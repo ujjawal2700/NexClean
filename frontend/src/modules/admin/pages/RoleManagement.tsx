@@ -34,6 +34,7 @@ const PERMISSION_SECTIONS = [
   { key: "off-peak-hours", label: "Off-Peak Hours" },
   { key: "area-alerts", label: "Area Alerts" },
   { key: "chat", label: "Support Chat" },
+  { key: "internal-messages", label: "Internal Messages" },
   { key: "customers", label: "Customers" },
   { key: "agents", label: "Agents & Verification" },
   { key: "leads", label: "Leads" },
@@ -88,7 +89,7 @@ export function RoleManagement() {
   const handleOpenCreateRole = () => {
     setEditingRole(null);
     setRoleName("");
-    setRolePermissions(["dashboard"]); // default access
+    setRolePermissions(["dashboard", "internal-messages"]); // internal communication is enabled for every new role
     setRoleError("");
     setRoleFormOpen(true);
   };
