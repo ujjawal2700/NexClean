@@ -31,4 +31,15 @@ test.describe("Admin Dashboard", () => {
     await expect(page).toHaveURL(/\/admin\/bookings$/);
     await expect(page.locator("h1")).toHaveText("Bookings");
   });
+
+  test("header refresh refetches the active section without leaving the page", async ({ page }) => {
+    const refreshedStats = page.waitForResponse(
+      (response) => response.url().includes("/admin/stats") && response.request().method() === "GET",
+    );
+    await page.getByRole("button", { name: "Refresh admin data" }).click();
+    expect((await refreshedStats).ok()).toBeTruthy();
+    await expect(page).toHaveURL(/\/admin$/);
+    await expect(page.locator("h1")).toHaveText("Dashboard");
+    await expect(page.getByRole("button", { name: "Refresh admin data" })).toBeEnabled();
+  });
 });

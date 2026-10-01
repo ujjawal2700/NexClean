@@ -34,6 +34,7 @@ import {
   Banknote,
   Undo2,
   Mails,
+  RefreshCw,
 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -444,6 +445,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   } = useAdminSession();
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { data: me, error } = useAdminMe();
   const canUseInternalMessages = permissions.includes("*") || permissions.includes("internal-messages");
@@ -460,6 +462,20 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const onLogout = () => {
     setOpen(false);
     setShowLogoutConfirm(true);
+  };
+
+  const refreshAdminData = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      // Every admin screen uses the shared React Query client. Invalidating
+      // all active queries refreshes whichever section is currently open plus
+      // global header/sidebar counts, without discarding filters, form input,
+      // scroll position, or the authenticated session.
+      await qc.invalidateQueries({ refetchType: "active" });
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -556,6 +572,16 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </button>
           <div className="hidden lg:block" />
           <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void refreshAdminData()}
+              disabled={refreshing}
+              aria-label={refreshing ? "Refreshing admin data" : "Refresh admin data"}
+              title="Refresh this admin section"
+              className="size-9 shrink-0 rounded-full p-0">
+              <RefreshCw className={cn("size-4", refreshing && "animate-spin text-primary")} />
+            </Button>
             <button
               onClick={() => navigate("/admin/profile")}
               title="Click to edit profile & change password"
