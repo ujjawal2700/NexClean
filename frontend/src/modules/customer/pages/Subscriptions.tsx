@@ -25,6 +25,7 @@ import {
   useCategoryLabel,
   useSubscriptionSchedule,
   useWallet,
+  useTimeSlots,
 } from "../api/queries";
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import {
@@ -46,7 +47,6 @@ import {
   describeSchedule,
 } from "../components/ScheduleSheet";
 import type { SubscriptionPreview } from "../api/mutations";
-import { TIME_SLOTS } from "../data/catalog";
 import type { CarType, CatalogPlan, Booking } from "../types";
 
 type PlanMeta = { tagline: string; perks: string[]; featured?: boolean };
@@ -82,6 +82,7 @@ export function Subscriptions() {
   const { data: me } = useMe();
   const { data: plans = [], isLoading: plansLoading } = usePlans();
   const categoryLabel = useCategoryLabel();
+  const timeSlots = useTimeSlots();
   const createSubOrder = useCreateSubscriptionOrder();
   const verifySub = useVerifySubscription();
   const unsubscribe = useUnsubscribe();
@@ -124,6 +125,7 @@ export function Subscriptions() {
   const cycleEnd = scheduleData?.subscriptionEndDate
     ? new Date(scheduleData.subscriptionEndDate).toLocaleDateString()
     : "";
+  const expired = !!scheduleData?.expired;
 
   // The distinct vehicle types the customer owns; price previews follow the selected one.
   const ownedTypes = Array.from(
@@ -326,13 +328,18 @@ export function Subscriptions() {
   };
 
   // Generate 30 upcoming days starting tomorrow
-  const upcoming30Days = () => {
+  // Days a wash can go on: tomorrow through the end of the billing cycle. A
+  // wash dated after the cycle ends isn't part of this plan — the server
+  // refuses it, and it would never show on this board.
+  const cycleDates = () => {
     const dates: Date[] = [];
     const base = new Date();
+    const end = scheduleData?.subscriptionEndDate ? new Date(scheduleData.subscriptionEndDate) : null;
     // Start tomorrow to avoid slot overlaps for today
     for (let i = 1; i <= 30; i++) {
       const d = new Date(base);
       d.setDate(base.getDate() + i);
+      if (end && d > end) break;
       dates.push(d);
     }
     return dates;
@@ -395,6 +402,18 @@ export function Subscriptions() {
             Upgrade / Cancel Plan
           </Button>
         </div>
+
+        {expired && (
+          <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-ink">
+              <span className="font-semibold">Your plan ended on {cycleEnd}.</span>{" "}
+              Renew it to schedule more washes. Washes already booked still go ahead.
+            </p>
+            <Button size="sm" className="shrink-0" onClick={() => setShowCatalog(true)}>
+              Renew plan
+            </Button>
+          </div>
+        )}
 
         {/* Info Grid */}
         <div className="grid gap-5 md:grid-cols-3">
@@ -466,7 +485,7 @@ export function Subscriptions() {
                 </p>
               )}
             </div>
-            {!nextBooking && washesLimit !== 0 && (
+            {!nextBooking && washesLimit !== 0 && !expired && (
               <Button
                 size="sm"
                 className="mt-4 w-fit"
@@ -585,8 +604,8 @@ export function Subscriptions() {
               <button
                 key={`empty-${idx}`}
                 onClick={handleOpenSchedule}
-                disabled={busy}
-                className="group flex min-h-48 flex-col items-center justify-center rounded-card border-2 border-dashed border-line hover:border-primary/50 hover:bg-primary/5 transition-all p-6 text-center focus:outline-none">
+                disabled={busy || expired}
+                className="group disabled:pointer-events-none disabled:opacity-50 flex min-h-48 flex-col items-center justify-center rounded-card border-2 border-dashed border-line hover:border-primary/50 hover:bg-primary/5 transition-all p-6 text-center focus:outline-none">
                 <div className="grid size-11 place-items-center rounded-full bg-surface border border-line group-hover:border-primary/20 group-hover:bg-primary/10 group-hover:text-primary transition-all shadow-sm">
                   <Plus className="size-5" />
                 </div>
@@ -594,7 +613,7 @@ export function Subscriptions() {
                   Schedule Wash #{idx + 1}
                 </h3>
                 <p className="mt-1 text-xs text-muted">
-                  Configure a cleaning slot
+                  {expired ? "Renew your plan to schedule" : "Configure a cleaning slot"}
                 </p>
               </button>
             );
@@ -650,11 +669,11 @@ export function Subscriptions() {
             </SheetSection>
 
             <SheetSection step={3} title="Date">
-              <DateStrip dates={upcoming30Days()} value={selectedDate} onChange={setSelectedDate} />
+              <DateStrip dates={cycleDates()} value={selectedDate} onChange={setSelectedDate} />
             </SheetSection>
 
             <SheetSection step={4} title="Time slot">
-              <SlotGrid slots={TIME_SLOTS} value={selectedSlot} onChange={setSelectedSlot} />
+              <SlotGrid slots={timeSlots} value={selectedSlot} onChange={setSelectedSlot} />
             </SheetSection>
           </ScheduleSheet>
         )}
@@ -683,10 +702,10 @@ export function Subscriptions() {
             }
           >
             <SheetSection step={1} title="New date">
-              <DateStrip dates={upcoming30Days()} value={selectedDate} onChange={setSelectedDate} />
+              <DateStrip dates={cycleDates()} value={selectedDate} onChange={setSelectedDate} />
             </SheetSection>
             <SheetSection step={2} title="Time slot">
-              <SlotGrid slots={TIME_SLOTS} value={selectedSlot} onChange={setSelectedSlot} />
+              <SlotGrid slots={timeSlots} value={selectedSlot} onChange={setSelectedSlot} />
             </SheetSection>
           </ScheduleSheet>
         )}
@@ -845,7 +864,7 @@ export function Subscriptions() {
               </ul>
 
               <div className="mt-auto pt-7">
-                {active ? (
+                {active && !expired ? (
                   <Button
                     variant={meta.featured ? "glass" : "outline"}
                     className={cn(
@@ -867,7 +886,9 @@ export function Subscriptions() {
                     onClick={() => openCheckout(plan)}>
                     {isGuest
                       ? `Log in to choose ${plan.name}`
-                      : `Choose ${plan.name}`}
+                      : active
+                        ? `Renew ${plan.name}`
+                        : `Choose ${plan.name}`}
                   </Button>
                 )}
               </div>

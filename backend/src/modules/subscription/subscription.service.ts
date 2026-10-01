@@ -15,6 +15,30 @@ const PLAN_PACKAGE_MAP: Record<string, { id: string; name: string }> = {
   elite: { id: "ultimate", name: "Ultimate Detail" },
 };
 
+/**
+ * A subscription is one prepaid 30-day cycle — nothing renews it. Scheduling
+ * used to accept any date, including after the cycle had ended; those washes
+ * were created (and dispatched) but fell outside the schedule board's date
+ * window, so to the customer the wash simply never appeared, and it never
+ * counted towards the plan's limit either.
+ */
+function assertWithinCycle(
+  user: { subscriptionEndDate?: Date | null },
+  date: Date,
+): void {
+  const end = user.subscriptionEndDate;
+  if (Number.isNaN(date.getTime())) throw ApiError.badRequest("Pick a valid date");
+  const endLabel = end?.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  if (!end || end.getTime() <= Date.now()) {
+    throw ApiError.badRequest(
+      `Your subscription ended${endLabel ? ` on ${endLabel}` : ""}. Renew your plan to schedule more washes.`,
+    );
+  }
+  if (date.getTime() > end.getTime()) {
+    throw ApiError.badRequest(`Pick a date on or before ${endLabel}, when this billing cycle ends.`);
+  }
+}
+
 export async function isPlanId(value: string): Promise<boolean> {
   return isValidActivePlan(value);
 }
@@ -79,16 +103,19 @@ export async function createSubscriptionOrder(
   input: { planId: string; vehicleType?: string; coinsToRedeem?: number },
 ) {
   const { price } = await previewSubscription(userId, input.planId, input.vehicleType, input.coinsToRedeem);
+  const plan = await Plan.findById(input.planId).select("name");
+  // Tagged so plan revenue can be reported, and kept out of cleaner settlement.
+  const purchase = { kind: "subscription" as const, planId: input.planId, planName: plan?.name ?? input.planId };
 
   // No live keys, or coins cover the whole amount → nothing to charge via Razorpay.
   if (!paymentsLive || price <= 0) {
     const orderId = mockOrderId("sub_mock");
-    await Payment.create({ user: userId, orderId, amount: price, status: "mock" });
+    await Payment.create({ user: userId, orderId, amount: price, status: "mock", ...purchase });
     return { orderId, amount: price, currency: "INR", keyId: "", mock: true };
   }
 
   const order = await createRazorpayOrder(price, `sub_${Date.now()}`);
-  await Payment.create({ user: userId, orderId: order.id, amount: price, status: "created" });
+  await Payment.create({ user: userId, orderId: order.id, amount: price, status: "created", ...purchase });
   return { orderId: order.id, amount: price, currency: "INR", keyId: razorpayKeyId, mock: false };
 }
 
@@ -159,6 +186,7 @@ export async function getSubscriptionSchedule(userId: string) {
     activePlan: plan,
     subscriptionStartDate: user.subscriptionStartDate,
     subscriptionEndDate: user.subscriptionEndDate,
+    expired: !user.subscriptionEndDate || user.subscriptionEndDate.getTime() <= Date.now(),
     bookings,
   };
 }
@@ -174,15 +202,18 @@ export async function scheduleSubscriptionWash(
   const plan = await Plan.findById(user.activePlan);
   if (!plan) throw ApiError.badRequest("Active subscription plan details not found");
 
+  assertWithinCycle(user, new Date(input.date));
+
   const vehicle = user.vehicles.find((v) => String(v._id) === input.vehicleId);
   if (!vehicle) throw ApiError.notFound("Vehicle not found");
 
   const address = user.addresses.find((a) => String(a._id) === input.addressId);
   if (!address) throw ApiError.notFound("Address not found");
 
-  // Validate package matching user's subscription tier
-  const pkg = PLAN_PACKAGE_MAP[plan.id];
-  if (!pkg) throw ApiError.badRequest("Package mapping not found for subscription");
+  // Validate package matching user's subscription tier. Plans an admin adds
+  // later have no entry here; they get the entry-level wash rather than a
+  // customer-facing "package mapping not found" that blocks scheduling.
+  const pkg = PLAN_PACKAGE_MAP[plan.id] ?? PLAN_PACKAGE_MAP.basic;
 
   // Check wash limit for the current cycle
   const used = await Booking.countDocuments({
@@ -248,6 +279,9 @@ export async function rescheduleSubscriptionWash(
   if (diffMs < 12 * 60 * 60 * 1000) {
     throw ApiError.badRequest("Subscription washes can only be rescheduled at least 12 hours in advance");
   }
+
+  const user = await User.findById(userId).select("subscriptionEndDate");
+  assertWithinCycle(user ?? {}, new Date(input.date));
 
   booking.date = new Date(input.date);
   booking.slot = input.slot;

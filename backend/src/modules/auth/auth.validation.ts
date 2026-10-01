@@ -32,6 +32,12 @@ export const adminPasswordResetSchema = z.object({
     .regex(/\d/, "Password must include a number"),
 });
 
+export const referralCheckSchema = z.object({
+  code: z.string().trim().min(1, "Enter a referral code").max(32),
+  // Optional: lets the check refuse the customer's own code up front.
+  phone: z.string().regex(/^\+?[\d\s]{10,15}$/).optional(),
+});
+
 export const customerSignupSchema = z.object({
   name: z.string().trim().min(2, "Enter your full name"),
   phone: z.string().regex(/^\+?[\d\s]{10,15}$/, "Enter a valid phone number"),

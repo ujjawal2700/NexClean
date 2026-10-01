@@ -85,6 +85,13 @@ export const adminResetLimiter = base({
   keyGenerator: emailOrIp,
 });
 
+/** Referral code checks at signup — a ceiling on guessing codes to harvest names. */
+export const referralCheckLimiter = base({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  message: "Too many referral code checks. Please wait a few minutes and try again.",
+});
+
 /** Cleaner-initiated pushes to every customer in an area. */
 export const areaAlertLimiter = base({
   windowMs: 60 * 60 * 1000,

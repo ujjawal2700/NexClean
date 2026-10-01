@@ -10,6 +10,9 @@ test.describe("Admin vehicle brands", () => {
   });
 
   test("create a brand, add a model, toggle it, delete both", async ({ page }) => {
+    // Seven sequential mutations, each followed by a list refetch (one allowed
+    // up to 20s); the 30s default ran out under full-suite load.
+    test.setTimeout(90_000);
     const brandName = `TestBrand${Date.now()}`;
     const modelName = `TestModel${Date.now()}`;
 

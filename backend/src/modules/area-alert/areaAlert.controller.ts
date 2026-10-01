@@ -34,7 +34,11 @@ export async function trigger(req: Request, res: Response): Promise<Response> {
   if (req.userRole === "agent") {
     await service.assertAgentMayAlert(req.userId!, parsed.data.society);
   }
-  const record = await service.trigger(parsed.data.society, parsed.data.agentName);
+  const record = await service.trigger(
+    parsed.data.society,
+    parsed.data.agentName,
+    req.userRole === "agent" ? req.userId : undefined,
+  );
   return created(res, record, `Alert sent to ${record.sentCount} nearby customer(s)`);
 }
 

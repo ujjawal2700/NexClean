@@ -23,9 +23,14 @@ const paymentSchema = new Schema(
      * What this row is for. "booking" is the service itself; "reschedule" is an
      * upcharge for moving a discounted booking into a peak slot. Kept distinct
      * because the two behave differently on refund — the upgrade fee inside a
-     * reschedule row is never returned.
+     * reschedule row is never returned. "subscription" is a plan purchase: it
+     * has no booking behind it and is never settled to a cleaner (subscription
+     * washes are paid out per job instead).
      */
-    kind: { type: String, enum: ["booking", "reschedule"], default: "booking", index: true },
+    kind: { type: String, enum: ["booking", "reschedule", "subscription"], default: "booking", index: true },
+    /** For kind "subscription": which plan was bought, as named at the time. */
+    planId: { type: String, default: null },
+    planName: { type: String, default: null },
 
     /**
      * The exact move this upcharge was quoted for.

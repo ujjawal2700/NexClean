@@ -316,7 +316,9 @@ export function Payments() {
               <tr key={p.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
                   <p className="font-medium text-ink">{p.orderId}</p>
-                  <p className="text-xs text-muted">{p.society || "—"}</p>
+                  <p className="text-xs text-muted">
+                    {p.kind === "subscription" ? `Plan purchase · ${p.planName ?? "subscription"}` : p.society || "—"}
+                  </p>
                 </td>
                 <td className="px-2 py-3 text-ink-soft">{p.customerName}</td>
                 <td className="px-2 py-3 text-ink-soft">{p.agentName ?? "—"}</td>
@@ -333,7 +335,9 @@ export function Payments() {
                   )}
                 </td>
                 <td className="px-2 py-3">
-                  {p.status === "paid" ? (
+                  {p.kind === "subscription" ? (
+                    <span className="text-xs text-muted">Not settled</span>
+                  ) : p.status === "paid" ? (
                     <span className={cn("rounded-pill px-2.5 py-0.5 text-xs font-medium capitalize", SETTLEMENT_STATUS_STYLE[p.settlementStatus])}>
                       {p.settlementStatus}
                     </span>
@@ -344,7 +348,7 @@ export function Payments() {
                 <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(p.amount)}</td>
                 <td className="px-2 py-3 text-right">
                   <div className="flex justify-end gap-1.5">
-                    {p.status === "paid" && p.settlementStatus === "pending" && (
+                    {p.status === "paid" && p.settlementStatus === "pending" && p.kind !== "subscription" && (
                       <Button
                         variant="ghost"
                         size="sm"

@@ -6,6 +6,7 @@ import { normalize, sendOtp, verifyOtpCode } from "../auth/auth.service";
 import { isValidCategoryKey } from "../catalog/category.service";
 import { Booking } from "../booking/booking.model";
 import { getReferralConfig } from "../promotions/referralConfig.service";
+import { notifyUser } from "../notification/notification.service";
 
 
 async function getUser(userId: string) {
@@ -213,30 +214,67 @@ export async function removeAddress(userId: string, addressId: string) {
   return user;
 }
 
+/** How long a referrer waits before reminding the same friend again. */
+const REMINDER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Where a referred friend is on the way to earning the referrer their reward:
+ * signed up → booked a service → completed it → reward credited. A plan
+ * purchase also earns the reward, so it counts as "booked".
+ */
+type ReferralStage = "joined" | "booked" | "completed" | "rewarded";
+
 export async function getReferralSummary(userId: string) {
   const user = await getUser(userId);
   const referralCode = await ensureReferralCode(user);
-  const referredUsers = await User.find({ referredBy: userId }).sort({ createdAt: -1 });
+  const referredUsers = await User.find({ referredBy: userId })
+    .select("name activePlan referralRewarded referralFlagged referralReminderAt createdAt")
+    .sort({ createdAt: -1 });
 
   const config = await getReferralConfig();
 
-  const enrichedUsers = await Promise.all(
-    referredUsers.map(async (u) => {
-      const bookingCount = await Booking.countDocuments({ user: u._id, status: "completed" });
-      let status = "Joined";
-      if (u.activePlan) {
-        status = "Subscribed";
-      } else if (bookingCount > 0) {
-        status = "First Clean Done";
-      }
-      return {
-        id: u.id,
-        name: u.name,
-        joinedAt: u.get("createdAt"),
-        status,
-      };
-    })
-  );
+  // One query for every friend's bookings, rather than one per friend.
+  const counts = referredUsers.length
+    ? await Booking.aggregate<{ _id: Types.ObjectId; booked: number; completed: number }>([
+        { $match: { user: { $in: referredUsers.map((u) => u._id) }, status: { $ne: "cancelled" } } },
+        {
+          $group: {
+            _id: "$user",
+            booked: { $sum: 1 },
+            completed: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+          },
+        },
+      ])
+    : [];
+  const countsBy = new Map(counts.map((c) => [String(c._id), c]));
+  const now = Date.now();
+
+  const enrichedUsers = referredUsers.map((u) => {
+    const c = countsBy.get(String(u._id));
+    const stage: ReferralStage = u.referralRewarded
+      ? "rewarded"
+      : (c?.completed ?? 0) > 0
+        ? "completed"
+        : (c?.booked ?? 0) > 0 || u.activePlan
+          ? "booked"
+          : "joined";
+    const remindAgainAt =
+      u.referralReminderAt && u.referralReminderAt.getTime() + REMINDER_COOLDOWN_MS > now
+        ? new Date(u.referralReminderAt.getTime() + REMINDER_COOLDOWN_MS)
+        : null;
+    return {
+      id: u.id,
+      name: u.name,
+      joinedAt: u.get("createdAt"),
+      stage,
+      // "withheld" when the signup was flagged as likely referral farming.
+      rewardStatus: u.referralRewarded ? "credited" : u.referralFlagged ? "withheld" : "pending",
+      // Only a friend who hasn't booked yet needs a nudge, and a withheld
+      // reward means there's nothing to earn by nudging them.
+      canRemind: stage === "joined" && !u.referralFlagged,
+      remindAgainAt,
+    };
+  });
 
   return {
     referralCode,
@@ -247,5 +285,47 @@ export async function getReferralSummary(userId: string) {
     programActive: config.active,
     referredUsers: enrichedUsers,
   };
+}
+
+/**
+ * The "Notify" button on a referred friend: push + in-app reminder to book
+ * their first service. Limited to friends this customer actually referred, who
+ * haven't booked yet, once a day each — it's a nudge, not a spam channel.
+ */
+export async function remindReferredUser(userId: string, refereeId: string) {
+  if (!Types.ObjectId.isValid(refereeId)) throw ApiError.notFound("Referred user not found");
+  const referrer = await getUser(userId);
+  const referee = await User.findOne({ _id: refereeId, referredBy: userId }).select(
+    "name referralRewarded referralFlagged activePlan",
+  );
+  if (!referee) throw ApiError.notFound("Referred user not found");
+
+  const hasBooked =
+    referee.referralRewarded ||
+    !!referee.activePlan ||
+    !!(await Booking.exists({ user: referee._id, status: { $ne: "cancelled" } }));
+  if (hasBooked) throw ApiError.badRequest(`${referee.name} has already booked their first service.`);
+  if (referee.referralFlagged) throw ApiError.badRequest("This referral isn't eligible for a reward.");
+
+  // Claim the reminder slot atomically so a double tap sends one notification.
+  const cutoff = new Date(Date.now() - REMINDER_COOLDOWN_MS);
+  const claimed = await User.findOneAndUpdate(
+    { _id: referee._id, $or: [{ referralReminderAt: null }, { referralReminderAt: { $lte: cutoff } }] },
+    { $set: { referralReminderAt: new Date() } },
+    { new: true },
+  );
+  if (!claimed) {
+    throw ApiError.badRequest(`You've already reminded ${referee.name} today. You can remind them again tomorrow.`);
+  }
+
+  const friend = (referrer.name || "").trim().split(/\s+/)[0] || "Your friend";
+  await notifyUser(String(referee._id), {
+    type: "system",
+    title: "Your first wash is waiting 🚗",
+    body: `Your friend ${friend} reminded you to book your first service.`,
+    data: { kind: "referral_reminder", url: "/app/book" },
+  });
+
+  return { remindedAt: claimed.referralReminderAt, remindAgainAt: new Date(Date.now() + REMINDER_COOLDOWN_MS) };
 }
 

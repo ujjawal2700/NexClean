@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TIME_SLOTS, SLOT_LIST } from "../../shared/slots";
+import { isValidSlot } from "../../shared/slots";
 
 export const createBookingSchema = z.object({
   vehicleType: z.string().min(1),
@@ -18,7 +18,7 @@ export const createBookingSchema = z.object({
     .refine((v) => Date.parse(v) <= Date.now() + 365 * 24 * 60 * 60 * 1000, {
       message: "Booking date is too far in the future",
     }),
-  slot: z.enum(TIME_SLOTS, { errorMap: () => ({ message: `slot must be one of: ${SLOT_LIST}` }) }),
+  slot: z.string().refine(isValidSlot, { message: "That time slot is no longer available. Please pick another." }),
   addressLabel: z.string().min(1),
   addressLine: z.string().min(1),
   discountCode: z.string().trim().min(1).optional(),
@@ -45,7 +45,7 @@ export const rescheduleBookingSchema = z.object({
     .refine((v) => Date.parse(v) <= Date.now() + 365 * 24 * 60 * 60 * 1000, {
       message: "Booking date is too far in the future",
     }),
-  slot: z.enum(TIME_SLOTS, { errorMap: () => ({ message: `slot must be one of: ${SLOT_LIST}` }) }),
+  slot: z.string().refine(isValidSlot, { message: "That time slot is no longer available. Please pick another." }),
   /** How the customer settles anything owed. Omit when nothing is due. */
   paymentMethod: z.enum(["cash", "online"]).optional(),
   // Proof for the online route, carried straight from the gateway callback.

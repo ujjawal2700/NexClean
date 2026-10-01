@@ -21,7 +21,14 @@ function computePayout(price: number, rule: PayoutConfig): number {
   return Math.max(0, Math.min(payout, Math.round(price)));
 }
 
-type Draft = { mode: "percent" | "flat"; percent: string; flatAmount: string; minPayout: string; maxPayout: string };
+type Draft = {
+  mode: "percent" | "flat";
+  percent: string;
+  flatAmount: string;
+  minPayout: string;
+  maxPayout: string;
+  subscriptionPayout: string;
+};
 
 const toDraft = (c: PayoutConfig): Draft => ({
   mode: c.mode,
@@ -29,6 +36,7 @@ const toDraft = (c: PayoutConfig): Draft => ({
   flatAmount: String(c.flatAmount),
   minPayout: String(c.minPayout),
   maxPayout: String(c.maxPayout),
+  subscriptionPayout: String(c.subscriptionPayout ?? 0),
 });
 
 const toRule = (d: Draft): PayoutConfig => ({
@@ -37,6 +45,7 @@ const toRule = (d: Draft): PayoutConfig => ({
   flatAmount: Number(d.flatAmount) || 0,
   minPayout: Number(d.minPayout) || 0,
   maxPayout: Number(d.maxPayout) || 0,
+  subscriptionPayout: Number(d.subscriptionPayout) || 0,
 });
 
 export function AgentPayouts() {
@@ -176,6 +185,30 @@ export function AgentPayouts() {
             />
             <span className="block text-[11px] text-muted">Cap on a single job. 0 = uncapped.</span>
           </label>
+        </div>
+
+        <div className="rounded-2xl border border-line bg-surface/60 p-4">
+          <label className="block max-w-sm space-y-1.5">
+            <span className="text-xs font-semibold text-muted">Subscription wash payout (₹ per job)</span>
+            <Input
+              name="subscriptionPayout"
+              type="number"
+              min="0"
+              value={draft.subscriptionPayout}
+              onChange={(e) => patch({ subscriptionPayout: e.target.value })}
+            />
+          </label>
+          <p className="mt-2 text-[11px] text-muted">
+            Subscription washes are prepaid through the customer&apos;s plan, so the job itself is priced ₹0 and the
+            percentage above would pay nothing. Cleaners earn this fixed amount for each one instead — it&apos;s what
+            they see on the job offer.
+          </p>
+          {rule.subscriptionPayout <= 0 && (
+            <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+              Cleaners are currently offered ₹0 for subscription washes. Set an amount so they&apos;ll accept them.
+            </p>
+          )}
         </div>
 
         <div className="flex items-start gap-2 rounded-xl border border-line bg-surface-muted/40 p-3 text-xs text-muted">

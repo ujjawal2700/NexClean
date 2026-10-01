@@ -6,7 +6,7 @@ import { ApiError } from "@shared/lib/api";
 import { formatMoney } from "@shared/lib/format";
 import { availableSlotsForDate, upcomingDates } from "../data/catalog";
 import { isOffPeakSlot, windowsForDate } from "../data/offPeakHours";
-import { useOffPeakHours } from "../api/queries";
+import { useOffPeakHours, useTimeSlots } from "../api/queries";
 import {
   usePreviewReschedule,
   useRescheduleBooking,
@@ -36,14 +36,15 @@ export function RescheduleModal({
   const reschedule = useRescheduleBooking();
   const rescheduleOrder = useRescheduleOrder();
 
-  const dates = useMemo(() => upcomingDates(7), []);
+  const allSlots = useTimeSlots();
+  const dates = useMemo(() => upcomingDates(7, allSlots), [allSlots]);
   const [date, setDate] = useState<string | null>(null);
   const [slot, setSlot] = useState<string | null>(null);
   const [quote, setQuote] = useState<RescheduleQuote | null>(null);
   const [error, setError] = useState("");
   const [payingOnline, setPayingOnline] = useState(false);
 
-  const slots = availableSlotsForDate(date);
+  const slots = availableSlotsForDate(date, allSlots);
   const offPeakWindows = windowsForDate(offPeakConfig, date);
 
   // Re-quote whenever the chosen slot changes. The server is authoritative about

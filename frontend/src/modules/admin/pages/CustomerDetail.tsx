@@ -26,6 +26,7 @@ import {
   PAYMENT_STATUS_LABEL,
   CUSTOMER_STATUS_STYLE,
 } from "../lib/status";
+import { BookingPrice } from "../components/BookingPrice";
 
 export function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
@@ -288,7 +289,7 @@ export function CustomerDetail() {
                     {BOOKING_STATUS_LABEL[b.status]}
                   </span>
                 </td>
-                <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(b.price)}</td>
+                <td className="px-2 py-3 text-right font-medium text-ink"><BookingPrice price={b.price} isSubscriptionWash={b.isSubscriptionWash} /></td>
                 <td className="px-2 py-3 text-right">
                   <button
                     onClick={() => downloadReceipt(b)}

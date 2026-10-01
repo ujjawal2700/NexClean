@@ -10,6 +10,7 @@ import { BarChart } from "../components/BarChart";
 import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
 import { Button } from "@shared/ui/Button";
 import { useAdminSession } from "../store/sessionStore";
+import { BookingPrice } from "../components/BookingPrice";
 
 export function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useStats();
@@ -210,7 +211,7 @@ export function Dashboard() {
                       {BOOKING_STATUS_LABEL[b.status]}
                     </span>
                   </td>
-                  <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(b.price)}</td>
+                  <td className="px-2 py-3 text-right font-medium text-ink"><BookingPrice price={b.price} isSubscriptionWash={b.isSubscriptionWash} /></td>
                 </tr>
               ))}
             </tbody>

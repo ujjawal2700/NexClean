@@ -35,6 +35,8 @@ import {
   Undo2,
   Mails,
   RefreshCw,
+  CalendarClock,
+  Repeat,
 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -108,6 +110,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: "Off-Peak Hours",
         icon: Clock,
         permission: "off-peak-hours",
+      },
+      {
+        to: "/admin/time-slots",
+        label: "Time Slots",
+        icon: CalendarClock,
+        permission: "time-slots",
       },
       {
         to: "/admin/area-alerts",
@@ -195,6 +203,12 @@ const NAV_GROUPS: NavGroup[] = [
         to: "/admin/plans",
         label: "Plans",
         icon: CreditCard,
+        permission: "plans",
+      },
+      {
+        to: "/admin/subscriptions",
+        label: "Subscribers",
+        icon: Repeat,
         permission: "plans",
       },
     ],

@@ -48,6 +48,7 @@ import type {
   DispatchQueueItem,
   AssignableAgent,
   AdminPayoutRequest,
+  SubscriptionOverview,
   PayoutRequestStatus,
   InternalMessageContact,
   InternalConversation,
@@ -65,6 +66,7 @@ const keys = {
   agentLocation: (id: string) => ["admin", "agents", id, "location"] as const,
   pricing: ["admin", "pricing"] as const,
   plans: ["admin", "plans"] as const,
+  subscriptions: ["admin", "subscriptions"] as const,
   campaigns: ["admin", "campaigns"] as const,
   settings: ["admin", "alert-settings"] as const,
   triggered: ["admin", "triggered"] as const,
@@ -94,6 +96,8 @@ const keys = {
   staff: ["admin", "staff"] as const,
   dispatch: ["admin", "dispatch"] as const,
   dispatchConfig: ["admin", "dispatch-config"] as const,
+  timeSlots: ["admin", "time-slots"] as const,
+  bookableSlots: ["catalog", "time-slots"] as const,
   assignable: (id: string) => ["admin", "bookings", id, "assignable"] as const,
   payoutRequests: (status?: string) => ["admin", "payout-requests", status ?? "all"] as const,
   internalContacts: ["admin", "internal-messages", "contacts"] as const,
@@ -576,6 +580,44 @@ export function useUpdateDispatchConfig() {
       apiFetch<DispatchConfig>("/admin/dispatch/config", { method: "PUT", body: vars }),
     onSuccess: (data) => qc.setQueryData(keys.dispatchConfig, data),
   });
+}
+
+export const useSubscriptionOverview = () =>
+  useAuthedQuery<SubscriptionOverview>(keys.subscriptions, "/admin/subscriptions");
+
+export type TimeSlotConfig = {
+  /** Bookable slots, "hh:mm AM/PM", in chronological order. */
+  slots: string[];
+  /** The original eight slots, for "reset to defaults". */
+  defaults: string[];
+  maxSlots: number;
+};
+
+export const useTimeSlots = () => useAuthedQuery<TimeSlotConfig>(keys.timeSlots, "/admin/time-slots");
+
+export function useUpdateTimeSlots() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { slots: string[] }) =>
+      apiFetch<TimeSlotConfig>("/admin/time-slots", { method: "PUT", body: vars }),
+    onSuccess: (data) => {
+      qc.setQueryData(keys.timeSlots, data);
+      qc.invalidateQueries({ queryKey: keys.bookableSlots });
+    },
+  });
+}
+
+/**
+ * The live slot list for pickers on other pages (reschedule, demand grid).
+ * Read from the public catalog so it needs no "time-slots" permission.
+ */
+export function useBookableSlots(): string[] | undefined {
+  const { data } = useQuery({
+    queryKey: keys.bookableSlots,
+    queryFn: () => apiFetch<{ slots: string[] }>("/catalog/time-slots"),
+    staleTime: 60_000,
+  });
+  return data?.slots;
 }
 
 /** Cleaners assignable to a booking, ranked by distance. Fetched lazily when a picker opens. */

@@ -7,6 +7,7 @@ import { listActiveCategories } from "./category.service";
 import { getContent } from "../content/content.service";
 import { listActivePromoBanners } from "../promotions/promoBanner.service";
 import { getOffPeakHoursConfig } from "../promotions/offPeakHours.service";
+import { getSlotConfig } from "../dispatch/slotConfig.service";
 import { paymentsLive } from "../payment/razorpay";
 import { listActiveBrands } from "../brand/brand.service";
 import { listActiveModelsForBrand } from "../brand/vehicleModel.service";
@@ -34,6 +35,13 @@ export async function getPlans(_req: Request, res: Response): Promise<Response> 
 
 export async function getPromoBannersCtl(_req: Request, res: Response): Promise<Response> {
   return ok(res, await listActivePromoBanners());
+}
+
+/** The admin-managed bookable time slots, for the customer date & time pickers. */
+export async function getTimeSlotsCtl(_req: Request, res: Response): Promise<Response> {
+  res.set("Cache-Control", "no-store");
+  const { slots } = await getSlotConfig();
+  return ok(res, { slots });
 }
 
 /**

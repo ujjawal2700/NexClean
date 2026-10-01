@@ -5,6 +5,7 @@ import { env, assertProductionConfig } from "./config/env";
 import { initSocket } from "./shared/services/socket";
 import { initFcm } from "./shared/services/fcm";
 import { startDispatchWorker, resumeDispatch, stopDispatchWorker } from "./modules/dispatch/dispatch.service";
+import { refreshSlotCache, startSlotCacheRefresh, stopSlotCacheRefresh } from "./modules/dispatch/slotConfig.service";
 
 // Fail fast before binding a port: a production server running on development
 // secrets is worse than one that never starts.
@@ -39,6 +40,12 @@ initSocket(server).catch((err: unknown) => {
 connectDb()
   .then(() => seedDemoData())
   .then(async () => {
+    // Every instance validates bookings against the slot list, so every
+    // instance (not just the primary) loads it and keeps it fresh.
+    await refreshSlotCache().catch((err) =>
+      console.error("time slot load failed, using defaults:", (err as Error).message),
+    );
+    startSlotCacheRefresh();
     if (!isPrimaryInstance) return;
     // Recover any in-flight dispatch state, then start the offer/scheduler loop.
     await resumeDispatch().catch((err) =>
@@ -55,6 +62,7 @@ connectDb()
 const shutdown = (signal: string) => {
   console.log(`\n${signal} received — shutting down.`);
   stopDispatchWorker();
+  stopSlotCacheRefresh();
   // server.close() only calls back once every open connection has ended, and a
   // connected browser holds keep-alive and WebSocket connections open
   // indefinitely. The listener was already closed, so the process sat alive

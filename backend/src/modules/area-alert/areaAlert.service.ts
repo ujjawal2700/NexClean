@@ -3,6 +3,9 @@ import { User } from "../user/user.model";
 import { Booking } from "../booking/booking.model";
 import { notifyUser } from "../notification/notification.service";
 import { ApiError } from "../../shared/utils/ApiError";
+import type { LngLat } from "../../shared/geo";
+
+const EARTH_RADIUS_KM = 6378.1;
 
 /** Get the singleton settings doc, creating it with defaults on first access. */
 export async function getSettings() {
@@ -27,12 +30,6 @@ function renderTemplate(tmpl: string, society: string, minutes: number): string 
     .replace(/\{\{\s*minutes\s*\}\}/g, String(minutes));
 }
 
-/**
- * The Smart Area Alert engine: find customers with an address in the given
- * society and push them a personalized "NexClean Nearby" offer.
- * (Society-name match now; true geo-radius is a follow-up once we store
- * customer coordinates — the radius setting is already captured for it.)
- */
 /**
  * A cleaner may only alert a society they are demonstrably working: one they
  * have a job in today, or their own assigned service area.
@@ -78,23 +75,92 @@ export async function assertAgentMayAlert(agentId: string, society: string): Pro
   );
 }
 
-export async function trigger(society: string, agentName?: string) {
+/**
+ * Where the alert is centred, and whose job it is. For a cleaner, that's the
+ * job they're on in this society (falling back to their live GPS); for an
+ * admin, the most recent geotagged booking there. The job's own customer is
+ * returned so they aren't told about the cleaner who is already at their car.
+ */
+async function alertOrigin(
+  societyMatch: RegExp,
+  agentId?: string,
+): Promise<{ center: LngLat | null; jobCustomerId: string | null }> {
+  if (agentId) {
+    const job =
+      (await Booking.findOne({
+        assignedAgent: agentId,
+        society: societyMatch,
+        jobStatus: { $in: ["arrived", "in_progress", "enroute"] },
+      })
+        .sort({ updatedAt: -1 })
+        .select("location user")) ??
+      (await Booking.findOne({ assignedAgent: agentId, society: societyMatch, status: { $ne: "cancelled" } })
+        .sort({ date: -1 })
+        .select("location user"));
+    const jobCenter = job?.location?.coordinates;
+    if (jobCenter?.length === 2) {
+      return { center: [jobCenter[0], jobCenter[1]], jobCustomerId: job ? String(job.user) : null };
+    }
+    const agent = await User.findById(agentId).select("liveLocation");
+    const live = agent?.liveLocation?.coordinates;
+    return {
+      center: live?.length === 2 ? [live[0], live[1]] : null,
+      jobCustomerId: job ? String(job.user) : null,
+    };
+  }
+  const recent = await Booking.findOne({ society: societyMatch, "location.coordinates.1": { $exists: true } })
+    .sort({ createdAt: -1 })
+    .select("location");
+  const c = recent?.location?.coordinates;
+  return { center: c?.length === 2 ? [c[0], c[1]] : null, jobCustomerId: null };
+}
+
+/**
+ * The Smart Area Alert engine: push a "NexClean Nearby" offer to customers
+ * with a saved address within the admin's radius of the job.
+ *
+ * This used to match on the society *name* alone. That name is free text the
+ * customer types ("Prestige Lakeside" vs "Prestige Lakeside Habitat"), so
+ * neighbours almost never matched — in practice the only recipient was the
+ * customer whose car was being cleaned. Addresses carry Google Places
+ * coordinates, so distance is the real test; the exact-name match is kept for
+ * older addresses saved without coordinates.
+ */
+export async function trigger(society: string, agentName?: string, agentId?: string) {
   const settings = await getSettings();
   if (!settings.enabled) throw ApiError.badRequest("Area alerts are currently disabled");
 
   const society_ = society.trim();
+  const societyMatch = new RegExp(`^${escapeRegex(society_)}$`, "i");
+  const { center, jobCustomerId } = await alertOrigin(societyMatch, agentId);
+
+  const nearby: Record<string, unknown>[] = [{ addresses: { $elemMatch: { society: societyMatch } } }];
+  if (center) {
+    nearby.push({
+      // Legacy [lng, lat] pairs; $centerSphere takes its radius in radians.
+      "addresses.coordinates": { $geoWithin: { $centerSphere: [center, settings.radiusKm / EARTH_RADIUS_KM] } },
+    });
+  }
+
   const users = await User.find({
-    addresses: { $elemMatch: { society: new RegExp(`^${escapeRegex(society_)}$`, "i") } },
-  });
+    role: "customer",
+    $or: nearby,
+    ...(jobCustomerId ? { _id: { $ne: jobCustomerId } } : {}),
+  }).select("_id");
 
   const title = settings.title;
   const body = renderTemplate(settings.body, society_, settings.windowMinutes);
 
-  let sent = 0;
-  for (const user of users) {
-    await notifyUser(user.id, { type: "area_alert", title, body, data: { society: society_ } });
-    sent += 1;
-  }
+  // One customer's failed push must not stop the rest from being notified.
+  const results = await Promise.allSettled(
+    users.map((user) =>
+      notifyUser(user.id, { type: "area_alert", title, body, data: { society: society_ } }),
+    ),
+  );
+  const sent = results.filter((r) => r.status === "fulfilled").length;
+  results.forEach((r) => {
+    if (r.status === "rejected") console.error("area alert notify failed:", (r.reason as Error)?.message);
+  });
 
   const record = await TriggeredAlert.create({
     society: society_,

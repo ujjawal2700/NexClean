@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { useSessionStore } from "../store/sessionStore";
+import { TIME_SLOTS } from "../data/catalog";
 import { useAdminSession } from "../../admin/store/sessionStore";
 import { useAgentSession } from "../../agent/store/sessionStore";
 import type {
@@ -27,6 +28,7 @@ export const notificationsKey = ["notifications"] as const;
 export const plansKey = ["catalog", "plans"] as const;
 export const promoBannersKey = ["catalog", "promo-banners"] as const;
 export const offPeakHoursKey = ["catalog", "off-peak-hours"] as const;
+export const timeSlotsKey = ["catalog", "time-slots"] as const;
 export const paymentModeKey = ["catalog", "payment-mode"] as const;
 export const referralsKey = ["referrals"] as const;
 export const walletKey = ["wallet"] as const;
@@ -83,6 +85,19 @@ export function usePromoBanners() {
     queryKey: promoBannersKey,
     queryFn: () => apiFetch<PromoBanner[]>("/catalog/promo-banners"),
   });
+}
+
+/**
+ * The bookable time slots set by the admin (public catalog). Falls back to the
+ * built-in list while loading, so the picker never renders empty.
+ */
+export function useTimeSlots(): string[] {
+  const { data } = useQuery({
+    queryKey: timeSlotsKey,
+    queryFn: () => apiFetch<{ slots: string[] }>("/catalog/time-slots"),
+    staleTime: 60_000,
+  });
+  return data?.slots?.length ? data.slots : TIME_SLOTS;
 }
 
 /**

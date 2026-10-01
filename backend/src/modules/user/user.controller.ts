@@ -63,3 +63,8 @@ export async function getReferralSummary(req: Request, res: Response): Promise<R
   const summary = await userService.getReferralSummary(req.userId!);
   return ok(res, summary);
 }
+
+export async function remindReferredUser(req: Request, res: Response): Promise<Response> {
+  const result = await userService.remindReferredUser(req.userId!, String(req.params.id));
+  return ok(res, result, "Reminder sent");
+}

@@ -22,7 +22,7 @@ import { AdminRole } from "./adminRole.model";
 import { User } from "../user/user.model";
 import { env } from "../../config/env";
 import { hashPassword, verifyPassword } from "../../shared/utils/crypto";
-import { TIME_SLOTS, SLOT_LIST } from "../../shared/slots";
+import { isValidSlot, slotList } from "../../shared/slots";
 import { deleteConversationsForUser } from "../internalMessage/internalMessage.service";
 
 /** A positive price per vehicle category key — keys are admin-managed, not a fixed set. */
@@ -142,13 +142,13 @@ export async function autoAssignBooking(req: Request, res: Response): Promise<Re
 
 const rescheduleSchema = z.object({
   date: z.string().min(1),
-  slot: z.enum(TIME_SLOTS),
+  slot: z.string().refine(isValidSlot),
   /** Let a peak upgrade through without charging — a recorded goodwill decision. */
   waiveUpgrade: z.boolean().optional(),
 });
 export async function rescheduleBooking(req: Request, res: Response): Promise<Response> {
   const parsed = rescheduleSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest(`Date and a valid slot are required (one of: ${SLOT_LIST})`);
+  if (!parsed.success) throw ApiError.badRequest(`Date and a valid slot are required (one of: ${slotList()})`);
   return ok(
     res,
     await service.rescheduleBooking(String(req.params.id), parsed.data, req.userId),
@@ -165,7 +165,7 @@ export async function rescheduleBooking(req: Request, res: Response): Promise<Re
  */
 export async function rescheduleQuote(req: Request, res: Response): Promise<Response> {
   const parsed = rescheduleSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest(`Date and a valid slot are required (one of: ${SLOT_LIST})`);
+  if (!parsed.success) throw ApiError.badRequest(`Date and a valid slot are required (one of: ${slotList()})`);
   return ok(res, await service.quoteReschedule(String(req.params.id), parsed.data));
 }
 
@@ -203,6 +203,23 @@ export async function updateDispatchConfigCtl(req: Request, res: Response): Prom
     );
   }
   return ok(res, await updateDispatchConfig(parsed.data), "Dispatch settings updated");
+}
+
+import { getSlotConfig, updateSlotConfig } from "../dispatch/slotConfig.service";
+
+export async function getTimeSlots(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await getSlotConfig());
+}
+
+const timeSlotsSchema = z.object({ slots: z.array(z.string()).min(1) });
+export async function updateTimeSlots(req: Request, res: Response): Promise<Response> {
+  const parsed = timeSlotsSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Add at least one time slot");
+  try {
+    return ok(res, await updateSlotConfig(parsed.data.slots), "Time slots updated");
+  } catch (err) {
+    throw ApiError.badRequest((err as Error).message);
+  }
 }
 
 export async function dispatchQueue(_req: Request, res: Response): Promise<Response> {
@@ -767,6 +784,7 @@ const updatePayoutConfigSchema = z
     flatAmount: z.number().min(0).optional(),
     minPayout: z.number().min(0).optional(),
     maxPayout: z.number().min(0).optional(),
+    subscriptionPayout: z.number().min(0).max(100000).optional(),
   })
   .refine((v) => v.maxPayout === undefined || v.minPayout === undefined || v.maxPayout === 0 || v.maxPayout >= v.minPayout, {
     message: "Maximum payout cannot be below the minimum payout",
@@ -1244,4 +1262,12 @@ export async function deleteStaff(req: Request, res: Response): Promise<Response
   await deleteConversationsForUser(String(staff._id));
   await staff.deleteOne();
   return ok(res, { success: true }, "Staff account deleted successfully");
+}
+
+/* ---------------------------- Subscriptions ------------------------------ */
+
+import { subscriptionOverview as getSubscriptionOverview } from "../subscription/subscriptionAdmin.service";
+
+export async function subscriptionOverview(_req: Request, res: Response): Promise<Response> {
+  return ok(res, await getSubscriptionOverview());
 }

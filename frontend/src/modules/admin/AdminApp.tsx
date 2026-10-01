@@ -27,6 +27,8 @@ import { VehicleBrands } from "./pages/VehicleBrands";
 import { Promotions } from "./pages/Promotions";
 import { SpecialCoupons } from "./pages/SpecialCoupons";
 import { OffPeakHours } from "./pages/OffPeakHours";
+import { TimeSlots } from "./pages/TimeSlots";
+import { Subscriptions } from "./pages/Subscriptions";
 import { Reports } from "./pages/Reports";
 import { ContentManagement } from "./pages/ContentManagement";
 import { Leads } from "./pages/Leads";
@@ -235,6 +237,22 @@ export function AdminApp() {
             element={
               <PermissionGuard permission="off-peak-hours">
                 <OffPeakHours />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="subscriptions"
+            element={
+              <PermissionGuard permission="plans">
+                <Subscriptions />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="time-slots"
+            element={
+              <PermissionGuard permission="time-slots">
+                <TimeSlots />
               </PermissionGuard>
             }
           />

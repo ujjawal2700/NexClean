@@ -21,7 +21,7 @@ import { listCategories } from "../catalog/category.service";
 import { ServiceZone } from "../location/location.model";
 import { normalize as normalizePhone } from "../auth/auth.service";
 import { generateUniqueReferralCode } from "../user/user.service";
-import { payoutCalculator, computePayout, getPayoutConfig } from "../payout/payoutConfig.service";
+import { payoutCalculator, computePayout, bookingPayout, getPayoutConfig } from "../payout/payoutConfig.service";
 import { evaluateReschedule } from "../booking/reschedule.service";
 import { syncCashLedgerAmount } from "../payment/ledger.service";
 import { broadcastJobStatus, forgetAgentBookings } from "../tracking/tracking.service";
@@ -49,6 +49,8 @@ function mapBooking(b: BookingDoc) {
     slot: b.slot,
     society: b.society,
     price: b.price,
+    // Prepaid through a plan, so `price` is ₹0 — lists show a Subscription tag instead.
+    isSubscriptionWash: !!b.isSubscriptionWash,
     status: displayStatus(b),
     dispatchStatus: b.dispatchStatus,
     agentName: b.agentName,
@@ -259,7 +261,7 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
     // agent-side completion does — an admin closing the job must not leave it
     // re-priced by whatever the payout rule happens to be later.
     if (booking.assignedAgent && booking.agentPayout == null) {
-      booking.agentPayout = computePayout(booking.price, await getPayoutConfig());
+      booking.agentPayout = bookingPayout(booking.price, booking.isSubscriptionWash, await getPayoutConfig());
     }
   } else if (status === "in_progress") {
     booking.status = "upcoming";
@@ -1042,6 +1044,8 @@ function mapPayment(p: PaymentDocument) {
     // needing a refund without a second round trip.
     bookingStatus: (booking && typeof booking === "object" && booking.status) || null,
     society: (booking && typeof booking === "object" && booking.society) || "",
+    kind: p.kind,
+    planName: p.planName ?? null,
     agentName: (booking && typeof booking === "object" && booking.agentName) || null,
     // Identity, not just the display name — the admin agent filter matches on
     // this so two cleaners who happen to share a name stay distinguishable.
@@ -1080,7 +1084,7 @@ export async function paymentStats() {
     .reduce((s, p) => s + p.refundAmount, 0);
   const payoutOf = await payoutCalculator();
   const pendingSettlement = payments
-    .filter((p) => p.status === "paid" && p.settlementStatus === "pending")
+    .filter((p) => p.status === "paid" && p.settlementStatus === "pending" && p.kind !== "subscription")
     .reduce((s, p) => s + payoutOf(p.amount), 0);
   const settledAmount = payments
     .filter((p) => p.settlementStatus === "settled")
@@ -1176,6 +1180,9 @@ export async function settlePayment(id: string) {
   const payment = await Payment.findById(id).populate("user", "name").populate("booking", "agentName society assignedAgent status");
   if (!payment) throw ApiError.notFound("Payment not found");
   if (payment.status !== "paid") throw ApiError.badRequest("Only paid payments can be settled");
+  if (payment.kind === "subscription") {
+    throw ApiError.badRequest("Plan purchases aren't settled to a cleaner — subscription washes are paid per job");
+  }
   if (payment.settlementStatus === "settled") throw ApiError.badRequest("Payment is already settled");
 
   payment.agentPayout = computePayout(payment.amount, await getPayoutConfig());
@@ -1410,7 +1417,7 @@ export async function getBookingDetail(id: string) {
   const agentShare = settled
     ? booking.agentPayout
     : booking.assignedAgent
-      ? computePayout(booking.price, await getPayoutConfig())
+      ? bookingPayout(booking.price, booking.isSubscriptionWash, await getPayoutConfig())
       : null;
 
   const startedAt = booking.jobStartedAt ?? null;

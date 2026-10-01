@@ -29,12 +29,15 @@ import {
   type AdminRescheduleQuote,
   useSetBookingStatus,
   useCategoryLabel,
+  useBookableSlots,
 } from "../api/admin.api";
 import { type BookingStatus, type AdminBooking } from "../types";
 import { BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
 import { ExportDateRangeModal } from "../components/ExportDateRangeModal";
+import { BookingPrice } from "../components/BookingPrice";
 
-const TIME_SLOTS = [
+/** Fallback until the live list (Admin → Time Slots) has loaded. */
+const DEFAULT_SLOTS = [
   "08:00 AM",
   "09:30 AM",
   "11:00 AM",
@@ -73,7 +76,11 @@ function RescheduleModal({
     ? new Date(booking.date).toISOString().split("T")[0]
     : new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(initialDate);
-  const [slot, setSlot] = useState(booking.slot || TIME_SLOTS[0]);
+  const slots = useBookableSlots() ?? DEFAULT_SLOTS;
+  const [slot, setSlot] = useState(booking.slot || slots[0]);
+  // A slot the admin has since removed can't be rescheduled into, but the
+  // booking may still sit in it — show it rather than a silently wrong value.
+  const retiredSlot = booking.slot && !slots.includes(booking.slot) ? booking.slot : null;
   const [waive, setWaive] = useState(false);
   const [quote, setQuote] = useState<AdminRescheduleQuote | null>(null);
 
@@ -142,7 +149,12 @@ function RescheduleModal({
               value={slot}
               onChange={(e) => setSlot(e.target.value)}
               className="h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-primary/50">
-              {TIME_SLOTS.map((s) => (
+              {retiredSlot && (
+                <option value={retiredSlot} disabled>
+                  {retiredSlot} (no longer offered)
+                </option>
+              )}
+              {slots.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
@@ -452,7 +464,7 @@ export function Bookings() {
                     <StatusCell booking={b} />
                   </td>
                   <td className="px-2 py-3 text-right font-medium text-ink">
-                    {formatMoney(b.price)}
+                    <BookingPrice price={b.price} isSubscriptionWash={b.isSubscriptionWash} />
                   </td>
                   <td className="px-2 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">

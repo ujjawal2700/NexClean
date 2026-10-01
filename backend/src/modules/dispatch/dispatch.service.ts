@@ -50,7 +50,7 @@ async function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
     date: b.date,
     slot: b.slot,
     price: b.price,
-    payout: payoutOf(b.price),
+    payout: payoutOf(b.price, b.isSubscriptionWash),
     distanceKm: distanceM != null ? Number((distanceM / 1000).toFixed(1)) : null,
     isSubscriptionWash: b.isSubscriptionWash,
     expiresAt: b.offerExpiresAt,

@@ -35,6 +35,7 @@ import {
   useCategoryLabel,
   useWallet,
   useOffPeakHours,
+  useTimeSlots,
   usePaymentMode,
   vehicleCategoriesKey,
 } from "../../api/queries";
@@ -949,14 +950,15 @@ function ScheduleStep({
   draft: Draft;
   set: (p: Partial<Draft>) => void;
 }) {
-  const dates = upcomingDates(7);
-  const slots = availableSlotsForDate(draft.date);
+  const allSlots = useTimeSlots();
+  const dates = upcomingDates(7, allSlots);
+  const slots = availableSlotsForDate(draft.date, allSlots);
   const { data: offPeakConfig } = useOffPeakHours();
   const offPeakWindows = windowsForDate(offPeakConfig, draft.date);
 
   // When a date is selected, if the currently chosen slot is no longer valid, clear it.
   const selectDate = (iso: string) => {
-    const available = availableSlotsForDate(iso);
+    const available = availableSlotsForDate(iso, allSlots);
     const slotStillValid = draft.slot && available.includes(draft.slot);
     set({ date: iso, slot: slotStillValid ? draft.slot : null });
   };
@@ -1261,7 +1263,11 @@ function PaymentSummary({
         <p className="mb-2 flex items-center gap-1.5 text-sm font-medium text-ink">
           <Tag className="size-4 text-muted" /> Have a discount code?
         </p>
-        {appliedDiscount ? (
+        {/* A quote exists whenever coins are on, too — only a quote carrying a
+            code means a code is applied. Keying on the quote alone replaced the
+            input with "null applied · You saved ₹0" as soon as coins were used,
+            so a code could no longer be entered alongside them. */}
+        {appliedDiscount?.discountCode ? (
           <div className="flex items-center justify-between rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3">
             <div>
               <p className="text-sm font-medium text-ink">

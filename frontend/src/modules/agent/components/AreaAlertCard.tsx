@@ -62,7 +62,10 @@ export function AreaAlertCard({ society }: { society: string }) {
                 animate={{ opacity: 1, y: 0 }}
                 className="flex items-center gap-2 rounded-pill bg-white/20 px-4 py-2 text-sm font-medium backdrop-blur"
               >
-                <Check className="size-4" /> Alert sent to {sentCount} nearby customer(s)
+                <Check className="size-4" />
+                {sentCount > 0
+                  ? `Alert sent to ${sentCount} nearby customer${sentCount === 1 ? "" : "s"}`
+                  : "No other customers nearby yet"}
               </motion.div>
             )}
           </AnimatePresence>

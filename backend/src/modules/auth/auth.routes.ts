@@ -9,6 +9,7 @@ import {
   adminPasswordResetRequestSchema,
   adminPasswordResetSchema,
   customerSignupSchema,
+  referralCheckSchema,
   agentSignupSchema,
   agentSignupBasicSchema,
 } from "./auth.validation";
@@ -18,6 +19,7 @@ import {
   adminLoginLimiter,
   adminResetRequestLimiter,
   adminResetLimiter,
+  referralCheckLimiter,
 } from "../../shared/middleware/rateLimit";
 import * as authController from "./auth.controller";
 
@@ -46,6 +48,12 @@ authRouter.post(
   sendOtpLimiter,
   validateBody(customerSignupSchema),
   asyncHandler(authController.customerSignup),
+);
+authRouter.post(
+  "/referral/check",
+  referralCheckLimiter,
+  validateBody(referralCheckSchema),
+  asyncHandler(authController.checkReferralCode),
 );
 authRouter.post("/agent/signup", validateBody(agentSignupSchema), asyncHandler(authController.agentSignup));
 authRouter.post(

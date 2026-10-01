@@ -19,6 +19,7 @@ import { PersonFormModal, ConfirmDeleteModal, ConfirmActionModal } from "../comp
 import { AgentLocationModal } from "../components/AgentLocationModal";
 import { AgentLiveLocationSection } from "../components/AgentLiveLocationSection";
 import { AGENT_STATUS_STYLE, BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
+import { BookingPrice } from "../components/BookingPrice";
 
 export function AgentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -255,7 +256,7 @@ export function AgentDetail() {
                     {BOOKING_STATUS_LABEL[b.status]}
                   </span>
                 </td>
-                <td className="px-2 py-3 text-right font-medium text-ink">{formatMoney(b.price)}</td>
+                <td className="px-2 py-3 text-right font-medium text-ink"><BookingPrice price={b.price} isSubscriptionWash={b.isSubscriptionWash} /></td>
               </tr>
             ))}
             {bookings.pageItems.length === 0 && (

@@ -67,7 +67,11 @@ test.describe("Job detail: status flow, photos, area alert", () => {
     const notifyButton = page.getByRole("button", { name: "Notify nearby customers" });
     await expect(notifyButton).toBeVisible();
     await notifyButton.click();
-    await expect(page.getByText(/Alert sent to \d+ nearby customer\(s\)/)).toBeVisible();
+    // Either it reached neighbours within the admin radius, or there were none
+    // nearby (the card says so instead of "sent to 0").
+    await expect(
+      page.getByText(/Alert sent to \d+ nearby customers?|No other customers nearby yet/),
+    ).toBeVisible();
   });
 
   test("blocks start cleaning without 4 before photos, and blocks completion without 4 after photos", async ({ page, request }) => {

@@ -7,9 +7,15 @@
  * exact "hh:mm AM/PM" shape to decide when a job is overdue, and an unparseable
  * slot yields NaN times that quietly break the missed-slot sweep.
  *
- * NOTE: frontend/src/modules/customer/data/catalog.ts holds the same list for
- * rendering the picker. Keep the two in step — this one is authoritative, and
- * a slot the client offers but the server rejects will surface as a 400.
+ * The live list is admin-managed (Admin → Time Slots, persisted in SlotConfig).
+ * It is held here as a synchronous cache because the request validators are
+ * synchronous Zod schemas; dispatch/slotConfig.service keeps it filled from the
+ * database on every instance. This module deliberately imports nothing — an
+ * earlier version imported the service from here and the service imported
+ * this, a cycle that left the defaults undefined depending on load order.
+ *
+ * Customers fetch the live list from GET /catalog/time-slots; the copy in
+ * frontend/src/modules/customer/data/catalog.ts is only an offline fallback.
  */
 export const TIME_SLOTS = [
   "08:00 AM",
@@ -22,11 +28,47 @@ export const TIME_SLOTS = [
   "06:30 PM",
 ] as const;
 
-export type TimeSlot = (typeof TIME_SLOTS)[number];
+/** The most an admin may configure — every 30 minutes around the clock. */
+export const MAX_SLOTS = 48;
 
-export function isValidSlot(slot: unknown): slot is TimeSlot {
-  return typeof slot === "string" && (TIME_SLOTS as readonly string[]).includes(slot);
+const SLOT_RE = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i;
+
+let liveSlots: string[] = [...TIME_SLOTS];
+
+/** "08:00 AM" → 480. Returns -1 for anything that is not a real 12-hour time. */
+export function slotToMinutes(slot: string): number {
+  const match = slot.trim().match(SLOT_RE);
+  if (!match) return -1;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 1 || hours > 12 || minutes > 59) return -1;
+  const pm = match[3].toUpperCase() === "PM";
+  if (hours === 12) hours = 0;
+  return (pm ? hours + 12 : hours) * 60 + minutes;
+}
+
+/** "8:00 am" → "08:00 AM", the one shape stored on bookings. */
+export function normalizeSlot(slot: string): string {
+  const match = slot.trim().match(SLOT_RE);
+  if (!match) return slot.trim();
+  return `${match[1].padStart(2, "0")}:${match[2]} ${match[3].toUpperCase()}`;
+}
+
+/** The slots customers can book right now, in chronological order. */
+export function getLiveSlots(): readonly string[] {
+  return liveSlots;
+}
+
+/** Called by slotConfig.service only — after a save or a database refresh. */
+export function setLiveSlots(slots: readonly string[]): void {
+  liveSlots = slots.length > 0 ? [...slots] : [...TIME_SLOTS];
+}
+
+export function isValidSlot(slot: unknown): slot is string {
+  return typeof slot === "string" && liveSlots.includes(slot);
 }
 
 /** Human-readable list for error messages. */
-export const SLOT_LIST = TIME_SLOTS.join(", ");
+export function slotList(): string {
+  return liveSlots.join(", ");
+}

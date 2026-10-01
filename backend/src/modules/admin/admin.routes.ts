@@ -72,6 +72,7 @@ adminRouter.get("/pricing", requirePermission("pricing"), asyncHandler(c.pricing
 adminRouter.put("/pricing", requirePermission("pricing"), asyncHandler(c.updatePricingCtl));
 
 adminRouter.get("/plans", requirePermission("plans"), asyncHandler(c.plans));
+adminRouter.get("/subscriptions", requirePermission("plans"), asyncHandler(c.subscriptionOverview));
 adminRouter.post("/plans", requirePermission("plans"), asyncHandler(c.createPlan));
 adminRouter.patch("/plans/:id", requirePermission("plans"), asyncHandler(c.updatePlan));
 adminRouter.delete("/plans/:id", requirePermission("plans"), asyncHandler(c.deletePlan));
@@ -122,6 +123,10 @@ adminRouter.delete("/promo-banners/:id", requirePermission("promotions"), asyncH
 adminRouter.get("/off-peak-hours", requirePermission("off-peak-hours"), asyncHandler(c.offPeakHours));
 adminRouter.get("/off-peak-hours/suggest", requirePermission("off-peak-hours"), asyncHandler(c.suggestOffPeakHours));
 adminRouter.put("/off-peak-hours", requirePermission("off-peak-hours"), asyncHandler(c.updateOffPeakHoursHandler));
+
+// Time slots — the bookable customer time windows
+adminRouter.get("/time-slots", requirePermission("time-slots"), asyncHandler(c.getTimeSlots));
+adminRouter.put("/time-slots", requirePermission("time-slots"), asyncHandler(c.updateTimeSlots));
 
 adminRouter.get("/campaigns", requirePermission("promotions"), asyncHandler(c.campaigns));
 adminRouter.get("/campaigns/audience-sizes", requirePermission("promotions"), asyncHandler(c.campaignAudienceSizes));

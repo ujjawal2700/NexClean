@@ -458,7 +458,10 @@ export function BookingDetail() {
       <GlassCard>
         <SectionTitle icon={Wallet}>Payment</SectionTitle>
         <dl className="mt-3 space-y-2.5 text-sm">
-          <Row label="Service price" value={formatMoney(booking.price)} />
+          <Row
+            label="Service price"
+            value={booking.isSubscriptionWash ? "Prepaid via subscription plan" : formatMoney(booking.price)}
+          />
           {booking.discountAmount > 0 && (
             <Row
               label={`Discount${booking.discountCode ? ` (${booking.discountCode})` : ""}`}

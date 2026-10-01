@@ -32,6 +32,10 @@ export function priceFor(basePrice: number, pkg: ServicePackage): number {
   return Math.round((basePrice * pkg.factor) / 10) * 10;
 }
 
+/**
+ * Offline fallback only. The live list is admin-managed (Admin → Time Slots)
+ * and comes from useTimeSlots(); pass it to the helpers below.
+ */
 export const TIME_SLOTS = [
   "08:00 AM",
   "09:30 AM",
@@ -55,16 +59,16 @@ function slotTo24h(slot: string): [number, number] {
  * For a given date (ISO string), return only the time slots that are still
  * bookable. On today, we require at least 1 hour of lead time.
  */
-export function availableSlotsForDate(dateIso: string | null): string[] {
-  if (!dateIso) return TIME_SLOTS;
+export function availableSlotsForDate(dateIso: string | null, slots: string[] = TIME_SLOTS): string[] {
+  if (!dateIso) return slots;
   const selected = new Date(dateIso);
   const now = new Date();
   const isToday = selected.toDateString() === now.toDateString();
-  if (!isToday) return TIME_SLOTS;
+  if (!isToday) return slots;
 
   const nowH = now.getHours();
   const nowM = now.getMinutes();
-  return TIME_SLOTS.filter((slot) => {
+  return slots.filter((slot) => {
     const [h, m] = slotTo24h(slot);
     // Require at least 60 minutes lead time
     return h * 60 + m > nowH * 60 + nowM + 60;
@@ -72,14 +76,14 @@ export function availableSlotsForDate(dateIso: string | null): string[] {
 }
 
 /** Next N selectable dates starting today (only include today if it has upcoming slots). */
-export function upcomingDates(count = 7): Date[] {
+export function upcomingDates(count = 7, slots: string[] = TIME_SLOTS): Date[] {
   const out: Date[] = [];
   const base = new Date();
   for (let i = 0; i < count; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
     // For today, only include if at least one slot is still open
-    if (i === 0 && availableSlotsForDate(d.toISOString()).length === 0) continue;
+    if (i === 0 && availableSlotsForDate(d.toISOString(), slots).length === 0) continue;
     out.push(d);
   }
   // Always return `count` total days (fill from the end if today was skipped)

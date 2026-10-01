@@ -21,6 +21,10 @@ const payoutConfigSchema = new Schema(
     minPayout: { type: Number, required: true, min: 0, default: 0 },
     // Optional ceiling. 0 means "no cap" — a cap of ₹0 would never be intended.
     maxPayout: { type: Number, required: true, min: 0, default: 0 },
+    // Fixed ₹ a cleaner earns for a subscription wash. Those bookings are
+    // prepaid through the plan and carry a price of ₹0, so a share of the
+    // price would pay the cleaner nothing — and nobody accepts a free job.
+    subscriptionPayout: { type: Number, required: true, min: 0, default: 0 },
   },
   {
     timestamps: true,

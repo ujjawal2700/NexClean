@@ -126,11 +126,20 @@ export type OffPeakHoursConfig = {
   windows: OffPeakWindow[];
 };
 
+/** Signed up → booked a service → completed it → referrer's reward credited. */
+export type ReferralStage = "joined" | "booked" | "completed" | "rewarded";
+
 export type ReferredUser = {
   id: string;
   name: string;
   joinedAt: string;
-  status: string;
+  stage: ReferralStage;
+  /** "withheld" when the signup was flagged as likely referral farming. */
+  rewardStatus: "pending" | "credited" | "withheld";
+  /** Friend hasn't booked yet, so a reminder makes sense. */
+  canRemind: boolean;
+  /** Set while the once-a-day reminder is cooling down. */
+  remindAgainAt: string | null;
 };
 
 export type ReferralSummary = {
@@ -207,6 +216,8 @@ export type SubscriptionScheduleResponse = {
   activePlan: CatalogPlan | null;
   subscriptionStartDate: string | null;
   subscriptionEndDate: string | null;
+  /** The prepaid cycle is over — nothing more can be scheduled until the plan is renewed. */
+  expired?: boolean;
   bookings: Booking[];
 };
 

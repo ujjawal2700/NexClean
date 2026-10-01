@@ -1,16 +1,18 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Gift, Copy, Check, Users, Share2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, Gift, Copy, Check, Users, Share2, ChevronRight } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { formatMoney } from "@shared/lib/format";
-import { cn } from "@shared/lib/utils";
 import { useReferralSummary } from "../api/queries";
 
 export function ReferEarn() {
   const navigate = useNavigate();
   const { data: referrals } = useReferralSummary();
   const [copied, setCopied] = useState(false);
+  const friends = referrals?.referredUsers ?? [];
+  const rewarded = friends.filter((f) => f.stage === "rewarded").length;
+  const waiting = friends.filter((f) => f.stage === "joined").length;
 
   const copyReferralCode = () => {
     if (!referrals?.referralCode) return;
@@ -101,113 +103,23 @@ export function ReferEarn() {
         </GlassCard>
       </div>
 
-      {/* Referrals Journey */}
-      <div className="space-y-4 pt-2">
-        <div className="flex items-center gap-2 pb-1">
-          <Users className="size-5 text-primary" />
-          <h2 className="font-display text-lg font-semibold text-ink">Referred Friends' Journey</h2>
-        </div>
-
-        {referrals?.referredUsers && referrals.referredUsers.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {referrals.referredUsers.map((user) => {
-              const isJoined = true; // Friend joined because they are in the list
-              const isWashCompleted = user.status === "First Clean Done" || user.status === "Subscribed";
-              const isRewarded = user.status === "First Clean Done" || user.status === "Subscribed";
-
-              return (
-                <GlassCard key={user.id} className="p-5 border border-line bg-surface flex flex-col justify-between space-y-6">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-display font-semibold text-ink text-base leading-snug">{user.name}</p>
-                      <p className="text-[11px] text-muted mt-0.5">
-                        Joined on {new Date(user.joinedAt).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                      isRewarded 
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
-                        : "bg-blue-100 text-blue-800 border border-blue-200"
-                    )}>
-                      {user.status === "Subscribed" ? "Subscribed" : isRewarded ? "Rewarded" : "Signed Up"}
-                    </span>
-                  </div>
-
-                  {/* Visual Journey Steps */}
-                  <div className="relative pt-2">
-                    {/* Horizontal Line background */}
-                    <div className="absolute top-[18px] left-[15%] right-[15%] h-1 bg-line rounded-full z-0">
-                      <div 
-                        className="h-full bg-primary rounded-full transition-all duration-700" 
-                        style={{ width: isRewarded ? "100%" : "0%" }}
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 relative z-10">
-                      {/* Step 1: Sign up */}
-                      <div className="flex flex-col items-center text-center">
-                        <div className={cn(
-                          "size-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm transition-all duration-300",
-                          isJoined ? "bg-primary text-white" : "bg-line text-muted"
-                        )}>
-                          ✓
-                        </div>
-                        <span className="mt-2 text-[11px] font-bold text-ink leading-tight">Signed Up</span>
-                        <span className="text-[9px] text-muted">Success</span>
-                      </div>
-
-                      {/* Step 2: First Wash */}
-                      <div className="flex flex-col items-center text-center">
-                        <div className={cn(
-                          "size-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm transition-all duration-300",
-                          isWashCompleted 
-                            ? "bg-primary text-white" 
-                            : "bg-surface border border-line text-muted"
-                        )}>
-                          {isWashCompleted ? "✓" : "2"}
-                        </div>
-                        <span className="mt-2 text-[11px] font-bold text-ink leading-tight">First Wash</span>
-                        <span className="text-[9px] text-muted leading-tight">
-                          {isWashCompleted ? "Completed" : "Awaiting wash"}
-                        </span>
-                      </div>
-
-                      {/* Step 3: Reward */}
-                      <div className="flex flex-col items-center text-center">
-                        <div className={cn(
-                          "size-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm transition-all duration-300",
-                          isRewarded 
-                            ? "bg-emerald-500 text-white" 
-                            : "bg-surface border border-line text-muted"
-                        )}>
-                          {isRewarded ? "₹" : "3"}
-                        </div>
-                        <span className="mt-2 text-[11px] font-bold text-ink leading-tight">Reward</span>
-                        <span className="text-[9px] font-medium text-amber-600">
-                          {isRewarded ? `+${referrals.rewardAmount || 100} coins` : "Pending"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </GlassCard>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center p-10 bg-surface border border-line border-dashed rounded-2xl">
-            <Users className="size-8 text-muted mx-auto mb-2" />
-            <p className="text-sm text-ink-soft font-semibold">No referrals yet</p>
-            <p className="text-xs text-muted max-w-xs mx-auto mt-1 leading-relaxed">
-              When friends sign up using your referral code, they'll appear here along with their step-by-step reward journey!
+      {/* Referred friends live on their own page — a long list here buried the code and balance. */}
+      <Link to="/app/profile/refer/users" className="block">
+        <GlassCard className="flex items-center gap-4 p-5 transition-colors hover:border-primary/40">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+            <Users className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-base font-semibold text-ink">Referred users</p>
+            <p className="mt-0.5 text-xs text-muted">
+              {friends.length === 0
+                ? "No referrals yet. Friends who sign up with your code appear here."
+                : `${friends.length} joined · ${rewarded} rewarded${waiting ? ` · ${waiting} yet to book` : ""}`}
             </p>
           </div>
-        )}
-      </div>
+          <ChevronRight className="size-5 shrink-0 text-muted" />
+        </GlassCard>
+      </Link>
     </div>
   );
 }

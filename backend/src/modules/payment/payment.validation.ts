@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createBookingSchema } from "../booking/booking.validation";
-import { TIME_SLOTS, SLOT_LIST } from "../../shared/slots";
+import { isValidSlot } from "../../shared/slots";
 
 export const createOrderSchema = z.object({
   booking: createBookingSchema,
@@ -22,7 +22,7 @@ export const previewAmountSchema = z.object({
   // `date`: this is a read-only quote, and rejecting a past date here would
   // surface as a confusing "invalid date" on a screen the customer can't fix.
   date: z.string().datetime({ message: "date must be an ISO datetime" }).optional(),
-  slot: z.enum(TIME_SLOTS, { errorMap: () => ({ message: `slot must be one of: ${SLOT_LIST}` }) }).optional(),
+  slot: z.string().refine(isValidSlot, { message: "That time slot is no longer available. Please pick another." }).optional(),
 });
 
 export const verifyPaymentSchema = z.object({

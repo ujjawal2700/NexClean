@@ -10,6 +10,9 @@ test.describe("Admin subscription plans", () => {
   });
 
   test("full CRUD: create, edit washes, deactivate, delete a plan", async ({ page }) => {
+    // Five sequential round-trips (create, edit, deactivate, delete + refetches);
+    // the 30s default ran out under full-suite load.
+    test.setTimeout(90_000);
     const planName = `Test Plan ${Date.now()}`;
 
     await page.getByRole("button", { name: "New plan" }).click();
@@ -22,6 +25,9 @@ test.describe("Admin subscription plans", () => {
     // form open. Fill every one of them.
     const newPlanForm = page.locator(".glass").filter({ hasText: "New plan" });
     const priceInputs = newPlanForm.locator('input[type="number"]:not([name="washesPerMonth"])');
+    // The per-category inputs render only once vehicle categories have loaded.
+    // Counting before then found none, filled nothing, and the create 400'd.
+    await expect(priceInputs.first()).toBeVisible({ timeout: 15_000 });
     const priceInputCount = await priceInputs.count();
     for (let i = 0; i < priceInputCount; i++) {
       await priceInputs.nth(i).fill("199");
@@ -31,7 +37,8 @@ test.describe("Admin subscription plans", () => {
       (res) => res.url().includes("/admin/plans") && res.request().method() === "POST",
     );
     await page.getByRole("button", { name: "Create plan" }).click();
-    await createResponse;
+    const created = await createResponse;
+    expect(created.ok(), `create plan failed: ${await created.text()}`).toBeTruthy();
 
     const card = cardByText(page, planName);
     await expect(card).toBeVisible();

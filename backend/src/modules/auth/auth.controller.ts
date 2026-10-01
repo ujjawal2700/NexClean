@@ -32,6 +32,10 @@ export async function verifyOtp(req: Request, res: Response): Promise<Response> 
   return ok(res, { token, user }, "Logged in");
 }
 
+export async function checkReferralCode(req: Request, res: Response): Promise<Response> {
+  return ok(res, await authService.checkReferralCode(req.body.code, req.body.phone), "Referral code is valid");
+}
+
 export async function adminLogin(req: Request, res: Response): Promise<Response> {
   const { token, user } = await authService.adminLogin(req.body.email, req.body.password);
   setSessionCookie(res, "admin", token);

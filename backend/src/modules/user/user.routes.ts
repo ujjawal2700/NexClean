@@ -43,3 +43,4 @@ userRouter.patch("/me/addresses/:id", validateBody(updateAddressSchema), asyncHa
 userRouter.delete("/me/addresses/:id", asyncHandler(userController.removeAddress));
 
 userRouter.get("/me/referrals", asyncHandler(userController.getReferralSummary));
+userRouter.post("/me/referrals/:id/remind", asyncHandler(userController.remindReferredUser));

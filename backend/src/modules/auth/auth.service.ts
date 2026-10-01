@@ -193,6 +193,25 @@ async function isLikelyReferralFarming(ip: string, deviceId: string): Promise<bo
   return priorClaims >= REFERRAL_SIGNUPS_PER_ORIGIN;
 }
 
+/**
+ * Pre-signup check behind the "Verify" button. Applies the same rules signup
+ * does, so a code that passes here won't be refused a step later. Returns only
+ * the referrer's first name and last initial — enough for the new customer to
+ * recognise who invited them, without the endpoint becoming a way to look up
+ * full names by guessing codes.
+ */
+export async function checkReferralCode(rawCode: string, rawPhone?: string) {
+  const referralCode = rawCode.trim().toUpperCase();
+  const referrer = await User.findOne({ referralCode }).select("name phone").lean();
+  if (!referrer) throw ApiError.badRequest("Invalid referral code");
+  if (rawPhone && referrer.phone === normalize(rawPhone)) {
+    throw ApiError.badRequest("You can't use your own referral code");
+  }
+  const [first = "", ...rest] = (referrer.name ?? "").trim().split(/\s+/);
+  const lastInitial = rest.length ? ` ${rest[rest.length - 1][0].toUpperCase()}.` : "";
+  return { valid: true, referrerName: `${first}${lastInitial}` || "a NexClean customer" };
+}
+
 /** Register a new customer account, then send the verification OTP. */
 export async function customerSignup(input: CustomerSignupInput, origin: SignupOrigin = {}) {
   const phone = normalize(input.phone);

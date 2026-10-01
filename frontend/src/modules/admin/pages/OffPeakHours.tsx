@@ -19,6 +19,7 @@ import {
   useOffPeakHours,
   useUpdateOffPeakHours,
   useSuggestOffPeakHours,
+  useBookableSlots,
   type OffPeakWindowInput,
 } from "../api/admin.api";
 import type { WeekdayIndex, OffPeakSuggestion } from "../types";
@@ -103,8 +104,8 @@ function validateDraft(rows: DraftWindow[]): Map<string, string> {
   return errors;
 }
 
-/** The eight bookable slots, in order, for the demand grid's columns. */
-const GRID_SLOTS = [
+/** Fallback columns until the live list (Admin → Time Slots) has loaded. */
+const DEFAULT_GRID_SLOTS = [
   "08:00 AM",
   "09:30 AM",
   "11:00 AM",
@@ -135,6 +136,7 @@ function SuggestionPanel({
   onUse: (s: OffPeakSuggestion) => void;
   onDismiss: () => void;
 }) {
+  const gridSlots = useBookableSlots() ?? DEFAULT_GRID_SLOTS;
   // Tint each cell by how busy it is relative to the busiest slot that week, so
   // the shape of demand is readable at a glance rather than by reading numbers.
   const busiest = suggestion
@@ -193,7 +195,7 @@ function SuggestionPanel({
                   <th className="p-1.5 text-left font-medium text-muted">
                     &nbsp;
                   </th>
-                  {GRID_SLOTS.map((slot) => (
+                  {gridSlots.map((slot) => (
                     <th key={slot} className="p-1.5 font-medium text-muted">
                       {slot.replace(" ", "")}
                     </th>
@@ -210,7 +212,7 @@ function SuggestionPanel({
                       <td className="p-1.5 text-left text-muted">
                         {day.short}
                       </td>
-                      {GRID_SLOTS.map((slot) => {
+                      {gridSlots.map((slot) => {
                         const cell = suggestion.grid.find(
                           (c) => c.day === day.index && c.slot === slot,
                         );

@@ -33,6 +33,8 @@ export type AdminBooking = {
   offPeakLocked: boolean;
   /** The subsidy that would be reclaimed on such a move, in rupees. */
   offPeakDiscountAmount: number;
+  /** Prepaid through the customer's plan — `price` is ₹0 by design. */
+  isSubscriptionWash: boolean;
 };
 
 /** One booking, in full — what the admin booking detail page renders. */
@@ -316,6 +318,9 @@ export type AdminPayment = {
   /** The linked booking's current status, or null when there's no booking / it wasn't populated. */
   bookingStatus: BookingStatus | null;
   society: string;
+  /** "subscription" rows are plan purchases — no booking, never settled to a cleaner. */
+  kind: "booking" | "reschedule" | "subscription";
+  planName: string | null;
   agentName: string | null;
   /** The assigned cleaner's id, or null while the booking is unassigned. */
   agentId: string | null;
@@ -431,6 +436,47 @@ export type SpecialCoupon = {
   createdAt: string;
 };
 
+/** Admin → Subscriptions: plan subscribers and plan revenue. */
+export type SubscriptionOverview = {
+  stats: {
+    activeSubscribers: number;
+    expiredSubscribers: number;
+    totalRevenue: number;
+    revenueThisMonth: number;
+    purchases: number;
+  };
+  byPlan: {
+    planId: string;
+    name: string;
+    active: boolean;
+    activeSubscribers: number;
+    purchases: number;
+    revenue: number;
+  }[];
+  subscribers: {
+    id: string;
+    name: string;
+    phone: string;
+    planId: string;
+    planName: string;
+    startDate: string | null;
+    endDate: string | null;
+    status: "active" | "expired";
+    washesUsed: number;
+    /** -1 means unlimited. */
+    washesLimit: number;
+    totalPaid: number;
+  }[];
+  recentPurchases: {
+    id: string;
+    customerName: string;
+    planName: string;
+    amount: number;
+    status: "paid" | "refunded";
+    createdAt: string;
+  }[];
+};
+
 /** What a cleaner earns per completed job. See the Agent Payouts admin page. */
 export type PayoutConfig = {
   mode: "percent" | "flat";
@@ -439,6 +485,8 @@ export type PayoutConfig = {
   minPayout: number;
   /** 0 means uncapped. */
   maxPayout: number;
+  /** Fixed ₹ per subscription wash — those are prepaid via the plan and priced ₹0. */
+  subscriptionPayout: number;
 };
 
 export type ReferralConfig = {

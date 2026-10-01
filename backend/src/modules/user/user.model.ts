@@ -76,6 +76,9 @@ const userSchema = new Schema(
     referredBy: { type: Types.ObjectId, ref: "User", default: null },
     // One-time guard: set true once the referrer has been rewarded for this user's first milestone.
     referralRewarded: { type: Boolean, default: false },
+    // When this user's referrer last sent a "book your first service" reminder.
+    // Rate-limits the reminder to one per day per referred friend.
+    referralReminderAt: { type: Date, default: null },
     // Signup fingerprint, used only to spot one person farming referral bonuses
     // across many phone numbers. Deliberately NOT used to block signups —
     // Indian mobile carriers NAT thousands of users behind one address, so

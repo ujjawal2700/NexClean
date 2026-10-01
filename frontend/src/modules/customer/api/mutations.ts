@@ -70,6 +70,14 @@ export function useVerifyOtp() {
   });
 }
 
+/** Signup "Verify" button: is this referral code real, and whose is it? */
+export function useCheckReferralCode() {
+  return useMutation({
+    mutationFn: (vars: { code: string; phone?: string }) =>
+      apiFetch<{ valid: true; referrerName: string }>("/auth/referral/check", { method: "POST", body: vars }),
+  });
+}
+
 export function useCustomerSignup() {
   return useMutation({
     mutationFn: (vars: {
@@ -443,5 +451,17 @@ export function useUpdateSupportConfig() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["chat", "config"] });
     },
+  });
+}
+
+/** "Notify" on a referred friend: push + in-app reminder to book their first service. */
+export function useRemindReferredUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (refereeId: string) =>
+      apiFetch<{ remindedAt: string; remindAgainAt: string }>(`/users/me/referrals/${refereeId}/remind`, {
+        method: "POST",
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: referralsKey }),
   });
 }

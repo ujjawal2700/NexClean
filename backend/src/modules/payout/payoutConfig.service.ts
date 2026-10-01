@@ -6,6 +6,8 @@ export type PayoutRule = {
   flatAmount: number;
   minPayout: number;
   maxPayout: number;
+  /** Fixed amount per subscription wash, which has no price of its own. */
+  subscriptionPayout: number;
 };
 
 /** The rule applied before an admin has ever saved one — the historical 70% split. */
@@ -15,6 +17,7 @@ export const DEFAULT_PAYOUT_RULE: PayoutRule = {
   flatAmount: 0,
   minPayout: 0,
   maxPayout: 0,
+  subscriptionPayout: 0,
 };
 
 function mapConfig(c: PayoutConfigDoc): PayoutRule {
@@ -24,6 +27,7 @@ function mapConfig(c: PayoutConfigDoc): PayoutRule {
     flatAmount: c.flatAmount,
     minPayout: c.minPayout,
     maxPayout: c.maxPayout,
+    subscriptionPayout: c.subscriptionPayout ?? 0,
   };
 }
 
@@ -63,10 +67,27 @@ export function computePayout(price: number, rule: PayoutRule = DEFAULT_PAYOUT_R
 }
 
 /**
+ * What a cleaner earns on a booking. Subscription washes are sold as part of a
+ * plan, so their own price is ₹0 — they pay the admin's fixed subscription
+ * rate instead of a share of the price (and skip the "never above the price"
+ * clamp, which would zero them out).
+ */
+export function bookingPayout(
+  price: number,
+  isSubscriptionWash: boolean | null | undefined,
+  rule: PayoutRule = DEFAULT_PAYOUT_RULE,
+): number {
+  if (isSubscriptionWash) return Math.max(0, Math.round(rule.subscriptionPayout));
+  return computePayout(price, rule);
+}
+
+/**
  * Read the config once and hand back a pricing function. Callers mapping a list
  * of bookings use this so one request doesn't fan out into a query per job.
  */
-export async function payoutCalculator(): Promise<(price: number) => number> {
+export async function payoutCalculator(): Promise<
+  (price: number, isSubscriptionWash?: boolean | null) => number
+> {
   const rule = await getPayoutConfig();
-  return (price: number) => computePayout(price, rule);
+  return (price: number, isSubscriptionWash?: boolean | null) => bookingPayout(price, isSubscriptionWash, rule);
 }

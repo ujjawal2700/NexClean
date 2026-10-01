@@ -26,12 +26,14 @@ function jobDistanceKm(b: BookingDocument, agentPoint?: LngLat): number | null {
  * anything still open is quoted from the current admin-set rule, so an agent
  * always sees today's rate for work they haven't finished yet.
  */
-function jobPayout(b: BookingDocument, payoutOf: (price: number) => number): number {
-  return b.agentPayout ?? payoutOf(b.price);
+type PayoutOf = (price: number, isSubscriptionWash?: boolean | null) => number;
+
+function jobPayout(b: BookingDocument, payoutOf: PayoutOf): number {
+  return b.agentPayout ?? payoutOf(b.price, b.isSubscriptionWash);
 }
 
 /** Shape a booking into the agent-facing "job" the frontend expects. */
-function mapJob(b: BookingDocument, payoutOf: (price: number) => number, agentPoint?: LngLat) {
+function mapJob(b: BookingDocument, payoutOf: PayoutOf, agentPoint?: LngLat) {
   const user = b.user as unknown as { name?: string } | null;
   const beforePhotos =
     b.beforePhotos && b.beforePhotos.length > 0
@@ -129,7 +131,7 @@ export async function advanceStatus(agentId: string, bookingId: string) {
     booking.status = "completed";
     // Freeze the earnings at today's rule. Editing the rule later must not
     // retroactively change what an agent was already told they had earned.
-    booking.agentPayout = payoutOf(booking.price);
+    booking.agentPayout = payoutOf(booking.price, booking.isSubscriptionWash);
     await User.updateOne({ _id: agentId }, { $inc: { jobsDone: 1 } });
   }
   await booking.save();
@@ -272,7 +274,7 @@ export async function summary(agentId: string) {
   const isToday = (d: Date) => new Date(d).toDateString() === new Date().toDateString();
   const todays = jobs.filter((j) => isToday(j.date));
   const completedToday = todays.filter((j) => j.jobStatus === "completed");
-  const payout = (j: (typeof jobs)[number]) => j.agentPayout ?? payoutOf(j.price);
+  const payout = (j: (typeof jobs)[number]) => j.agentPayout ?? payoutOf(j.price, j.isSubscriptionWash);
   return {
     jobsToday: todays.length,
     completedToday: completedToday.length,
@@ -353,7 +355,7 @@ export async function heartbeat(agentId: string, coords?: Coords) {
 export async function notifyArea(agentId: string, society: string) {
   const agent = await User.findById(agentId).select("name");
   await assertAgentMayAlert(agentId, society);
-  return triggerAreaAlert(society.trim(), agent?.name);
+  return triggerAreaAlert(society.trim(), agent?.name, agentId);
 }
 
 /**

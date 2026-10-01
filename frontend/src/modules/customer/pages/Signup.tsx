@@ -1,9 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   User, Mail, Phone, Gift, ArrowRight, ArrowLeft, ShieldCheck,
-  Loader2, MapPin, Building2, Rocket,
+  Loader2, MapPin, Building2, Rocket, CheckCircle2,
 } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Logo } from "@shared/components/brand/Logo";
@@ -14,7 +14,7 @@ import { Badge } from "@shared/ui/Badge";
 import { Stepper } from "@shared/ui/Stepper";
 import { ApiError } from "@shared/lib/api";
 import { useSessionStore } from "../store/sessionStore";
-import { useCustomerSignup, useVerifyOtp } from "../api/mutations";
+import { useCustomerSignup, useVerifyOtp, useCheckReferralCode } from "../api/mutations";
 import { meKey } from "../api/queries";
 import { usePublicCities, usePublicZones, useSubmitLead } from "../api/public";
 import type { PublicCity, PublicZone } from "../api/public";
@@ -22,6 +22,12 @@ import type { PublicCity, PublicZone } from "../api/public";
 const DEMO_OTP = "123456";
 
 type Step = "details" | "location" | "otp";
+
+/** Result of the referral "Verify" button, for the code currently in the field. */
+type ReferralStatus =
+  | { state: "idle" }
+  | { state: "valid"; referrerName: string }
+  | { state: "invalid"; message: string };
 
 export function Signup() {
   const navigate = useNavigate();
@@ -32,6 +38,7 @@ export function Signup() {
   const signup = useCustomerSignup();
   const verifyOtp = useVerifyOtp();
   const submitLead = useSubmitLead();
+  const checkReferral = useCheckReferralCode();
 
   // Step state
   const [step, setStep] = useState<Step>("details");
@@ -41,6 +48,7 @@ export function Signup() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState(searchParams.get("phone") ?? "");
   const [referralCode, setReferralCode] = useState(searchParams.get("ref") ?? "");
+  const [referralStatus, setReferralStatus] = useState<ReferralStatus>({ state: "idle" });
   const [legalConsent, setLegalConsent] = useState(false);
 
   // Step 2 — Location
@@ -59,6 +67,26 @@ export function Signup() {
   const { data: cities = [], isLoading: citiesLoading } = usePublicCities();
   const { data: zones = [], isLoading: zonesLoading } = usePublicZones(selectedCityId);
 
+  // A code that arrived through an invite link (?ref=) is verified straight
+  // away, so the customer sees who invited them without pressing anything.
+  useEffect(() => {
+    const code = searchParams.get("ref")?.trim();
+    if (!code) return;
+    checkReferral.mutate(
+      { code },
+      {
+        onSuccess: (res) => setReferralStatus({ state: "valid", referrerName: res.referrerName }),
+        onError: (e) =>
+          setReferralStatus({
+            state: "invalid",
+            message: e instanceof ApiError ? e.message : "Couldn't check this code. Try again.",
+          }),
+      },
+    );
+    // Once, on arrival — later edits go through the Verify button.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Already logged in — redirect to dashboard. Must come after every hook
   // call above (Rules of Hooks): this becomes true mid-session right after a
   // successful signup (see the otp step below), and an earlier return here
@@ -67,12 +95,35 @@ export function Signup() {
 
   const stepIndex: Record<Step, number> = { details: 0, location: 1, otp: 2 };
 
+  /* ─── Referral code verify ────────────────────────────────────────── */
+  const verifyReferral = async (): Promise<boolean> => {
+    const code = referralCode.trim();
+    if (!code) return true;
+    try {
+      const res = await checkReferral.mutateAsync({
+        code,
+        phone: /^\d{10}$/.test(phone) ? phone : undefined,
+      });
+      setReferralStatus({ state: "valid", referrerName: res.referrerName });
+      return true;
+    } catch (e) {
+      setReferralStatus({
+        state: "invalid",
+        message: e instanceof ApiError ? e.message : "Couldn't check this code. Try again.",
+      });
+      return false;
+    }
+  };
+
   /* ─── Step 1 submit ───────────────────────────────────────────────── */
-  const submitDetails = () => {
+  const submitDetails = async () => {
     if (name.trim().length < 2) return setError("Enter your full name");
     if (!/^\d{10}$/.test(phone)) return setError("Enter a valid 10-digit number");
     if (!legalConsent) return setError("Please accept the Privacy Policy and Terms & Conditions");
     setError("");
+    // A code that was typed but never verified is checked now, so a bad code
+    // is caught on this step instead of failing account creation later.
+    if (referralCode.trim() && referralStatus.state !== "valid" && !(await verifyReferral())) return;
     phoneRef.current = phone;
     setStep("location");
   };
@@ -219,18 +270,44 @@ export function Signup() {
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && submitDetails()}
                 />
-                <Input
-                  name="referralCode"
-                  label="Referral code (optional)"
-                  placeholder="e.g. AISH4F2A"
-                  leading={<Gift className="size-4" />}
-                  value={referralCode}
-                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => e.key === "Enter" && submitDetails()}
-                />
+                <div>
+                  <Input
+                    name="referralCode"
+                    label="Referral code (optional)"
+                    placeholder="e.g. AISH4F2A"
+                    leading={<Gift className="size-4" />}
+                    value={referralCode}
+                    onChange={(e) => {
+                      setReferralCode(e.target.value.toUpperCase());
+                      setReferralStatus({ state: "idle" });
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && verifyReferral()}
+                    error={referralStatus.state === "invalid" ? referralStatus.message : undefined}
+                    trailing={
+                      referralStatus.state === "valid" ? (
+                        <CheckCircle2 className="size-5 text-emerald-600" aria-label="Verified" />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => verifyReferral()}
+                          disabled={!referralCode.trim() || checkReferral.isPending}
+                          className="cursor-pointer rounded-xl px-2 py-1 text-sm font-semibold text-primary transition-colors hover:bg-primary/10 disabled:cursor-default disabled:opacity-40"
+                        >
+                          {checkReferral.isPending ? <Loader2 className="size-4 animate-spin" /> : "Verify"}
+                        </button>
+                      )
+                    }
+                  />
+                  {referralStatus.state === "valid" && (
+                    <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                      <CheckCircle2 className="size-3.5" /> Referred by {referralStatus.referrerName}.
+                    </p>
+                  )}
+                </div>
                 <LegalConsent checked={legalConsent} onChange={setLegalConsent} />
                 {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-500">{error}</p>}
-                <Button className="w-full" onClick={submitDetails}>
+                <Button className="w-full" onClick={submitDetails} disabled={checkReferral.isPending}>
+                  {checkReferral.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
                   Continue <ArrowRight className="size-4" />
                 </Button>
               </div>
