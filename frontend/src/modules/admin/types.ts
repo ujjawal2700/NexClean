@@ -436,6 +436,25 @@ export type SpecialCoupon = {
   createdAt: string;
 };
 
+/** A refund owed on a cancelled booking, awaiting an admin's decision. */
+export type AdminRefund = {
+  id: string;
+  status: "pending" | "processing" | "approved" | "rejected";
+  cancelledBy: "customer" | "admin";
+  /** The online payments being returned, each to its original method. */
+  payments: { id: string; orderId: string; paymentId: string | null; amount: number }[];
+  /** Rupees back to the original payment method. */
+  amount: number;
+  /** Coins back to the wallet. */
+  coins: number;
+  note: string;
+  lastError: string;
+  createdAt: string;
+  decidedAt: string | null;
+  customer: { id: string | null; name: string; phone: string };
+  booking: { id: string; packageName: string; vehicleName: string; date: string | null; slot: string } | null;
+};
+
 /** Admin → Subscriptions: plan subscribers and plan revenue. */
 export type SubscriptionOverview = {
   stats: {

@@ -154,7 +154,7 @@ export type ReferralSummary = {
 
 export type WalletTransaction = {
   id: string;
-  type: "referral_welcome" | "referral_reward" | "redeem";
+  type: "referral_welcome" | "referral_reward" | "redeem" | "refund";
   coins: number;
   balanceAfter: number;
   note: string;

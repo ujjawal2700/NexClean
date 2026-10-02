@@ -63,6 +63,11 @@ adminRouter.get("/payments/stats", requirePermission("payments"), asyncHandler(c
 adminRouter.patch("/payments/:id/refund", requirePermission("payments"), asyncHandler(c.refundPayment));
 adminRouter.patch("/payments/:id/settle", requirePermission("payments"), asyncHandler(c.settlePayment));
 
+// Refunds owed on cancelled bookings — queued automatically, sent or declined by an admin.
+adminRouter.get("/refunds", requirePermission("payments"), asyncHandler(c.refunds));
+adminRouter.post("/refunds/:id/approve", requirePermission("payments"), asyncHandler(c.approveRefund));
+adminRouter.post("/refunds/:id/reject", requirePermission("payments"), asyncHandler(c.rejectRefund));
+
 adminRouter.get("/payout-requests", requirePermission("payout-requests"), asyncHandler(c.payoutRequests));
 adminRouter.patch("/payout-requests/:id/approve", requirePermission("payout-requests"), asyncHandler(c.approvePayoutRequest));
 adminRouter.patch("/payout-requests/:id/reject", requirePermission("payout-requests"), asyncHandler(c.rejectPayoutRequest));

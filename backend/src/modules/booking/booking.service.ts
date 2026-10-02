@@ -19,6 +19,7 @@ import { evaluateReschedule, assertCustomerMayReschedule } from "./reschedule.se
 import { toPoint } from "../../shared/geo";
 import { broadcastJobStatus, forgetAgentBookings } from "../tracking/tracking.service";
 import type { CreateBookingInput } from "./booking.validation";
+import { queueCancellationRefund } from "../refund/refund.service";
 
 /** The wall-clock instant a slot begins on a given date — used for lead-time checks. */
 function slotStart(date: Date, slot: string): Date {
@@ -395,6 +396,10 @@ export async function cancelBooking(userId: string, bookingId: string) {
   }
   booking.status = "cancelled";
   await booking.save();
+  // Whatever was paid for it (online and/or coins) goes to Admin → Refunds for approval.
+  void queueCancellationRefund(String(booking._id), "customer").catch((err) =>
+    console.error("refund queue failed:", (err as Error).message),
+  );
   forgetAgentBookings(booking.assignedAgent ? String(booking.assignedAgent) : null);
   broadcastJobStatus(booking);
 

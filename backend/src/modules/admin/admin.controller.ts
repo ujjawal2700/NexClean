@@ -1271,3 +1271,27 @@ import { subscriptionOverview as getSubscriptionOverview } from "../subscription
 export async function subscriptionOverview(_req: Request, res: Response): Promise<Response> {
   return ok(res, await getSubscriptionOverview());
 }
+
+/* ------------------------------ Refunds ---------------------------------- */
+
+import * as refundService from "../refund/refund.service";
+import { REFUND_STATUSES, type RefundStatus } from "../refund/refundRequest.model";
+
+export async function refunds(req: Request, res: Response): Promise<Response> {
+  const status = String(req.query.status ?? "");
+  const filter = (REFUND_STATUSES as readonly string[]).includes(status) ? (status as RefundStatus) : undefined;
+  return ok(res, await refundService.listRefunds(filter));
+}
+
+export async function approveRefund(req: Request, res: Response): Promise<Response> {
+  await refundService.approveRefund(String(req.params.id), req.userId!);
+  return ok(res, { id: String(req.params.id), status: "approved" }, "Refund sent");
+}
+
+const rejectRefundSchema = z.object({ note: z.string().trim().max(300).optional() });
+export async function rejectRefund(req: Request, res: Response): Promise<Response> {
+  const parsed = rejectRefundSchema.safeParse(req.body ?? {});
+  if (!parsed.success) throw ApiError.badRequest("Reason must be under 300 characters");
+  await refundService.rejectRefund(String(req.params.id), req.userId!, parsed.data.note ?? "");
+  return ok(res, { id: String(req.params.id), status: "rejected" }, "Refund declined");
+}

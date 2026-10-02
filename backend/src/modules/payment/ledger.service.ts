@@ -1,4 +1,4 @@
-import { Payment } from "./payment.model";
+import { Payment, type PaymentDocument } from "./payment.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { createRazorpayOrder, verifyRazorpaySignature, razorpayKeyId, paymentsLive } from "./razorpay";
 
@@ -120,4 +120,20 @@ export async function claimReschedulePayment(
   const intent = payment.rescheduleIntent as RescheduleIntent | null;
   if (!intent) throw ApiError.badRequest("This payment is missing the change it was made for");
   return intent;
+}
+
+/**
+ * The part of a payment that is never refunded: the change fee on a peak
+ * upgrade. Expects `payment.booking` populated with `peakUpgradeFeeCharged`
+ * when the payment is a booking row.
+ */
+export function nonRefundablePortion(payment: PaymentDocument): number {
+  if (payment.kind === "reschedule") {
+    // A "pay now" upgrade row is reclaim + fee; only the reclaim is service value.
+    const intent = payment.rescheduleIntent as { fee?: number } | null;
+    return Math.max(0, intent?.fee ?? 0);
+  }
+  // A cash upgrade folded the fee into this booking's row.
+  const booking = payment.booking as unknown as { peakUpgradeFeeCharged?: number } | null;
+  return Math.max(0, (booking && typeof booking === "object" && booking.peakUpgradeFeeCharged) || 0);
 }

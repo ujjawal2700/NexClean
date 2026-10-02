@@ -23,7 +23,8 @@ import { normalize as normalizePhone } from "../auth/auth.service";
 import { generateUniqueReferralCode } from "../user/user.service";
 import { payoutCalculator, computePayout, bookingPayout, getPayoutConfig } from "../payout/payoutConfig.service";
 import { evaluateReschedule } from "../booking/reschedule.service";
-import { syncCashLedgerAmount } from "../payment/ledger.service";
+import { syncCashLedgerAmount, nonRefundablePortion } from "../payment/ledger.service";
+import { queueCancellationRefund } from "../refund/refund.service";
 import { broadcastJobStatus, forgetAgentBookings } from "../tracking/tracking.service";
 
 type BookingDoc = BookingDocument;
@@ -124,6 +125,10 @@ export async function cancelBooking(id: string) {
   booking.currentOfferAgent = null;
   booking.offerExpiresAt = null;
   await booking.save();
+  // Whatever was paid for it (online and/or coins) goes to Admin → Refunds for approval.
+  void queueCancellationRefund(String(booking._id), "admin").catch((err) =>
+    console.error("refund queue failed:", (err as Error).message),
+  );
 
   // Release any agent offer-lock and dismiss their popup.
   if (prevOfferAgent) {
@@ -275,6 +280,10 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
   await booking.save();
 
   if (status === "cancelled") {
+    // Whatever was paid for it (online and/or coins) goes to Admin → Refunds for approval.
+    void queueCancellationRefund(String(booking._id), "admin").catch((err) =>
+      console.error("refund queue failed:", (err as Error).message),
+    );
     // Release any offer lock + dismiss agent popup.
     if (prevOfferAgent) {
       await User.updateOne({ _id: prevOfferAgent, currentOfferBooking: id }, { currentOfferBooking: null });
@@ -1121,16 +1130,6 @@ function describeGatewayError(err: unknown): string {
  * apart — without this, cancelling after an upgrade would hand the fee back and
  * the "no refunds on the change fee" rule would exist only in the copy.
  */
-function nonRefundablePortion(payment: PaymentDocument): number {
-  if (payment.kind === "reschedule") {
-    // A "pay now" upgrade row is reclaim + fee; only the reclaim is service value.
-    const intent = payment.rescheduleIntent as { fee?: number } | null;
-    return Math.max(0, intent?.fee ?? 0);
-  }
-  // A cash upgrade folded the fee into this booking's row.
-  const booking = payment.booking as unknown as { peakUpgradeFeeCharged?: number } | null;
-  return Math.max(0, (booking && typeof booking === "object" && booking.peakUpgradeFeeCharged) || 0);
-}
 
 export async function refundPayment(id: string, input: { amount?: number; reason?: string }) {
   const payment = await Payment.findById(id)

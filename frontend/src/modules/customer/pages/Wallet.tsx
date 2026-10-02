@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Coins, Gift, Users, ShoppingBag, Sparkles } from "lucide-react";
+import { ArrowLeft, Coins, Gift, Users, ShoppingBag, Sparkles, Undo2 } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { formatMoney } from "@shared/lib/format";
@@ -11,6 +11,7 @@ const TX_META: Record<WalletTransaction["type"], { label: string; icon: typeof G
   referral_welcome: { label: "Welcome bonus", icon: Sparkles, tone: "text-primary bg-primary/10" },
   referral_reward: { label: "Referral reward", icon: Users, tone: "text-amber-600 bg-amber-500/10" },
   redeem: { label: "Redeemed at checkout", icon: ShoppingBag, tone: "text-rose-600 bg-rose-500/10" },
+  refund: { label: "Refund — cancelled booking", icon: Undo2, tone: "text-emerald-600 bg-emerald-500/10" },
 };
 
 function formatDate(iso: string) {

@@ -1,7 +1,8 @@
 import { Schema, model, Types, type HydratedDocument, type InferSchemaType } from "mongoose";
 
 /** Reasons a user's coin balance moves. Positive `coins` credit, negative debit. */
-export const WALLET_TX_TYPES = ["referral_welcome", "referral_reward", "redeem"] as const;
+// "refund": coins returned when a booking they were spent on is cancelled.
+export const WALLET_TX_TYPES = ["referral_welcome", "referral_reward", "redeem", "refund"] as const;
 export type WalletTxType = (typeof WALLET_TX_TYPES)[number];
 
 /**

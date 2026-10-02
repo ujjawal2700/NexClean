@@ -49,6 +49,7 @@ import type {
   AssignableAgent,
   AdminPayoutRequest,
   SubscriptionOverview,
+  AdminRefund,
   PayoutRequestStatus,
   InternalMessageContact,
   InternalConversation,
@@ -74,6 +75,7 @@ const keys = {
   customer: (id: string) => ["admin", "customers", id] as const,
   customerActivity: (id: string) => ["admin", "customers", id, "activity"] as const,
   payments: ["admin", "payments"] as const,
+  refunds: (status: string) => ["admin", "refunds", status] as const,
   paymentStats: ["admin", "payments", "stats"] as const,
   cities: ["admin", "cities"] as const,
   zones: ["admin", "zones"] as const,
@@ -581,6 +583,30 @@ export function useUpdateDispatchConfig() {
     onSuccess: (data) => qc.setQueryData(keys.dispatchConfig, data),
   });
 }
+
+export const useRefunds = (status: "pending" | "approved" | "rejected" | "all") =>
+  useAuthedQuery<AdminRefund[]>(
+    keys.refunds(status),
+    status === "all" ? "/admin/refunds" : `/admin/refunds?status=${status}`,
+  );
+
+function useRefundDecision(action: "approve" | "reject") {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; note?: string }) =>
+      apiFetch<{ id: string; status: string }>(`/admin/refunds/${vars.id}/${action}`, {
+        method: "POST",
+        body: action === "reject" ? { note: vars.note ?? "" } : {},
+      }),
+    // Either way the request moves tabs, and an approval changes payments too.
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "refunds"] });
+      qc.invalidateQueries({ queryKey: keys.payments });
+    },
+  });
+}
+export const useApproveRefund = () => useRefundDecision("approve");
+export const useRejectRefund = () => useRefundDecision("reject");
 
 export const useSubscriptionOverview = () =>
   useAuthedQuery<SubscriptionOverview>(keys.subscriptions, "/admin/subscriptions");
