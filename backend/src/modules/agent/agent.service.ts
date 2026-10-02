@@ -65,8 +65,11 @@ function mapJob(b: BookingDocument, payoutOf: PayoutOf, agentPoint?: LngLat) {
         ? { lat: b.location.coordinates[1], lng: b.location.coordinates[0] }
         : null,
     price: b.price,
-    payout: jobPayout(b, payoutOf),
-    status: b.jobStatus,
+    // A cancelled job keeps the cleaner on it (for the record) and keeps
+    // whatever jobStatus it had reached — reporting that jobStatus made it look
+    // live in the app. Surface the cancellation instead, and that it pays nothing.
+    payout: b.status === "cancelled" ? 0 : jobPayout(b, payoutOf),
+    status: b.status === "cancelled" ? ("cancelled" as const) : b.jobStatus,
     hasBefore: beforePhotos.length >= 4 || b.hasBefore,
     hasAfter: afterPhotos.length >= 4 || b.hasAfter,
     beforePhotos,
@@ -95,8 +98,22 @@ async function getOwnedJob(agentId: string, bookingId: string) {
   return booking;
 }
 
-export async function advanceStatus(agentId: string, bookingId: string) {
+/**
+ * The same job, for an action that changes it. Without this a cleaner could
+ * keep working a booking the customer or an admin had cancelled — and marking
+ * it complete flipped it back to "completed", paid the cleaner and credited the
+ * referral reward for a service that was called off.
+ */
+async function getWorkableJob(agentId: string, bookingId: string) {
   const booking = await getOwnedJob(agentId, bookingId);
+  if (booking.status === "cancelled") {
+    throw ApiError.badRequest("This booking was cancelled. There's nothing more to do on it.");
+  }
+  return booking;
+}
+
+export async function advanceStatus(agentId: string, bookingId: string) {
+  const booking = await getWorkableJob(agentId, bookingId);
   const current = booking.jobStatus as JobStatus;
   const idx = JOB_FLOW.indexOf(current);
 
@@ -205,7 +222,7 @@ export async function setPhoto(
     index?: number;
   } = {},
 ) {
-  const booking = await getOwnedJob(agentId, bookingId);
+  const booking = await getWorkableJob(agentId, bookingId);
   const { image, action = "add", index } = options;
 
   if (action === "remove") {
@@ -272,7 +289,8 @@ export async function summary(agentId: string) {
     payoutCalculator(),
   ]);
   const isToday = (d: Date) => new Date(d).toDateString() === new Date().toDateString();
-  const todays = jobs.filter((j) => isToday(j.date));
+  // Cancelled jobs are neither work for today nor money on the table.
+  const todays = jobs.filter((j) => isToday(j.date) && j.status !== "cancelled");
   const completedToday = todays.filter((j) => j.jobStatus === "completed");
   const payout = (j: (typeof jobs)[number]) => j.agentPayout ?? payoutOf(j.price, j.isSubscriptionWash);
   return {

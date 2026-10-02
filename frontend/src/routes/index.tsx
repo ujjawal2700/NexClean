@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
 import { LandingPage } from "@modules/landing/LandingPage";
 import { PageLoader } from "@shared/components/PageLoader";
+import { ReferralLink } from "@modules/landing/pages/ReferralLink";
 
 // Role modules are code-split: landing visitors never download
 // customer/agent/admin bundles until those routes are visited.
@@ -58,6 +59,10 @@ export function AppRoutes() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/refund" element={<Refund />} />
+
+        {/* Shared referral invite — the one path the customer apps open directly. */}
+        <Route path="/referral" element={<ReferralLink />} />
+        <Route path="/referral/:code" element={<ReferralLink />} />
 
 
         {/* Customer module */}

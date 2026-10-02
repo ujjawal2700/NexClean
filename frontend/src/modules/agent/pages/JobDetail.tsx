@@ -15,6 +15,7 @@ import {
   X,
   Eye,
   ShieldAlert,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { ApiError } from "@shared/lib/api";
@@ -90,6 +91,8 @@ export function JobDetail() {
   const beforeCount = beforePhotos.length;
   const afterCount = afterPhotos.length;
 
+  // Cancelled by the customer or an admin: the record stays, the work doesn't.
+  const cancelled = job.status === "cancelled";
   const stepIndex = STATUS_FLOW.indexOf(job.status);
   const action = NEXT_ACTION[job.status];
 
@@ -194,7 +197,12 @@ export function JobDetail() {
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-display text-2xl font-semibold text-ink">{job.vehicleName}</h1>
-            <span className="rounded-pill bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+            <span
+              className={cn(
+                "rounded-pill px-2.5 py-0.5 text-xs font-medium",
+                cancelled ? "bg-red-500/10 text-red-600" : "bg-primary/10 text-primary",
+              )}
+            >
               {STATUS_LABEL[job.status]}
             </span>
           </div>
@@ -204,44 +212,63 @@ export function JobDetail() {
         </div>
         <div className="text-right">
           <p className="text-xs text-muted">Your payout</p>
-          <p className="font-display text-2xl font-semibold text-ink">{formatMoney(job.payout)}</p>
+          <p className={cn("font-display text-2xl font-semibold", cancelled ? "text-muted line-through" : "text-ink")}>
+            {formatMoney(job.payout)}
+          </p>
         </div>
       </GlassCard>
 
+      {cancelled && (
+        <div
+          data-testid="job-cancelled"
+          className="flex items-start gap-3 rounded-card border border-red-500/30 bg-red-50/70 p-5 text-red-700"
+        >
+          <XCircle className="mt-0.5 size-6 shrink-0" />
+          <div>
+            <p className="font-display font-semibold">This booking was cancelled</p>
+            <p className="text-sm">
+              The customer or our team called it off. You don&apos;t need to go — nothing more to do on this job.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Status progress */}
-      <GlassCard>
-        <ol className="flex items-center gap-2">
-          {STATUS_FLOW.map((s, i) => {
-            const done = i < stepIndex;
-            const active = i === stepIndex;
-            return (
-              <li key={s} className="flex flex-1 items-center gap-2 last:flex-none">
-                <div className="flex flex-col items-center gap-1.5 sm:flex-row">
-                  <span
-                    className={cn(
-                      "grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold",
-                      done && "bg-primary text-white",
-                      active && "bg-primary/10 text-primary ring-2 ring-primary/30",
-                      !done && !active && "bg-surface-muted text-muted",
-                    )}
-                  >
-                    {done ? <Check className="size-3.5" /> : i + 1}
-                  </span>
-                  <span className={cn("hidden text-xs font-medium sm:inline", active ? "text-ink" : "text-muted")}>
-                    {STATUS_LABEL[s as JobStatus]}
-                  </span>
-                </div>
-                {i < STATUS_FLOW.length - 1 && (
-                  <span className={cn("h-0.5 flex-1 rounded-full", done ? "bg-primary" : "bg-line")} />
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </GlassCard>
+      {!cancelled && (
+        <GlassCard>
+          <ol className="flex items-center gap-2">
+            {STATUS_FLOW.map((s, i) => {
+              const done = i < stepIndex;
+              const active = i === stepIndex;
+              return (
+                <li key={s} className="flex flex-1 items-center gap-2 last:flex-none">
+                  <div className="flex flex-col items-center gap-1.5 sm:flex-row">
+                    <span
+                      className={cn(
+                        "grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold",
+                        done && "bg-primary text-white",
+                        active && "bg-primary/10 text-primary ring-2 ring-primary/30",
+                        !done && !active && "bg-surface-muted text-muted",
+                      )}
+                    >
+                      {done ? <Check className="size-3.5" /> : i + 1}
+                    </span>
+                    <span className={cn("hidden text-xs font-medium sm:inline", active ? "text-ink" : "text-muted")}>
+                      {STATUS_LABEL[s as JobStatus]}
+                    </span>
+                  </div>
+                  {i < STATUS_FLOW.length - 1 && (
+                    <span className={cn("h-0.5 flex-1 rounded-full", done ? "bg-primary" : "bg-line")} />
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </GlassCard>
+      )}
 
       {/* Live navigation */}
-      {job.status !== "completed" && (
+      {job.status !== "completed" && !cancelled && (
         <JobNavigationCard
           jobId={job.id}
           status={job.status}
@@ -390,7 +417,7 @@ export function JobDetail() {
       )}
 
       {/* Primary action bar */}
-      {job.status === "completed" ? (
+      {cancelled ? null : job.status === "completed" ? (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

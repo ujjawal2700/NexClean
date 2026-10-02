@@ -16,6 +16,7 @@ const PHASE_COPY: Record<JobStatus, { title: string; blurb: string }> = {
   arrived: { title: "You've arrived", blurb: "Find the vehicle and start the wash." },
   in_progress: { title: "Cleaning in progress", blurb: "Take your before & after photos below." },
   completed: { title: "Job complete", blurb: "Nice work." },
+  cancelled: { title: "Booking cancelled", blurb: "No need to go — this job was called off." },
 };
 
 /**

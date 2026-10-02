@@ -90,6 +90,7 @@ async function alertOrigin(
       (await Booking.findOne({
         assignedAgent: agentId,
         society: societyMatch,
+        status: { $ne: "cancelled" },
         jobStatus: { $in: ["arrived", "in_progress", "enroute"] },
       })
         .sort({ updatedAt: -1 })

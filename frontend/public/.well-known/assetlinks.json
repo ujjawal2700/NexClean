@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.nexclean.customer",
+      "sha256_cert_fingerprints": ["40:C2:16:4C:66:55:41:62:08:5A:64:C9:7C:B9:34:7D:D5:50:4A:51:46:F3:14:E4:B1:77:FA:20:D5:4A:FB:1C"]
+    }
+  }
+]

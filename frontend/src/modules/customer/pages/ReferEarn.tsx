@@ -5,6 +5,7 @@ import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { formatMoney } from "@shared/lib/format";
 import { useReferralSummary } from "../api/queries";
+import { referralInviteUrl } from "@shared/lib/site";
 
 export function ReferEarn() {
   const navigate = useNavigate();
@@ -24,14 +25,20 @@ export function ReferEarn() {
 
   const shareCode = () => {
     if (!referrals?.referralCode) return;
+    // The link opens the NexClean app when installed (sign-up with the code
+    // applied), or sign-up on the web otherwise.
+    const link = referralInviteUrl(referrals.referralCode);
+    const text = `Get a sparkling clean car with doorstep wash from NexClean! Sign up with my referral code ${referrals.referralCode}:`;
     if (navigator.share) {
-      navigator.share({
-        title: "Join NexClean!",
-        text: `Get a sparkling clean car with doorstep wash from NexClean! Use my referral code: ${referrals.referralCode} to sign up.`,
-        url: window.location.origin,
-      }).catch(console.error);
+      navigator.share({ title: "Join NexClean!", text, url: link }).catch(() => {
+        /* dismissed */
+      });
     } else {
-      copyReferralCode();
+      // No share sheet (some in-app web views): copy the whole invite instead.
+      navigator.clipboard.writeText(`${text} ${link}`).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      });
     }
   };
 

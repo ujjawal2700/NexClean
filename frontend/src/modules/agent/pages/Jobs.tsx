@@ -7,7 +7,7 @@ import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { SkeletonListCards } from "@shared/ui/Skeleton";
 import { formatDate, formatMoney } from "@shared/lib/format";
 import { useJobs } from "../api/agent.api";
-import { VEHICLE_LABEL, STATUS_LABEL, type JobStatus } from "../types";
+import { VEHICLE_LABEL, STATUS_LABEL, isActiveJob, type JobStatus } from "../types";
 
 const FILTERS: { id: "active" | "completed" | "all"; label: string }[] = [
   { id: "active", label: "Active" },
@@ -21,6 +21,7 @@ const STATUS_STYLES: Record<JobStatus, string> = {
   arrived: "bg-amber-500/10 text-amber-600",
   in_progress: "bg-primary/10 text-primary",
   completed: "bg-emerald-500/10 text-emerald-600",
+  cancelled: "bg-red-500/10 text-red-600",
 };
 
 export function Jobs() {
@@ -29,7 +30,7 @@ export function Jobs() {
   const [filter, setFilter] = useState<"active" | "completed" | "all">("active");
 
   const list = jobs.filter((j) =>
-    filter === "all" ? true : filter === "completed" ? j.status === "completed" : j.status !== "completed",
+    filter === "all" ? true : filter === "completed" ? j.status === "completed" : isActiveJob(j),
   );
 
   return (

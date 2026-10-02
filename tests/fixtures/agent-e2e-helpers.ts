@@ -115,7 +115,8 @@ export async function completeAnyOpenJobsForAgent(request: APIRequestContext, ag
   for (let guard = 0; guard < 5; guard++) {
     const res = await request.get("/agent/jobs", { headers: authHeader(agentToken) });
     const jobs = ((await res.json()).data ?? []) as Array<{ id: string; status: string }>;
-    const open = jobs.find((j) => j.status !== "completed");
+    // Cancelled jobs are finished too — the API now refuses to work them.
+    const open = jobs.find((j) => j.status !== "completed" && j.status !== "cancelled");
     if (!open) return;
 
     for (let p = 0; p < 4; p++) {

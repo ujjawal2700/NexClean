@@ -10,8 +10,17 @@ export const VEHICLE_LABEL: Record<CarType, string> = {
   premium: "Premium",
 };
 
-/** Lifecycle of a job from the agent's perspective. */
-export type JobStatus = "assigned" | "enroute" | "arrived" | "in_progress" | "completed";
+/**
+ * Lifecycle of a job from the agent's perspective. "cancelled" sits outside the
+ * flow: the customer or an admin called the booking off, and nothing more can
+ * be done on it.
+ */
+export type JobStatus = "assigned" | "enroute" | "arrived" | "in_progress" | "completed" | "cancelled";
+
+/** Still work to do — not finished and not called off. */
+export function isActiveJob(job: { status: JobStatus }): boolean {
+  return job.status !== "completed" && job.status !== "cancelled";
+}
 
 export const STATUS_FLOW: JobStatus[] = [
   "assigned",
@@ -27,6 +36,7 @@ export const STATUS_LABEL: Record<JobStatus, string> = {
   arrived: "Arrived",
   in_progress: "Cleaning",
   completed: "Completed",
+  cancelled: "Cancelled",
 };
 
 /** Label for the button that advances to the next status. */

@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "REPLACE_WITH_APPLE_TEAM_ID.com.nexclean.customer",
+        "appIDs": ["REPLACE_WITH_APPLE_TEAM_ID.com.nexclean.customer"],
+        "paths": ["/referral", "/referral/*"],
+        "components": [
+          { "/": "/referral", "comment": "Referral invite: /referral?code=CODE" },
+          { "/": "/referral/*", "comment": "Referral invite: /referral/CODE" }
+        ]
+      }
+    ]
+  }
+}

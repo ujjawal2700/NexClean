@@ -6,7 +6,7 @@ import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { Skeleton, SkeletonStatCards } from "@shared/ui/Skeleton";
 import { greeting, formatMoney } from "@shared/lib/format";
 import { useAgentMe, useJobs, useSummary, useAvailableJobs, useClaimJob } from "../api/agent.api";
-import { VEHICLE_LABEL, STATUS_LABEL } from "../types";
+import { VEHICLE_LABEL, STATUS_LABEL, isActiveJob } from "../types";
 import { AreaAlertCard } from "../components/AreaAlertCard";
 
 export function Dashboard() {
@@ -16,7 +16,8 @@ export function Dashboard() {
   const { data: availableJobs = [] } = useAvailableJobs();
   const claimJob = useClaimJob();
 
-  const active = jobs.find((j) => j.status !== "completed");
+  // A cancelled job keeps its last progress step but is no longer work to do.
+  const active = jobs.find(isActiveJob);
 
   const stats = [
     { icon: ListChecks, label: "Jobs today", value: String(summary?.jobsToday ?? 0) },

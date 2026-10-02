@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { SITE_URL } from "@shared/lib/site";
 
-const SITE_URL = "https://nexclean.in";
 const SOCIAL_IMAGE = `${SITE_URL}/og-image.png`;
 const DEFAULT_TITLE = "NexClean — Premium Car Care, Delivered To Your Doorstep";
 const DEFAULT_DESCRIPTION =
