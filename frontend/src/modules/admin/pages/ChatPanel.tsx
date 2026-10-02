@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import { MessageSquare, Send, Mail, Phone, Lock, Unlock } from "lucide-react";
+import { MessageSquare, Send, Mail, Phone, Lock, Unlock, Search } from "lucide-react";
 import { Button } from "@shared/ui/Button";
 import {
   useSupportConfig,
@@ -43,6 +43,7 @@ export function ChatPanel() {
     "all" | "customer" | "agent"
   >("all");
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [messageText, setMessageText] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [localOnlineStatus, setLocalOnlineStatus] = useState(false);
@@ -53,8 +54,35 @@ export function ChatPanel() {
   const activeTicketIdRef = useRef<string | null>(null);
 
   const selectedTicket = tickets.find((t) => t.id === selectedTicketId);
+  // Search across who it's from and what it's about.
+  const query = search.trim().toLowerCase();
+  const matchesSearch = (t: (typeof tickets)[number]) => {
+    if (!query) return true;
+    const u = typeof t.user === "object" && t.user ? (t.user as { name?: string; phone?: string; email?: string }) : null;
+    const haystack = [
+      u?.name,
+      u?.phone,
+      u?.email,
+      t.subject,
+      TOPIC_LABEL[t.topic ?? "other"],
+      t.booking?.packageName,
+      t.booking?.vehicleName,
+      t.booking?.slot,
+      t.id,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query);
+  };
+  // Matches in the other tab, so a search never looks empty just because the
+  // conversation was closed (or is still open).
+  const otherTab = activeTab === "open" ? "closed" : "open";
+  const otherTabMatches = query ? tickets.filter((t) => t.status === otherTab && matchesSearch(t)).length : 0;
+
   const filteredTickets = tickets.filter((t) => {
     if (t.status !== activeTab) return false;
+    if (!matchesSearch(t)) return false;
     if (typeof t.user === "object" && t.user) {
       const userRole = (t.user as any).role;
       const isAgent = userRole === "agent" || userRole === "cleaner";
@@ -283,6 +311,21 @@ export function ChatPanel() {
             </button>
           </div>
 
+          {/* Search */}
+          <div className="shrink-0 border-b border-line bg-surface p-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name, phone, booking…"
+                aria-label="Search conversations"
+                className="h-9 w-full rounded-xl border border-line bg-surface-muted/40 pl-9 pr-3 text-sm text-ink outline-none select-text focus:border-primary/50"
+              />
+            </div>
+          </div>
+
           {/* Role Filter switches */}
           <div className="flex border-b border-line bg-surface p-1.5 gap-1 shrink-0">
             <button
@@ -323,7 +366,16 @@ export function ChatPanel() {
             data-lenis-prevent="true">
             {filteredTickets.length === 0 ? (
               <div className="p-8 text-center text-xs text-muted italic">
-                No {activeTab} tickets found.
+                {query ? `No ${activeTab} conversations match “${search.trim()}”.` : `No ${activeTab} tickets found.`}
+                {otherTabMatches > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab(otherTab)}
+                    className="mt-2 block w-full cursor-pointer font-medium not-italic text-primary hover:underline"
+                  >
+                    {otherTabMatches} match{otherTabMatches === 1 ? "" : "es"} in {otherTab} — show
+                  </button>
+                )}
               </div>
             ) : (
               filteredTickets.map((t) => {

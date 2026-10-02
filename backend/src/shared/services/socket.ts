@@ -316,14 +316,23 @@ export async function broadcastNewMessage(ticketId: string, message: any, sender
   // If message is sent by staff, send FCM Push & in-app notification to the customer
   if (senderRole === "admin") {
     try {
-      const ticket = await SupportTicket.findById(ticketId);
+      const ticket = await SupportTicket.findById(ticketId).populate("user", "role");
       if (ticket) {
-        // Persist Notification & trigger push via fcm service
-        await notifyUser(String(ticket.user), {
+        const owner = ticket.user as unknown as { _id?: unknown; role?: string } | null;
+        // Deep link into that exact conversation in the right app — tapping the
+        // push used to open the app with no way back to the chat.
+        const base = owner?.role === "agent" ? "/agent/help" : "/app/help";
+        const text = String(message.text ?? "");
+        await notifyUser(String(owner?._id ?? ticket.user), {
           type: "system",
-          title: "💬 New support reply",
-          body: message.text,
-          data: { ticketId, type: "chat" },
+          title: "💬 NexClean Support replied",
+          body: text.length > 140 ? `${text.slice(0, 137)}…` : text,
+          data: {
+            ticketId,
+            kind: "support",
+            role: owner?.role === "agent" ? "agent" : "customer",
+            url: `${base}?ticket=${ticketId}`,
+          },
         });
       }
     } catch (err: any) {

@@ -198,6 +198,7 @@ export async function approvePayoutRequest(id: string, adminId: string) {
     type: "system",
     title: "✅ Payout approved",
     body: `Your ${formatMoney(request.amount)} payout is approved and will be paid shortly.`,
+    data: { kind: "payout", role: "agent", url: "/agent/payouts" },
   }).catch((err) => console.error("payout approval notification failed:", (err as Error).message));
 
   return request.toJSON();
@@ -221,6 +222,7 @@ export async function rejectPayoutRequest(id: string, adminId: string, reason: s
     body: request.rejectionReason
       ? `Your payout request of ${formatMoney(request.amount)} was declined: ${request.rejectionReason}`
       : `Your payout request of ${formatMoney(request.amount)} was declined.`,
+    data: { kind: "payout", role: "agent", url: "/agent/payouts" },
   }).catch((err) => console.error("payout rejection notification failed:", (err as Error).message));
 
   return request.toJSON();
@@ -239,7 +241,11 @@ export async function markPayoutRequestPaid(id: string, adminId: string, transac
   void notifyUser(String(request.agent), {
     type: "system",
     title: "💰 Payout sent",
-    body: `${formatMoney(request.amount)} has been transferred to your bank account.`,
+    body:
+      `${formatMoney(request.amount)} has been transferred to your bank account ` +
+      `(${request.bankSnapshot.bankName} ••••${request.bankSnapshot.accountNumber.slice(-4)}).` +
+      (request.transactionRef ? ` Ref: ${request.transactionRef}.` : ""),
+    data: { kind: "payout", role: "agent", url: "/agent/payouts" },
   }).catch((err) => console.error("payout paid notification failed:", (err as Error).message));
 
   return request.toJSON();

@@ -1183,6 +1183,19 @@ export async function refundPayment(id: string, input: { amount?: number; reason
   payment.refundedAt = new Date();
   payment.refundReason = input.reason ?? "";
   await payment.save();
+
+  // A refund made from Payments used to tell the customer nothing; only the
+  // Refunds queue did. Either way, the customer hears that money is coming.
+  const refundedUser = payment.user as unknown as { _id?: unknown } | null;
+  const bookingRef = payment.booking as unknown as { _id?: unknown } | null;
+  const bookingId = bookingRef?._id ? String(bookingRef._id) : payment.booking ? String(payment.booking) : null;
+  void notifyUser(String(refundedUser?._id ?? payment.user), {
+    type: "booking",
+    title: "✅ Refund sent",
+    body: `We've refunded ₹${amount.toLocaleString("en-IN")} to your original payment method. Bank refunds usually reach your account in 5–7 working days.`,
+    data: bookingId ? { bookingId, url: `/app/track/${bookingId}` } : { url: "/app/notifications" },
+  }).catch((err) => console.error("refund notify failed:", (err as Error).message));
+
   return mapPayment(payment);
 }
 

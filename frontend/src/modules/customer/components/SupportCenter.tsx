@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
 import {
   ArrowLeft,
@@ -92,6 +92,18 @@ export function SupportCenter({
   const [online, setOnline] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
+  // Deep link from a "Support replied" notification: /app/help?ticket=<id>
+  // (or /agent/help?ticket=<id>) opens that conversation straight away.
+  const [params, setParams] = useSearchParams();
+  const linkedTicket = params.get("ticket");
+  useEffect(() => {
+    if (!linkedTicket) return;
+    if (tickets.some((t) => t.id === linkedTicket)) {
+      setActiveId(linkedTicket);
+      setView("chat");
+    }
+  }, [linkedTicket, tickets]);
+
   const faqs: { q: string; a: string }[] = siteContent?.help?.faqs ?? [];
   const active = tickets.find((t) => t.id === activeId) ?? null;
 
@@ -137,6 +149,8 @@ export function SupportCenter({
         onOnlineChange={setOnline}
         onBack={() => {
           setView("home");
+          // Leaving the chat drops the deep link, so it doesn't reopen itself.
+          if (linkedTicket) setParams({}, { replace: true });
           void refetchTickets();
         }}
         onClose={() => closeTicket.mutateAsync(active.id).then(() => refetchTickets())}
