@@ -3,10 +3,12 @@ import { createRoot } from "react-dom/client";
 import "@shared/theme/theme.css";
 import { App } from "./app/App";
 import { installNoLongPressMenus } from "@shared/lib/noLongPressMenus";
+import { installNativeBackDetection } from "@shared/lib/nativeBack";
 import { installNativePushBridge } from "@shared/lib/push";
 import { apiFetch } from "@shared/lib/api";
 
 installNoLongPressMenus();
+installNativeBackDetection();
 // Lets the iOS/Android store apps register their native push token.
 installNativePushBridge((token) =>
   apiFetch("/notifications/register-token", { method: "POST", body: { token } }),

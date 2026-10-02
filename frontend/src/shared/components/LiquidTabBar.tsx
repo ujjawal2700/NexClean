@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentType } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import {
   animate,
   motion,
@@ -11,6 +11,7 @@ import {
 } from "motion/react";
 import { Lock } from "lucide-react";
 import { cn } from "@shared/lib/utils";
+import { wasNativeBack } from "@shared/lib/nativeBack";
 
 export type LiquidTab = {
   to: string;
@@ -103,6 +104,11 @@ export function LiquidTabBar({
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const activeIndex = activeIndexFor(tabs, location.pathname);
+  // Coming back with the system's back (iOS swipe, Android back), the OS has
+  // already shown this screen — bar included — in its own transition. Sliding
+  // the bar in again would make it vanish and rise a second time.
+  const navigationType = useNavigationType();
+  const [enterInPlace] = useState(() => navigationType === "POP" && wasNativeBack());
 
   const shellRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
@@ -282,7 +288,7 @@ export function LiquidTabBar({
       data-testid={testId}
       aria-label={ariaLabel}
       className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-30 md:hidden"
-      initial={slideTransition ? { y: "110%" } : false}
+      initial={slideTransition && !enterInPlace ? { y: "110%" } : false}
       animate={{ y: 0 }}
       exit={slideTransition ? { y: "110%" } : undefined}
       transition={reduceMotion ? { duration: 0.12 } : { type: "spring", stiffness: 360, damping: 34 }}
@@ -290,7 +296,7 @@ export function LiquidTabBar({
       <motion.div
         ref={shellRef}
         className="mobile-bottom-nav-shell no-callout mx-auto flex max-w-md items-center justify-around"
-        initial={{ opacity: 0, scale: 0.96 }}
+        initial={enterInPlace ? false : { opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ type: "spring", stiffness: 340, damping: 28, mass: 0.75 }}
         onPointerMove={onPointerMove}
