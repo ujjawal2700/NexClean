@@ -6,6 +6,7 @@ import { Logo } from "@shared/components/brand/Logo";
 import { LiquidTabBar } from "@shared/components/LiquidTabBar";
 import { Button } from "@shared/ui/Button";
 import { getPushToken, saveDeviceToken } from "@shared/lib/push";
+import { AnimatePresence } from "motion/react";
 import { useMe, useNotifications } from "../api/queries";
 import { useRegisterToken } from "../api/mutations";
 import { useSessionStore, useIsGuest } from "../store/sessionStore";
@@ -62,7 +63,7 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   // socket in CustomerApp's CustomerCompletionListener.
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-bg">
+    <div className="min-h-dvh overflow-x-clip bg-bg">
       {/* top bar */}
       <header className="sticky top-0 z-30 hidden border-b border-line/70 bg-surface/80 backdrop-blur-xl md:block">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-5">
@@ -158,14 +159,18 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
       </main>
 
       {/* mobile tab bar */}
-      {showMobileNav && (
-        <LiquidTabBar
-          testId="customer-mobile-nav"
-          ariaLabel="Customer navigation"
-          tabs={NAV.map((item) => ({ ...item, locked: isGuest && item.authRequired }))}
-          onLockedPress={goToLogin}
-        />
-      )}
+      <AnimatePresence>
+        {showMobileNav && (
+          <LiquidTabBar
+            key="customer-mobile-nav"
+            testId="customer-mobile-nav"
+            ariaLabel="Customer navigation"
+            tabs={NAV.map((item) => ({ ...item, locked: isGuest && item.authRequired }))}
+            onLockedPress={goToLogin}
+            slideTransition
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

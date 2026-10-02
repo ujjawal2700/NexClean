@@ -165,7 +165,7 @@ export function SupportCenter({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="sticky top-0 z-20 -mx-4 flex items-center gap-3 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
         <button
           onClick={() => (view === "pickJob" ? setView("home") : navigate(-1))}
           className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-line bg-surface text-ink-soft transition-colors hover:text-primary"

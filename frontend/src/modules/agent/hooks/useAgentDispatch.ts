@@ -16,27 +16,51 @@ import {
 import type { JobOffer } from "../types";
 import { useDeviceLocation } from "./useDeviceLocation";
 
-/** Short attention beep via WebAudio (no asset needed). Best-effort. */
-function playPing() {
+/**
+ * Starts an incoming-call style ringtone and returns its cleanup function.
+ * WebAudio is asset-free and works in the installed PWA after the app has had
+ * a user interaction. Push notification sound remains the background fallback
+ * when the operating system suspends the web view.
+ */
+function startOfferRingtone() {
+  let ctx: AudioContext | null = null;
+  let interval: number | null = null;
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new Ctx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.setValueAtTime(1320, ctx.currentTime + 0.15);
-    gain.gain.setValueAtTime(0.001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.5);
-    setTimeout(() => ctx.close().catch(() => {}), 800);
+    ctx = new Ctx();
+
+    const ring = () => {
+      if (!ctx || ctx.state === "closed") return;
+      void ctx.resume().catch(() => {});
+      const now = ctx.currentTime;
+      // Two alternating tones, repeated twice, are much easier to recognise
+      // as an incoming job than a single notification chirp.
+      [0, 0.28, 0.65, 0.93].forEach((offset, index) => {
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.value = index % 2 === 0 ? 880 : 1175;
+        gain.gain.setValueAtTime(0.001, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.32, now + offset + 0.025);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.23);
+        osc.start(now + offset);
+        osc.stop(now + offset + 0.25);
+      });
+    };
+
+    ring();
+    interval = window.setInterval(ring, 2_400);
   } catch {
     /* autoplay blocked or unsupported */
   }
+
+  return () => {
+    if (interval !== null) window.clearInterval(interval);
+    if (ctx && ctx.state !== "closed") void ctx.close().catch(() => {});
+  };
 }
 
 /** Ring-style buzz, repeated while a job offer is on screen. */
@@ -128,7 +152,6 @@ export function useAgentDispatch(): AgentDispatch {
       offerEventVersionRef.current += 1;
       setError(null);
       setOffer(o);
-      playPing();
     });
     socket.on("offer_revoked", ({ bookingId }: { bookingId: string }) => {
       offerEventVersionRef.current += 1;
@@ -260,13 +283,8 @@ export function useAgentDispatch(): AgentDispatch {
   const offerKey = offer ? `${offer.bookingId}:${offer.expiresAt}` : null;
   useEffect(() => {
     if (!offer) return;
-    const deadline = new Date(offer.expiresAt).getTime();
+    const stopRingtone = startOfferRingtone();
     const buzz = () => {
-      if (Date.now() >= deadline) {
-        window.clearInterval(id);
-        vibrate(0);
-        return;
-      }
       vibrate(OFFER_VIBRATION);
     };
     const id = window.setInterval(buzz, OFFER_VIBRATION_REPEAT_MS);
@@ -274,6 +292,7 @@ export function useAgentDispatch(): AgentDispatch {
     return () => {
       window.clearInterval(id);
       vibrate(0);
+      stopRingtone();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the offer's identity, not the object
   }, [offerKey]);

@@ -85,7 +85,7 @@ export function Bookings() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="sticky top-0 z-20 -mx-4 mb-3 flex flex-wrap items-center justify-between gap-4 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}

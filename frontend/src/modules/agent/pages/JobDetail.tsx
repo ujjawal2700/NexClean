@@ -187,9 +187,11 @@ export function JobDetail() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <Button variant="ghost" size="sm" onClick={() => navigate("/agent/jobs")}>
-        <ArrowLeft className="size-4" /> All jobs
-      </Button>
+      <div className="sticky top-0 z-20 -mx-4 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/agent/jobs")}>
+          <ArrowLeft className="size-4" /> All jobs
+        </Button>
+      </div>
 
       {/* Header */}
       <GlassCard className="flex flex-col gap-5 sm:flex-row sm:items-center">

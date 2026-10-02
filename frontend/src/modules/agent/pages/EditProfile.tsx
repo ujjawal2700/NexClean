@@ -16,7 +16,7 @@ export function EditProfile() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 sm:space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="sticky top-0 z-20 -mx-4 flex items-center gap-3 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
         <button
           onClick={() => navigate(-1)}
           className="grid size-10 shrink-0 place-items-center rounded-2xl border border-line bg-surface text-ink-soft shadow-sm transition-colors hover:border-primary/30 hover:text-primary"

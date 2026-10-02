@@ -90,11 +90,14 @@ export function LiquidTabBar({
   testId,
   ariaLabel,
   onLockedPress,
+  slideTransition = false,
 }: {
   tabs: LiquidTab[];
   testId: string;
   ariaLabel: string;
   onLockedPress?: (to: string) => void;
+  /** Slide the whole bar in/out when its parent mounts or removes it. */
+  slideTransition?: boolean;
 }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -275,10 +278,14 @@ export function LiquidTabBar({
   };
 
   return (
-    <nav
+    <motion.nav
       data-testid={testId}
       aria-label={ariaLabel}
       className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-30 md:hidden"
+      initial={slideTransition ? { y: "110%" } : false}
+      animate={{ y: 0 }}
+      exit={slideTransition ? { y: "110%" } : undefined}
+      transition={reduceMotion ? { duration: 0.12 } : { type: "spring", stiffness: 360, damping: 34 }}
     >
       <motion.div
         ref={shellRef}
@@ -373,6 +380,6 @@ export function LiquidTabBar({
           );
         })}
       </motion.div>
-    </nav>
+    </motion.nav>
   );
 }

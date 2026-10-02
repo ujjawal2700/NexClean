@@ -474,8 +474,8 @@ export function BookingFlow() {
   if (confirmed) return <Confirmation booking={confirmed} />;
 
   return (
-    <div className="mx-auto max-w-4xl overflow-x-hidden">
-      <div className="mb-6 flex items-center gap-3">
+    <div className="mx-auto max-w-4xl overflow-x-clip">
+      <div className="sticky top-0 z-20 -mx-4 mb-3 flex items-center gap-3 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
         <button
           onClick={() => navigate(-1)}
           className="flex shrink-0 items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer"

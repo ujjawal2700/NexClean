@@ -15,6 +15,7 @@ import {
 import { useAgentDispatch } from "../hooks/useAgentDispatch";
 import { requestCurrentDeviceFix } from "../hooks/useDeviceLocation";
 import { OfferOverlay } from "./OfferOverlay";
+import { AnimatePresence } from "motion/react";
 
 const HEARTBEAT_INTERVAL_MS = 25_000;
 
@@ -158,10 +159,14 @@ export function AgentLayout({ children }: { children: ReactNode }) {
   const dispatch = useAgentDispatch();
 
   const showLocationNudge = (me?.online ?? false) && !dispatch.locating;
-  const hideMobileNav = location.pathname === "/agent/profile/edit";
+  // The tab bar belongs only to the four top-level destinations. Keeping it
+  // off detail/settings screens prevents it competing with those pages' back
+  // navigation and primary actions.
+  const normalizedPath = location.pathname.replace(/\/+$/, "") || "/";
+  const showMobileNav = ["/agent", "/agent/jobs", "/agent/earnings", "/agent/profile"].includes(normalizedPath);
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-bg">
+    <div className="min-h-dvh overflow-x-clip bg-bg">
       {/* Incoming-offer popup — rendered above everything, on every page. */}
       <OfferOverlay dispatch={dispatch} />
 
@@ -204,7 +209,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
       <main
         className={cn(
           "mx-auto max-w-5xl px-4 pt-6 sm:px-5 sm:pt-8",
-          hideMobileNav ? "pb-8" : "mobile-content-with-nav",
+          showMobileNav ? "mobile-content-with-nav" : "pb-8",
         )}>
         {showLocationNudge && (
           <div className="mb-5 flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
@@ -215,9 +220,17 @@ export function AgentLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      {!hideMobileNav && (
-        <LiquidTabBar testId="agent-mobile-nav" ariaLabel="Agent navigation" tabs={NAV} />
-      )}
+      <AnimatePresence>
+        {showMobileNav && (
+          <LiquidTabBar
+            key="agent-mobile-nav"
+            testId="agent-mobile-nav"
+            ariaLabel="Agent navigation"
+            tabs={NAV}
+            slideTransition
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

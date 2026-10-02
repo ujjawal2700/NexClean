@@ -375,7 +375,7 @@ export function Subscriptions() {
 
     return (
       <div className="space-y-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="sticky top-0 z-20 -mx-4 flex flex-col gap-4 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:flex-row sm:items-start sm:justify-between sm:px-5">
           <div>
             <div className="flex items-center gap-3">
               <button
@@ -717,7 +717,7 @@ export function Subscriptions() {
   // --- RENDER 2: Subscriptions Catalog Catalog ---
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
+      <div className="sticky top-0 z-20 -mx-4 mb-5 flex flex-col gap-4 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:flex-row sm:items-start sm:justify-between sm:px-5">
         <div>
           <div className="flex items-center gap-3">
             <button
