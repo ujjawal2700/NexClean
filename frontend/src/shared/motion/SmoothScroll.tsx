@@ -2,6 +2,7 @@ import { useEffect, useState, createContext, useContext, useCallback, type React
 import Lenis from "lenis";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { registerSmoothScroller } from "@shared/lib/scrollLock";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -33,6 +34,7 @@ export function SmoothScroll({ children }: { children: ReactNode }) {
       smoothWheel: true,
     });
     setLenis(instance);
+    registerSmoothScroller(instance);
 
     instance.on("scroll", ScrollTrigger.update);
 
@@ -42,6 +44,7 @@ export function SmoothScroll({ children }: { children: ReactNode }) {
 
     return () => {
       gsap.ticker.remove(onRaf);
+      registerSmoothScroller(null);
       instance.destroy();
       setLenis(null);
     };

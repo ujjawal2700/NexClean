@@ -10,6 +10,8 @@ import { useBookings } from "../api/queries";
 import { useCancelBooking } from "../api/mutations";
 import { RescheduleModal } from "../components/RescheduleModal";
 import { ServicePhotosModal } from "../components/ServicePhotosModal";
+import { CancelBookingSheet } from "../components/CancelBookingSheet";
+import { ApiError } from "@shared/lib/api";
 import type { Booking, BookingStatus } from "../types";
 import { formatDate, formatMoney } from "@shared/lib/format";
 
@@ -66,6 +68,18 @@ export function Bookings() {
   const [filter, setFilter] = useState<BookingStatus | "all">("all");
   const [rescheduling, setRescheduling] = useState<Booking | null>(null);
   const [viewingPhotos, setViewingPhotos] = useState<Booking | null>(null);
+  const [cancelling, setCancelling] = useState<Booking | null>(null);
+  const [cancelError, setCancelError] = useState("");
+
+  const confirmCancel = () => {
+    if (!cancelling) return;
+    setCancelError("");
+    cancelBooking.mutate(cancelling.id, {
+      onSuccess: () => setCancelling(null),
+      onError: (e) =>
+        setCancelError(e instanceof ApiError ? e.message : "Couldn't cancel just now — please try again."),
+    });
+  };
 
   const list = filter === "all" ? bookings : bookings.filter((b) => b.status === filter);
 
@@ -204,7 +218,10 @@ export function Bookings() {
                     size="sm"
                     className="text-red-600 hover:bg-red-500/10 hover:text-red-600"
                     disabled={cancelBooking.isPending}
-                    onClick={() => cancelBooking.mutate(b.id)}
+                    onClick={() => {
+                      setCancelError("");
+                      setCancelling(b);
+                    }}
                   >
                     Cancel
                   </Button>
@@ -217,6 +234,17 @@ export function Bookings() {
 
       {rescheduling && (
         <RescheduleModal booking={rescheduling} onClose={() => setRescheduling(null)} />
+      )}
+
+      {cancelling && (
+        <CancelBookingSheet
+          title={cancelling.packageName}
+          detail={`${formatDate(cancelling.date)} · ${cancelling.slot}`}
+          pending={cancelBooking.isPending}
+          error={cancelError}
+          onConfirm={confirmCancel}
+          onClose={() => setCancelling(null)}
+        />
       )}
 
       {viewingPhotos && (

@@ -21,8 +21,15 @@ TESTS_DIR="$ROOT_DIR/tests"
 LOG_DIR="$TESTS_DIR/.run-logs"
 mkdir -p "$LOG_DIR"
 
-BACKEND_PORT="${BACKEND_PORT:-4000}"
-FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+# Dedicated ports, deliberately NOT the dev defaults (4000 / 5173). `npm run dev`
+# in backend/ listens on 4000 with backend/.env — the production database — and
+# this script used to see "something on 4000" and reuse it as if it were the
+# local test backend, writing test users and bookings into production.
+BACKEND_PORT="${BACKEND_PORT:-4400}"
+FRONTEND_PORT="${FRONTEND_PORT:-5190}"
+# Reusing an already-running server is opt-in only, for when YOU started it
+# against a throwaway database: REUSE_SERVERS=1 ./run-all.sh
+REUSE_SERVERS="${REUSE_SERVERS:-0}"
 export API_BASE_URL="http://localhost:${BACKEND_PORT}/api"
 export WEB_BASE_URL="http://localhost:${FRONTEND_PORT}"
 
@@ -65,6 +72,10 @@ trap cleanup EXIT
 
 if ! pgrep -x mongod >/dev/null 2>&1 && ! port_listening 27017; then
   fail "Local MongoDB isn't running on :27017. Start it (e.g. 'brew services start mongodb-community') first."
+fi
+
+if port_listening "$BACKEND_PORT" && [ "$REUSE_SERVERS" != "1" ]; then
+  fail "Port $BACKEND_PORT is already in use. Refusing to reuse a backend this script didn't start — it may be pointed at production (backend/.env). Stop it, pick another BACKEND_PORT, or set REUSE_SERVERS=1 if you started it against a test DB."
 fi
 
 if port_listening "$BACKEND_PORT"; then
@@ -134,6 +145,10 @@ else
   BACKEND_PID=$!
   STARTED_BACKEND=1
   wait_for "http://localhost:${BACKEND_PORT}/api/health" "backend"
+fi
+
+if port_listening "$FRONTEND_PORT" && [ "$REUSE_SERVERS" != "1" ]; then
+  fail "Port $FRONTEND_PORT is already in use. Refusing to reuse a frontend this script didn't start — it may call a production API. Stop it, pick another FRONTEND_PORT, or set REUSE_SERVERS=1."
 fi
 
 if port_listening "$FRONTEND_PORT"; then

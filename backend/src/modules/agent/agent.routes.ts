@@ -11,6 +11,8 @@ agentRouter.get("/jobs", asyncHandler(controller.jobs));
 agentRouter.get("/summary", asyncHandler(controller.summary));
 agentRouter.patch("/jobs/:id/advance", asyncHandler(controller.advance));
 agentRouter.post("/jobs/:id/photo", asyncHandler(controller.photo));
+// Give back an assigned job (before cleaning starts) — it goes back out to other cleaners.
+agentRouter.post("/jobs/:id/release", asyncHandler(controller.releaseJob));
 agentRouter.patch("/online", asyncHandler(controller.online));
 agentRouter.patch("/heartbeat", asyncHandler(controller.heartbeat));
 agentRouter.post("/notify-area", asyncHandler(controller.notifyArea));

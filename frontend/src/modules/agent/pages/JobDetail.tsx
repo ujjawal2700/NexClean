@@ -37,6 +37,7 @@ import { AreaAlertCard } from "../components/AreaAlertCard";
 import { JobNavigationCard } from "../components/JobNavigationCard";
 import { useDeviceLocation } from "../hooks/useDeviceLocation";
 import { navigationUrl, addressSearchUrl, navigationLinkProps } from "@shared/lib/maps";
+import { ReleaseJobSheet } from "../components/ReleaseJobSheet";
 
 type PhotoKind = "before" | "after";
 
@@ -60,6 +61,7 @@ const SUGGESTED_SLOTS = [
 export function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [releasing, setReleasing] = useState(false);
   const { data: jobs = [] } = useJobs();
   const advance = useAdvanceJob();
   const jobPhoto = useJobPhoto();
@@ -414,6 +416,29 @@ export function JobDetail() {
       {/* Area alert */}
       {(job.status === "arrived" || job.status === "in_progress") && (
         <AreaAlertCard society={job.society} />
+      )}
+
+      {/* Give the job back — only until cleaning starts. */}
+      {(job.status === "assigned" || job.status === "enroute" || job.status === "arrived") && (
+        <button
+          type="button"
+          onClick={() => setReleasing(true)}
+          className="w-full cursor-pointer rounded-2xl py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/10"
+          data-testid="release-job"
+        >
+          Can&apos;t do this job?
+        </button>
+      )}
+
+      {releasing && (
+        <ReleaseJobSheet
+          jobId={job.id}
+          onClose={() => setReleasing(false)}
+          onReleased={() => {
+            setReleasing(false);
+            navigate("/agent");
+          }}
+        />
       )}
 
       {/* Primary action bar */}

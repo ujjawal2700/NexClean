@@ -66,6 +66,13 @@ export async function acceptOffer(req: Request, res: Response): Promise<Response
   return ok(res, await dispatch.acceptOffer(req.userId!, String(req.params.id)), "Job accepted");
 }
 
+const releaseSchema = z.object({ reason: z.string().trim().min(3, "Tell us why you can't do this job").max(300) });
+export async function releaseJob(req: Request, res: Response): Promise<Response> {
+  const parsed = releaseSchema.safeParse(req.body ?? {});
+  if (!parsed.success) throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "A reason is required");
+  return ok(res, await dispatch.releaseJob(req.userId!, String(req.params.id), parsed.data.reason), "Job released");
+}
+
 export async function declineOffer(req: Request, res: Response): Promise<Response> {
   return ok(res, await dispatch.declineOffer(req.userId!, String(req.params.id)));
 }

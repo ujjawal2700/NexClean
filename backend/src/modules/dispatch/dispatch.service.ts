@@ -322,6 +322,85 @@ export async function declineOffer(agentId: string, bookingId: string) {
   return { ok: true };
 }
 
+/**
+ * A cleaner gives back a job they were assigned — an emergency, a car that
+ * won't start — before they've started cleaning. Until now an accepted job
+ * could only be dropped by phoning an admin.
+ *
+ * The job goes straight back out: on-demand bookings to the next-nearest
+ * cleaner (never the one who gave it back), subscription washes to the
+ * scheduler, which assigns someone ahead of the slot. The customer is told,
+ * and the reason is kept on the booking for admins.
+ */
+export async function releaseJob(agentId: string, bookingId: string, reason: string) {
+  if (!Types.ObjectId.isValid(bookingId)) throw ApiError.notFound("Job not found");
+  const agent = await User.findById(agentId).select("name");
+  const current = await Booking.findOne({ _id: bookingId, assignedAgent: agentId }).select("status jobStatus");
+  if (!current) throw ApiError.notFound("Job not found");
+  if (current.status === "cancelled") throw ApiError.badRequest("This booking was already cancelled.");
+  if (current.status === "completed" || current.jobStatus === "completed") {
+    throw ApiError.badRequest("This job is already completed.");
+  }
+  if (current.jobStatus === "in_progress") {
+    throw ApiError.badRequest("You've already started cleaning, so you can't give this job back. Contact support.");
+  }
+
+  // Conditional on still being ours and not started, so it can't race a
+  // reassignment or the cleaner tapping "Start cleaning" at the same moment.
+  const booking = await Booking.findOneAndUpdate(
+    {
+      _id: bookingId,
+      assignedAgent: agentId,
+      status: "upcoming",
+      jobStatus: { $in: ["assigned", "enroute", "arrived"] },
+    },
+    [
+      {
+        $set: {
+          assignedAgent: null,
+          agentName: null,
+          assignedAt: null,
+          jobStatus: "assigned",
+          currentOfferAgent: null,
+          offerExpiresAt: null,
+          dispatchStatus: { $cond: ["$isSubscriptionWash", "scheduled", "searching"] },
+          declinedAgents: { $setUnion: [{ $ifNull: ["$declinedAgents", []] }, [new Types.ObjectId(agentId)]] },
+          agentReleases: {
+            $concatArrays: [
+              { $ifNull: ["$agentReleases", []] },
+              [{ agent: new Types.ObjectId(agentId), agentName: agent?.name ?? "", reason, at: "$$NOW" }],
+            ],
+          },
+        },
+      },
+    ],
+    { new: true },
+  ).populate("user", "name");
+  if (!booking) throw ApiError.conflict("This job changed just now — refresh and try again.");
+
+  revokeAgentTracking(agentId, bookingId);
+  forgetAgentBookings(agentId);
+  broadcastJobStatus(booking);
+  emitDispatchUpdate();
+
+  const customerId = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
+  void notifyUser(customerId, {
+    type: "booking",
+    title: "🔄 Finding you another cleaner",
+    body: booking.isSubscriptionWash
+      ? `Your cleaner for ${booking.packageName} (${booking.slot}) can't make it. We'll assign another before your slot.`
+      : `Your cleaner for ${booking.packageName} (${booking.slot}) can't make it. We're finding you another one now.`,
+    data: { bookingId, url: `/app/track/${bookingId}` },
+  }).catch((err) => console.error("release notification failed:", (err as Error).message));
+
+  if (!booking.isSubscriptionWash) {
+    void offerNext(bookingId).catch((err) =>
+      console.error("re-dispatch after release failed:", (err as Error).message),
+    );
+  }
+  return { ok: true };
+}
+
 /** The current live offer for an agent (used to restore the popup on reconnect). */
 export async function getOfferForAgent(agentId: string) {
   const booking = await Booking.findOne({

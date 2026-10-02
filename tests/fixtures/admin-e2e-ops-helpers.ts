@@ -25,7 +25,7 @@ import { authHeader, freshPhone, DEMO_OTP, LEGAL_ACCEPTANCE } from "./api-client
  * reuse. Every seed helper here re-implements the tiny bit of login/booking
  * logic it needs against an explicit absolute backend URL instead.
  */
-const API_ROOT = process.env.API_BASE_URL ?? "http://localhost:4000/api";
+const API_ROOT = process.env.API_BASE_URL ?? "http://localhost:4400/api"; // test port, never the dev :4000
 export function apiUrl(path: string): string {
   return `${API_ROOT}${path.startsWith("/") ? path : `/${path}`}`;
 }

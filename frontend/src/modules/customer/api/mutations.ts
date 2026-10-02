@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@shared/lib/api";
 import { meKey, bookingsKey, notificationsKey, walletKey, referralsKey } from "./queries";
 import type { RazorpayResponse } from "@shared/lib/razorpay";
-import type { User, Booking, CarType, SupportTicket, ChatMessage, SupportConfig } from "../types";
+import type { User, Booking, CarType, SupportTicket, ChatMessage, SupportConfig, SupportTopic } from "../types";
 
 /* ---------------------------- Notifications ------------------------------ */
 
@@ -394,7 +394,7 @@ export function useRescheduleSubscriptionWash() {
 export function useCreateTicket() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { subject?: string }) =>
+    mutationFn: (vars: { subject?: string; topic?: SupportTopic; bookingId?: string }) =>
       apiFetch<SupportTicket>("/chat/tickets", { method: "POST", body: vars }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["chat", "tickets"] });

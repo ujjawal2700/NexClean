@@ -50,6 +50,8 @@ import type {
   AdminPayoutRequest,
   SubscriptionOverview,
   AdminRefund,
+  AdminRefundDetail,
+  AdminPayoutRequestDetail,
   PayoutRequestStatus,
   InternalMessageContact,
   InternalConversation,
@@ -76,6 +78,7 @@ const keys = {
   customerActivity: (id: string) => ["admin", "customers", id, "activity"] as const,
   payments: ["admin", "payments"] as const,
   refunds: (status: string) => ["admin", "refunds", status] as const,
+  attention: ["admin", "attention"] as const,
   paymentStats: ["admin", "payments", "stats"] as const,
   cities: ["admin", "cities"] as const,
   zones: ["admin", "zones"] as const,
@@ -584,6 +587,19 @@ export function useUpdateDispatchConfig() {
   });
 }
 
+/** Items waiting on an admin, for the sidebar badges. Polled so they stay current. */
+export type AttentionCounts = { payoutRequests: number; refunds: number; supportChats: number };
+export const useAttentionCounts = () =>
+  useAuthedQuery<AttentionCounts>(keys.attention, "/admin/attention", { refetchInterval: 20_000, staleTime: 10_000 });
+
+export const useRefundDetail = (id: string | null) =>
+  useAuthedQuery<AdminRefundDetail>(["admin", "refund", id ?? ""], `/admin/refunds/${id}`, { enabled: !!id });
+
+export const usePayoutRequestDetail = (id: string | null) =>
+  useAuthedQuery<AdminPayoutRequestDetail>(["admin", "payout-request", id ?? ""], `/admin/payout-requests/${id}`, {
+    enabled: !!id,
+  });
+
 export const useRefunds = (status: "pending" | "approved" | "rejected" | "all") =>
   useAuthedQuery<AdminRefund[]>(
     keys.refunds(status),
@@ -601,6 +617,7 @@ function useRefundDecision(action: "approve" | "reject") {
     // Either way the request moves tabs, and an approval changes payments too.
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["admin", "refunds"] });
+      qc.invalidateQueries({ queryKey: keys.attention });
       qc.invalidateQueries({ queryKey: keys.payments });
     },
   });

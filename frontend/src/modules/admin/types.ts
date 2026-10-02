@@ -360,6 +360,58 @@ export type AdminPayoutRequest = {
   createdAt: string;
 };
 
+/** One payout request with everything needed to pay it by hand. */
+export type AdminPayoutRequestDetail = AdminPayoutRequest & {
+  processedByName: string | null;
+  agent: { id: string; name: string; phone: string; email: string; area: string; status: string; joinedAt: string } | null;
+  wallet: { totalEarned: number; paidOut: number; reserved: number; available: number } | null;
+  history: { id: string; amount: number; status: PayoutRequestStatus; createdAt: string; transactionRef: string }[];
+  /** The cleaner's bank details have changed since they made this request. */
+  bankChangedSinceRequest: boolean;
+};
+
+/** A refund with the payments behind it and how the booking was paid for. */
+export type AdminRefundDetail = {
+  id: string;
+  status: AdminRefund["status"];
+  cancelledBy: "customer" | "admin";
+  amount: number;
+  coins: number;
+  note: string;
+  lastError: string;
+  createdAt: string;
+  decidedAt: string | null;
+  decidedByName: string | null;
+  customer: { id: string | null; name: string; phone: string; email: string };
+  booking: {
+    id: string;
+    packageName: string;
+    vehicleName: string;
+    date: string | null;
+    slot: string;
+    status: string;
+    price: number;
+    discountAmount: number;
+    discountCode: string | null;
+    coinsRedeemed: number;
+    coinDiscount: number;
+    address: string;
+    bookedAt: string | null;
+  } | null;
+  payments: {
+    id: string;
+    refundAmount: number;
+    paidAmount: number;
+    kind: string;
+    mode: string;
+    orderId: string;
+    paymentId: string | null;
+    status: string;
+    paidAt: string | null;
+    refundedAt: string | null;
+  }[];
+};
+
 export type PaymentStats = {
   totalCollected: number;
   totalRefunded: number;

@@ -25,6 +25,7 @@ import { payoutCalculator, computePayout, bookingPayout, getPayoutConfig } from 
 import { evaluateReschedule } from "../booking/reschedule.service";
 import { syncCashLedgerAmount, nonRefundablePortion } from "../payment/ledger.service";
 import { queueCancellationRefund } from "../refund/refund.service";
+import { tellAgentJobCancelled } from "../booking/jobCancelled";
 import { broadcastJobStatus, forgetAgentBookings } from "../tracking/tracking.service";
 
 type BookingDoc = BookingDocument;
@@ -117,6 +118,7 @@ export async function cancelBooking(id: string) {
   const booking = await Booking.findById(id).populate("user", "name");
   if (!booking) throw ApiError.notFound("Booking not found");
   if (booking.status === "cancelled") throw ApiError.badRequest("Booking is already cancelled");
+  if (booking.status === "completed") throw ApiError.badRequest("This booking was already completed, so it can't be cancelled — the service happened. To give the customer money back, use Payments → Refund.");
 
   const prevOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
 
@@ -142,6 +144,7 @@ export async function cancelBooking(id: string) {
   // the push, or they never find out.
   forgetAgentBookings(booking.assignedAgent ? String(booking.assignedAgent) : null);
   broadcastJobStatus(booking);
+  tellAgentJobCancelled(booking.assignedAgent ? String(booking.assignedAgent) : null, booking, "admin");
   const cancelledCustomerId = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
   void notifyUser(cancelledCustomerId, {
     type: "booking",
@@ -247,6 +250,13 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
   if (booking.status === "cancelled") {
     throw ApiError.badRequest("This booking was cancelled and cannot be reopened");
   }
+  // Cancelling a delivered service queued its (collected) payment as a refund
+  // owed, as though the customer had never been served. A goodwill refund on a
+  // completed job is a deliberate decision — Payments → Refund — not a side
+  // effect of a status change.
+  if (booking.status === "completed" && status === "cancelled") {
+    throw ApiError.badRequest("This booking was already completed, so it can't be cancelled — the service happened. To give the customer money back, use Payments → Refund.");
+  }
 
   const prevOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
 
@@ -294,6 +304,7 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
     // the push, or they never find out.
     forgetAgentBookings(booking.assignedAgent ? String(booking.assignedAgent) : null);
     broadcastJobStatus(booking);
+    tellAgentJobCancelled(booking.assignedAgent ? String(booking.assignedAgent) : null, booking, "admin");
     const cancelledCustomerId = String((booking.user as unknown as { _id?: unknown })?._id ?? booking.user);
     void notifyUser(cancelledCustomerId, {
       type: "booking",

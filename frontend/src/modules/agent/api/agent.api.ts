@@ -123,6 +123,19 @@ export function useAdvanceJob() {
   return useJobMutation((id: string) => apiFetch<Job>(`/agent/jobs/${id}/advance`, { method: "PATCH" }));
 }
 
+/** Give back an assigned job before cleaning starts; it goes back out to other cleaners. */
+export function useReleaseJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { id: string; reason: string }) =>
+      apiFetch<{ ok: boolean }>(`/agent/jobs/${vars.id}/release`, { method: "POST", body: { reason: vars.reason } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: jobsKey });
+      qc.invalidateQueries({ queryKey: summaryKey });
+    },
+  });
+}
+
 export function useJobPhoto() {
   return useJobMutation(
     (vars: {

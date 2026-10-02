@@ -23,8 +23,8 @@ export async function listTicketsCtl(req: Request, res: Response): Promise<Respo
 }
 
 export async function createTicketCtl(req: Request, res: Response): Promise<Response> {
-  const { subject } = req.body;
-  const ticket = await chatService.createTicket(req.userId!, subject);
+  const { subject, topic, bookingId } = (req.body ?? {}) as { subject?: string; topic?: string; bookingId?: string };
+  const ticket = await chatService.createTicket(req.userId!, { subject, topic, bookingId });
   return ok(res, ticket, "Support ticket created/retrieved successfully");
 }
 

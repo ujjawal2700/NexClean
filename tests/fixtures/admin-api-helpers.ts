@@ -21,7 +21,7 @@ import { authHeader, DEMO_OTP, LEGAL_ACCEPTANCE, ADMIN_EMAIL, ADMIN_PASSWORD, SE
  * request through `apiUrl()` below, which does plain string concatenation
  * (sidestepping URL-object resolution) so requests actually reach the API.
  */
-const API_ROOT = process.env.API_BASE_URL ?? "http://localhost:4000/api";
+const API_ROOT = process.env.API_BASE_URL ?? "http://localhost:4400/api"; // test port, never the dev :4000
 export function apiUrl(path: string): string {
   return `${API_ROOT}${path.startsWith("/") ? path : `/${path}`}`;
 }

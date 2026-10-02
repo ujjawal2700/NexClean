@@ -53,6 +53,9 @@ test.describe("Bookings list", () => {
     // Cancel the upcoming booking. Exact match — the "Cancelled" filter tab
     // button's accessible name otherwise substring-matches "Cancel" too.
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    // Cancelling now asks first, and says what happens to any refund.
+    await expect(page.getByRole("heading", { name: "Cancel this booking?" })).toBeVisible();
+    await page.getByTestId("confirm-cancel-booking").click();
     await expect(page.getByText("cancelled")).toBeVisible({ timeout: 10000 });
 
     // Now shows up under the Cancelled filter, not Upcoming.

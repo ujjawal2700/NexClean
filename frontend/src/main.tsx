@@ -3,8 +3,14 @@ import { createRoot } from "react-dom/client";
 import "@shared/theme/theme.css";
 import { App } from "./app/App";
 import { installNoLongPressMenus } from "@shared/lib/noLongPressMenus";
+import { installNativePushBridge } from "@shared/lib/push";
+import { apiFetch } from "@shared/lib/api";
 
 installNoLongPressMenus();
+// Lets the iOS/Android store apps register their native push token.
+installNativePushBridge((token) =>
+  apiFetch("/notifications/register-token", { method: "POST", body: { token } }),
+);
 
 // Prevent unwanted browser zoom shortcuts while preserving input focus
 if (typeof document !== "undefined") {

@@ -134,6 +134,22 @@ const bookingSchema = new Schema(
     currentOfferAgent: { type: Types.ObjectId, ref: "User", default: null },
     offerExpiresAt: { type: Date, default: null },
     declinedAgents: { type: [Types.ObjectId], default: [] },
+    // Cleaners who were assigned and then gave the job back, and why — kept
+    // for support and for spotting cleaners who drop jobs repeatedly.
+    agentReleases: {
+      type: [
+        new Schema(
+          {
+            agent: { type: Types.ObjectId, ref: "User", required: true },
+            agentName: { type: String, default: "" },
+            reason: { type: String, default: "" },
+            at: { type: Date, default: () => new Date() },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
     searchRadiusM: { type: Number, default: 0 },
     // Index into this booking's ordered dispatch tier list (zones nearest to
     // farthest, then a flat-radius catch-all) — see dispatch/dispatch.query.ts

@@ -78,6 +78,16 @@ export async function initFcm() {
  * In mock mode (no Firebase creds) it logs the message and reports success,
  * so the whole Smart Area Alert flow is testable without external services.
  */
+/** What a failure code usually means, so the log says what to fix. */
+const PUSH_FAILURE_HINTS: Record<string, string> = {
+  "messaging/third-party-auth-error":
+    "iPhone pushes need an APNs Authentication Key uploaded in Firebase → Project settings → Cloud Messaging → Apple app configuration",
+  "messaging/mismatched-credential":
+    "this token belongs to a different Firebase project than FIREBASE_SERVICE_ACCOUNT_BASE64",
+  "messaging/sender-id-mismatch":
+    "this token belongs to a different Firebase project than FIREBASE_SERVICE_ACCOUNT_BASE64",
+};
+
 /** Drop a push that can't be delivered within a day — it would only arrive stale. */
 const PUSH_TTL_SECONDS = 24 * 60 * 60;
 
@@ -119,6 +129,14 @@ export async function sendPush(tokens: string[], payload: PushPayload): Promise<
         headers: { Urgency: "high", TTL: String(PUSH_TTL_SECONDS) },
         notification: { icon: "/logo.png", badge: "/logo.png" },
       },
+      // Native iPhone app (FCM → APNs). An alert push at priority 10 with a
+      // sound is shown immediately; without "sound" iOS delivers it silently.
+      apns: {
+        headers: { "apns-priority": "10", "apns-push-type": "alert" },
+        payload: { aps: { sound: "default" } },
+      },
+      // Native Android app.
+      android: { priority: "high", notification: { sound: "default" } },
     });
 
     // Clean up ONLY truly dead FCM tokens (do NOT delete synthetic tokens)
@@ -130,7 +148,8 @@ export async function sendPush(tokens: string[], payload: PushPayload): Promise<
           // Every other failure used to vanish silently, leaving no way to tell
           // why a customer didn't get a push. Token tail only — never the whole token.
           console.warn(
-            `✗ push to …${realFcmTokens[idx].slice(-8)} failed: ${code ?? "unknown"} ${resp.error.message ?? ""}`,
+            `✗ push to …${realFcmTokens[idx].slice(-8)} failed: ${code ?? "unknown"} ${resp.error.message ?? ""}` +
+              (PUSH_FAILURE_HINTS[code ?? ""] ? ` — ${PUSH_FAILURE_HINTS[code ?? ""]}` : ""),
           );
           if (
             code === "messaging/invalid-registration-token" ||

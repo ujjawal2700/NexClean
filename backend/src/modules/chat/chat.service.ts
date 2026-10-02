@@ -1,4 +1,6 @@
-import { SupportTicket } from "./ticket.model";
+import { Types } from "mongoose";
+import { SupportTicket, SUPPORT_TOPICS, type SupportTopic } from "./ticket.model";
+import { Booking } from "../booking/booking.model";
 import { ChatMessage } from "./message.model";
 import { SupportConfig } from "./supportConfig.model";
 import {
@@ -49,30 +51,93 @@ export async function updateSupportConfig(manualSupportStatus: "auto" | "online"
   };
 }
 
+const TOPIC_LABEL: Record<SupportTopic, string> = {
+  booking: "Help with a booking",
+  payment: "Payments & refunds",
+  account: "Account & profile",
+  app: "App problem",
+  other: "Something else",
+};
+
+const BOOKING_FIELDS = "packageName vehicleName date slot status jobStatus";
+
 export async function listTickets(userId: string, role: string) {
   if (role === "admin") {
     return SupportTicket.find()
       .populate("user", "name email phone role")
+      .populate("booking", BOOKING_FIELDS)
       .sort({ updatedAt: -1 });
   }
-  return SupportTicket.find({ user: userId }).sort({ updatedAt: -1 });
+  return SupportTicket.find({ user: userId }).populate("booking", BOOKING_FIELDS).sort({ updatedAt: -1 });
 }
 
-export async function createTicket(userId: string, subject = "Live Chat Support") {
-  // If there's an existing open ticket, reuse it
-  const existing = await SupportTicket.findOne({ user: userId, status: "open" });
+/**
+ * Start (or resume) a conversation about a topic — and, for "booking", a
+ * specific job. One open conversation per job / per general topic, so a
+ * question about Tuesday's wash doesn't get buried under last week's refund.
+ */
+export async function createTicket(
+  userId: string,
+  input: { topic?: string; bookingId?: string | null; subject?: string } = {},
+) {
+  const topic: SupportTopic = (SUPPORT_TOPICS as readonly string[]).includes(input.topic ?? "")
+    ? (input.topic as SupportTopic)
+    : "other";
+
+  let booking: { _id: unknown; packageName?: string; vehicleName?: string } | null = null;
+  if (input.bookingId) {
+    if (!Types.ObjectId.isValid(input.bookingId)) throw ApiError.notFound("Booking not found");
+    // Only a job you're part of: your booking, or one you were the cleaner on.
+    booking = await Booking.findOne({
+      _id: input.bookingId,
+      $or: [{ user: userId }, { assignedAgent: userId }, { "agentReleases.agent": userId }],
+    })
+      .select("packageName vehicleName")
+      .lean();
+    if (!booking) throw ApiError.notFound("Booking not found");
+  }
+
+  const existing = await SupportTicket.findOne(
+    booking
+      ? { user: userId, status: "open", booking: booking._id }
+      : { user: userId, status: "open", booking: null, topic },
+  ).populate("booking", BOOKING_FIELDS);
   if (existing) return existing;
+
+  const subject = booking
+    ? [booking.packageName, booking.vehicleName].filter(Boolean).join(" · ") || TOPIC_LABEL.booking
+    : input.subject?.trim() || TOPIC_LABEL[topic];
 
   const ticket = await SupportTicket.create({
     user: userId,
     status: "open",
     subject,
+    topic: booking ? "booking" : topic,
+    booking: booking?._id ?? null,
   });
+  await ticket.populate("booking", BOOKING_FIELDS);
 
   // Notify admins of the new ticket
   broadcastTicketStatus(String(ticket._id), "open");
 
   return ticket;
+}
+
+/**
+ * Open conversations whose last message is from the customer/cleaner — i.e.
+ * waiting on support. Conversations from before `lastSenderType` existed are
+ * judged by their actual last message.
+ */
+export async function countAwaitingSupport(): Promise<number> {
+  const tracked = await SupportTicket.countDocuments({ status: "open", lastSenderType: "customer" });
+  const legacy = await SupportTicket.find({ status: "open", lastSenderType: null }).select("_id").lean();
+  if (legacy.length === 0) return tracked;
+  const last = await ChatMessage.aggregate<{ _id: unknown; senderType: string }>([
+    { $match: { ticket: { $in: legacy.map((t) => t._id) } } },
+    { $sort: { createdAt: -1 } },
+    { $group: { _id: "$ticket", senderType: { $first: "$senderType" } } },
+  ]);
+  return tracked + last.filter((l) => l.senderType === "customer").length;
 }
 
 /**
@@ -136,8 +201,10 @@ export async function saveMessage(
     text,
   });
 
-  // Touch ticket to update its updatedAt field (so it bubbles to top in lists)
+  // Bubble it to the top, and remember who spoke last (see countAwaitingSupport).
   ticket.set("updatedAt", new Date());
+  ticket.set("lastMessageAt", new Date());
+  ticket.set("lastSenderType", senderType);
   await ticket.save();
 
   // Notify socket rooms (broadcast the message live!)

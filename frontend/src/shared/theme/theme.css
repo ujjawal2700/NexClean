@@ -164,7 +164,9 @@
   pointer-events: auto;
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  /* Visible, not hidden: the selection pill rests on the bar and reaches past
+     its edges. The ::before sheen rounds itself via border-radius: inherit. */
+  overflow: visible;
   min-height: 4.25rem;
   padding: 0.375rem;
   border: 1px solid color-mix(in srgb, #ffffff 78%, var(--color-line));
@@ -245,24 +247,106 @@
 /* The selection pill as a drop of liquid glass: it frosts what's behind it,
    and while held it lifts, brightens and casts a softer, wider glow. Its
    stretch/squash comes from LiquidTabBar's motion values. */
+/* The selection pill as clear liquid glass (iOS 26 style). It holds a
+   magnified copy of the bar beneath (.liquid-lens) that an SVG filter bends
+   and colour-fringes at the rim, with a bright rim drawn on top. No frosted
+   fill — the glass is clear; the content under it is what you see. */
 .liquid-pill {
-  z-index: 0;
+  z-index: 20;
   transform-origin: center;
   will-change: transform, width;
   pointer-events: none;
-  -webkit-backdrop-filter: blur(10px) saturate(170%);
-  backdrop-filter: blur(10px) saturate(170%);
-  transition: box-shadow 260ms ease, background 260ms ease;
+  border: 0;
+  border-radius: 1.6rem;
+  background: transparent;
+  overflow: visible;
+  box-shadow:
+    0 12px 24px -12px rgba(28, 46, 110, 0.45),
+    0 3px 8px -3px rgba(28, 46, 110, 0.2);
+  transition: box-shadow 260ms ease;
+}
+.liquid-pill::after {
+  display: none;
 }
 
-.liquid-pill.is-dragging {
+.liquid-lens {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  /* Backstop where the rim refraction samples past the copy's edge. */
+  background: #f2f6fe;
+}
+
+.liquid-lens-zoom {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+}
+
+.liquid-lens-row {
+  position: absolute;
+  left: 0;
+  /* The pill reaches 0.3rem above the bar, so the bar starts 0.3rem down. */
+  top: 0.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0.375rem;
+  border-radius: 1.75rem;
+  background: linear-gradient(145deg, #fdfdff, #edf2ff);
+}
+
+/* Rim: magnifies harder than the centre and shows only in a ring at the edge,
+   so content there bends outward like light through the glass's curved rim. */
+.liquid-lens-rim,
+.liquid-lens-fringe {
+  -webkit-mask-image: radial-gradient(closest-side, transparent 64%, #000 96%);
+  mask-image: radial-gradient(closest-side, transparent 64%, #000 96%);
+}
+
+/* Colour fringing at the rim: faint warm and cool copies, nudged apart. */
+.liquid-lens-fringe .liquid-lens-row {
+  background: transparent;
+}
+.liquid-lens-fringe {
+  mix-blend-mode: multiply;
+  opacity: 0.75;
+}
+.liquid-lens-fringe-warm {
+  translate: -2px 0;
+}
+.liquid-lens-fringe-cool {
+  translate: 2px 0;
+}
+.liquid-lens-fringe-warm .liquid-face {
+  color: rgb(255 70 140);
+}
+.liquid-lens-fringe-cool .liquid-face {
+  color: rgb(40 200 255);
+}
+
+.liquid-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(79, 124, 255, 0.2));
+    radial-gradient(80% 55% at 28% 0%, rgba(255, 255, 255, 0.55), transparent 62%),
+    radial-gradient(60% 45% at 80% 100%, rgba(255, 255, 255, 0.25), transparent 65%);
   box-shadow:
-    0 16px 30px -14px rgba(79, 124, 255, 0.75),
-    0 0 0 1px rgba(255, 255, 255, 0.9),
-    inset 0 1px 0 rgba(255, 255, 255, 1),
-    inset 0 -6px 14px -8px rgba(79, 124, 255, 0.35);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.85),
+    inset 0 1.5px 1px rgba(255, 255, 255, 1),
+    inset 0 -1px 2px rgba(28, 46, 110, 0.1),
+    inset 5px 0 8px -6px rgba(255, 255, 255, 0.95),
+    inset -5px 0 8px -6px rgba(255, 255, 255, 0.95);
+}
+
+/* Picked up: lifted higher off the bar, so the shadow spreads and softens. */
+.liquid-pill.is-dragging {
+  box-shadow:
+    0 22px 34px -14px rgba(28, 46, 110, 0.5),
+    0 8px 16px -8px rgba(79, 124, 255, 0.4);
 }
 
 .no-callout {

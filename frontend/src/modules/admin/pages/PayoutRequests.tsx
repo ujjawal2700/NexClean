@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Banknote, Clock, CheckCircle2, XCircle, Landmark } from "lucide-react";
+import { Banknote, Clock, CheckCircle2, XCircle, Landmark, Eye } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -15,6 +15,7 @@ import {
   useMarkPayoutRequestPaid,
 } from "../api/admin.api";
 import { ConfirmActionModal } from "../components/PersonFormModal";
+import { PayoutRequestDetailModal } from "../components/PayoutRequestDetailModal";
 import { StatCard } from "../components/StatCard";
 import {
   PAYOUT_REQUEST_STATUS_STYLE,
@@ -43,6 +44,8 @@ export function PayoutRequests() {
   const [rejectReason, setRejectReason] = useState("");
   const [paying, setPaying] = useState<AdminPayoutRequest | null>(null);
   const [transactionRef, setTransactionRef] = useState("");
+  // The request whose full details (bank account, cleaner, balance) are open.
+  const [viewing, setViewing] = useState<AdminPayoutRequest | null>(null);
 
   // Tallies are computed from whatever tab is loaded rather than a separate
   // stats call — this list is never large enough (payout requests, not every
@@ -212,6 +215,11 @@ export function PayoutRequests() {
                   {formatMoney(r.amount)}
                 </td>
                 <td className="px-2 py-3 text-right">
+                  <div className="mb-1 flex justify-end">
+                    <Button variant="outline" size="sm" onClick={() => setViewing(r)} data-testid={`view-payout-${r.id}`}>
+                      <Eye className="size-4" /> View details
+                    </Button>
+                  </div>
                   {r.status === "pending" && (
                     <div className="flex justify-end gap-1.5">
                       <Button
@@ -354,6 +362,30 @@ export function PayoutRequests() {
         onClose={() => setPaying(null)}
         onConfirm={handleMarkPaid}
       />
+
+      {viewing && (
+        <PayoutRequestDetailModal
+          id={viewing.id}
+          busy={approve.isPending}
+          onClose={() => setViewing(null)}
+          onApprove={() => {
+            handleApprove(viewing.id);
+            setViewing(null);
+          }}
+          onReject={() => {
+            setError("");
+            setRejectReason("");
+            setRejecting(viewing);
+            setViewing(null);
+          }}
+          onMarkPaid={() => {
+            setError("");
+            setTransactionRef("");
+            setPaying(viewing);
+            setViewing(null);
+          }}
+        />
+      )}
     </div>
   );
 }

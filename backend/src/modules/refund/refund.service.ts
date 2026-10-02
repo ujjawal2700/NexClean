@@ -36,8 +36,13 @@ export async function queueCancellationRefund(
   cancelledBy: "customer" | "admin",
   opts: { notify?: boolean } = {},
 ) {
-  const booking = await Booking.findById(bookingId).select("user coinsRedeemed packageName peakUpgradeFeeCharged");
+  const booking = await Booking.findById(bookingId).select(
+    "user coinsRedeemed packageName peakUpgradeFeeCharged jobCompletedAt",
+  );
   if (!booking) return null;
+  // The service was delivered before it was marked cancelled: nothing is owed
+  // automatically. A goodwill refund goes through Payments → Refund.
+  if (booking.jobCompletedAt) return null;
 
   // "mock" rows are online payments taken while the gateway is in test mode.
   const payments = await Payment.find({
@@ -93,6 +98,26 @@ let backfilled = false;
 async function backfillLegacyRefunds(): Promise<void> {
   if (backfilled) return;
   backfilled = true;
+
+  // Bookings completed and then switched to cancelled were queued as refunds
+  // before that was blocked. The service happened; close those quietly.
+  const pending = await RefundRequest.find({ status: "pending" }).populate("booking", "jobCompletedAt").lean();
+  const delivered = pending
+    .filter((r) => (r.booking as unknown as { jobCompletedAt?: Date | null } | null)?.jobCompletedAt)
+    .map((r) => r._id);
+  if (delivered.length > 0) {
+    await RefundRequest.updateMany(
+      { _id: { $in: delivered }, status: "pending" },
+      {
+        $set: {
+          status: "rejected",
+          note: "Closed automatically: the service was completed before the booking was marked cancelled.",
+          decidedAt: new Date(),
+        },
+      },
+    );
+  }
+
   const owed = await Payment.find({ kind: { $in: ["booking", "reschedule"] }, status: "paid", booking: { $ne: null } })
     .populate("booking", "status")
     .select("booking")
@@ -163,6 +188,84 @@ export async function listRefunds(status?: RefundStatus) {
         : null,
     };
   });
+}
+
+/** How a payment was made, from its ids — what the admin needs to see before refunding. */
+function paymentMode(p: { paymentId?: string | null; orderId?: string; status?: string }): string {
+  if (p.paymentId?.startsWith("pay_")) return "Online · Razorpay";
+  if (p.paymentId?.startsWith("cash_") || p.orderId?.startsWith("cash")) return "Cash to cleaner";
+  if (p.status === "mock" || p.orderId?.includes("mock")) return "Online · test mode (no real money)";
+  return "Online";
+}
+
+/** One refund, with the payments behind it and how the booking was paid for. */
+export async function getRefundDetail(id: string) {
+  if (!Types.ObjectId.isValid(id)) throw ApiError.notFound("Refund not found");
+  const r = await RefundRequest.findById(id)
+    .populate("user", "name phone email")
+    .populate("booking", "packageName vehicleName vehicleType date slot status price discountAmount discountCode coinsRedeemed coinDiscount addressLabel addressLine createdAt")
+    .populate("decidedBy", "name")
+    .lean();
+  if (!r) throw ApiError.notFound("Refund not found");
+
+  const paymentIds = r.lines.map((l) => l.payment);
+  const payments = await Payment.find({ _id: { $in: paymentIds } }).lean();
+  const byId = new Map(payments.map((p) => [String(p._id), p]));
+
+  const user = r.user as unknown as { _id?: unknown; name?: string; phone?: string; email?: string } | null;
+  const booking = r.booking as unknown as Record<string, unknown> & { _id?: unknown } | null;
+  const decidedBy = r.decidedBy as unknown as { name?: string } | null;
+
+  return {
+    id: String(r._id),
+    status: r.status,
+    cancelledBy: r.cancelledBy,
+    amount: r.amount,
+    coins: r.coins,
+    note: r.note,
+    lastError: r.lastError,
+    createdAt: r.createdAt,
+    decidedAt: r.decidedAt,
+    decidedByName: decidedBy?.name ?? null,
+    customer: {
+      id: user?._id ? String(user._id) : null,
+      name: user?.name || "Customer",
+      phone: user?.phone ?? "",
+      email: user?.email ?? "",
+    },
+    booking: booking
+      ? {
+          id: String(booking._id),
+          packageName: booking.packageName ?? "",
+          vehicleName: booking.vehicleName ?? "",
+          date: booking.date ?? null,
+          slot: booking.slot ?? "",
+          status: booking.status ?? "",
+          price: booking.price ?? 0,
+          discountAmount: booking.discountAmount ?? 0,
+          discountCode: booking.discountCode ?? null,
+          coinsRedeemed: booking.coinsRedeemed ?? 0,
+          coinDiscount: booking.coinDiscount ?? 0,
+          address: [booking.addressLabel, booking.addressLine].filter(Boolean).join(" · "),
+          bookedAt: booking.createdAt ?? null,
+        }
+      : null,
+    payments: r.lines.map((l) => {
+      const p = byId.get(String(l.payment));
+      return {
+        id: String(l.payment),
+        refundAmount: l.amount,
+        paidAmount: p?.amount ?? 0,
+        kind: p?.kind ?? "booking",
+        mode: p ? paymentMode(p) : "Unknown",
+        orderId: p?.orderId ?? "",
+        paymentId: p?.paymentId ?? null,
+        status: p?.status ?? "unknown",
+        paidAt: p?.createdAt ?? null,
+        refundedAt: p?.refundedAt ?? null,
+      };
+    }),
+  };
 }
 
 /**

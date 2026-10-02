@@ -52,6 +52,7 @@ import {
   useLeads,
   useAdminMe,
   useInternalConversations,
+  useAttentionCounts,
 } from "../api/admin.api";
 import type { InternalMessage } from "../types";
 
@@ -308,6 +309,17 @@ function NavItems({ onNavigate, internalUnreadCount = 0 }: { onNavigate?: () => 
   const permissions = useAdminSession((s) => s.permissions) || [];
   const pendingCount = agents.filter((a) => a.status === "pending").length;
   const leadCount = leads.filter((l) => (l.status ?? "new") === "new").length;
+  const { data: attention } = useAttentionCounts();
+
+  // Sections with something waiting on an admin, and how loud to flag it.
+  const badges: Record<string, { count: number; className: string }> = {
+    "/admin/agent-verification": { count: pendingCount, className: "bg-orange-500" },
+    "/admin/leads": { count: leadCount, className: "bg-amber-500" },
+    "/admin/internal-messages": { count: internalUnreadCount, className: "bg-primary" },
+    "/admin/payout-requests": { count: attention?.payoutRequests ?? 0, className: "bg-orange-500" },
+    "/admin/refunds": { count: attention?.refunds ?? 0, className: "bg-red-500" },
+    "/admin/support": { count: attention?.supportChats ?? 0, className: "bg-red-500" },
+  };
 
   const query = search.trim().toLowerCase();
   const groups = NAV_GROUPS.map((group) => ({
@@ -394,10 +406,7 @@ function NavItems({ onNavigate, internalUnreadCount = 0 }: { onNavigate?: () => 
 
               {isOpen &&
                 group.items.map((item) => {
-                  const isVerification =
-                    item.to === "/admin/agent-verification";
-                  const isLeads = item.to === "/admin/leads";
-                  const isInternalMessages = item.to === "/admin/internal-messages";
+                  const badge = badges[item.to];
                   return (
                     <NavLink
                       key={item.to}
@@ -416,19 +425,15 @@ function NavItems({ onNavigate, internalUnreadCount = 0 }: { onNavigate?: () => 
                         <item.icon className="size-[18px]" />
                         <span>{item.label}</span>
                       </span>
-                      {isVerification && pendingCount > 0 && (
-                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-orange-500 font-display text-[10px] font-semibold text-white">
-                          {pendingCount}
-                        </span>
-                      )}
-                      {isLeads && leadCount > 0 && (
-                        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-amber-500 font-display text-[10px] font-semibold text-white">
-                          {leadCount > 99 ? "99+" : leadCount}
-                        </span>
-                      )}
-                      {isInternalMessages && internalUnreadCount > 0 && (
-                        <span className="grid min-w-5 shrink-0 place-items-center rounded-full bg-primary px-1.5 font-display text-[10px] font-semibold leading-5 text-white">
-                          {internalUnreadCount > 99 ? "99+" : internalUnreadCount}
+                      {badge && badge.count > 0 && (
+                        <span
+                          className={cn(
+                            "grid min-w-5 shrink-0 place-items-center rounded-full px-1.5 font-display text-[10px] font-semibold leading-5 text-white",
+                            badge.className,
+                          )}
+                          data-testid={`nav-badge-${item.to.split("/").pop()}`}
+                        >
+                          {badge.count > 99 ? "99+" : badge.count}
                         </span>
                       )}
                     </NavLink>

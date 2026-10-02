@@ -19,7 +19,7 @@ test.describe("Subscription plans", () => {
     await page.goto("/app/plans");
 
     await page.getByRole("button", { name: "Choose Basic" }).click();
-    await expect(page.getByText("Confirm subscription")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Confirm your plan" })).toBeVisible();
     const payButton = page.getByRole("button", { name: /^Pay ₹/ });
     await payButton.click();
 
@@ -109,4 +109,68 @@ test.describe("Subscription plans", () => {
     await expect(sheet.getByRole("button", { name: "Schedule wash", exact: true })).toBeDisabled();
     await expect(sheet.getByText("Choose a date and time")).toBeVisible();
   });
+
+  test("the purchase popup freezes the page behind it, and restores the scroll position on close", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 700 });
+    await loginCustomerUI(page);
+    await page.goto("/app/plans");
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(600);
+    const before = await page.evaluate(() => window.scrollY);
+
+    await page.getByRole("button", { name: "Choose Basic" }).click();
+    const dialog = page.getByRole("dialog", { name: "Confirm your plan" });
+    await expect(dialog).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe("fixed");
+
+    // Scrolling over the backdrop doesn't move the page.
+    const pinnedTop = await page.evaluate(() => document.body.style.top);
+    await page.mouse.move(10, 10);
+    await page.mouse.wheel(0, 800);
+    await page.waitForTimeout(600);
+    expect(await page.evaluate(() => document.body.style.top)).toBe(pinnedTop);
+
+    await dialog.getByRole("button", { name: "Not now" }).click();
+    await expect(dialog).not.toBeVisible();
+    expect(await page.evaluate(() => document.body.style.position)).toBe("");
+    expect(Math.abs((await page.evaluate(() => window.scrollY)) - before)).toBeLessThan(5);
+  });
+
+  test("schedule board: compact rows, one 'schedule next' row, no sideways overflow on a small phone", async ({ page }) => {
+    const phone = freshPhone();
+    const api = await apiContext();
+    const { token } = await mintTokenForPhone(api, phone);
+    await seedVehicleAndAddress(api, token, {
+      vehicleType: "hatchback",
+      vehicleName: "Board Test Car",
+      addressLabel: "Home",
+      addressLine: "Flat 1204, Tower B, An Exceptionally Long Society Name Residency Phase 2, Near The Big Landmark, Indore",
+    });
+    await api.dispose();
+
+    await page.setViewportSize({ width: 320, height: 640 });
+    await loginCustomerUI(page, phone);
+    await page.goto("/app/plans");
+    await page.getByRole("button", { name: "Choose Premium" }).click(); // 8 washes
+    await page.getByRole("button", { name: /^Pay ₹/ }).click();
+    await expect(page.locator("h1")).toHaveText("Active Subscription", { timeout: 15000 });
+
+    const board = page.getByTestId("schedule-board");
+    await expect(board.getByText("0 of 8 scheduled this cycle")).toBeVisible();
+    await board.getByRole("button", { name: /Schedule your first wash/ }).click();
+    const sheet = page.getByRole("dialog", { name: "Schedule a wash" });
+    await sheet.getByRole("button", { name: /Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday/ }).first().click();
+    await sheet.getByRole("button", { name: "08:00 AM" }).click();
+    await sheet.getByRole("button", { name: "Schedule wash", exact: true }).click();
+    await expect(sheet).not.toBeVisible({ timeout: 10000 });
+
+    await expect(board.getByText("1 of 8 scheduled this cycle")).toBeVisible();
+    await expect(board.getByTestId("wash-row")).toHaveCount(1);
+    // Seven placeholder cards used to follow; now it's a single row.
+    await expect(board.getByRole("button", { name: /Schedule wash #2/ })).toContainText("7 left");
+
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
 });
+

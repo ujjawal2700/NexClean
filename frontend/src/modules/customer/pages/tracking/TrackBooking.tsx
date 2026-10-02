@@ -10,6 +10,7 @@ import { LiveTrackingMap, type RouteInfo } from "@shared/components/map/LiveTrac
 import { useLiveTracking, FIX_STALE_SECONDS } from "@shared/hooks/useLiveTracking";
 import { useCancelBooking } from "../../api/mutations";
 import { SearchingPanel } from "./SearchingPanel";
+import { CancelBookingSheet } from "../../components/CancelBookingSheet";
 import { AgentPanel } from "./AgentPanel";
 import { ServicePhotosModal } from "../../components/ServicePhotosModal";
 
@@ -34,6 +35,8 @@ export function TrackBooking() {
   useEffect(() => setRoute(null), [id]);
 
   const [cancelError, setCancelError] = useState("");
+  // The cancel confirmation is open.
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
 
   const agentPos = useMemo(() => (fix ? { lat: fix.lat, lng: fix.lng } : null), [fix]);
@@ -43,11 +46,17 @@ export function TrackBooking() {
   const distanceM = travelling ? (route?.distanceM ?? snapshot?.distanceM ?? null) : null;
   const stale = staleSeconds != null && staleSeconds > FIX_STALE_SECONDS;
 
+  const askCancel = () => {
+    setCancelError("");
+    setConfirmingCancel(true);
+  };
+
   const cancel = async () => {
     if (!id) return;
     setCancelError("");
     try {
       await cancelBooking.mutateAsync(id);
+      setConfirmingCancel(false);
       navigate("/app/bookings");
     } catch (e) {
       // A cancel can be legitimately refused — a subscription wash inside its
@@ -209,7 +218,7 @@ export function TrackBooking() {
               >
                 <SearchingPanel
                   snapshot={snapshot}
-                  onCancel={cancel}
+                  onCancel={askCancel}
                   cancelling={cancelBooking.isPending}
                   cancelError={cancelError}
                 />
@@ -227,6 +236,17 @@ export function TrackBooking() {
                   distanceM={distanceM}
                   stale={stale}
                 />
+                {/* Cancelling stays possible until the cleaner starts on the car. */}
+                {snapshot.status === "upcoming" && snapshot.jobStatus !== "in_progress" && (
+                  <button
+                    type="button"
+                    onClick={askCancel}
+                    className="mt-3 w-full cursor-pointer rounded-2xl py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/10"
+                    data-testid="track-cancel-booking"
+                  >
+                    Cancel booking
+                  </button>
+                )}
               </motion.div>
             ) : (
               <TerminalPanel
@@ -240,6 +260,17 @@ export function TrackBooking() {
           </AnimatePresence>
         </div>
       </div>
+
+      {confirmingCancel && (
+        <CancelBookingSheet
+          title={snapshot.packageName}
+          detail={snapshot.slot}
+          pending={cancelBooking.isPending}
+          error={cancelError}
+          onConfirm={cancel}
+          onClose={() => setConfirmingCancel(false)}
+        />
+      )}
 
       {showPhotos && (
         <ServicePhotosModal booking={snapshot} onClose={() => setShowPhotos(false)} />

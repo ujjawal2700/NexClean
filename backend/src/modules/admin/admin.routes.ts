@@ -10,6 +10,9 @@ export const adminRouter = Router();
 
 adminRouter.use(requireRole("admin"));
 
+// Sidebar "needs attention" badges. Counts only — each section stays behind its own permission.
+adminRouter.get("/attention", asyncHandler(c.attentionCounts));
+
 // Every authenticated admin can manage their own login details regardless of
 // their operational role permissions.
 adminRouter.patch("/account/profile", asyncHandler(c.updateOwnProfile));
@@ -65,10 +68,12 @@ adminRouter.patch("/payments/:id/settle", requirePermission("payments"), asyncHa
 
 // Refunds owed on cancelled bookings — queued automatically, sent or declined by an admin.
 adminRouter.get("/refunds", requirePermission("payments"), asyncHandler(c.refunds));
+adminRouter.get("/refunds/:id", requirePermission("payments"), asyncHandler(c.refundDetail));
 adminRouter.post("/refunds/:id/approve", requirePermission("payments"), asyncHandler(c.approveRefund));
 adminRouter.post("/refunds/:id/reject", requirePermission("payments"), asyncHandler(c.rejectRefund));
 
 adminRouter.get("/payout-requests", requirePermission("payout-requests"), asyncHandler(c.payoutRequests));
+adminRouter.get("/payout-requests/:id", requirePermission("payout-requests"), asyncHandler(c.payoutRequestDetail));
 adminRouter.patch("/payout-requests/:id/approve", requirePermission("payout-requests"), asyncHandler(c.approvePayoutRequest));
 adminRouter.patch("/payout-requests/:id/reject", requirePermission("payout-requests"), asyncHandler(c.rejectPayoutRequest));
 adminRouter.patch("/payout-requests/:id/paid", requirePermission("payout-requests"), asyncHandler(c.markPayoutRequestPaid));

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, Check, Coins, ExternalLink, Info, Loader2, RotateCcw, Search, Undo2, X } from "lucide-react";
+import { AlertTriangle, Check, Coins, ExternalLink, Eye, Info, Loader2, RotateCcw, Search, Undo2, X } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
@@ -11,6 +11,7 @@ import { formatMoney, formatDate } from "@shared/lib/format";
 import { usePagination } from "@shared/lib/usePagination";
 import { useRefunds, useApproveRefund, useRejectRefund, usePaymentStats } from "../api/admin.api";
 import { StatCard } from "../components/StatCard";
+import { RefundDetailModal } from "../components/RefundDetailModal";
 import type { AdminRefund } from "../types";
 
 type Tab = "pending" | "approved" | "rejected" | "all";
@@ -147,6 +148,7 @@ function RefundRow({ refund: r }: { refund: AdminRefund }) {
   const reject = useRejectRefund();
   const [mode, setMode] = useState<"idle" | "approve" | "reject">("idle");
   const [note, setNote] = useState("");
+  const [viewing, setViewing] = useState(false);
   const busy = approve.isPending || reject.isPending;
   const error = approve.error ?? reject.error;
   const status = STATUS[r.status];
@@ -218,6 +220,22 @@ function RefundRow({ refund: r }: { refund: AdminRefund }) {
           )}
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => setViewing(true)} data-testid="view-refund-details">
+          <Eye className="size-4" /> View payment details
+        </Button>
+        {r.payments
+          .filter((p) => razorpayPaymentUrl(p.paymentId))
+          .map((p) => (
+            <Button key={p.id} asChild variant="ghost" size="sm">
+              <a href={razorpayPaymentUrl(p.paymentId)!} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-4" /> {p.paymentId}
+              </a>
+            </Button>
+          ))}
+      </div>
+      {viewing && <RefundDetailModal id={r.id} onClose={() => setViewing(false)} />}
 
       {r.status === "rejected" && r.note && <p className="text-sm text-muted">Reason: {r.note}</p>}
       {r.lastError && r.status === "pending" && (

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { AlertCircle, Check, Plus, X } from "lucide-react";
 import { cn } from "@shared/lib/utils";
+import { useScrollLock } from "@shared/lib/scrollLock";
 
 /**
  * Pieces of the subscription "schedule / reschedule a wash" sheet.
@@ -29,18 +30,16 @@ export function ScheduleSheet({
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
 
+  // Freeze the page behind the sheet (Lenis + iOS-proof).
+  useScrollLock();
+
   useEffect(() => {
     closeRef.current?.focus();
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previousOverflow;
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (

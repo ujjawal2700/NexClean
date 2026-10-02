@@ -15,10 +15,10 @@
  *     averaged away into a latency percentile.
  *
  * Run against a throwaway backend only:
- *   API=http://127.0.0.1:4000/api node volume-off-peak-hours.mjs
+ *   API=http://127.0.0.1:4400/api node volume-off-peak-hours.mjs
  *   API=... DURATION=30 CONCURRENCY=50 node volume-off-peak-hours.mjs
  */
-const API = process.env.API ?? "http://127.0.0.1:4000/api";
+const API = process.env.API ?? "http://127.0.0.1:4400/api"; // test port, never the dev :4000
 const DEMO_OTP = process.env.DEMO_OTP ?? "123456";
 const DURATION_S = Number(process.env.DURATION ?? 15);
 const CONCURRENCY = Number(process.env.CONCURRENCY ?? 30);

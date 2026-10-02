@@ -5,6 +5,8 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Input } from "@shared/ui/Input";
 import { formatMoney, formatDate } from "@shared/lib/format";
+import { usePagination } from "@shared/lib/usePagination";
+import { Pagination } from "@shared/ui/Pagination";
 import { useSubscriptionOverview } from "../api/admin.api";
 import { StatCard } from "../components/StatCard";
 
@@ -24,6 +26,9 @@ export function Subscriptions() {
         (!q || s.name.toLowerCase().includes(q) || s.phone.includes(q) || s.planName.toLowerCase().includes(q)),
     );
   }, [data, query, status]);
+
+  const subscriberPages = usePagination(subscribers, 10);
+  const purchasePages = usePagination(data?.recentPurchases ?? [], 10);
 
   if (isLoading || !data) return <p className="text-muted">Loading subscriptions…</p>;
   const { stats, byPlan, recentPurchases } = data;
@@ -114,7 +119,7 @@ export function Subscriptions() {
             </tr>
           </thead>
           <tbody>
-            {subscribers.map((s) => (
+            {subscriberPages.pageItems.map((s) => (
               <tr key={s.id} className="border-t border-line/70">
                 <td className="px-2 py-3">
                   <Link to={`/admin/customers/${s.id}`} className="font-medium text-ink hover:text-primary">
@@ -153,6 +158,11 @@ export function Subscriptions() {
             )}
           </tbody>
         </table>
+        <Pagination
+          page={subscriberPages.page}
+          totalPages={subscriberPages.totalPages}
+          onPageChange={subscriberPages.setPage}
+        />
       </GlassCard>
 
       <GlassCard className="overflow-x-auto">
@@ -167,7 +177,7 @@ export function Subscriptions() {
             </tr>
           </thead>
           <tbody>
-            {recentPurchases.map((p) => (
+            {purchasePages.pageItems.map((p) => (
               <tr key={p.id} className="border-t border-line/70">
                 <td className="px-2 py-3 text-ink">{p.customerName}</td>
                 <td className="px-2 py-3 text-ink-soft">{p.planName}</td>
@@ -187,6 +197,7 @@ export function Subscriptions() {
             )}
           </tbody>
         </table>
+        <Pagination page={purchasePages.page} totalPages={purchasePages.totalPages} onPageChange={purchasePages.setPage} />
       </GlassCard>
     </div>
   );

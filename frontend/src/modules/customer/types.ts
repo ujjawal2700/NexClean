@@ -221,12 +221,28 @@ export type SubscriptionScheduleResponse = {
   bookings: Booking[];
 };
 
+export type SupportTopic = "booking" | "payment" | "account" | "app" | "other";
+
 export type SupportTicket = {
   id: string;
   user: string | User;
   status: "open" | "closed";
   assignedAgent?: string | User | null;
   subject: string;
+  topic?: SupportTopic;
+  /** The job this conversation is about, when it's about one. */
+  booking?: {
+    id: string;
+    packageName: string;
+    vehicleName: string;
+    date: string;
+    slot: string;
+    status: string;
+    jobStatus?: string;
+  } | null;
+  /** Who wrote last — "staff" on an open conversation means support has replied. */
+  lastSenderType?: "customer" | "staff" | null;
+  lastMessageAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };

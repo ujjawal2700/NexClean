@@ -16,7 +16,16 @@ import {
 import { useAdminSession } from "../store/sessionStore";
 import { SOCKET_URL } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
-import type { ChatMessage } from "../../customer/types";
+import type { ChatMessage, SupportTopic } from "../../customer/types";
+import { Link } from "react-router-dom";
+
+const TOPIC_LABEL: Record<SupportTopic, string> = {
+  booking: "Booking",
+  payment: "Payments & refunds",
+  account: "Account & profile",
+  app: "App problem",
+  other: "General",
+};
 
 export function ChatPanel() {
   const { data: supportConfig, refetch: refetchConfig } = useSupportConfig();
@@ -366,6 +375,18 @@ export function ChatPanel() {
                       <p className="text-xs text-muted truncate mt-1 leading-snug">
                         {t.subject}
                       </p>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="truncate text-[10px] text-muted">
+                          {t.booking
+                            ? `Booking · ${new Date(t.booking.date).toLocaleDateString([], { month: "short", day: "numeric" })} ${t.booking.slot}`
+                            : TOPIC_LABEL[t.topic ?? "other"]}
+                        </span>
+                        {t.status === "open" && t.lastSenderType === "customer" && (
+                          <span className="shrink-0 rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+                            Waiting
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </button>
                 );
@@ -417,6 +438,18 @@ export function ChatPanel() {
                           );
                         })()}
                     </div>
+                    {selectedTicket.booking ? (
+                      <Link
+                        to={`/admin/bookings/${selectedTicket.booking.id}`}
+                        className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                      >
+                        About: {selectedTicket.booking.packageName} · {selectedTicket.booking.vehicleName} ·{" "}
+                        {new Date(selectedTicket.booking.date).toLocaleDateString([], { month: "short", day: "numeric" })}{" "}
+                        {selectedTicket.booking.slot} ({selectedTicket.booking.status})
+                      </Link>
+                    ) : (
+                      <p className="mt-1 text-xs text-muted">About: {TOPIC_LABEL[selectedTicket.topic ?? "other"]}</p>
+                    )}
                     <div className="flex items-center gap-4 mt-1 text-xs text-muted">
                       <span className="flex items-center gap-1">
                         <Mail className="size-3" />{" "}

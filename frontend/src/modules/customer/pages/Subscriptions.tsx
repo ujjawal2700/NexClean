@@ -4,16 +4,15 @@ import {
   Check,
   Calendar,
   Plus,
-  X,
   Lock,
   RefreshCw,
   Trash2,
   Car,
   MapPin,
-  AlertCircle,
   ArrowLeft,
   Coins,
   Loader2,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -366,14 +365,13 @@ export function Subscriptions() {
       (b) => new Date(b.date).getTime() > Date.now(),
     );
 
-    // Generate array of cards to show
-    // If washesLimit is 4 or 8, we render exactly that many slots.
-    // If washesLimit is -1 (unlimited), we render booked washes + 1 empty slot.
-    const slotsCount =
-      washesLimit === -1 ? scheduledBookings.length + 1 : washesLimit;
-    const slots = Array.from({ length: slotsCount }).map(
-      (_, i) => scheduledBookings[i] ?? null,
-    );
+    // The board used to draw one big card per wash in the plan — an 8-wash
+    // plan was 8 tall cards to scroll past just to reach "Schedule". Now
+    // scheduled washes are compact rows and the rest is one "schedule next" row.
+    const used = scheduledBookings.length;
+    const unlimited = washesLimit === -1;
+    const remaining = unlimited ? Infinity : Math.max(0, washesLimit - used);
+    const canSchedule = !expired && remaining > 0;
 
     return (
       <div className="space-y-8">
@@ -496,129 +494,132 @@ export function Subscriptions() {
           </GlassCard>
         </div>
 
-        {/* Schedule Grid Heading */}
-        <div>
-          <h2 className="font-display text-xl font-semibold text-ink">
-            Schedule Board
-          </h2>
-          <p className="text-sm text-muted">
-            Select slots or reschedule upcoming cleanings.
-          </p>
-        </div>
+        {/* Schedule board */}
+        <section className="space-y-4" data-testid="schedule-board">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="font-display text-xl font-semibold text-ink">Your washes</h2>
+              <p className="text-sm text-muted">
+                {unlimited
+                  ? `${used} scheduled · unlimited this cycle`
+                  : `${used} of ${washesLimit} scheduled this cycle`}
+              </p>
+            </div>
+            {canSchedule && (
+              <Button size="sm" onClick={handleOpenSchedule} disabled={busy} className="shrink-0">
+                <Plus className="size-4" /> Schedule a wash
+              </Button>
+            )}
+          </div>
 
-        {/* Grid */}
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {slots.map((booking, idx) => {
-            if (booking) {
-              const locked = isLocked(booking.date);
-              return (
-                <GlassCard
-                  key={booking.id}
-                  className="relative flex flex-col justify-between border border-line bg-surface/40 hover:border-line transition-all">
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <div className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
-                          <Car className="size-5" />
-                        </div>
-                        <div>
-                          <h3 className="font-display font-semibold text-ink leading-tight">
-                            {booking.vehicleName}
-                          </h3>
-                          <p className="text-xs text-muted capitalize">
-                            {categoryLabel(booking.vehicleType)}
-                          </p>
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          "rounded-pill px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
-                          booking.status === "upcoming"
-                            ? "bg-amber-100 text-amber-800"
-                            : booking.status === "completed"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800",
-                        )}>
-                        {booking.status}
+          {!unlimited && washesLimit > 0 && (
+            <div className="flex gap-1" aria-hidden>
+              {Array.from({ length: washesLimit }).map((_, i) => (
+                <span
+                  key={i}
+                  className={cn("h-1.5 min-w-0 flex-1 rounded-full", i < used ? "bg-primary" : "bg-line")}
+                />
+              ))}
+            </div>
+          )}
+
+          {used === 0 ? (
+            <button
+              type="button"
+              onClick={handleOpenSchedule}
+              disabled={!canSchedule || busy}
+              className="flex w-full cursor-pointer items-center gap-4 rounded-card border-2 border-dashed border-line p-5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 disabled:cursor-default disabled:opacity-60">
+              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                <Plus className="size-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-display font-semibold text-ink">Schedule your first wash</span>
+                <span className="block text-xs text-muted">
+                  {expired ? "Renew your plan to schedule" : "Pick the car, place and time — takes a few seconds"}
+                </span>
+              </span>
+            </button>
+          ) : (
+            <ul className="grid gap-2.5 md:grid-cols-2">
+              {scheduledBookings.map((booking, i) => {
+                const locked = isLocked(booking.date);
+                const d = new Date(booking.date);
+                return (
+                  <li
+                    key={booking.id}
+                    className="flex min-w-0 items-center gap-3 rounded-2xl border border-line bg-surface p-3"
+                    data-testid="wash-row">
+                    <div className="grid w-12 shrink-0 place-items-center rounded-xl bg-primary/10 py-1.5 text-primary">
+                      <span className="text-[10px] font-semibold uppercase leading-none">
+                        {d.toLocaleDateString("en-IN", { weekday: "short" })}
                       </span>
+                      <span className="font-display text-lg font-semibold leading-tight">{d.getDate()}</span>
+                      <span className="text-[10px] leading-none">{d.toLocaleDateString("en-IN", { month: "short" })}</span>
                     </div>
-
-                    <div className="mt-4 space-y-2 text-sm text-ink-soft border-t border-line/50 pt-3">
-                      <p className="flex items-center gap-2">
-                        <Calendar className="size-4 text-primary shrink-0" />
-                        <span>
-                          {new Date(booking.date).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            weekday: "short",
-                          })}{" "}
-                          · {booking.slot}
+                    <div className="min-w-0 flex-1">
+                      <p className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-sm font-semibold text-ink">{booking.vehicleName}</span>
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-pill px-2 py-0.5 text-[10px] font-semibold capitalize",
+                            booking.status === "upcoming"
+                              ? "bg-amber-500/10 text-amber-700"
+                              : booking.status === "completed"
+                                ? "bg-emerald-500/10 text-emerald-700"
+                                : "bg-red-500/10 text-red-600",
+                          )}>
+                          {booking.status}
                         </span>
                       </p>
-                      <p className="flex items-center gap-2">
-                        <MapPin className="size-4 text-primary shrink-0" />
-                        <span className="truncate" title={booking.addressLine}>
-                          {booking.addressLabel} ({booking.addressLine})
-                        </span>
+                      <p className="mt-0.5 truncate text-xs text-muted">
+                        #{i + 1} · {booking.slot} · {booking.addressLabel}
                       </p>
                     </div>
-                  </div>
+                    {booking.status === "upcoming" &&
+                      (locked ? (
+                        <span
+                          className="flex shrink-0 items-center gap-1 text-[11px] text-muted"
+                          title="Washes can't be changed within 12 hours of the slot">
+                          <Lock className="size-3.5" /> Locked
+                        </span>
+                      ) : (
+                        <div className="flex shrink-0 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReschedule(booking)}
+                            disabled={busy}
+                            aria-label={`Reschedule wash ${i + 1}`}
+                            className="grid size-9 cursor-pointer place-items-center rounded-xl text-ink-soft transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-50">
+                            <RefreshCw className="size-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCancelWash(booking.id)}
+                            disabled={busy}
+                            aria-label={`Cancel wash ${i + 1}`}
+                            className="grid size-9 cursor-pointer place-items-center rounded-xl text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50">
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      ))}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
 
-                  <div className="mt-5 flex gap-2 border-t border-line/40 pt-3">
-                    {locked ? (
-                      <div className="flex w-full items-center gap-1.5 justify-center text-xs text-muted py-1.5">
-                        <Lock className="size-3.5 text-muted/65" />
-                        <span>Locked (12h window)</span>
-                      </div>
-                    ) : booking.status === "upcoming" ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handleOpenReschedule(booking)}
-                          disabled={busy}>
-                          <RefreshCw className="size-3.5" /> Reschedule
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-500 hover:text-red-600 hover:bg-red-50/15"
-                          onClick={() => handleCancelWash(booking.id)}
-                          disabled={busy}
-                          title="Cancel Wash">
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </>
-                    ) : (
-                      <div className="text-xs text-muted italic w-full text-center py-1.5">
-                        Wash {booking.status}
-                      </div>
-                    )}
-                  </div>
-                </GlassCard>
-              );
-            }
-
-            return (
-              <button
-                key={`empty-${idx}`}
-                onClick={handleOpenSchedule}
-                disabled={busy || expired}
-                className="group disabled:pointer-events-none disabled:opacity-50 flex min-h-48 flex-col items-center justify-center rounded-card border-2 border-dashed border-line hover:border-primary/50 hover:bg-primary/5 transition-all p-6 text-center focus:outline-none">
-                <div className="grid size-11 place-items-center rounded-full bg-surface border border-line group-hover:border-primary/20 group-hover:bg-primary/10 group-hover:text-primary transition-all shadow-sm">
-                  <Plus className="size-5" />
-                </div>
-                <h3 className="mt-3 font-display font-semibold text-ink group-hover:text-primary transition-colors">
-                  Schedule Wash #{idx + 1}
-                </h3>
-                <p className="mt-1 text-xs text-muted">
-                  {expired ? "Renew your plan to schedule" : "Configure a cleaning slot"}
-                </p>
-              </button>
-            );
-          })}
-        </div>
+          {used > 0 && canSchedule && (
+            <button
+              type="button"
+              onClick={handleOpenSchedule}
+              disabled={busy}
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-line py-3 text-sm font-medium text-ink-soft transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary disabled:opacity-60">
+              <Plus className="size-4" />
+              Schedule wash #{used + 1}
+              {!unlimited && <span className="text-muted">· {remaining} left</span>}
+            </button>
+          )}
+        </section>
 
         {/* MODAL 1: Schedule Wash */}
         {isScheduleOpen && (
@@ -911,121 +912,151 @@ export function Subscriptions() {
         </GlassCard>
       )}
 
-      {/* MODAL: Subscription checkout */}
-      {checkoutPlan && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-5 backdrop-blur-sm">
-          <GlassCard className="w-full max-w-md border border-line shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-line pb-3">
-              <h3 className="font-display text-xl font-bold text-ink">
-                Confirm subscription
-              </h3>
-              <button
-                onClick={() => setCheckoutPlan(null)}
-                className="text-muted hover:text-ink">
-                <X className="size-5" />
-              </button>
-            </div>
-
-            <div>
-              <p className="font-display text-lg font-semibold text-ink">
-                {checkoutPlan.name}
-              </p>
-              <p className="text-sm text-muted">
-                {washesLabel(checkoutPlan.washesPerMonth)}
-                {vehicleType ? ` · ${categoryLabel(vehicleType)}` : ""}
-              </p>
-            </div>
-
-            {checkoutError && (
-              <div className="flex items-center gap-2 rounded-xl bg-red-50/15 border border-red-500/20 p-3.5 text-xs text-red-500">
-                <AlertCircle className="size-4 shrink-0" />
-                <span>{checkoutError}</span>
-              </div>
-            )}
-
-            {walletCoins > 0 && (
-              <button
-                type="button"
-                onClick={toggleSubCoins}
-                disabled={previewSub.isPending}
+      {/* Subscription checkout: bottom sheet on phones, dialog on larger screens. */}
+      {checkoutPlan &&
+        (() => {
+          const meta = PLAN_META[checkoutPlan.id] ?? DEFAULT_META;
+          const validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+          const coinSaving = subQuote?.coinDiscount ?? 0;
+          return (
+            <ScheduleSheet
+              title="Confirm your plan"
+              subtitle="Review what you're getting before you pay."
+              error={checkoutError}
+              onClose={() => !busy && setCheckoutPlan(null)}
+              footer={
+                <div className="space-y-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-sm text-muted">Due now</span>
+                    <span className="font-display text-2xl font-semibold text-ink" data-testid="checkout-total">
+                      {formatMoney(payableSub)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                    <Button
+                      variant="outline"
+                      className="min-h-12 sm:flex-1"
+                      onClick={() => setCheckoutPlan(null)}
+                      disabled={busy}>
+                      Not now
+                    </Button>
+                    <Button className="min-h-12 sm:flex-[1.6]" onClick={confirmSubscribe} disabled={busy}>
+                      {subProcessing ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" /> Processing…
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="size-4" /> Pay {formatMoney(payableSub)}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              }>
+              {/* The plan */}
+              <div
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all",
-                  subUseCoins
-                    ? "border-amber-400/50 bg-amber-400/10 ring-2 ring-amber-400/20"
-                    : "border-line bg-surface hover:border-amber-400/40",
+                  "rounded-3xl p-5",
+                  meta.featured
+                    ? "bg-gradient-to-br from-primary to-primary-soft text-white shadow-[var(--shadow-glow)]"
+                    : "border border-line bg-surface-muted/50",
                 )}>
-                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
-                  <Coins className="size-4.5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-ink">
-                    {subUseCoins
-                      ? "Coins applied"
-                      : `Use your ${walletCoins.toLocaleString("en-IN")} coins`}
-                  </p>
-                  <p className="text-xs text-muted">
-                    {subUseCoins && subQuote && subQuote.coinDiscount > 0
-                      ? `Saving ${formatMoney(subQuote.coinDiscount)} with coins`
-                      : "Redeem coins for a discount on this plan"}
-                  </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={cn("text-xs font-semibold uppercase tracking-wider", meta.featured ? "text-white/75" : "text-muted")}>
+                      {meta.tagline}
+                    </p>
+                    <p className="mt-1 font-display text-2xl font-semibold">{checkoutPlan.name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-display text-xl font-semibold">{formatMoney(priceForPlan(checkoutPlan))}</p>
+                    <p className={cn("text-xs", meta.featured ? "text-white/75" : "text-muted")}>per month</p>
+                  </div>
                 </div>
-                <span
+                <ul className="mt-4 grid gap-2 text-sm">
+                  {[washesLabel(checkoutPlan.washesPerMonth), ...meta.perks].map((f) => (
+                    <li key={f} className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "grid size-5 shrink-0 place-items-center rounded-full",
+                          meta.featured ? "bg-white/20" : "bg-primary/10 text-primary",
+                        )}>
+                        <Check className="size-3" />
+                      </span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <p className={cn("mt-4 border-t pt-3 text-xs", meta.featured ? "border-white/20 text-white/80" : "border-line text-muted")}>
+                  {vehicleType ? `For your ${categoryLabel(vehicleType)} · ` : ""}Valid for 30 days, until {validUntil}
+                </p>
+              </div>
+
+              {/* Coins */}
+              {walletCoins > 0 && (
+                <button
+                  type="button"
+                  onClick={toggleSubCoins}
+                  disabled={previewSub.isPending || busy}
+                  aria-pressed={subUseCoins}
                   className={cn(
-                    "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
+                    "flex w-full cursor-pointer items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all",
                     subUseCoins
-                      ? "bg-amber-500 justify-end"
-                      : "bg-line justify-start",
+                      ? "border-amber-400/50 bg-amber-400/10 ring-2 ring-amber-400/20"
+                      : "border-line bg-surface hover:border-amber-400/40",
                   )}>
-                  <span className="size-5 rounded-full bg-white shadow" />
-                </span>
-              </button>
-            )}
-
-            <dl className="space-y-2 border-t border-line pt-4 text-sm">
-              <div className="flex items-center justify-between">
-                <dt className="text-muted">Plan price</dt>
-                <dd className="font-medium text-ink">
-                  {formatMoney(priceForPlan(checkoutPlan))}/mo
-                </dd>
-              </div>
-              {subQuote && subQuote.coinDiscount > 0 && (
-                <div className="flex items-center justify-between">
-                  <dt className="text-muted">
-                    Coins ({subQuote.coinsRedeemed.toLocaleString("en-IN")})
-                  </dt>
-                  <dd className="font-medium text-amber-600">
-                    −{formatMoney(subQuote.coinDiscount)}
-                  </dd>
-                </div>
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600">
+                    {previewSub.isPending ? <Loader2 className="size-4 animate-spin" /> : <Coins className="size-4.5" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-ink">
+                      {subUseCoins ? "Coins applied" : `Use your ${walletCoins.toLocaleString("en-IN")} coins`}
+                    </p>
+                    <p className="text-xs text-muted">
+                      {subUseCoins && coinSaving > 0
+                        ? `Saving ${formatMoney(coinSaving)} on this plan`
+                        : "Pay part of the plan with your coins"}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
+                      subUseCoins ? "justify-end bg-amber-500" : "justify-start bg-line",
+                    )}>
+                    <span className="size-5 rounded-full bg-white shadow" />
+                  </span>
+                </button>
               )}
-              <div className="flex items-center justify-between border-t border-line pt-2">
-                <dt className="text-muted">Due now</dt>
-                <dd className="font-display text-xl font-semibold text-ink">
-                  {formatMoney(payableSub)}
-                </dd>
-              </div>
-            </dl>
 
-            <div className="flex gap-3 border-t border-line/50 pt-4">
-              <Button
-                className="flex-1"
-                onClick={confirmSubscribe}
-                disabled={busy}>
-                {subProcessing
-                  ? "Processing…"
-                  : `Pay ${formatMoney(payableSub)}`}
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setCheckoutPlan(null)}
-                disabled={busy}>
-                Cancel
-              </Button>
-            </div>
-          </GlassCard>
-        </div>
-      )}
+              {/* Breakdown — only when coins change the price; otherwise "Due now" says it all. */}
+              {coinSaving > 0 && (
+              <dl className="space-y-2 rounded-2xl border border-line p-4 text-sm">
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted">Plan price</dt>
+                  <dd className="font-medium text-ink">{formatMoney(priceForPlan(checkoutPlan))}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-muted">Coins ({subQuote!.coinsRedeemed.toLocaleString("en-IN")})</dt>
+                  <dd className="font-medium text-amber-600">−{formatMoney(coinSaving)}</dd>
+                </div>
+                <div className="flex items-center justify-between border-t border-line pt-2">
+                  <dt className="font-medium text-ink">Total</dt>
+                  <dd className="font-display text-lg font-semibold text-ink">{formatMoney(payableSub)}</dd>
+                </div>
+              </dl>
+              )}
+              <p className="flex items-start gap-1.5 text-xs text-muted">
+                <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
+                Secure payment. Schedule your washes right after paying.
+              </p>
+            </ScheduleSheet>
+          );
+        })()}
     </div>
   );
 }

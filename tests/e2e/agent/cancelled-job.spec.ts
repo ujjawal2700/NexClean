@@ -59,3 +59,21 @@ test.describe("A job cancelled while the cleaner is on it", () => {
     await expect(page.locator(`a[href="/agent/jobs/${bookingId}"]`)).toHaveCount(0); // not under "Active"
   });
 });
+
+test.describe("Cancellation reaches an open job screen live", () => {
+  test("an admin cancelling the job flips the cleaner's screen without a refresh", async ({ page, request }) => {
+    test.setTimeout(90_000);
+    const { bookingId } = await seedAssignedJob(request);
+    await loginAgentUI(page, SEED_AGENT_PHONE);
+    await page.goto(`/agent/jobs/${bookingId}`);
+    await expect(page.getByTestId("release-job")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("job-cancelled")).toHaveCount(0);
+
+    const { token: adminToken } = await loginAsAdmin(request);
+    const cancel = await request.patch(apiUrl(`/admin/bookings/${bookingId}/cancel`), { headers: authHeader(adminToken) });
+    expect(cancel.ok()).toBeTruthy();
+
+    // No reload — the socket event / notification refreshes it.
+    await expect(page.getByTestId("job-cancelled")).toBeVisible({ timeout: 10_000 });
+  });
+});

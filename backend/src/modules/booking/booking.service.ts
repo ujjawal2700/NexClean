@@ -20,6 +20,7 @@ import { toPoint } from "../../shared/geo";
 import { broadcastJobStatus, forgetAgentBookings } from "../tracking/tracking.service";
 import type { CreateBookingInput } from "./booking.validation";
 import { queueCancellationRefund } from "../refund/refund.service";
+import { tellAgentJobCancelled } from "./jobCancelled";
 
 /** The wall-clock instant a slot begins on a given date — used for lead-time checks. */
 function slotStart(date: Date, slot: string): Date {
@@ -388,6 +389,13 @@ export async function cancelBooking(userId: string, bookingId: string) {
   if (booking.status !== "upcoming") {
     throw ApiError.badRequest("Only upcoming bookings can be cancelled");
   }
+  // Once the cleaner is working on the car the service is being delivered;
+  // stopping it is a support conversation, not a button.
+  if (booking.jobStatus === "in_progress") {
+    throw ApiError.badRequest(
+      "Cleaning has already started, so this booking can't be cancelled. Contact support if something's wrong.",
+    );
+  }
   if (booking.isSubscriptionWash) {
     const diffMs = new Date(booking.date).getTime() - Date.now();
     if (diffMs < 12 * 60 * 60 * 1000) {
@@ -406,14 +414,7 @@ export async function cancelBooking(userId: string, bookingId: string) {
   // A cleaner already assigned to this job may be on their way to it. Telling
   // them only over a socket they might not be connected to is how someone ends
   // up driving to a cancelled booking.
-  if (booking.assignedAgent) {
-    void notifyUser(String(booking.assignedAgent), {
-      type: "booking",
-      title: "❌ Job cancelled",
-      body: `${booking.packageName} · ${booking.slot} was cancelled by the customer.`,
-      data: { bookingId: String(booking._id), role: "agent" },
-    }).catch((err) => console.error("cancel notification failed:", (err as Error).message));
-  }
+  tellAgentJobCancelled(booking.assignedAgent ? String(booking.assignedAgent) : null, booking, "customer");
 
   // The customer's own receipt of the cancellation, and so a second signed-in
   // device stays in sync without needing to reopen the tracking screen.

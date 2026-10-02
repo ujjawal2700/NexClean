@@ -8,10 +8,10 @@
  * latency stays usable, and whether anything degrades or errors under pressure.
  *
  * Run against a throwaway backend only:
- *   API=http://127.0.0.1:4000/api node volume.mjs
+ *   API=http://127.0.0.1:4400/api node volume.mjs
  *   API=... DURATION=30 CONCURRENCY=50 node volume.mjs
  */
-const API = process.env.API ?? "http://127.0.0.1:4000/api";
+const API = process.env.API ?? "http://127.0.0.1:4400/api"; // test port, never the dev :4000
 const DEMO_OTP = process.env.DEMO_OTP ?? "123456";
 const DURATION_S = Number(process.env.DURATION ?? 20);
 const CONCURRENCY = Number(process.env.CONCURRENCY ?? 30);

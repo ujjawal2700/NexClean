@@ -163,18 +163,29 @@ test.describe("Admin — dashboard & bookings", () => {
       expect((await res.json()).message).toBe("Invalid status");
     });
 
-    test("PATCH /admin/bookings/:id/status walks upcoming → in_progress → completed → cancelled", async ({ request }) => {
+    test("PATCH /admin/bookings/:id/status walks upcoming → in_progress → completed, and a completed booking can't be cancelled", async ({ request }) => {
       const { token: customerToken } = await loginAsNewCustomerApi(request);
       const bookingId = await createUnlocatedBooking(request, customerToken);
       const { token: adminToken } = await loginAsAdminApi(request);
 
-      for (const status of ["in_progress", "completed", "cancelled"] as const) {
+      for (const status of ["in_progress", "completed"] as const) {
         const res = await request.patch(apiUrl(`/admin/bookings/${bookingId}/status`), {
           headers: authHeader(adminToken),
           data: { status },
         });
         expect(res.ok()).toBeTruthy();
         expect((await res.json()).data.status).toBe(status);
+      }
+
+      // The service happened: cancelling would queue its payment as a refund
+      // owed. A goodwill refund goes through Payments → Refund instead.
+      for (const path of [`/admin/bookings/${bookingId}/status`, `/admin/bookings/${bookingId}/cancel`]) {
+        const res = await request.patch(apiUrl(path), {
+          headers: authHeader(adminToken),
+          data: path.endsWith("/status") ? { status: "cancelled" } : undefined,
+        });
+        expect(res.status(), path).toBe(400);
+        expect((await res.json()).message).toContain("already completed");
       }
     });
 

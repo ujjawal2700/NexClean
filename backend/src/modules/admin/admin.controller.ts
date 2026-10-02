@@ -921,6 +921,10 @@ export async function payoutRequests(req: Request, res: Response): Promise<Respo
   return ok(res, await payoutRequestService.listAllPayoutRequests(status));
 }
 
+export async function payoutRequestDetail(req: Request, res: Response): Promise<Response> {
+  return ok(res, await payoutRequestService.getPayoutRequestDetail(String(req.params.id)));
+}
+
 export async function approvePayoutRequest(req: Request, res: Response): Promise<Response> {
   return ok(
     res,
@@ -1283,6 +1287,10 @@ export async function refunds(req: Request, res: Response): Promise<Response> {
   return ok(res, await refundService.listRefunds(filter));
 }
 
+export async function refundDetail(req: Request, res: Response): Promise<Response> {
+  return ok(res, await refundService.getRefundDetail(String(req.params.id)));
+}
+
 export async function approveRefund(req: Request, res: Response): Promise<Response> {
   await refundService.approveRefund(String(req.params.id), req.userId!);
   return ok(res, { id: String(req.params.id), status: "approved" }, "Refund sent");
@@ -1294,4 +1302,21 @@ export async function rejectRefund(req: Request, res: Response): Promise<Respons
   if (!parsed.success) throw ApiError.badRequest("Reason must be under 300 characters");
   await refundService.rejectRefund(String(req.params.id), req.userId!, parsed.data.note ?? "");
   return ok(res, { id: String(req.params.id), status: "rejected" }, "Refund declined");
+}
+
+/* --------------------------- Attention badges ---------------------------- */
+
+import { PayoutRequest } from "../payout/payoutRequest.model";
+import { RefundRequest } from "../refund/refundRequest.model";
+import { countAwaitingSupport } from "../chat/chat.service";
+
+/** How many items in each queue are waiting on an admin — for the sidebar badges. */
+export async function attentionCounts(_req: Request, res: Response): Promise<Response> {
+  const [payoutRequests, refunds, supportChats] = await Promise.all([
+    // Approved-but-unpaid still needs someone to send the money.
+    PayoutRequest.countDocuments({ status: { $in: ["pending", "approved"] } }),
+    RefundRequest.countDocuments({ status: "pending" }),
+    countAwaitingSupport(),
+  ]);
+  return ok(res, { payoutRequests, refunds, supportChats });
 }

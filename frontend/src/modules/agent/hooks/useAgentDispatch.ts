@@ -110,7 +110,19 @@ export function useAgentDispatch(): AgentDispatch {
     // Socket events are ephemeral. Reconcile with the authoritative REST
     // state after every connect/reconnect so a brief mobile network handoff
     // cannot make a valid offer invisible for its entire timeout.
-    socket.on("connect", () => checkOfferRef.current());
+    const refreshJobs = () => {
+      qc.invalidateQueries({ queryKey: jobsKey });
+      qc.invalidateQueries({ queryKey: summaryKey });
+    };
+    // A reconnect may have missed events (e.g. a cancellation while the phone
+    // was locked), so re-read the jobs as well as any pending offer.
+    socket.on("connect", () => {
+      checkOfferRef.current();
+      refreshJobs();
+    });
+
+    // A job of ours was cancelled — flip it now, not on the next refresh.
+    socket.on("job_cancelled", refreshJobs);
 
     socket.on("job_offer", (o: JobOffer) => {
       offerEventVersionRef.current += 1;
@@ -135,7 +147,15 @@ export function useAgentDispatch(): AgentDispatch {
       qc.invalidateQueries({ queryKey: summaryKey });
     });
 
+    // Coming back to the app (unlock, app switch): catch up on anything the
+    // socket couldn't deliver while the web view was suspended.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshJobs();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
+      document.removeEventListener("visibilitychange", onVisible);
       socket.disconnect();
       socketRef.current = null;
     };

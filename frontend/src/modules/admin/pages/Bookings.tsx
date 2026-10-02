@@ -290,7 +290,13 @@ function StatusCell({ booking }: { booking: AdminBooking }) {
         BOOKING_STATUS_STYLE[booking.status],
       )}>
       {STATUS_OPTIONS.map((s) => (
-        <option key={s.id} value={s.id}>
+        // A completed job can't be cancelled — the service happened. A goodwill
+        // refund goes through Payments → Refund.
+        <option
+          key={s.id}
+          value={s.id}
+          disabled={booking.status === "completed" && s.id === "cancelled"}
+        >
           {s.label}
         </option>
       ))}

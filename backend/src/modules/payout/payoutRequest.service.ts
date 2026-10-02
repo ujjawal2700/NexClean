@@ -117,6 +117,68 @@ export async function listAllPayoutRequests(status?: string) {
   return requests.map((r) => r.toJSON());
 }
 
+/**
+ * Everything an admin needs to pay a request by hand: the cleaner, the bank
+ * account the money goes to (as snapshotted at request time), where their
+ * balance stands, and their recent payout history. Flags when the cleaner's
+ * bank details have changed since they asked, so nobody pays a stale account
+ * without noticing.
+ */
+export async function getPayoutRequestDetail(id: string) {
+  if (!Types.ObjectId.isValid(id)) throw ApiError.notFound("Payout request not found");
+  const request = await PayoutRequest.findById(id).populate("processedBy", "name");
+  if (!request) throw ApiError.notFound("Payout request not found");
+
+  const agent = await User.findById(request.agent).select("name phone email area agentStatus bankAccount createdAt");
+  const json = request.toJSON() as Record<string, unknown>;
+  const processedBy = request.processedBy as unknown as { name?: string } | null;
+
+  let wallet: { totalEarned: number; paidOut: number; reserved: number; available: number } | null = null;
+  let history: { id: string; amount: number; status: string; createdAt: unknown; transactionRef: string }[] = [];
+  if (agent) {
+    const summary = await getWalletSummary(String(agent._id));
+    const all = await PayoutRequest.find({ agent: agent._id }).sort({ createdAt: -1 }).limit(6).lean();
+    const paidOut = (await PayoutRequest.find({ agent: agent._id, status: "paid" }).select("amount").lean()).reduce(
+      (s, r) => s + r.amount,
+      0,
+    );
+    wallet = { totalEarned: summary.totalEarned, paidOut, reserved: summary.reserved, available: summary.available };
+    history = all
+      .filter((r) => String(r._id) !== id)
+      .slice(0, 5)
+      .map((r) => ({
+        id: String(r._id),
+        amount: r.amount,
+        status: r.status,
+        createdAt: r.createdAt,
+        transactionRef: r.transactionRef ?? "",
+      }));
+  }
+
+  const snap = request.bankSnapshot;
+  const current = agent?.bankAccount as { accountNumber?: string; ifsc?: string } | null | undefined;
+  const bankChanged = !!current && (current.accountNumber !== snap.accountNumber || current.ifsc !== snap.ifsc);
+
+  return {
+    ...json,
+    processedByName: processedBy?.name ?? null,
+    agent: agent
+      ? {
+          id: String(agent._id),
+          name: agent.name,
+          phone: agent.phone,
+          email: agent.email ?? "",
+          area: agent.area ?? "",
+          status: agent.agentStatus ?? "",
+          joinedAt: agent.get("createdAt") as Date,
+        }
+      : null,
+    wallet,
+    history,
+    bankChangedSinceRequest: bankChanged,
+  };
+}
+
 async function getRequestOrThrow(id: string): Promise<PayoutRequestDocument> {
   const request = await PayoutRequest.findById(id);
   if (!request) throw ApiError.notFound("Payout request not found");

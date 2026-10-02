@@ -226,3 +226,36 @@ function isStandalone(): boolean {
 export function needsHomeScreenForPush(): boolean {
   return isIos() && !isStandalone();
 }
+
+/**
+ * Bridge for the store apps (Flutter web view). Web push doesn't exist inside
+ * an app's web view on iOS, so the app gets its own native FCM token (with
+ * APNs) and hands it to the page:
+ *
+ *   window.registerNativePushToken("<fcm token>")
+ *
+ * Call it once the page has loaded and again whenever the token refreshes. It
+ * saves the token (so the next sign-in registers it too) and, if someone is
+ * signed in, registers it for them right away. Resolves true when registered.
+ *
+ * Before this, the page only registered once at load, using whatever token
+ * happened to be saved already — an app that saved its token a moment later
+ * left the account with a placeholder, and the server had nothing to send to.
+ */
+export function installNativePushBridge(register: (token: string) => Promise<unknown>): void {
+  if (typeof window === "undefined") return;
+  const w = window as unknown as { registerNativePushToken?: (token: string) => Promise<boolean> };
+  w.registerNativePushToken = async (token: string) => {
+    const t = typeof token === "string" ? token.trim() : "";
+    if (t.length < 8) return false;
+    saveDeviceToken(t);
+    try {
+      await register(t);
+      return true;
+    } catch {
+      // Not signed in yet — the saved token is registered on sign-in.
+      return false;
+    }
+  };
+  window.dispatchEvent(new Event("nexclean:push-bridge-ready"));
+}
