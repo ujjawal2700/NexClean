@@ -35,6 +35,7 @@ import {
 import { AreaAlertCard } from "../components/AreaAlertCard";
 import { JobNavigationCard } from "../components/JobNavigationCard";
 import { useDeviceLocation } from "../hooks/useDeviceLocation";
+import { navigationUrl, addressSearchUrl, navigationLinkProps } from "@shared/lib/maps";
 
 type PhotoKind = "before" | "after";
 
@@ -288,13 +289,9 @@ export function JobDetail() {
             </div>
             <Button asChild variant="ghost" size="sm">
               <a
-                href={
-                  job.coordinates
-                    ? `https://www.google.com/maps/dir/?api=1&destination=${job.coordinates.lat},${job.coordinates.lng}`
-                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.addressLine)}`
-                }
-                target="_blank"
-                rel="noreferrer"
+                {...navigationLinkProps(
+                  job.coordinates ? navigationUrl(job.coordinates) : addressSearchUrl(job.addressLine),
+                )}
                 data-testid="job-direct-navigate"
               >
                 <Navigation className="size-4" /> Navigate

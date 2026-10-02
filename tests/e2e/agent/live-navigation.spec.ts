@@ -93,3 +93,30 @@ test.describe("Agent live navigation", () => {
     expect(href).toContain("google.com/maps/search");
   });
 });
+
+test.describe("Navigate on an Android phone", () => {
+  // Chrome on Android. A plain https link opened Google's website in an
+  // overlay inside the web app, and Back from Maps returned to that page
+  // instead of the job; an intent link hands off to the Maps app directly.
+  test.use({
+    userAgent:
+      "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36",
+    viewport: { width: 390, height: 844 },
+  });
+
+  test("opens the Google Maps app directly, with a web fallback, in the same tab", async ({ page, request }) => {
+    const { bookingId } = await seedAssignedJob(request);
+    await loginAgentUI(page, SEED_AGENT_PHONE);
+    await page.goto(`/agent/jobs/${bookingId}`);
+
+    const navigate = page.getByTestId("job-navigate");
+    await expect(navigate).toBeVisible({ timeout: 15_000 });
+    const href = (await navigate.getAttribute("href")) ?? "";
+    expect(href).toMatch(/^intent:\/\/www\.google\.com\/maps\/dir\/\?api=1&destination=/);
+    expect(href).toContain("package=com.google.android.apps.maps");
+    expect(href).toContain(`S.browser_fallback_url=${encodeURIComponent("https://www.google.com/maps/dir/")}`);
+    expect(href.endsWith(";end")).toBe(true);
+    // No new tab: the job screen must stay where Back returns to.
+    expect(await navigate.getAttribute("target")).toBeNull();
+  });
+});

@@ -5,7 +5,7 @@ import { Button } from "@shared/ui/Button";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { LiveTrackingMap, type RouteInfo } from "@shared/components/map/LiveTrackingMap";
 import { useLiveTracking } from "@shared/hooks/useLiveTracking";
-import { formatDistance, navigationUrl, type LatLng } from "@shared/lib/maps";
+import { formatDistance, navigationUrl, addressSearchUrl, navigationLinkProps, type LatLng } from "@shared/lib/maps";
 import type { JobStatus } from "../types";
 import { useDeviceLocation } from "../hooks/useDeviceLocation";
 
@@ -109,13 +109,9 @@ export function JobNavigationCard({
       <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3 sm:px-5">
         <Button asChild size="sm" className="flex-1 sm:flex-none">
           <a
-            href={
-              destination
-                ? navigationUrl(destination, self)
-                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fallbackAddress)}`
-            }
-            target="_blank"
-            rel="noreferrer"
+            {...navigationLinkProps(
+              destination ? navigationUrl(destination, self) : addressSearchUrl(fallbackAddress),
+            )}
             data-testid="job-navigate"
           >
             <Navigation className="size-4" /> Navigate

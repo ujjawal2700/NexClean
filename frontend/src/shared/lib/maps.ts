@@ -178,6 +178,35 @@ export function navigationUrl(destination: LatLng, origin?: LatLng | null): stri
   return `https://www.google.com/maps/dir/?api=1&destination=${dest}${from}&travelmode=driving`;
 }
 
+/** Google Maps search for a written address — used when a booking has no map pin. */
+export function addressSearchUrl(address: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+}
+
+/**
+ * Props for a "Navigate" link that opens the Maps app without leaving the
+ * NexClean screen behind a web page.
+ *
+ * A plain https link with target="_blank" loaded Google's website in a browser
+ * overlay inside the Android web app; that page then offered "Open the Google
+ * Maps app?", and pressing Back from Maps returned to the leftover overlay
+ * instead of the job screen. On Android an intent:// link hands the trip
+ * straight to the Maps app — no page in between, so Back lands on the job — and
+ * falls back to the website when Maps isn't installed. Other platforms keep
+ * the https link in a new tab, which iOS hands to Google/Apple Maps itself.
+ */
+export function navigationLinkProps(webUrl: string): { href: string; target?: string; rel?: string } {
+  const android = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+  if (!android) return { href: webUrl, target: "_blank", rel: "noreferrer" };
+  const url = new URL(webUrl);
+  return {
+    href:
+      `intent://${url.host}${url.pathname}${url.search}` +
+      `#Intent;scheme=https;package=com.google.android.apps.maps;` +
+      `S.browser_fallback_url=${encodeURIComponent(webUrl)};end`,
+  };
+}
+
 /* ----------------------------- map appearance ----------------------------- */
 
 /**
