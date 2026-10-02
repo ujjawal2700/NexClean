@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { API_BASE_URL } from "../../playwright.config";
 import { LEGAL_ACCEPTANCE, freshPhone } from "../../fixtures/api-client";
+import { loginCustomerUI } from "../../fixtures/ui-helpers";
 
 // A shared invite (https://nexclean.in/referral?code=CODE) — opened in a
 // browser, i.e. without the app — lands on sign-up with the code applied and
@@ -37,5 +38,49 @@ test.describe("Referral invite link", () => {
       const body = JSON.parse(await res.text());
       expect(JSON.stringify(body)).toContain("com.nexclean.customer");
     }
+  });
+});
+
+// Inside the Flutter app's web view there is no navigator.share and the
+// Clipboard API is often blocked; Share must still get the invite out.
+test.describe("Refer & Earn share inside the app's web view", () => {
+  test("with no share sheet or clipboard API, the invite link is copied and confirmed", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+      Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+      (window as unknown as { __copied: string[] }).__copied = [];
+      const original = document.execCommand.bind(document);
+      document.execCommand = (cmd: string, ...rest: unknown[]) => {
+        if (cmd === "copy") {
+          const el = document.activeElement as HTMLTextAreaElement | null;
+          (window as unknown as { __copied: string[] }).__copied.push(el?.value ?? "");
+          return true;
+        }
+        return original(cmd, ...(rest as []));
+      };
+    });
+    await loginCustomerUI(page);
+    await page.goto("/app/profile/refer");
+    await page.getByRole("button", { name: "Share" }).click();
+    await expect(page.getByText("Invite link copied")).toBeVisible();
+    const copied = await page.evaluate(() => (window as unknown as { __copied: string[] }).__copied.join("\n"));
+    expect(copied).toMatch(/https:\/\/nexclean\.in\/referral\?code=[A-Z0-9]+/);
+  });
+
+  test("hands the invite to the app's native share sheet when the app provides the bridge", async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __shared: string[] }).__shared = [];
+      (window as unknown as { NexCleanShare: { postMessage: (m: string) => void } }).NexCleanShare = {
+        postMessage: (m) => (window as unknown as { __shared: string[] }).__shared.push(m),
+      };
+    });
+    await loginCustomerUI(page);
+    await page.goto("/app/profile/refer");
+    await page.getByRole("button", { name: "Share" }).click();
+    const shared = await page.evaluate(() => (window as unknown as { __shared: string[] }).__shared);
+    expect(shared).toHaveLength(1);
+    const payload = JSON.parse(shared[0]);
+    expect(payload.url).toMatch(/^https:\/\/nexclean\.in\/referral\?code=[A-Z0-9]+$/);
+    expect(payload.text).toContain("referral code");
   });
 });

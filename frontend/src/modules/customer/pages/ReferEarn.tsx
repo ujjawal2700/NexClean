@@ -6,6 +6,7 @@ import { Button } from "@shared/ui/Button";
 import { formatMoney } from "@shared/lib/format";
 import { useReferralSummary } from "../api/queries";
 import { referralInviteUrl } from "@shared/lib/site";
+import { shareOrCopy, copyText } from "@shared/lib/share";
 
 export function ReferEarn() {
   const navigate = useNavigate();
@@ -15,31 +16,28 @@ export function ReferEarn() {
   const rewarded = friends.filter((f) => f.stage === "rewarded").length;
   const waiting = friends.filter((f) => f.stage === "joined").length;
 
-  const copyReferralCode = () => {
+  // What happened after Share when no share sheet was available.
+  const [shareNote, setShareNote] = useState<"copied" | "failed" | null>(null);
+  const inviteLink = referrals?.referralCode ? referralInviteUrl(referrals.referralCode) : "";
+
+  const copyReferralCode = async () => {
     if (!referrals?.referralCode) return;
-    navigator.clipboard.writeText(referrals.referralCode).then(() => {
+    if (await copyText(referrals.referralCode)) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
-    });
+    }
   };
 
-  const shareCode = () => {
+  const shareCode = async () => {
     if (!referrals?.referralCode) return;
     // The link opens the NexClean app when installed (sign-up with the code
     // applied), or sign-up on the web otherwise.
-    const link = referralInviteUrl(referrals.referralCode);
-    const text = `Get a sparkling clean car with doorstep wash from NexClean! Sign up with my referral code ${referrals.referralCode}:`;
-    if (navigator.share) {
-      navigator.share({ title: "Join NexClean!", text, url: link }).catch(() => {
-        /* dismissed */
-      });
-    } else {
-      // No share sheet (some in-app web views): copy the whole invite instead.
-      navigator.clipboard.writeText(`${text} ${link}`).then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1800);
-      });
-    }
+    const outcome = await shareOrCopy({
+      title: "Join NexClean!",
+      text: `Get a sparkling clean car with doorstep wash from NexClean! Sign up with my referral code ${referrals.referralCode}:`,
+      url: inviteLink,
+    });
+    setShareNote(outcome === "shared" ? null : outcome);
   };
 
   return (
@@ -91,6 +89,23 @@ export function ReferEarn() {
               <Share2 className="size-4" />
             </Button>
           </div>
+          {shareNote === "copied" && (
+            <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-600" role="status">
+              <Check className="size-3.5" /> Invite link copied — paste it into WhatsApp or a message.
+            </p>
+          )}
+          {shareNote === "failed" && (
+            <div className="mt-3 space-y-1.5" role="status">
+              <p className="text-xs text-muted">Copy this invite link and send it to your friends:</p>
+              <input
+                readOnly
+                value={inviteLink}
+                onFocus={(e) => e.currentTarget.select()}
+                className="h-10 w-full select-text rounded-xl border border-line bg-surface px-3 text-sm text-ink"
+                aria-label="Invite link"
+              />
+            </div>
+          )}
         </GlassCard>
 
         {/* Card 2: Coin balance */}
