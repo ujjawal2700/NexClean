@@ -56,8 +56,9 @@ export function TrackBooking() {
     setCancelError("");
     try {
       await cancelBooking.mutateAsync(id);
+      // The app-wide cancellation popup takes it from here and sends the
+      // customer to the dashboard once they've acknowledged it.
       setConfirmingCancel(false);
-      navigate("/app/bookings");
     } catch (e) {
       // A cancel can be legitimately refused — a subscription wash inside its
       // 12-hour window, for instance. Saying so is the whole point: the button

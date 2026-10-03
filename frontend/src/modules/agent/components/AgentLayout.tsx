@@ -15,6 +15,7 @@ import {
 import { useAgentDispatch } from "../hooks/useAgentDispatch";
 import { requestCurrentDeviceFix } from "../hooks/useDeviceLocation";
 import { OfferOverlay } from "./OfferOverlay";
+import { BookingCancelledDialog } from "@shared/components/BookingCancelledDialog";
 import { AnimatePresence } from "motion/react";
 
 const HEARTBEAT_INTERVAL_MS = 25_000;
@@ -169,6 +170,18 @@ export function AgentLayout({ children }: { children: ReactNode }) {
     <div className="min-h-dvh overflow-x-clip bg-bg">
       {/* Incoming-offer popup — rendered above everything, on every page. */}
       <OfferOverlay dispatch={dispatch} />
+
+      {/* A job of ours was cancelled by the customer or an admin. */}
+      {dispatch.cancelledJobId && (
+        <BookingCancelledDialog
+          title="Job cancelled"
+          description="This job has been cancelled. You don't need to go — you're free to take new jobs."
+          onConfirm={() => {
+            dispatch.dismissCancelled();
+            navigate("/agent", { replace: true });
+          }}
+        />
+      )}
 
       {/* Header top bar */}
       <header className="sticky top-0 z-30 hidden border-b border-line/70 bg-surface/80 backdrop-blur-xl md:block">

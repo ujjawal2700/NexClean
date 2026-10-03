@@ -234,6 +234,63 @@ test.describe("Agent", () => {
     expect(declineAgain.ok()).toBeTruthy();
   });
 
+  test("customer cancelling while an offer is pending frees the agent instead of leaving them locked to it", async ({ request }) => {
+    // Earlier tests here leave their agents online at these same coordinates;
+    // an idle one would tie at 0 m and could take the offer this test waits for.
+    for (const token of freshAgentTokens) {
+      await request.patch("/agent/online", { headers: authHeader(token), data: { online: false } });
+    }
+    const { token: agentToken } = await createFreshVerifiedAgent(request);
+    await goOnlineNear(request, agentToken);
+
+    const { token: customerToken } = await loginAsNewCustomer(request);
+    const packageId = await firstPackageId(request);
+    const book = async (vehicleName: string) =>
+      (
+        await (
+          await request.post("/bookings", {
+            headers: authHeader(customerToken),
+            data: {
+              vehicleType: "hatchback",
+              vehicleName,
+              packageId,
+              date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              slot: "11:00 AM",
+              addressLabel: "Home",
+              addressLine: "123 Test Street",
+              lat: DISPATCH_LAT,
+              lng: DISPATCH_LNG,
+            },
+          })
+        ).json()
+      ).data.id as string;
+    const waitForOffer = async (bookingId: string) => {
+      for (let i = 0; i < 30; i++) {
+        const body = await (await request.get("/agent/offers/current", { headers: authHeader(agentToken) })).json();
+        if (body.data?.bookingId === bookingId) return true;
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      return false;
+    };
+
+    const first = await book("Cancel Mid-Offer Car");
+    expect(await waitForOffer(first), "agent never received the first offer").toBe(true);
+
+    const cancel = await request.patch(`/bookings/${first}/cancel`, { headers: authHeader(customerToken) });
+    expect(cancel.ok()).toBeTruthy();
+
+    // The popup's source of truth no longer reports the dead offer...
+    const current = await (await request.get("/agent/offers/current", { headers: authHeader(agentToken) })).json();
+    expect(current.data).toBeNull();
+    // ...and a stale popup can't be used to accept the cancelled job.
+    const accept = await request.post(`/agent/offers/${first}/accept`, { headers: authHeader(agentToken) });
+    expect(accept.ok()).toBeFalsy();
+
+    // The agent's offer lock was released, so the next job can reach them.
+    const second = await book("After Cancel Car");
+    expect(await waitForOffer(second), "agent stayed locked to the cancelled booking").toBe(true);
+  });
+
   test.afterAll(async ({ request }) => {
     for (const token of freshAgentTokens) {
       await request.patch("/agent/online", { headers: authHeader(token), data: { online: false } });

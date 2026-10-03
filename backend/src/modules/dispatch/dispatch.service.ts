@@ -278,6 +278,7 @@ export async function acceptOffer(agentId: string, bookingId: string) {
   const booking = await Booking.findOneAndUpdate(
     {
       _id: bookingId,
+      status: "upcoming",
       dispatchStatus: "offered",
       currentOfferAgent: agentId,
       offerExpiresAt: { $gt: now },
@@ -296,7 +297,10 @@ export async function acceptOffer(agentId: string, bookingId: string) {
     { new: true },
   ).populate("user", "name");
 
-  if (!booking) throw ApiError.badRequest("This job is no longer available");
+  if (!booking) {
+    await releaseDeadOfferLock(agentId);
+    throw ApiError.badRequest("This job is no longer available");
+  }
 
   await User.updateOne({ _id: agentId }, { currentOfferBooking: null });
   await onAssigned(booking, { id: String(agent._id), name: agent.name });
@@ -402,13 +406,33 @@ export async function releaseJob(agentId: string, bookingId: string, reason: str
 }
 
 /** The current live offer for an agent (used to restore the popup on reconnect). */
+/**
+ * Clear an offer lock that points at a booking which no longer exists or is
+ * already cancelled/completed. Such a lock makes the cleaner invisible to
+ * dispatch ("reviewing another job") indefinitely. Only a dead booking is
+ * released: a live one may be mid-way between the agent lock and the booking
+ * claim in offerNext, and clearing it there would break that handshake.
+ */
+async function releaseDeadOfferLock(agentId: string): Promise<void> {
+  const agent = await User.findById(agentId).select("currentOfferBooking");
+  const held = agent?.currentOfferBooking;
+  if (!held) return;
+  const live = await Booking.exists({ _id: held, status: "upcoming" });
+  if (live) return;
+  await User.updateOne({ _id: agentId, currentOfferBooking: held }, { currentOfferBooking: null });
+}
+
 export async function getOfferForAgent(agentId: string) {
   const booking = await Booking.findOne({
+    status: "upcoming",
     dispatchStatus: "offered",
     currentOfferAgent: agentId,
     offerExpiresAt: { $gt: new Date() },
   }).populate("user", "name");
-  if (!booking) return null;
+  if (!booking) {
+    await releaseDeadOfferLock(agentId);
+    return null;
+  }
 
   const point = bookingPoint(booking);
   const agent = await User.findById(agentId).select("liveLocation");

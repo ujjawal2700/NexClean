@@ -83,6 +83,9 @@ export type AgentDispatch = {
   error: string | null;
   /** Whether we're actively streaming GPS (agent online + permission granted). */
   locating: boolean;
+  /** A job of ours that was just cancelled and hasn't been acknowledged yet. */
+  cancelledJobId: string | null;
+  dismissCancelled: () => void;
 };
 
 /**
@@ -116,6 +119,8 @@ export function useAgentDispatch(): AgentDispatch {
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
+  const [cancelledJobId, setCancelledJobId] = useState<string | null>(null);
+  const activeJobIdsRef = useRef<Set<string> | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const checkOfferRef = useRef<() => void>(() => {});
   const offerEventVersionRef = useRef(0);
@@ -145,8 +150,11 @@ export function useAgentDispatch(): AgentDispatch {
       refreshJobs();
     });
 
-    // A job of ours was cancelled — flip it now, not on the next refresh.
-    socket.on("job_cancelled", refreshJobs);
+    // A job of ours was cancelled — tell the cleaner now, not on the next refresh.
+    socket.on("job_cancelled", ({ bookingId }: { bookingId: string }) => {
+      if (bookingId) setCancelledJobId(bookingId);
+      refreshJobs();
+    });
 
     socket.on("job_offer", (o: JobOffer) => {
       offerEventVersionRef.current += 1;
@@ -183,6 +191,21 @@ export function useAgentDispatch(): AgentDispatch {
       socketRef.current = null;
     };
   }, [authenticated, qc]);
+
+  // Catch cancellations the socket never delivered (phone locked, reconnect):
+  // any job we last saw as live that the server now reports cancelled. The
+  // first load only records a baseline, so old cancellations don't pop up.
+  useEffect(() => {
+    const isLive = (s: string) => s === "assigned" || s === "enroute" || s === "arrived" || s === "in_progress";
+    const prev = activeJobIdsRef.current;
+    if (prev) {
+      const justCancelled = jobs.find((j) => j.status === "cancelled" && prev.has(j.id));
+      if (justCancelled) setCancelledJobId(justCancelled.id);
+    }
+    activeJobIdsRef.current = new Set(jobs.filter((j) => isLive(j.status)).map((j) => j.id));
+  }, [jobs]);
+
+  const dismissCancelled = useCallback(() => setCancelledJobId(null), []);
 
   // Restore a live offer that arrived while the app was closed/reconnecting or on tab focus.
   useEffect(() => {
@@ -297,5 +320,5 @@ export function useAgentDispatch(): AgentDispatch {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the offer's identity, not the object
   }, [offerKey]);
 
-  return { offer, accept, decline, accepting, error, locating };
+  return { offer, accept, decline, accepting, error, locating, cancelledJobId, dismissCancelled };
 }

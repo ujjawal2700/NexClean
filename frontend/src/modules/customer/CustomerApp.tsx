@@ -25,6 +25,7 @@ import { HelpSupport } from "./pages/HelpSupport";
 import { TrackBooking } from "./pages/tracking/TrackBooking";
 import { CustomerNotFound } from "./pages/NotFound";
 import { ServiceCompletedDialog } from "./components/ServiceCompletedDialog";
+import { BookingCancelledDialog } from "@shared/components/BookingCancelledDialog";
 import { useSessionStore } from "./store/sessionStore";
 import { bookingsKey, notificationsKey } from "./api/queries";
 import type { Booking } from "./types";
@@ -45,6 +46,7 @@ type BookingProgress = {
 function CustomerCompletionListener() {
   const authenticated = useSessionStore((s) => s.authenticated);
   const [completedBookingId, setCompletedBookingId] = useState<string | null>(null);
+  const [cancelledBookingId, setCancelledBookingId] = useState<string | null>(null);
   const activeBookingIds = useRef(new Set<string>());
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -70,6 +72,10 @@ function CustomerCompletionListener() {
             (b) => b.status === "completed" && activeBookingIds.current.has(b.id),
           );
           if (newlyCompleted) setCompletedBookingId(newlyCompleted.id);
+          const newlyCancelled = bookings.find(
+            (b) => b.status === "cancelled" && activeBookingIds.current.has(b.id),
+          );
+          if (newlyCancelled) setCancelledBookingId(newlyCancelled.id);
         }
         activeBookingIds.current = nextActive;
       } catch {
@@ -90,10 +96,20 @@ function CustomerCompletionListener() {
         activeBookingIds.current.delete(progress.bookingId);
         setCompletedBookingId(progress.bookingId);
         qc.invalidateQueries({ queryKey: notificationsKey });
+      } else if (progress.status === "cancelled") {
+        // Whoever cancelled it — this customer on another screen or device, or
+        // an admin — the app must stop presenting it as live right away.
+        activeBookingIds.current.delete(progress.bookingId);
+        setCancelledBookingId(progress.bookingId);
+        qc.invalidateQueries({ queryKey: notificationsKey });
       } else if (progress.status === "upcoming") {
         activeBookingIds.current.add(progress.bookingId);
       }
     });
+
+    // A reconnect (phone unlocked, network handoff) may have missed the
+    // terminal event; compare against what we last saw as active.
+    socket.on("connect", () => void reconcile());
 
     socket.on("booking_assigned", () => {
       qc.invalidateQueries({ queryKey: bookingsKey });
@@ -122,6 +138,18 @@ function CustomerCompletionListener() {
     };
   }, [authenticated, qc]);
 
+  if (cancelledBookingId) {
+    return (
+      <BookingCancelledDialog
+        title="Booking cancelled"
+        description="This booking has been cancelled. If you paid for it online, your refund will be processed shortly."
+        onConfirm={() => {
+          setCancelledBookingId(null);
+          navigate("/app", { replace: true });
+        }}
+      />
+    );
+  }
   if (!completedBookingId) return null;
   return (
     <ServiceCompletedDialog

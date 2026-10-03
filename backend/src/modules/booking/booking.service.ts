@@ -402,12 +402,24 @@ export async function cancelBooking(userId: string, bookingId: string) {
       throw ApiError.badRequest("Subscription washes can only be cancelled at least 12 hours in advance");
     }
   }
+  // Close dispatch out exactly as the admin path does. Leaving it "offered"
+  // kept the cleaner holding the offer locked to a dead booking (no new offers
+  // could reach them) with a popup that still let them accept it.
+  const prevOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
   booking.status = "cancelled";
+  booking.dispatchStatus = "cancelled";
+  booking.currentOfferAgent = null;
+  booking.offerExpiresAt = null;
   await booking.save();
   // Whatever was paid for it (online and/or coins) goes to Admin → Refunds for approval.
   void queueCancellationRefund(String(booking._id), "customer").catch((err) =>
     console.error("refund queue failed:", (err as Error).message),
   );
+  if (prevOfferAgent) {
+    await User.updateOne({ _id: prevOfferAgent, currentOfferBooking: bookingId }, { currentOfferBooking: null });
+    emitCancelToAgent(prevOfferAgent, bookingId);
+  }
+  emitDispatchUpdate();
   forgetAgentBookings(booking.assignedAgent ? String(booking.assignedAgent) : null);
   broadcastJobStatus(booking);
 
