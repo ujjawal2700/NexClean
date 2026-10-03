@@ -56,7 +56,12 @@ test.describe("Bookings list", () => {
     // Cancelling now asks first, and says what happens to any refund.
     await expect(page.getByRole("heading", { name: "Cancel this booking?" })).toBeVisible();
     await page.getByTestId("confirm-cancel-booking").click();
-    await expect(page.getByText("cancelled")).toBeVisible({ timeout: 10000 });
+    // The live cancellation popup confirms it, and OK goes to the dashboard.
+    const cancelled = page.getByTestId("booking-cancelled-dialog");
+    await expect(cancelled).toBeVisible({ timeout: 10000 });
+    await cancelled.getByRole("button", { name: "OK" }).click();
+    await expect(page).toHaveURL(/\/app$/);
+    await page.goto("/app/bookings");
 
     // Now shows up under the Cancelled filter, not Upcoming.
     await page.getByRole("button", { name: "Upcoming" }).click();

@@ -5,7 +5,8 @@ import { generateUniqueReferralCode } from "../user/user.service";
 import { emailEnabled, env, isProd } from "../../config/env";
 import { ApiError } from "../../shared/utils/ApiError";
 import { isSuperAdmin } from "../../shared/utils/superAdmin";
-import { signToken, type Role } from "../../shared/utils/jwt";
+import { signToken, signDeviceSwitchTicket, verifyDeviceSwitchTicket, type Role } from "../../shared/utils/jwt";
+import { endUserSessions } from "../../shared/services/socket";
 import { generateOtp } from "../../shared/utils/otp";
 import type { CustomerSignupInput, AgentSignupInput, AgentSignupBasicInput } from "./auth.validation";
 import { LEGAL_DOCUMENT_VERSION } from "../../shared/legalDocuments";
@@ -136,8 +137,21 @@ export async function verifyOtpCodeOnly(rawPhone: string, code: string): Promise
   return { verified: true };
 }
 
-/** Verify an OTP and return a JWT + the user. Rejects unregistered users. */
-export async function verifyOtp(rawPhone: string, code: string) {
+/** The OTP was right, but this cleaner is signed in on another phone — ask before taking over. */
+export type DeviceSwitchRequired = { deviceSwitchRequired: true; switchTicket: string };
+
+/**
+ * Verify an OTP and return a JWT + the user. Rejects unregistered users.
+ *
+ * A cleaner may be signed in on one phone at a time. Logging in from a
+ * different install returns a switch ticket instead of a session; the app
+ * asks the cleaner to confirm, then exchanges it via confirmAgentDeviceSwitch.
+ */
+export async function verifyOtp(
+  rawPhone: string,
+  code: string,
+  deviceId = "",
+): Promise<{ token: string; user: InstanceType<typeof User> } | DeviceSwitchRequired> {
   const phone = normalize(rawPhone);
   await verifyOtpCode(phone, code);
 
@@ -156,8 +170,71 @@ export async function verifyOtp(rawPhone: string, code: string) {
     await user.save();
   }
 
+  if (user.role === "agent") {
+    if (user.agentDeviceId && user.agentDeviceId !== deviceId) {
+      return {
+        deviceSwitchRequired: true,
+        switchTicket: signDeviceSwitchTicket(user.id, deviceId, user.tokenVersion ?? 0),
+      };
+    }
+    if (deviceId && user.agentDeviceId !== deviceId) {
+      user.agentDeviceId = deviceId;
+      await user.save();
+    }
+  }
+
   const token = signToken(user.id, user.role as Role, user.tokenVersion ?? 0);
   return { token, user };
+}
+
+/**
+ * The cleaner confirmed "log in here and sign the other phone out". Bumping
+ * tokenVersion kills every session issued before now, on every device; the
+ * live sockets are told and cut so the old phone reacts at once instead of on
+ * its next request. The new session is minted at the new version.
+ */
+export async function confirmAgentDeviceSwitch(ticket: string, deviceId = "") {
+  const claims = verifyDeviceSwitchTicket(ticket);
+  if (!claims || claims.dev !== deviceId) {
+    throw ApiError.badRequest("This login request has expired. Please sign in again.");
+  }
+  const user = await User.findOneAndUpdate(
+    { _id: claims.sub, role: "agent", status: { $ne: "suspended" }, tokenVersion: claims.ver },
+    // The old phone's push tokens go too, or it would keep ringing with offers
+    // after it was signed out; the new phone registers its own on load. Online
+    // is switched off so the cleaner turns it on deliberately on this phone,
+    // which is also where notification permission gets asked for.
+    { $inc: { tokenVersion: 1 }, $set: { agentDeviceId: deviceId || null, deviceTokens: [], online: false } },
+    { new: true },
+  );
+  if (!user) throw ApiError.badRequest("This login request has expired. Please sign in again.");
+
+  void endUserSessions(user.id, "session_replaced", user.tokenVersion ?? 0);
+  const token = signToken(user.id, "agent", user.tokenVersion ?? 0);
+  return { token, user };
+}
+
+/**
+ * Forget this install as the cleaner's signed-in phone on a deliberate logout,
+ * so their next login elsewhere doesn't ask to sign out a phone that already
+ * signed itself out. Only the current session on that same install counts.
+ */
+export async function releaseAgentDevice(
+  userId: string,
+  tokenVersion: number,
+  deviceId: string,
+  pushToken = "",
+): Promise<void> {
+  // Signing out means no more jobs on this phone: off duty, and this phone's
+  // push token dropped so a closed app doesn't keep ringing. Only for the
+  // account's current session — a phone already signed out by a switch must
+  // not knock the new phone offline.
+  const current = { _id: userId, role: "agent", tokenVersion };
+  await User.updateOne(current, {
+    $set: { online: false },
+    ...(pushToken ? { $pull: { deviceTokens: pushToken } } : {}),
+  });
+  if (deviceId) await User.updateOne({ ...current, agentDeviceId: deviceId }, { agentDeviceId: null });
 }
 
 /**
@@ -262,14 +339,23 @@ export async function customerSignup(input: CustomerSignupInput, origin: SignupO
   return sendOtp(phone);
 }
 
-/** Register a new agent account with KYC documents (pending admin review) after OTP verification. */
-export async function agentSignup(input: AgentSignupInput, origin: SignupOrigin = {}) {
-  const phone = normalize(input.phone);
-  let user = await User.findOne({ phone });
-  if (user && user.agentStatus !== "unverified" && user.agentStatus !== "pending") {
-    throw ApiError.badRequest("An account with this number already exists. Please log in.");
+/**
+ * The KYC step of cleaner signup, for the signed-in cleaner only.
+ *
+ * The account comes from the session, never from the phone number in the
+ * body. This used to look the account up by phone with no proof of owning it:
+ * anyone who knew a new applicant's number could overwrite their KYC and be
+ * handed a session for their account, and an unknown number got a brand-new
+ * account without an OTP. Accounts are now created only by signup-basic,
+ * which checks the OTP; this step just completes one.
+ */
+export async function agentSignup(userId: string, input: AgentSignupInput, origin: SignupOrigin = {}) {
+  const user = await User.findOne({ _id: userId, role: "agent" });
+  if (!user) throw ApiError.unauthorized("Please verify your phone number first.");
+  if (user.agentStatus !== "unverified" && user.agentStatus !== "pending") {
+    throw ApiError.badRequest("Your application has already been reviewed. Please log in.");
   }
-  if ((!user || !user.legalConsent) && (!input.privacyAccepted || !input.termsAccepted)) {
+  if (!user.legalConsent && (!input.privacyAccepted || !input.termsAccepted)) {
     throw ApiError.badRequest("Please accept the Privacy Policy and Terms & Conditions");
   }
 
@@ -278,34 +364,20 @@ export async function agentSignup(input: AgentSignupInput, origin: SignupOrigin 
     uploadImage(input.aadharBack, { folder: "nexclean/kyc" }),
   ]);
 
-  if (user) {
-    user.aadharNumber = input.aadharNumber;
-    user.aadharFrontUrl = aadharFrontUrl;
-    user.aadharBackUrl = aadharBackUrl;
-    user.agentStatus = "pending";
-    // The KYC step re-submits the details form, so a cleaner who corrected
-    // their location between the two steps gets the corrected value.
-    if (input.city) user.city = input.city;
-    if (input.area) user.area = input.area;
-    if (!user.legalConsent) {
-      user.legalConsent = legalConsent("agent_signup", origin);
-    }
-    await user.save();
-  } else {
-    user = await User.create({
-      phone,
-      name: input.name,
-      role: "agent",
-      city: input.city ?? "",
-      area: input.area ?? "",
-      online: false,
-      agentStatus: "pending",
-      aadharNumber: input.aadharNumber,
-      aadharFrontUrl,
-      aadharBackUrl,
-      legalConsent: legalConsent("agent_signup", origin),
-    });
+  user.aadharNumber = input.aadharNumber;
+  user.aadharFrontUrl = aadharFrontUrl;
+  user.aadharBackUrl = aadharBackUrl;
+  user.agentStatus = "pending";
+  // The KYC step re-submits the details form, so a cleaner who corrected
+  // their name or location between the two steps gets the corrected value.
+  if (input.name) user.name = input.name;
+  if (input.city) user.city = input.city;
+  if (input.area) user.area = input.area;
+  if (!user.legalConsent) {
+    user.legalConsent = legalConsent("agent_signup", origin);
   }
+  if (origin.deviceId && !user.agentDeviceId) user.agentDeviceId = origin.deviceId;
+  await user.save();
 
   const token = signToken(user.id, "agent", user.tokenVersion ?? 0);
   return { token, user, sent: true };
@@ -330,6 +402,7 @@ export async function agentSignupBasic(input: AgentSignupBasicInput, origin: Sig
     online: false,
     agentStatus: "unverified",
     legalConsent: legalConsent("agent_signup", origin),
+    agentDeviceId: origin.deviceId || null,
   });
 
   const token = signToken(user.id, "agent", user.tokenVersion ?? 0);

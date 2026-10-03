@@ -46,3 +46,11 @@ export const SUBSCRIPTION_LEAD_MS = Number(
 export const REMINDER_TICK_MS = Number(process.env.DISPATCH_REMINDER_TICK_MS ?? 60_000);
 
 export const MAX_SEARCH_RADIUS_M = SEARCH_RADII_M[SEARCH_RADII_M.length - 1] ?? 12_000;
+
+/**
+ * Offers in a row a cleaner may let expire before dispatch sets them offline.
+ * Online now lasts until the cleaner switches it off, even with the app closed,
+ * so this is what stops a phone that is switched off or out of signal from
+ * holding up every nearby booking for a full offer timeout. 0 disables it.
+ */
+export const MAX_MISSED_OFFERS = Number(process.env.DISPATCH_MAX_MISSED_OFFERS ?? 3);

@@ -2,7 +2,6 @@ import { Types } from "mongoose";
 import { User } from "../user/user.model";
 import { Booking } from "../booking/booking.model";
 import { ServiceZone } from "../location/location.model";
-import { agentLiveSince } from "../user/presence";
 import { haversineMeters, orderZonesByDistance, pointInPolygon, type LngLat } from "../../shared/geo";
 import { MAX_CANDIDATES, MAX_FETCHED_AGENTS, MAX_SEARCH_RADIUS_M } from "./dispatch.config";
 
@@ -47,7 +46,6 @@ async function fetchEligibleAgents(excludeAgentIds: (string | Types.ObjectId)[])
     role: "agent",
     agentStatus: "verified",
     online: true,
-    lastSeenAt: { $gte: agentLiveSince() },
     currentOfferBooking: null,
     "liveLocation.coordinates": { $exists: true },
     ...(exclude.length ? { _id: { $nin: exclude } } : {}),

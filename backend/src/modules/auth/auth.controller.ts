@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { ok } from "../../shared/utils/apiResponse";
-import { setSessionCookie, clearSessionCookies } from "../../shared/utils/sessionCookie";
-import type { Role } from "../../shared/utils/jwt";
+import { setSessionCookie, clearSessionCookies, readSessionToken } from "../../shared/utils/sessionCookie";
+import { verifyToken, type Role } from "../../shared/utils/jwt";
 import * as authService from "./auth.service";
 
 export async function sendOtp(req: Request, res: Response): Promise<Response> {
@@ -24,8 +24,13 @@ export async function verifyOtpCodeOnly(req: Request, res: Response): Promise<Re
   return ok(res, result, "Code verified");
 }
 
+const deviceIdOf = (req: Request) => String(req.get("x-device-id") ?? "").trim().slice(0, 100);
+
 export async function verifyOtp(req: Request, res: Response): Promise<Response> {
-  const { token, user } = await authService.verifyOtp(req.body.phone, req.body.code);
+  const result = await authService.verifyOtp(req.body.phone, req.body.code, deviceIdOf(req));
+  // Signed in on another phone: no session yet, the app asks the cleaner first.
+  if ("deviceSwitchRequired" in result) return ok(res, result, "Signed in on another device");
+  const { token, user } = result;
   // The browser session lives in an httpOnly cookie. The token stays in the
   // body for API clients and the test suite; the web app ignores it.
   setSessionCookie(res, user.role as Role, token);
@@ -53,9 +58,28 @@ export async function resetAdminPassword(req: Request, res: Response): Promise<R
   return ok(res, result, "Password reset successfully. Sign in with your new password.");
 }
 
+/** The cleaner confirmed logging in on this phone and signing the other one out. */
+export async function confirmAgentDeviceSwitch(req: Request, res: Response): Promise<Response> {
+  const { token, user } = await authService.confirmAgentDeviceSwitch(String(req.body?.switchTicket ?? ""), deviceIdOf(req));
+  setSessionCookie(res, "agent", token);
+  return ok(res, { token, user }, "Logged in");
+}
+
 /** Clear the session cookie(s) for this browser. */
 export async function logout(req: Request, res: Response): Promise<Response> {
   const role = String(req.body?.role ?? "").toLowerCase();
+  if (role === "agent") {
+    try {
+      const raw = readSessionToken(req);
+      const payload = raw ? verifyToken(raw) : null;
+      if (payload?.role === "agent") {
+        const pushToken = typeof req.body?.pushToken === "string" ? req.body.pushToken.slice(0, 4096) : "";
+        await authService.releaseAgentDevice(payload.sub, payload.ver ?? 0, deviceIdOf(req), pushToken);
+      }
+    } catch {
+      /* expired or foreign token — nothing of ours to release */
+    }
+  }
   clearSessionCookies(res, (["customer", "agent", "admin"].includes(role) ? role : undefined) as Role | undefined);
   return ok(res, { loggedOut: true }, "Logged out");
 }
@@ -71,8 +95,9 @@ export async function customerSignup(req: Request, res: Response): Promise<Respo
 }
 
 export async function agentSignup(req: Request, res: Response): Promise<Response> {
-  const result = await authService.agentSignup(req.body, {
+  const result = await authService.agentSignup(req.userId!, req.body, {
     ip: req.ip,
+    deviceId: deviceIdOf(req),
     userAgent: String(req.get("user-agent") ?? ""),
   });
   setSessionCookie(res, "agent", result.token);
@@ -82,6 +107,7 @@ export async function agentSignup(req: Request, res: Response): Promise<Response
 export async function agentSignupBasic(req: Request, res: Response): Promise<Response> {
   const result = await authService.agentSignupBasic(req.body, {
     ip: req.ip,
+    deviceId: deviceIdOf(req),
     userAgent: String(req.get("user-agent") ?? ""),
   });
   setSessionCookie(res, "agent", result.token);

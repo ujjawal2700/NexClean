@@ -1,6 +1,6 @@
 import { test, expect } from "../fixtures/base";
 import type { APIRequestContext } from "@playwright/test";
-import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader, freshPhone, loginAsAdmin, loginAsNewCustomer } from "../fixtures/api-client";
+import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader, submitAgentApplication, freshPhone, loginAsAdmin, loginAsNewCustomer } from "../fixtures/api-client";
 
 /**
  * Integration proof for zone-based dispatch (see backend/src/modules/dispatch/
@@ -45,7 +45,7 @@ async function firstPackageId(request: APIRequestContext): Promise<string> {
 /** A dedicated fresh agent per candidate — see agent.spec.ts for why fresh beats shared here. */
 async function createFreshVerifiedAgent(request: APIRequestContext): Promise<{ token: string; userId: string }> {
   const phone = freshPhone();
-  await request.post("/auth/agent/signup", {
+  await submitAgentApplication(request, {
     data: {
       name: "Zone Dispatch Test Agent",
       phone,

@@ -24,17 +24,15 @@ import { Button } from "@shared/ui/Button";
 import { LogoutConfirmDialog } from "@shared/components/LogoutConfirmDialog";
 import {
   useAgentMe,
-  useToggleOnline,
   useDeactivateAccount,
 } from "../api/agent.api";
-import { requestCurrentDeviceFix } from "../hooks/useDeviceLocation";
+import { useOnlineSwitch } from "../hooks/useOnlineSwitch";
 
 export function Profile() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const clear = useAgentSession((s) => s.clear);
   const { data: me } = useAgentMe();
-  const toggleOnline = useToggleOnline();
   const deactivateAccount = useDeactivateAccount();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
@@ -65,18 +63,8 @@ export function Profile() {
   const verified = me?.agentStatus === "verified";
   const isUnverified = me?.agentStatus !== "verified";
 
-  const handleOnlineToggle = async () => {
-    if (me?.online) {
-      toggleOnline.mutate({ online: false });
-      return;
-    }
-    try {
-      const fix = await requestCurrentDeviceFix();
-      toggleOnline.mutate({ online: true, lat: fix.lat, lng: fix.lng });
-    } catch {
-      toggleOnline.mutate({ online: true });
-    }
-  };
+  const onlineSwitch = useOnlineSwitch();
+  const handleOnlineToggle = () => onlineSwitch.toggle();
 
   // Get user initials for avatar
   const getInitials = () => {
@@ -199,7 +187,7 @@ export function Profile() {
         <Button
           variant={me?.online ? "outline" : "primary"}
           size="sm"
-          disabled={toggleOnline.isPending || isUnverified}
+          disabled={onlineSwitch.pending || isUnverified}
           onClick={() => void handleOnlineToggle()}
           className="rounded-xl px-4 py-2 text-xs font-semibold">
           {me?.online ? "Go offline" : "Go online"}

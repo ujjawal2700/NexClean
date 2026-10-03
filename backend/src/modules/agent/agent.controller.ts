@@ -53,7 +53,8 @@ export async function online(req: Request, res: Response): Promise<Response> {
 export async function heartbeat(req: Request, res: Response): Promise<Response> {
   const parsed = coordsSchema.safeParse(req.body ?? {});
   const coords = parsed.success ? parsed.data : undefined;
-  return ok(res, await service.heartbeat(req.userId!, coords));
+  const deviceId = String(req.get("x-device-id") ?? "").trim().slice(0, 100);
+  return ok(res, await service.heartbeat(req.userId!, coords, deviceId));
 }
 
 /* ------------------------------ Dispatch offers -------------------------- */

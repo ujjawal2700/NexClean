@@ -46,10 +46,22 @@ export function useVerifyOtpCodeOnly() {
   });
 }
 
+export type AgentLoginResult = { token: string; user: AgentProfile };
+/** The OTP was right, but this cleaner is signed in on another phone. */
+export type DeviceSwitchRequired = { deviceSwitchRequired: true; switchTicket: string };
+
 export function useVerifyOtp() {
   return useMutation({
     mutationFn: (vars: { phone: string; code: string }) =>
-      apiFetch<{ token: string; user: AgentProfile }>("/auth/verify-otp", { method: "POST", body: vars }),
+      apiFetch<AgentLoginResult | DeviceSwitchRequired>("/auth/verify-otp", { method: "POST", body: vars }),
+  });
+}
+
+/** Log in on this phone and sign the cleaner out of the other one. */
+export function useConfirmDeviceSwitch() {
+  return useMutation({
+    mutationFn: (switchTicket: string) =>
+      apiFetch<AgentLoginResult>("/auth/agent/confirm-device-switch", { method: "POST", body: { switchTicket } }),
   });
 }
 

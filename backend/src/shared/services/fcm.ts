@@ -5,6 +5,15 @@ export type PushPayload = {
   title: string;
   body: string;
   data?: Record<string, string>;
+  /**
+   * A new job for a cleaner. Sent on the dedicated "job_offers" Android channel
+   * with the "job_offer" ringtone — the store app creates that channel with its
+   * own sound and importance; until it does, Android falls back to the default
+   * channel and sound, so the push is still shown.
+   */
+  jobOffer?: boolean;
+  /** Drop the push if it can't be delivered within this many seconds. */
+  ttlSeconds?: number;
 };
 
 // Loosely typed to avoid a hard compile-time dependency on firebase-admin
@@ -116,6 +125,7 @@ export async function sendPush(tokens: string[], payload: PushPayload): Promise<
     }
   }
 
+  const ttl = payload.ttlSeconds ?? PUSH_TTL_SECONDS;
   try {
     const res = await m.sendEachForMulticast({
       tokens: realFcmTokens,
@@ -126,17 +136,38 @@ export async function sendPush(tokens: string[], payload: PushPayload): Promise<
       // which is how some customers saw an area alert only in the app. TTL
       // keeps an undeliverable push from arriving hours late and stale.
       webpush: {
-        headers: { Urgency: "high", TTL: String(PUSH_TTL_SECONDS) },
-        notification: { icon: "/logo.png", badge: "/logo.png" },
+        headers: { Urgency: "high", TTL: String(ttl) },
+        notification: {
+          icon: "/logo.png",
+          badge: "/logo.png",
+          ...(payload.jobOffer ? { requireInteraction: true, vibrate: [600, 250, 600, 250, 600] } : {}),
+        },
       },
       // Native iPhone app (FCM → APNs). An alert push at priority 10 with a
       // sound is shown immediately; without "sound" iOS delivers it silently.
       apns: {
-        headers: { "apns-priority": "10", "apns-push-type": "alert" },
-        payload: { aps: { sound: "default" } },
+        headers: {
+          "apns-priority": "10",
+          "apns-push-type": "alert",
+          "apns-expiration": String(Math.floor(Date.now() / 1000) + ttl),
+        },
+        payload: {
+          aps: payload.jobOffer
+            ? // Time-sensitive breaks through Focus modes; needs the
+              // Time Sensitive Notifications capability in the iOS app.
+              { sound: "job_offer.caf", "interruption-level": "time-sensitive" }
+            : { sound: "default" },
+        },
       },
-      // Native Android app.
-      android: { priority: "high", notification: { sound: "default" } },
+      // Native Android app. High priority wakes a phone in Doze, including
+      // when the app has been swiped away from recents.
+      android: {
+        priority: "high",
+        ttl: ttl * 1000,
+        notification: payload.jobOffer
+          ? { channelId: "job_offers", sound: "job_offer", priority: "max", visibility: "public", defaultVibrateTimings: false, vibrateTimingsMillis: [0, 600, 250, 600, 250, 600] }
+          : { sound: "default" },
+      },
     });
 
     // Clean up ONLY truly dead FCM tokens (do NOT delete synthetic tokens)

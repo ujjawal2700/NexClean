@@ -2,7 +2,6 @@ import { City, ServiceZone, type CityDoc } from "./location.model";
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { isSimplePolygon, pointInPolygon, type LngLat } from "../../shared/geo";
-import { agentLiveSince } from "../user/presence";
 
 function mapCity(c: CityDoc) {
   return { id: c.id, name: c.name, active: c.active };
@@ -74,7 +73,6 @@ async function liveAgentPositions(): Promise<LiveAgentPosition[]> {
     role: "agent",
     agentStatus: "verified",
     online: true,
-    lastSeenAt: { $gte: agentLiveSince() },
     "liveLocation.coordinates": { $exists: true },
   }).select("name phone email area rating jobsDone online agentStatus liveLocation");
 

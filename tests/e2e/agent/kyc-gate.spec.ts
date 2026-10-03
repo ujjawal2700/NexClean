@@ -30,8 +30,12 @@ test.describe("KYC gate (pending agent)", () => {
     await loginAgentUI(page, SEED_PENDING_AGENT_PHONE);
     await expect(page.locator("h1")).toHaveText("Application under review");
 
+    // The app logs out in the background and moves on; wait for the server's
+    // answer (which is what clears the cookie) before inspecting cookies.
+    const loggedOut = page.waitForResponse((r) => r.url().includes("/auth/logout"));
     await page.getByRole("button", { name: "Log out" }).click();
     await expect(page).toHaveURL(/\/agent\/login$/);
+    await loggedOut;
 
     // The JWT now lives in an httpOnly cookie, so the stronger guarantee is that
     // localStorage holds no credential at all — only the `authenticated` flag,

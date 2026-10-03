@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { validateBody } from "../../shared/middleware/validate";
-import { requireAuth } from "../../shared/middleware/auth";
+import { requireAuth, requireRole } from "../../shared/middleware/auth";
 import {
   sendOtpSchema,
   verifyOtpSchema,
@@ -55,12 +55,23 @@ authRouter.post(
   validateBody(referralCheckSchema),
   asyncHandler(authController.checkReferralCode),
 );
-authRouter.post("/agent/signup", validateBody(agentSignupSchema), asyncHandler(authController.agentSignup));
+// The KYC step: only for the cleaner signed in by signup-basic's OTP.
+authRouter.post(
+  "/agent/signup",
+  asyncHandler(requireRole("agent")),
+  validateBody(agentSignupSchema),
+  asyncHandler(authController.agentSignup),
+);
 authRouter.post(
   "/agent/signup-basic",
   sendOtpLimiter,
   validateBody(agentSignupBasicSchema),
   asyncHandler(authController.agentSignupBasic),
+);
+authRouter.post(
+  "/agent/confirm-device-switch",
+  verifyOtpLimiter,
+  asyncHandler(authController.confirmAgentDeviceSwitch),
 );
 authRouter.post("/logout", asyncHandler(authController.logout));
 authRouter.get("/me", requireAuth, asyncHandler(authController.me));

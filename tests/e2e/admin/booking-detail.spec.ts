@@ -7,6 +7,7 @@ import {
   ADMIN_PASSWORD,
   authHeader,
   freshPhone,
+  submitAgentApplication,
 } from "../../fixtures/api-client";
 import {
   apiUrl,
@@ -33,7 +34,7 @@ async function loginAsAdminApi(request: APIRequestContext) {
 
 async function verifiedAgentAt(request: APIRequestContext, adminToken: string, offsetLat: number) {
   const phone = freshPhone();
-  const signupRes = await request.post(apiUrl("/auth/agent/signup"), {
+  const signupRes = await submitAgentApplication(request, {
     data: {
       name: "Detail Cleaner",
       phone,

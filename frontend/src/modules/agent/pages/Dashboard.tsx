@@ -8,6 +8,7 @@ import { greeting, formatMoney } from "@shared/lib/format";
 import { useAgentMe, useJobs, useSummary, useAvailableJobs, useClaimJob } from "../api/agent.api";
 import { VEHICLE_LABEL, STATUS_LABEL, isActiveJob } from "../types";
 import { AreaAlertCard } from "../components/AreaAlertCard";
+import { DutyCard } from "../components/DutyCard";
 
 export function Dashboard() {
   const { data: me, isLoading: meLoading } = useAgentMe();
@@ -52,11 +53,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {me && !me.online && (
-        <GlassCard className="border-amber-300/40 bg-amber-50/60 text-amber-700">
-          You're <span className="font-semibold">offline</span> — toggle online (top right) to receive new jobs.
-        </GlassCard>
-      )}
+      {me && !isUnverified && <DutyCard />}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {summaryLoading ? (

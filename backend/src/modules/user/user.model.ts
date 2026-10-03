@@ -59,6 +59,10 @@ const userSchema = new Schema(
     // all devices). Embedded in the token as `ver` and compared on each
     // request — see shared/utils/jwt.ts.
     tokenVersion: { type: Number, default: 0 },
+    // The one install a cleaner is signed in on (the app's per-install id).
+    // A login from any other install has to confirm first, then signs every
+    // other device out — one cleaner, one phone, one location, one offer popup.
+    agentDeviceId: { type: String, default: null },
     password: { type: String, default: null },
     adminRoleId: { type: Schema.Types.ObjectId, ref: "AdminRole", default: null },
     subscriptionStartDate: { type: Date, default: null },
@@ -104,6 +108,9 @@ const userSchema = new Schema(
     jobsDone: { type: Number, default: 0 },
     online: { type: Boolean, default: true },
     lastSeenAt: { type: Date, default: null },
+    // Offers in a row this cleaner let run out without answering. Reset by any
+    // answer or by going online; at the limit dispatch takes them offline.
+    missedOffers: { type: Number, default: 0 },
     agentStatus: { type: String, enum: ["verified", "pending", "suspended", "unverified"], default: "verified" },
 
     // Agent live location (streamed while online) — used for nearest-agent dispatch. [lng, lat].

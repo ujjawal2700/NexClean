@@ -65,7 +65,21 @@ export async function loginAgentUI(page: Page, phone: string = SEED_AGENT_PHONE)
   await expect(page.locator("h1")).toHaveText("Verify your number", { timeout: 15_000 });
   await page.locator('input[name="otp"]').fill(DEMO_OTP);
   await page.getByRole("button", { name: "Verify & continue" }).click();
+  await confirmAgentDeviceSwitchIfAsked(page);
   await expect(page).toHaveURL(/\/agent$/, { timeout: 15_000 });
+}
+
+/**
+ * A cleaner may only be signed in on one phone. Every test gets a fresh browser
+ * (a "new phone"), so a shared cleaner last used elsewhere is asked to confirm
+ * taking the account over — say yes, as a cleaner switching phones would.
+ */
+export async function confirmAgentDeviceSwitchIfAsked(page: Page): Promise<void> {
+  const confirm = page.getByTestId("device-switch-confirm");
+  const landed = page.waitForURL(/\/agent$/, { timeout: 15_000 }).then(() => "landed" as const);
+  const asked = confirm.waitFor({ state: "visible", timeout: 15_000 }).then(() => "asked" as const);
+  const first = await Promise.race([landed, asked]).catch(() => null);
+  if (first === "asked") await confirm.click();
 }
 
 /** Logs the seeded super admin in through /admin/login and lands on /admin. */

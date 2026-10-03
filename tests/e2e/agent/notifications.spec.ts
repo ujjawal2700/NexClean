@@ -1,5 +1,5 @@
 import { loginAgentUI } from "../../fixtures/ui-helpers";
-import { authHeader, loginAsAdmin, loginAsNewCustomer, DEMO_OTP, LEGAL_ACCEPTANCE, freshPhone } from "../../fixtures/api-client";
+import { authHeader, submitAgentApplication, loginAsAdmin, loginAsNewCustomer, DEMO_OTP, LEGAL_ACCEPTANCE, freshPhone } from "../../fixtures/api-client";
 import { test, expect } from "../../fixtures/agent-e2e-helpers";
 import type { APIRequestContext } from "@playwright/test";
 
@@ -17,7 +17,7 @@ const FAKE_AADHAR =
  */
 async function freshAgentWithNotifications(request: APIRequestContext) {
   const phone = freshPhone();
-  await request.post("/auth/agent/signup", {
+  await submitAgentApplication(request, {
     data: {
       name: "Inbox Agent",
       phone,
@@ -132,7 +132,7 @@ test.describe("Agent notifications", () => {
     // inbox" is a state the app can no longer produce on demand. Asserting the
     // minimal real feed is the honest version of this test.
     const phone = freshPhone();
-    await request.post("/auth/agent/signup", {
+    await submitAgentApplication(request, {
       data: {
         name: "Quiet Agent",
         phone,

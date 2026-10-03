@@ -1,6 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { loginAdminUI } from "../../fixtures/ui-helpers";
-import { DEMO_OTP, LEGAL_ACCEPTANCE, ADMIN_EMAIL, ADMIN_PASSWORD, authHeader, freshPhone } from "../../fixtures/api-client";
+import { DEMO_OTP, LEGAL_ACCEPTANCE, ADMIN_EMAIL, ADMIN_PASSWORD, authHeader, freshPhone, submitAgentApplication } from "../../fixtures/api-client";
 import { API_BASE_URL } from "../../playwright.config";
 
 const NEAR_LAT = 22.7196;
@@ -34,7 +34,7 @@ async function customerToken(api: APIRequestContext): Promise<string> {
 
 async function verifiedAgentAt(api: APIRequestContext, admin: string, offsetLat: number) {
   const phone = freshPhone();
-  await api.post(`${API_BASE_URL}/auth/agent/signup`, {
+  await submitAgentApplication(api, {
     data: {
       name: "Console Cleaner",
       phone,

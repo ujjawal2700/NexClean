@@ -1,6 +1,6 @@
 import { test, expect } from "../fixtures/base";
 import type { APIRequestContext } from "@playwright/test";
-import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader, freshPhone, loginAsAdmin, loginAsAgent, loginAsNewCustomer } from "../fixtures/api-client";
+import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader, submitAgentApplication, freshPhone, loginAsAdmin, loginAsAgent, loginAsNewCustomer } from "../fixtures/api-client";
 
 // Keep these dispatch-only agents far from the shared Indore/Bengaluru test
 // fleets. A full-suite run leaves several legitimate agents online; using the
@@ -40,7 +40,7 @@ async function createFreshVerifiedAgent(request: APIRequestContext): Promise<{ t
   }
 
   const phone = freshPhone();
-  await request.post("/auth/agent/signup", {
+  await submitAgentApplication(request, {
     data: {
       name: "Dispatch Test Agent",
       phone,
@@ -289,6 +289,129 @@ test.describe("Agent", () => {
     // The agent's offer lock was released, so the next job can reach them.
     const second = await book("After Cancel Car");
     expect(await waitForOffer(second), "agent stayed locked to the cancelled booking").toBe(true);
+  });
+
+  test("a cleaner can only claim pool jobs in their own area", async ({ request }) => {
+    for (const token of freshAgentTokens) {
+      await request.patch("/agent/online", { headers: authHeader(token), data: { online: false } });
+    }
+    const { token: agentToken } = await createFreshVerifiedAgent(request);
+    await goOnlineNear(request, agentToken);
+
+    const { token: customerToken } = await loginAsNewCustomer(request);
+    const packageId = await firstPackageId(request);
+    const book = async (lat: number, lng: number) =>
+      (
+        await (
+          await request.post("/bookings", {
+            headers: authHeader(customerToken),
+            data: {
+              vehicleType: "hatchback",
+              vehicleName: "Area Test Car",
+              packageId,
+              date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              slot: "11:00 AM",
+              addressLabel: "Home",
+              addressLine: "123 Test Street",
+              lat,
+              lng,
+            },
+          })
+        ).json()
+      ).data.id as string;
+
+    // ~1,000 km away from this cleaner: another city's job.
+    const far = await book(DISPATCH_LAT + 9, DISPATCH_LNG);
+    const farClaim = await request.post(`/agent/jobs/${far}/claim`, { headers: authHeader(agentToken) });
+    expect(farClaim.status()).toBe(400);
+    expect((await farClaim.json()).message).toMatch(/outside your area/i);
+
+    // Right next to them: claimable as before.
+    const near = await book(DISPATCH_LAT, DISPATCH_LNG);
+    const nearClaim = await request.post(`/agent/jobs/${near}/claim`, { headers: authHeader(agentToken) });
+    expect(nearClaim.ok()).toBeTruthy();
+  });
+
+  test("an online cleaner who misses 3 offers in a row is set offline (a phone that's off can't stall jobs)", async ({ request }) => {
+    test.setTimeout(120_000);
+    for (const token of freshAgentTokens) {
+      await request.patch("/agent/online", { headers: authHeader(token), data: { online: false } });
+    }
+    const { token: adminToken } = await loginAsAdmin(request);
+    const before = (await (await request.get("/admin/dispatch/config", { headers: authHeader(adminToken) })).json()).data;
+    // The shortest allowed offer window keeps three timeouts affordable.
+    await request.put("/admin/dispatch/config", { headers: authHeader(adminToken), data: { offerTimeoutSeconds: 10 } });
+    try {
+      const { token: agentToken } = await createFreshVerifiedAgent(request);
+      await goOnlineNear(request, agentToken);
+      const packageId = await firstPackageId(request);
+
+      for (let miss = 1; miss <= 3; miss++) {
+        // A new customer each time: one customer can't double-book a slot.
+        const { token: customerToken } = await loginAsNewCustomer(request);
+        const created = await (
+          await request.post("/bookings", {
+            headers: authHeader(customerToken),
+            data: {
+              vehicleType: "hatchback",
+              vehicleName: `Missed Offer Car ${miss}`,
+              packageId,
+              date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              slot: "11:00 AM",
+              addressLabel: "Home",
+              addressLine: "123 Test Street",
+              lat: DISPATCH_LAT,
+              lng: DISPATCH_LNG,
+            },
+          })
+        ).json();
+        const bookingId = created.data?.id;
+        expect(bookingId, `booking ${miss} wasn't created: ${JSON.stringify(created)}`).toBeTruthy();
+        let offered = false;
+        for (let i = 0; i < 30 && !offered; i++) {
+          const body = await (await request.get("/agent/offers/current", { headers: authHeader(agentToken) })).json();
+          offered = body.data?.bookingId === bookingId;
+          if (!offered) await new Promise((r) => setTimeout(r, 300));
+        }
+        expect(offered, `offer ${miss} never reached the cleaner`).toBe(true);
+
+        // Ignore it until it times out and the sweeper moves on.
+        let gone = false;
+        for (let i = 0; i < 60 && !gone; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          const body = await (await request.get("/agent/offers/current", { headers: authHeader(agentToken) })).json();
+          gone = body.data?.bookingId !== bookingId;
+        }
+        expect(gone, `offer ${miss} never expired`).toBe(true);
+        // The deadline passing hides the offer at once, but the sweeper is what
+        // counts the miss and frees the cleaner — wait until it has moved the
+        // booking on, rather than guessing how long a tick takes under load.
+        let swept = false;
+        for (let i = 0; i < 40 && !swept; i++) {
+          const all = (await (await request.get("/admin/bookings", { headers: authHeader(adminToken) })).json()).data;
+          // pending_admin comes last: after the lock release, the miss count and
+          // the re-dispatch that found nobody else.
+          swept = all.find((x: { id: string }) => x.id === bookingId)?.dispatchStatus === "pending_admin";
+          if (!swept) await new Promise((r) => setTimeout(r, 500));
+        }
+        expect(swept, `offer ${miss} was never swept`).toBe(true);
+
+        const me = (await (await request.get("/auth/me", { headers: authHeader(agentToken) })).json()).data;
+        if (miss < 3) expect(me.online, `still online after ${miss} missed`).toBe(true);
+      }
+
+      let online = true;
+      for (let i = 0; i < 10 && online; i++) {
+        online = (await (await request.get("/auth/me", { headers: authHeader(agentToken) })).json()).data.online;
+        if (online) await new Promise((r) => setTimeout(r, 300));
+      }
+      expect(online).toBe(false);
+    } finally {
+      await request.put("/admin/dispatch/config", {
+        headers: authHeader(adminToken),
+        data: { offerTimeoutSeconds: before.offerTimeoutSeconds },
+      });
+    }
   });
 
   test.afterAll(async ({ request }) => {

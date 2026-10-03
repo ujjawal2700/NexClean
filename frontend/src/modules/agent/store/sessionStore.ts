@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { apiFetch, registerAuthToken } from "@shared/lib/api";
+import { getStoredDeviceToken } from "@shared/lib/push";
 
 type SessionState = {
   authenticated: boolean;
@@ -31,7 +32,12 @@ export const useAgentSession = create<SessionState>()(
         // Ending the session has to reach the server now: the credential is an
         // httpOnly cookie, so clearing local state alone would leave a usable
         // session behind. Fire-and-forget — the UI shouldn't wait to log out.
-        void apiFetch("/auth/logout", { method: "POST", body: { role: "agent" } }).catch(() => {});
+        // Logging out also takes the cleaner offline and drops this phone's
+        // push token, so a closed app stops ringing with job offers.
+        void apiFetch("/auth/logout", {
+          method: "POST",
+          body: { role: "agent", pushToken: getStoredDeviceToken() ?? "" },
+        }).catch(() => {});
         set({ token: null, authenticated: false });
       },
     }),

@@ -50,12 +50,13 @@ test.describe("Agent dashboard + online toggle", () => {
       await toggle.click();
     }
     await expect(toggle).toHaveText("Online");
-    await expect(page.getByText("You're offline", { exact: false })).not.toBeVisible();
+    await expect(page.getByTestId("duty-card")).toContainText("You're online");
+    await expect(page.getByTestId("duty-card")).toContainText("even if you close the app");
 
     // Flip to offline.
     await toggle.click();
     await expect(toggle).toHaveText("Offline");
-    await expect(page.getByText("toggle online (top right) to receive new jobs", { exact: false })).toBeVisible();
+    await expect(page.getByTestId("duty-card")).toContainText("You're offline");
 
     // Persists across reload.
     await page.reload();
@@ -73,6 +74,24 @@ test.describe("Agent dashboard + online toggle", () => {
     await expect(page.locator("header").getByRole("button", { name: /Online|Offline/ })).toHaveText("Online");
     await page.reload();
     await expect(page.locator("header").getByRole("button", { name: /Online|Offline/ })).toHaveText("Online");
+  });
+
+  test("the Today card's own switch takes the cleaner online and offline (phones have no header)", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAgentUI(page, SEED_AGENT_PHONE);
+    const card = page.getByTestId("duty-card");
+    const sw = page.getByTestId("duty-switch");
+    if ((await sw.getAttribute("aria-checked")) === "true") await sw.click();
+    await expect(card).toContainText("You're offline");
+
+    await sw.click();
+    await expect(sw).toHaveAttribute("aria-checked", "true");
+    await expect(card).toContainText("You're online");
+    // The test browser has no real push token, so the card says alerts need notifications.
+    await expect(page.getByTestId("push-off-warning")).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByTestId("duty-switch")).toHaveAttribute("aria-checked", "true");
   });
 
   test("shows 'You're all caught up' with no active job, or the active job card when one exists", async ({ page }) => {

@@ -1,4 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "@shared/lib/api";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { LayoutDashboard, ListChecks, Wallet, User, MapPinOff, Bell } from "lucide-react";
 import { cn } from "@shared/lib/utils";
@@ -6,15 +8,16 @@ import { LiquidTabBar } from "@shared/components/LiquidTabBar";
 import { Logo } from "@shared/components/brand/Logo";
 import { getPushToken, saveDeviceToken } from "@shared/lib/push";
 import {
+  meKey,
   useAgentMe,
-  useToggleOnline,
   useHeartbeat,
   useRegisterToken,
   useAgentNotifications,
 } from "../api/agent.api";
 import { useAgentDispatch } from "../hooks/useAgentDispatch";
-import { requestCurrentDeviceFix } from "../hooks/useDeviceLocation";
+import { useOnlineSwitch } from "../hooks/useOnlineSwitch";
 import { OfferOverlay } from "./OfferOverlay";
+import { useAgentSession } from "../store/sessionStore";
 import { BookingCancelledDialog } from "@shared/components/BookingCancelledDialog";
 import { AnimatePresence } from "motion/react";
 
@@ -44,6 +47,15 @@ function useRegisterPushToken() {
 /** Keeps the agent's "live" status fresh on the server for as long as this layout is mounted. */
 function useAgentHeartbeat() {
   const heartbeat = useHeartbeat();
+  const qc = useQueryClient();
+
+  // A 401 here means this session was ended elsewhere (signed in on another
+  // phone, suspended). Re-reading the profile lets the route guard log out.
+  useEffect(() => {
+    if (heartbeat.error instanceof ApiError && heartbeat.error.status === 401) {
+      qc.invalidateQueries({ queryKey: meKey });
+    }
+  }, [heartbeat.error, qc]);
 
   useEffect(() => {
     heartbeat.mutate();
@@ -69,27 +81,13 @@ const NAV = [
 
 export function OnlineToggle() {
   const { data: me } = useAgentMe();
-  const toggle = useToggleOnline();
-  const online = me?.online ?? false;
+  const { online, pending, toggle } = useOnlineSwitch();
   const isUnverified = me?.agentStatus !== "verified";
-  const handleToggle = async () => {
-    if (online) {
-      toggle.mutate({ online: false });
-      return;
-    }
-    try {
-      const fix = await requestCurrentDeviceFix();
-      toggle.mutate({ online: true, lat: fix.lat, lng: fix.lng });
-    } catch {
-      // Going online still succeeds; the existing location nudge explains how
-      // to enable GPS, and the shared watcher will recover if permission changes.
-      toggle.mutate({ online: true });
-    }
-  };
   return (
     <button
-      onClick={() => void handleToggle()}
-      disabled={toggle.isPending || isUnverified}
+      onClick={() => void toggle()}
+      disabled={pending || isUnverified}
+      data-testid="online-toggle"
       className={cn(
         "flex items-center gap-2 rounded-pill border px-3 py-1.5 text-sm font-medium transition-colors",
         isUnverified
@@ -158,6 +156,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
   useAgentHeartbeat();
   useRegisterPushToken();
   const dispatch = useAgentDispatch();
+  const clearSession = useAgentSession((s) => s.clear);
 
   const showLocationNudge = (me?.online ?? false) && !dispatch.locating;
   // The tab bar belongs only to the four top-level destinations. Keeping it
@@ -171,8 +170,17 @@ export function AgentLayout({ children }: { children: ReactNode }) {
       {/* Incoming-offer popup — rendered above everything, on every page. */}
       <OfferOverlay dispatch={dispatch} />
 
-      {/* A job of ours was cancelled by the customer or an admin. */}
-      {dispatch.cancelledJobId && (
+      {/* This account was signed in on another phone — takes priority over everything. */}
+      {dispatch.sessionReplaced ? (
+        <BookingCancelledDialog
+          title="Logged out"
+          description="Your account was just logged in on another phone, so you've been logged out here. Log in again to use this phone instead."
+          onConfirm={() => {
+            clearSession();
+            navigate("/agent/login", { replace: true });
+          }}
+        />
+      ) : dispatch.cancelledJobId && (
         <BookingCancelledDialog
           title="Job cancelled"
           description="This job has been cancelled. You don't need to go — you're free to take new jobs."

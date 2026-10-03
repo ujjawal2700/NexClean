@@ -10,11 +10,23 @@ import { uploadImage } from "../../shared/utils/cloudinary.js";
 import { payoutCalculator } from "../payout/payoutConfig.service.js";
 import { markPaymentCollected } from "../payment/ledger.service.js";
 import { broadcastJobStatus, forgetAgentBookings } from "../tracking/tracking.service.js";
+import { MAX_SEARCH_RADIUS_M } from "../dispatch/dispatch.config.js";
 
 const JOB_FLOW = ["assigned", "enroute", "arrived", "in_progress", "completed"] as const;
 type JobStatus = (typeof JOB_FLOW)[number];
 
 /** Real distance (km) between the agent and a booking, or null when unknown. */
+/**
+ * Whether a job is in this cleaner's area: the same outer radius dispatch
+ * offers within, measured from where their phone actually is. A job with no
+ * coordinates is never "nearby" — those are placed by an admin.
+ */
+function withinServiceRadius(b: Pick<BookingDocument, "location">, agentPoint?: LngLat): boolean {
+  const coords = (b.location as unknown as { coordinates?: number[] } | undefined)?.coordinates;
+  if (!agentPoint || !coords || coords.length !== 2) return false;
+  return haversineMeters(agentPoint, [coords[0], coords[1]]) <= MAX_SEARCH_RADIUS_M;
+}
+
 function jobDistanceKm(b: BookingDocument, agentPoint?: LngLat): number | null {
   const coords = (b.location as unknown as { coordinates?: number[] } | undefined)?.coordinates;
   if (!agentPoint || !coords || coords.length !== 2) return null;
@@ -335,7 +347,8 @@ export async function setOnline(agentId: string, online: boolean, coords?: Coord
   // Going online counts as an immediate heartbeat so the badge flips live right away.
   let update: any;
   if (online) {
-    update = { online, lastSeenAt: new Date() };
+    // Going online is a fresh start for the missed-offer limit.
+    update = { online, lastSeenAt: new Date(), missedOffers: 0 };
     if (coords && coords.lat != null && coords.lng != null) {
       if (isValidLocationUpdate(agentCheck.liveLocation as any, agentCheck.locationUpdatedAt, coords.lat, coords.lng, agentId)) {
         Object.assign(update, locationPatch(coords));
@@ -348,7 +361,7 @@ export async function setOnline(agentId: string, online: boolean, coords?: Coord
   return agent!;
 }
 
-export async function heartbeat(agentId: string, coords?: Coords) {
+export async function heartbeat(agentId: string, coords?: Coords, deviceId = "") {
   const agent = await User.findById(agentId);
   if (!agent) throw ApiError.notFound("Agent not found");
   if (agent.agentStatus !== "verified") {
@@ -356,6 +369,10 @@ export async function heartbeat(agentId: string, coords?: Coords) {
   }
 
   const update: any = { lastSeenAt: new Date() };
+  // Sessions from before one-phone-per-cleaner have no device on record; the
+  // phone already in use claims the slot here, so the next login elsewhere
+  // asks first instead of quietly leaving two phones signed in.
+  if (deviceId && !agent.agentDeviceId) update.agentDeviceId = deviceId;
   if (coords && coords.lat != null && coords.lng != null) {
     if (isValidLocationUpdate(agent.liveLocation as any, agent.locationUpdatedAt, coords.lat, coords.lng, agentId)) {
       Object.assign(update, locationPatch(coords));
@@ -390,6 +407,11 @@ export async function listAvailableJobs(agentId: string) {
   const endOfDay = new Date();
   endOfDay.setHours(23, 59, 59, 999);
 
+  const [agentPoint, payoutOf] = await Promise.all([getAgentPoint(agentId), payoutCalculator()]);
+  // Without a location we can't tell what's local, and every city's pool is
+  // not the answer — that is how a Bangalore cleaner was shown Indore jobs.
+  if (!agentPoint) return [];
+
   const bookings = await Booking.find({
     status: "upcoming",
     dispatchStatus: { $in: ["searching", "pending_admin", "offered"] },
@@ -398,10 +420,12 @@ export async function listAvailableJobs(agentId: string) {
   })
     .populate("user", "name")
     .sort({ date: 1, slot: 1 })
-    .limit(20);
+    .limit(200);
 
-  const [agentPoint, payoutOf] = await Promise.all([getAgentPoint(agentId), payoutCalculator()]);
-  return bookings.map((b) => mapJob(b, payoutOf, agentPoint));
+  return bookings
+    .filter((b) => withinServiceRadius(b, agentPoint))
+    .slice(0, 20)
+    .map((b) => mapJob(b, payoutOf, agentPoint));
 }
 
 /**
@@ -413,6 +437,15 @@ export async function claimJob(agentId: string, bookingId: string) {
   const agent = await User.findById(agentId);
   if (!agent) throw ApiError.notFound("Agent not found");
   if (agent.agentStatus !== "verified") throw ApiError.badRequest("Agent is not verified");
+
+  // Same area rule as the list: the pool is not a way to take jobs in another city.
+  const target = await Booking.findById(bookingId).select("location");
+  if (!target) throw ApiError.badRequest("This job is no longer available");
+  const coords = (agent.liveLocation as unknown as { coordinates?: number[] } | undefined)?.coordinates;
+  const agentPoint: LngLat | undefined = coords && coords.length === 2 ? [coords[0], coords[1]] : undefined;
+  if (!withinServiceRadius(target, agentPoint)) {
+    throw ApiError.badRequest("This job is outside your area. Turn on location and make sure you're near the customer.");
+  }
 
   // Atomically grab the booking if it's still unclaimed.
   const booking = await Booking.findOneAndUpdate(
@@ -462,6 +495,6 @@ export async function claimJob(agentId: string, bookingId: string) {
     data: { bookingId: String(booking._id) },
   }).catch(() => {});
 
-  const [agentPoint, payoutOf] = await Promise.all([getAgentPoint(agentId), payoutCalculator()]);
+  const payoutOf = await payoutCalculator();
   return mapJob(booking, payoutOf, agentPoint);
 }

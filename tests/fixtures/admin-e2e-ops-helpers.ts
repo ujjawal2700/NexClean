@@ -1,7 +1,7 @@
 import type { APIRequestContext } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { authHeader, freshPhone, DEMO_OTP, LEGAL_ACCEPTANCE } from "./api-client";
+import { authHeader, freshPhone, DEMO_OTP, LEGAL_ACCEPTANCE, submitAgentApplication } from "./api-client";
 
 /**
  * Helpers shared across the "operational half" admin e2e specs
@@ -153,7 +153,7 @@ export async function seedPendingAgent(request: APIRequestContext, namePrefix = 
   return withRetry(async () => {
     const phone = freshPhone();
     const name = `${namePrefix} ${phone.slice(-4)}`;
-    const res = await request.post(apiUrl("/auth/agent/signup"), {
+    const res = await submitAgentApplication(request, {
       data: {
         name,
         phone,

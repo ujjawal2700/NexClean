@@ -5,6 +5,7 @@ import { verifyToken } from "../utils/jwt";
 import { SupportTicket } from "../../modules/chat/ticket.model";
 import { notifyUser } from "../../modules/notification/notification.service";
 import { SupportConfig } from "../../modules/chat/supportConfig.model";
+import { User } from "../../modules/user/user.model";
 import {
   recordAgentLocation,
   assertCanTrack,
@@ -137,7 +138,7 @@ export async function initSocket(server: any) {
   };
 
   // Authentication Middleware
-  io.use((socket: AuthenticatedSocket, next) => {
+  io.use(async (socket: AuthenticatedSocket, next) => {
     // Browser clients authenticate with the httpOnly session cookie, which the
     // handshake carries when the client sets withCredentials — they can no
     // longer read a token to pass explicitly. auth/query are kept for
@@ -156,16 +157,28 @@ export async function initSocket(server: any) {
       return next(new Error("Authentication error: No token provided"));
     }
 
+    let decoded: ReturnType<typeof verifyToken>;
     try {
-      const decoded = verifyToken(String(token));
-      socket.user = {
-        id: decoded.sub,
-        role: decoded.role,
-      };
-      next();
+      decoded = verifyToken(String(token));
     } catch (err) {
       return next(new Error("Authentication error: Invalid token"));
     }
+    // Same revocation rule as requireAuth: a session signed out elsewhere (a
+    // cleaner who logged in on another phone, a suspension) must not be able
+    // to reconnect and keep receiving offers or streaming its location.
+    try {
+      const account = await User.findById(decoded.sub).select("status tokenVersion").lean();
+      if (!account || account.status === "suspended" || (decoded.ver ?? 0) !== (account.tokenVersion ?? 0)) {
+        return next(new Error("Authentication error: Session expired"));
+      }
+    } catch (err) {
+      return next(new Error("Authentication error: Could not verify session"));
+    }
+    socket.user = { id: decoded.sub, role: decoded.role };
+    // Visible through fetchSockets() on every worker, so a session cut can
+    // tell an old device's socket from the new one's.
+    socket.data.ver = decoded.ver ?? 0;
+    next();
   });
 
   io.on("connection", async (socket: AuthenticatedSocket) => {
@@ -354,6 +367,29 @@ export function broadcastTicketStatus(ticketId: string, status: "open" | "closed
 /** Emit an event to a single user's personal room (all their connected devices). */
 export function emitToUser(userId: string, event: string, payload: unknown) {
   io?.to(`user:${userId}`).emit(event, payload);
+}
+
+/**
+ * End every live connection a user has: tell each device why, then cut it.
+ * The disconnect waits a moment so the reason actually reaches the device
+ * before its socket closes. Routed through the adapter, so it reaches sockets
+ * held by other workers too; the connect-time version check keeps them out.
+ */
+export async function endUserSessions(userId: string, event: string, currentVersion: number): Promise<void> {
+  if (!io) return;
+  try {
+    // Only sockets from before `currentVersion` — the device that just signed
+    // in may already be connecting on the new one.
+    const stale = (await io.in(`user:${userId}`).fetchSockets()).filter(
+      (s) => Number(s.data?.ver ?? 0) < currentVersion,
+    );
+    for (const s of stale) s.emit(event, { at: Date.now() });
+    setTimeout(() => {
+      for (const s of stale) s.disconnect(true);
+    }, 1_500);
+  } catch (err) {
+    console.error("[socket] session cut failed:", (err as Error).message);
+  }
 }
 
 /**

@@ -86,9 +86,10 @@ async function newCustomer() {
 
 async function newVerifiedAgent(admin, { online = true, offsetLat = 0.02 } = {}) {
   const phone = freshPhone();
-  await call("/auth/agent/signup", {
+  await call("/auth/agent/signup-basic", {
     method: "POST",
-    body: { name: uniqueName("Leak Agent"), phone, area: "Test Zone", privacyAccepted: true, termsAccepted: true,
+    // signup-basic proves the phone with the OTP and creates the account.
+    body: { code: DEMO_OTP, city: "Indore", name: uniqueName("Leak Agent"), phone, area: "Test Zone", privacyAccepted: true, termsAccepted: true,
       aadharNumber: "123456789012", aadharFront: FAKE, aadharBack: FAKE },
   });
   const v = await call("/auth/verify-otp", { method: "POST", body: { phone, code: DEMO_OTP } });

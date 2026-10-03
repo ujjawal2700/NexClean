@@ -54,11 +54,11 @@ test.describe("Agent live navigation", () => {
   });
 
   test("a booking with no map pin says so instead of showing an empty map", async ({ page, request }) => {
-    // Claimed directly from the pool rather than dispatched, because a booking
-    // without coordinates never reaches an agent through the offer flow — it
-    // goes straight to the admin queue by design.
-    const { agentToken } = await seedAssignedJob(request);
-    const { loginAsNewCustomer } = await import("../../fixtures/api-client");
+    // Placed by an admin, because a booking without coordinates never reaches
+    // an agent through the offer flow or the claimable pool (it can't be shown
+    // to be in anyone's area) — it goes straight to the admin queue by design.
+    const { agentId, bookingId: seededId } = await seedAssignedJob(request);
+    const { loginAsNewCustomer, loginAsAdmin } = await import("../../fixtures/api-client");
     const { token: customerToken } = await loginAsNewCustomer(request);
     const packageId = (await (await request.get("/catalog/packages")).json()).data[0].id;
     const created = await (
@@ -77,10 +77,17 @@ test.describe("Agent live navigation", () => {
     ).json();
     const bookingId = created.data.id;
 
-    const claimed = await request.post(`/agent/jobs/${bookingId}/claim`, {
-      headers: authHeader(agentToken),
+    const { token: adminToken } = await loginAsAdmin(request);
+    // Free the cleaner first — an admin can't assign someone mid-way through another job.
+    await request.patch(`/admin/bookings/${seededId}/status`, {
+      headers: authHeader(adminToken),
+      data: { status: "completed" },
     });
-    expect(claimed.ok()).toBeTruthy();
+    const assigned = await request.patch(`/admin/bookings/${bookingId}/assign`, {
+      headers: authHeader(adminToken),
+      data: { agentId },
+    });
+    expect(assigned.ok()).toBeTruthy();
 
     await loginAgentUI(page, SEED_AGENT_PHONE);
     await page.goto(`/agent/jobs/${bookingId}`);

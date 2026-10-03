@@ -9,6 +9,7 @@ import {
   loginAsAgent,
   loginAsNewCustomer,
   loginByPhone,
+  submitAgentApplication,
 } from "../fixtures/api-client";
 
 /** Where the seeded demo agents live — bookings here are dispatch-eligible. */
@@ -55,7 +56,7 @@ async function bookingWithPin(request: APIRequestContext, extra: Record<string, 
  */
 async function freshVerifiedAgent(request: APIRequestContext) {
   const phone = freshPhone();
-  await request.post("/auth/agent/signup", {
+  await submitAgentApplication(request, {
     data: {
       name: "Tracking Test Agent",
       phone,

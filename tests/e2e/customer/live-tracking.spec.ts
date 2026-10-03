@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader, freshPhone, ADMIN_EMAIL, ADMIN_PASSWORD } from "../../fixtures/api-client";
+import { DEMO_OTP, LEGAL_ACCEPTANCE, authHeader, freshPhone, ADMIN_EMAIL, ADMIN_PASSWORD, submitAgentApplication } from "../../fixtures/api-client";
 import { loginCustomerUI } from "../../fixtures/ui-helpers";
 import { apiContext, createBooking, firstPackageId, mintTokenForPhone } from "../../fixtures/customer-e2e-helpers";
 import { API_BASE_URL } from "../../playwright.config";
@@ -36,7 +36,7 @@ async function adminToken(api: APIRequestContext): Promise<string> {
 /** A verified cleaner, parked `offsetLat` degrees north of the booking. */
 async function verifiedAgentAt(api: APIRequestContext, admin: string, offsetLat: number) {
   const phone = freshPhone();
-  await api.post(`${API_BASE_URL}/auth/agent/signup`, {
+  await submitAgentApplication(api, {
     data: {
       name: "Tracked Cleaner",
       phone,

@@ -67,7 +67,18 @@ export async function loginByPhone(request: APIRequestContext, phone: string): P
   await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   await request.post(apiUrl("/auth/send-otp"), { data: { phone } });
   const res = await request.post(apiUrl("/auth/verify-otp"), { data: { phone, code: DEMO_OTP } });
-  const data = await unwrap<{ token: string; user: { id: string } }>(res, "verify-otp");
+  let data = await unwrap<{ token: string; user: { id: string } } | { deviceSwitchRequired: true; switchTicket: string }>(
+    res,
+    "verify-otp",
+  );
+  // A cleaner last signed in from a browser test holds that install as their
+  // one device; take the account over for this API session.
+  if ("deviceSwitchRequired" in data) {
+    const confirm = await request.post(apiUrl("/auth/agent/confirm-device-switch"), {
+      data: { switchTicket: data.switchTicket },
+    });
+    data = await unwrap<{ token: string; user: { id: string } }>(confirm, "confirm-device-switch");
+  }
   return { token: data.token, userId: data.user.id };
 }
 
@@ -76,6 +87,29 @@ export async function loginAsNewCustomer(request: APIRequestContext) {
   const phone = freshPhone();
   await request.post(apiUrl("/auth/customer/signup"), { data: { name: "Test Customer", phone, ...LEGAL_ACCEPTANCE } });
   return loginByPhone(request, phone);
+}
+
+/**
+ * Submit a cleaner application the way the app does: verify the phone with
+ * an OTP (signup-basic creates the account and signs it in), then send the
+ * KYC step with that session. /auth/agent/signup only completes the signed-in
+ * cleaner's own application — it no longer creates accounts by phone number.
+ * Returns the KYC response, like a direct POST used to.
+ */
+export async function submitAgentApplication(
+  request: APIRequestContext,
+  options: { data: Record<string, unknown> & { name: string; phone: string; city?: string; area?: string } },
+) {
+  const { name, phone, city, area } = options.data;
+  await request.post(apiUrl("/auth/send-signup-otp"), { data: { phone } });
+  const basic = await request.post(apiUrl("/auth/agent/signup-basic"), {
+    data: { name, phone, city: city || "Indore", ...(area ? { area } : {}), code: DEMO_OTP, ...LEGAL_ACCEPTANCE },
+  });
+  const { token } = await unwrap<{ token: string }>(basic, "agent signup-basic");
+  return request.post(apiUrl("/auth/agent/signup"), {
+    headers: { Authorization: `Bearer ${token}` },
+    data: options.data,
+  });
 }
 
 /** Logs in as the seeded demo agent or specified agent. */
@@ -96,7 +130,7 @@ export async function createVerifiedOnlineAgent(
   coords: { lat: number; lng: number } = { lat: 22.7196, lng: 75.8577 },
 ): Promise<{ token: string; userId: string }> {
   const phone = freshPhone();
-  const signup = await request.post(apiUrl("/auth/agent/signup"), {
+  const signup = await submitAgentApplication(request, {
     data: {
       name: uniqueName("Assignment Cleaner"),
       phone,

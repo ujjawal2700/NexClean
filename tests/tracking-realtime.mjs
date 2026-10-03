@@ -103,9 +103,10 @@ async function adminToken() {
 
 async function newVerifiedAgent(admin) {
   const phone = freshPhone();
-  await call("/auth/agent/signup", {
+  await call("/auth/agent/signup-basic", {
     method: "POST",
-    body: {
+    // signup-basic proves the phone with the OTP and creates the account.
+    body: { code: DEMO_OTP, city: "Indore",
       name: uniqueName("Realtime Agent"),
       phone,
       area: "Test Zone",

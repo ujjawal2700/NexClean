@@ -4,6 +4,7 @@ import { io, type Socket } from "socket.io-client";
 import { SOCKET_URL, ApiError } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
 import {
+  meKey,
   useAgentMe,
   useJobs,
   jobsKey,
@@ -86,6 +87,8 @@ export type AgentDispatch = {
   /** A job of ours that was just cancelled and hasn't been acknowledged yet. */
   cancelledJobId: string | null;
   dismissCancelled: () => void;
+  /** This account was just signed in on another phone; this one is signed out. */
+  sessionReplaced: boolean;
 };
 
 /**
@@ -120,6 +123,7 @@ export function useAgentDispatch(): AgentDispatch {
   const [error, setError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [cancelledJobId, setCancelledJobId] = useState<string | null>(null);
+  const [sessionReplaced, setSessionReplaced] = useState(false);
   const activeJobIdsRef = useRef<Set<string> | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const checkOfferRef = useRef<() => void>(() => {});
@@ -154,6 +158,23 @@ export function useAgentDispatch(): AgentDispatch {
     socket.on("job_cancelled", ({ bookingId }: { bookingId: string }) => {
       if (bookingId) setCancelledJobId(bookingId);
       refreshJobs();
+    });
+
+    // Signed in on another phone: this one no longer holds the account.
+    socket.on("session_replaced", () => {
+      setOffer(null);
+      setSessionReplaced(true);
+    });
+    // The server refuses a reconnect from a revoked session. Re-reading the
+    // profile turns that into a 401, which the route guard sends to login.
+    socket.on("connect_error", (err: Error) => {
+      if (/session expired/i.test(err.message)) qc.invalidateQueries({ queryKey: meKey });
+    });
+
+    // Dispatch switched us offline after a run of unanswered offers.
+    socket.on("auto_offline", () => {
+      setOffer(null);
+      qc.invalidateQueries({ queryKey: meKey });
     });
 
     socket.on("job_offer", (o: JobOffer) => {
@@ -320,5 +341,5 @@ export function useAgentDispatch(): AgentDispatch {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the offer's identity, not the object
   }, [offerKey]);
 
-  return { offer, accept, decline, accepting, error, locating, cancelledJobId, dismissCancelled };
+  return { offer, accept, decline, accepting, error, locating, cancelledJobId, dismissCancelled, sessionReplaced };
 }

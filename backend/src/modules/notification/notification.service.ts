@@ -32,8 +32,9 @@ export async function pushToUser(userId: string, input: PushPayload): Promise<vo
   const user = await User.findById(userId).select("deviceTokens");
   if (!user) return;
 
-  // Emit real-time event via WebSockets
-  emitToUser(userId, "push_notification", input);
+  // Emit real-time event via WebSockets (without the delivery hints).
+  const { jobOffer: _jobOffer, ttlSeconds: _ttl, ...visible } = input;
+  emitToUser(userId, "push_notification", visible);
 
   await sendPush(user.deviceTokens, input);
 }

@@ -2,7 +2,7 @@ import { Types } from "mongoose";
 import { Booking, type BookingDocument } from "../booking/booking.model";
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
-import { agentLiveSince, isAgentLive } from "../user/presence";
+import { isAgentLive } from "../user/presence";
 import { notifyUser, pushToUser } from "../notification/notification.service";
 import { emitToUser, emitToAdmins, emitToRoom } from "../../shared/services/socket";
 import { haversineMeters, type LngLat } from "../../shared/geo";
@@ -19,6 +19,7 @@ import {
   SWEEP_INTERVAL_MS,
   SUBSCRIPTION_LEAD_MS,
   REMINDER_TICK_MS,
+  MAX_MISSED_OFFERS,
 } from "./dispatch.config";
 import { getOfferTtlMs } from "./dispatchConfig.service";
 import { runBookingReminders } from "../booking/reminder.service";
@@ -90,12 +91,47 @@ export function emitCancelToAgent(agentId: string, bookingId: string) {
 async function sendOffer(b: BookingDocument, candidate: NearbyAgent) {
   const payload = await buildOfferPayload(b, candidate.distanceM);
   emitToUser(candidate.id, "job_offer", payload);
-  // FCM backup so a backgrounded agent app still gets pinged. Push-only (no feed row).
+  // The push is what reaches an online cleaner whose app is closed or swiped
+  // away. Push-only (no feed row). It lives only as long as the offer: a "new
+  // job" arriving after it has gone to someone else is worse than none.
+  const ttlSeconds = b.offerExpiresAt
+    ? Math.max(1, Math.round((b.offerExpiresAt.getTime() - Date.now()) / 1000))
+    : undefined;
   await pushToUser(candidate.id, {
     title: "🚗 New wash request",
-    body: `${b.packageName} · ${b.vehicleName} · ${(candidate.distanceM / 1000).toFixed(1)} km away`,
-    data: { bookingId: String(b._id), kind: "offer" },
+    body: `${b.packageName} · ${b.vehicleName} · ${(candidate.distanceM / 1000).toFixed(1)} km away — tap to accept`,
+    // url/role: tapping it opens the cleaner app, where the offer popup is
+    // restored from the server. Without them it deep-linked to customer tracking.
+    data: { bookingId: String(b._id), kind: "offer", role: "agent", url: "/agent" },
+    jobOffer: true,
+    ttlSeconds,
   }).catch((err) => console.error("offer push failed:", (err as Error).message));
+}
+
+/**
+ * An offer ran out on a cleaner without an answer. Online lasts until the
+ * cleaner switches it off — even with the app closed — so a run of these is
+ * the only sign their phone is off or unreachable. At the limit they're set
+ * offline and told why, instead of stalling every nearby booking for a full
+ * offer timeout each.
+ */
+async function recordMissedOffer(agentId: string): Promise<void> {
+  if (MAX_MISSED_OFFERS <= 0) return;
+  const agent = await User.findOneAndUpdate({ _id: agentId }, { $inc: { missedOffers: 1 } }, { new: true }).select(
+    "missedOffers online",
+  );
+  if (!agent?.online || (agent.missedOffers ?? 0) < MAX_MISSED_OFFERS) return;
+
+  const off = await User.updateOne({ _id: agentId, online: true }, { online: false, missedOffers: 0 });
+  if (off.modifiedCount === 0) return;
+  emitToUser(agentId, "auto_offline", { missedOffers: MAX_MISSED_OFFERS });
+  emitDispatchUpdate();
+  void notifyUser(agentId, {
+    type: "system",
+    title: "You're now offline",
+    body: `You missed ${MAX_MISSED_OFFERS} job offers in a row, so we've set you offline. Go online again when you're ready for jobs.`,
+    data: { role: "agent", url: "/agent", kind: "auto_offline" },
+  }).catch((err) => console.error("auto-offline notification failed:", (err as Error).message));
 }
 
 async function moveToAdminQueue(b: BookingDocument) {
@@ -302,7 +338,7 @@ export async function acceptOffer(agentId: string, bookingId: string) {
     throw ApiError.badRequest("This job is no longer available");
   }
 
-  await User.updateOne({ _id: agentId }, { currentOfferBooking: null });
+  await User.updateOne({ _id: agentId }, { currentOfferBooking: null, missedOffers: 0 });
   await onAssigned(booking, { id: String(agent._id), name: agent.name });
   return booking;
 }
@@ -318,6 +354,8 @@ export async function declineOffer(agentId: string, bookingId: string) {
     { new: true },
   );
   await User.updateOne({ _id: agentId, currentOfferBooking: bookingId }, { currentOfferBooking: null });
+  // A decline is an answer: the phone is reachable.
+  await User.updateOne({ _id: agentId }, { missedOffers: 0 });
   if (booking) {
     revokeAgentTracking(agentId, bookingId);
     emitToUser(agentId, "offer_revoked", { bookingId });
@@ -453,7 +491,7 @@ export async function assignAgentToBooking(bookingId: string, agentId: string) {
   if (!agent) throw ApiError.notFound("Agent not found");
   if (agent.agentStatus !== "verified") throw ApiError.badRequest("Agent is not verified");
   if (!isAgentLive(agent)) {
-    throw ApiError.conflict("This cleaner is offline or has stopped responding. Choose an online cleaner.");
+    throw ApiError.conflict("This cleaner is offline. Choose an online cleaner.");
   }
 
   const booking = await Booking.findById(bookingId).populate("user", "name");
@@ -563,7 +601,6 @@ export async function listAssignableAgents(bookingId: string) {
   const booking = await Booking.findById(bookingId);
   if (!booking) throw ApiError.notFound("Booking not found");
   const point = bookingPoint(booking);
-  const liveSince = agentLiveSince().getTime();
 
   if (point) {
     const agents = await User.aggregate<{
@@ -583,7 +620,6 @@ export async function listAssignableAgents(bookingId: string) {
             role: "agent",
             agentStatus: "verified",
             online: true,
-            lastSeenAt: { $gte: new Date(liveSince) },
             currentOfferBooking: { $in: [null, booking._id] },
           },
         },
@@ -610,7 +646,6 @@ export async function listAssignableAgents(bookingId: string) {
     role: "agent",
     agentStatus: "verified",
     online: true,
-    lastSeenAt: { $gte: new Date(liveSince) },
     currentOfferBooking: { $in: [null, booking._id] },
   }).limit(50);
   const busy = await Booking.find({
@@ -745,6 +780,9 @@ export async function sweepOffers(): Promise<void> {
       await User.updateOne({ _id: agentId, currentOfferBooking: b._id }, { currentOfferBooking: null });
       revokeAgentTracking(agentId, String(b._id));
       emitToUser(agentId, "offer_revoked", { bookingId: String(b._id) });
+      await recordMissedOffer(agentId).catch((err) =>
+        console.error("missed-offer tracking failed:", (err as Error).message),
+      );
     }
     await offerNext(String(b._id));
   }

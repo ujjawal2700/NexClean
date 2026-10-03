@@ -11,7 +11,8 @@ import { Logo } from "@shared/components/brand/Logo";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { ApiError } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
-import { meKey, useSendOtp, useVerifyOtp } from "../api/agent.api";
+import { meKey, useSendOtp, useVerifyOtp, useConfirmDeviceSwitch, type AgentLoginResult } from "../api/agent.api";
+import { DeviceSwitchDialog } from "../components/DeviceSwitchDialog";
 import { Stepper } from "@shared/ui/Stepper";
 
 
@@ -26,11 +27,14 @@ export function Login() {
   const [error, setError] = useState("");
   const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
   const [showNotRegisteredModal, setShowNotRegisteredModal] = useState(false);
+  const [switchTicket, setSwitchTicket] = useState<string | null>(null);
+  const [switchError, setSwitchError] = useState("");
   const phoneRef = useRef("");
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
   const sendOtp = useSendOtp();
   const verifyOtp = useVerifyOtp();
+  const confirmSwitch = useConfirmDeviceSwitch();
 
   if (authenticated) return <Navigate to="/agent" replace />;
 
@@ -56,18 +60,50 @@ export function Login() {
     }
   };
 
+  const finishLogin = ({ token, user }: AgentLoginResult) => {
+    if (user.role !== "agent" && user.role !== "cleaner") {
+      setError("This number isn't registered as an agent.");
+      return;
+    }
+    setToken(token);
+    qc.setQueryData(meKey, user);
+    navigate("/agent", { replace: true });
+  };
+
+  const confirmDeviceSwitch = async () => {
+    if (!switchTicket) return;
+    setSwitchError("");
+    try {
+      const result = await confirmSwitch.mutateAsync(switchTicket);
+      setSwitchTicket(null);
+      finishLogin(result);
+    } catch (e) {
+      // The ticket lives five minutes; past that the cleaner needs a fresh code.
+      setSwitchTicket(null);
+      setOtp("");
+      setStep("phone");
+      setError(e instanceof ApiError ? e.message : "Couldn't log you in. Please try again.");
+    }
+  };
+
+  const cancelDeviceSwitch = () => {
+    setSwitchTicket(null);
+    setOtp("");
+    setStep("phone");
+    setError("Login cancelled. You're still logged in on your other phone.");
+  };
+
   const verify = async () => {
     if (otp.length !== 6) return setError("Enter the 6-digit code");
     setError("");
     try {
-      const { token, user } = await verifyOtp.mutateAsync({ phone: phoneRef.current, code: otp });
-      if (user.role !== "agent" && user.role !== "cleaner") {
-        setError("This number isn't registered as an agent.");
+      const result = await verifyOtp.mutateAsync({ phone: phoneRef.current, code: otp });
+      if ("deviceSwitchRequired" in result) {
+        setSwitchError("");
+        setSwitchTicket(result.switchTicket);
         return;
       }
-      setToken(token);
-      qc.setQueryData(meKey, user);
-      navigate("/agent", { replace: true });
+      finishLogin(result);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : String(e);
       if (msg.includes("NOT_REGISTERED")) {
@@ -227,6 +263,15 @@ export function Login() {
             </div>
           </GlassCard>
         </div>
+      )}
+
+      {switchTicket && (
+        <DeviceSwitchDialog
+          pending={confirmSwitch.isPending}
+          error={switchError}
+          onCancel={cancelDeviceSwitch}
+          onConfirm={() => void confirmDeviceSwitch()}
+        />
       )}
 
       {showNotRegisteredModal && (

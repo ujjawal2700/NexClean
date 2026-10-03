@@ -12,7 +12,7 @@ import { Notification } from "../notification/notification.model";
 import { notifyUser, pushToUser } from "../notification/notification.service";
 import { maybeCreditReferrer } from "../promotions/referral.service";
 import { ApiError } from "../../shared/utils/ApiError";
-import { isAgentLive, agentLiveSince } from "../user/presence";
+import { isAgentLive } from "../user/presence";
 import * as dispatch from "../dispatch/dispatch.service";
 import * as planService from "../catalog/plan.service";
 import type { PlanDoc } from "../catalog/plan.model";
@@ -75,8 +75,6 @@ function mapBooking(b: BookingDoc) {
  * both index-backed and constant memory.
  */
 export async function stats() {
-  const liveSince = agentLiveSince();
-
   const [revenueAgg, activeBookings, activeServices, totalUsers, agentsTotal, agentsOnline, alertsTriggered] =
     await Promise.all([
       Booking.aggregate<{ total: number }>([
@@ -92,8 +90,8 @@ export async function stats() {
       }),
       User.countDocuments({ role: "customer" }),
       User.countDocuments({ role: "agent" }),
-      // Mirrors isAgentLive(): toggled online AND heartbeat within the window.
-      User.countDocuments({ role: "agent", online: true, lastSeenAt: { $gte: liveSince } }),
+      // Mirrors isAgentLive(): the cleaner's own online switch.
+      User.countDocuments({ role: "agent", online: true }),
       TriggeredAlert.countDocuments(),
     ]);
 
