@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Loader2, Radar, ShieldCheck, Clock3, UserCog, AlertTriangle } from "lucide-react";
+import { Radar, ShieldCheck, Clock3, UserCog, AlertTriangle } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import type { TrackingSnapshot } from "@shared/types/tracking";
+import { ManageBookingActions } from "../../components/ManageBookingActions";
 
 /** Copy that changes as the wait lengthens, so the screen never looks stuck. */
 const REASSURANCE = [
@@ -28,11 +29,14 @@ function elapsedLabel(seconds: number): string {
 export function SearchingPanel({
   snapshot,
   onCancel,
+  onReschedule,
   cancelling,
   cancelError,
 }: {
   snapshot: TrackingSnapshot;
   onCancel: () => void;
+  /** Move the booking to another date/slot. Omitted where moving isn't allowed. */
+  onReschedule?: () => void;
   cancelling: boolean;
   /** Why a cancel was refused, when it was. */
   cancelError?: string;
@@ -111,15 +115,14 @@ export function SearchingPanel({
         <Reassure icon={Clock3} text="You'll see them on the map the second they accept." />
       </div>
 
-      <button
-        type="button"
-        onClick={onCancel}
-        disabled={cancelling}
-        className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-surface py-3 text-sm font-semibold text-ink-soft transition-colors hover:border-red-300 hover:text-red-600 disabled:opacity-60"
-      >
-        {cancelling && <Loader2 className="size-4 animate-spin" />}
-        Cancel this booking
-      </button>
+      <ManageBookingActions
+        className="mt-5"
+        canReschedule={!!onReschedule}
+        canCancel
+        onReschedule={() => onReschedule?.()}
+        onCancel={onCancel}
+        cancelling={cancelling}
+      />
 
       {cancelError && (
         <p

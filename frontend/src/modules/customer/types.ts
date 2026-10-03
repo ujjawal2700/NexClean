@@ -84,6 +84,8 @@ export type Booking = {
   coinsRedeemed?: number;
   coinDiscount?: number;
   status: BookingStatus;
+  /** Where the cleaner is with it: assigned → enroute → arrived → in_progress → completed. */
+  jobStatus?: "assigned" | "enroute" | "arrived" | "in_progress" | "completed" | null;
   dispatchStatus?: DispatchStatus;
   agentName?: string | null;
   isSubscriptionWash?: boolean;

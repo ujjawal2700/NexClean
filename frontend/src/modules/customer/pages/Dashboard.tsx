@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, CalendarPlus, MapPin, Sparkles, Plus, CreditCard, Bell, Crown } from "lucide-react";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -8,7 +9,12 @@ import { useMe, useBookings, usePromoBanners, useVehicleCategories, useCategoryL
 import { useIsGuest } from "../store/sessionStore";
 import { PACKAGES } from "../data/catalog";
 import { formatDate, formatMoney, greeting } from "@shared/lib/format";
-import type { BannerType } from "../types";
+import type { BannerType, Booking } from "../types";
+import { ApiError } from "@shared/lib/api";
+import { useCancelBooking } from "../api/mutations";
+import { RescheduleModal } from "../components/RescheduleModal";
+import { CancelBookingSheet } from "../components/CancelBookingSheet";
+import { ManageBookingActions, bookingManageRules } from "../components/ManageBookingActions";
 
 /**
  * Corner badge per banner type. "promotional" deliberately has none — it is the
@@ -30,6 +36,12 @@ export function Dashboard() {
   const { data: plans = [], isLoading: plansLoading } = usePlans();
   const categoryLabel = useCategoryLabel();
   const isGuest = useIsGuest();
+  // The next booking can be moved or cancelled right here — the dashboard is
+  // where a customer looks for it, not only the bookings list.
+  const cancelBooking = useCancelBooking();
+  const [rescheduling, setRescheduling] = useState<Booking | null>(null);
+  const [cancelling, setCancelling] = useState<Booking | null>(null);
+  const [cancelError, setCancelError] = useState("");
 
   const unread = notifications.filter((n) => !n.read).length;
   const unreadNotification = notifications.find((n) => !n.read);
@@ -170,9 +182,20 @@ export function Dashboard() {
                   <MapPin className="size-4 text-primary" /> {next.addressLabel}
                 </p>
               </div>
-              <Button asChild variant="outline" size="sm" className="mt-auto w-fit">
-                <Link to="/app/bookings">View details</Link>
-              </Button>
+              <div className="mt-auto space-y-2 pt-4">
+                <ManageBookingActions
+                  {...bookingManageRules(next)}
+                  onReschedule={() => setRescheduling(next)}
+                  onCancel={() => {
+                    setCancelError("");
+                    setCancelling(next);
+                  }}
+                  cancelling={cancelBooking.isPending}
+                />
+                <Button asChild variant="outline" size="sm" className="w-fit">
+                  <Link to={`/app/track/${next.id}`}>View details</Link>
+                </Button>
+              </div>
             </div>
           ) : !hasBookingHistory ? (
             <div className="mt-4 flex flex-1 flex-col items-start justify-center">
@@ -364,6 +387,25 @@ export function Dashboard() {
       <p className="text-center text-xs text-muted">
         Starting prices from {formatMoney(PACKAGES[0].factor * cheapestBase)} · Cancel anytime
       </p>
+
+      {rescheduling && <RescheduleModal booking={rescheduling} onClose={() => setRescheduling(null)} />}
+
+      {cancelling && (
+        <CancelBookingSheet
+          title={cancelling.packageName}
+          detail={`${formatDate(cancelling.date)} · ${cancelling.slot}`}
+          pending={cancelBooking.isPending}
+          error={cancelError}
+          onConfirm={() =>
+            cancelBooking.mutate(cancelling.id, {
+              onSuccess: () => setCancelling(null),
+              onError: (e) =>
+                setCancelError(e instanceof ApiError ? e.message : "Couldn't cancel just now — please try again."),
+            })
+          }
+          onClose={() => setCancelling(null)}
+        />
+      )}
     </div>
   );
 }

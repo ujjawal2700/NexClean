@@ -11,6 +11,7 @@ import { useCancelBooking } from "../api/mutations";
 import { RescheduleModal } from "../components/RescheduleModal";
 import { ServicePhotosModal } from "../components/ServicePhotosModal";
 import { CancelBookingSheet } from "../components/CancelBookingSheet";
+import { bookingManageRules } from "../components/ManageBookingActions";
 import { ApiError } from "@shared/lib/api";
 import type { Booking, BookingStatus } from "../types";
 import { formatDate, formatMoney } from "@shared/lib/format";
@@ -208,11 +209,13 @@ export function Bookings() {
                 )}
               </div>
 
-              {b.status === "upcoming" && (
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setRescheduling(b)}>
-                    <RefreshCw className="size-3.5" /> Reschedule
-                  </Button>
+              {bookingManageRules(b).canCancel && (
+                <div className={cn("grid gap-2", bookingManageRules(b).canReschedule ? "grid-cols-2" : "grid-cols-1")}>
+                  {bookingManageRules(b).canReschedule && (
+                    <Button variant="outline" size="sm" onClick={() => setRescheduling(b)}>
+                      <RefreshCw className="size-3.5" /> Reschedule
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"

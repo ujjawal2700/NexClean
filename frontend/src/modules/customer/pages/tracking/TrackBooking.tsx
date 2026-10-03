@@ -13,6 +13,9 @@ import { SearchingPanel } from "./SearchingPanel";
 import { CancelBookingSheet } from "../../components/CancelBookingSheet";
 import { AgentPanel } from "./AgentPanel";
 import { ServicePhotosModal } from "../../components/ServicePhotosModal";
+import { RescheduleModal } from "../../components/RescheduleModal";
+import { ManageBookingActions, bookingManageRules } from "../../components/ManageBookingActions";
+import { useBookings } from "../../api/queries";
 
 /**
  * The customer's live tracking screen.
@@ -38,6 +41,11 @@ export function TrackBooking() {
   // The cancel confirmation is open.
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
+  const [rescheduling, setRescheduling] = useState(false);
+  // The reschedule dialog works on the booking record (price, package), which
+  // the live tracking snapshot doesn't carry.
+  const { data: bookings = [] } = useBookings();
+  const bookingRecord = bookings.find((b) => b.id === id) ?? null;
 
   const agentPos = useMemo(() => (fix ? { lat: fix.lat, lng: fix.lng } : null), [fix]);
 
@@ -102,6 +110,8 @@ export function TrackBooking() {
     ["searching", "offered", "pending_admin", "scheduled"].includes(snapshot.dispatchStatus);
 
   const finished = snapshot.status === "completed" || snapshot.jobStatus === "completed";
+  const manage = bookingManageRules(snapshot);
+  const canReschedule = manage.canReschedule && !!bookingRecord;
   const cancelled = snapshot.status === "cancelled";
 
   return (
@@ -220,6 +230,7 @@ export function TrackBooking() {
                 <SearchingPanel
                   snapshot={snapshot}
                   onCancel={askCancel}
+                  onReschedule={canReschedule ? () => setRescheduling(true) : undefined}
                   cancelling={cancelBooking.isPending}
                   cancelError={cancelError}
                 />
@@ -237,26 +248,33 @@ export function TrackBooking() {
                   distanceM={distanceM}
                   stale={stale}
                 />
-                {/* Cancelling stays possible until the cleaner starts on the car. */}
-                {snapshot.status === "upcoming" && snapshot.jobStatus !== "in_progress" && (
-                  <button
-                    type="button"
-                    onClick={askCancel}
-                    className="mt-3 w-full cursor-pointer rounded-2xl py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-500/10"
-                    data-testid="track-cancel-booking"
-                  >
-                    Cancel booking
-                  </button>
-                )}
+                {/* Moving is possible until the cleaner sets off; cancelling until they start on the car. */}
+                <ManageBookingActions
+                  className="mx-5 mb-6 mt-3"
+                  canReschedule={canReschedule}
+                  canCancel={manage.canCancel}
+                  onReschedule={() => setRescheduling(true)}
+                  onCancel={askCancel}
+                  cancelling={cancelBooking.isPending}
+                />
               </motion.div>
             ) : (
-              <TerminalPanel
-                key="scheduled"
-                icon={<CalendarClock className="size-6 text-violet-500" />}
-                title="Scheduled"
-                body="A cleaner will be assigned automatically before your slot. You'll be able to track them live from here."
-                action={{ label: "Back to bookings", to: "/app/bookings" }}
-              />
+              <div key="scheduled">
+                <TerminalPanel
+                  icon={<CalendarClock className="size-6 text-violet-500" />}
+                  title="Scheduled"
+                  body="A cleaner will be assigned automatically before your slot. You'll be able to track them live from here."
+                  action={{ label: "Back to bookings", to: "/app/bookings" }}
+                />
+                <ManageBookingActions
+                  className="mx-5 mb-6"
+                  canReschedule={canReschedule}
+                  canCancel={manage.canCancel}
+                  onReschedule={() => setRescheduling(true)}
+                  onCancel={askCancel}
+                  cancelling={cancelBooking.isPending}
+                />
+              </div>
             )}
           </AnimatePresence>
         </div>
@@ -270,6 +288,17 @@ export function TrackBooking() {
           error={cancelError}
           onConfirm={cancel}
           onClose={() => setConfirmingCancel(false)}
+        />
+      )}
+
+      {rescheduling && bookingRecord && (
+        <RescheduleModal
+          booking={bookingRecord}
+          onClose={() => {
+            setRescheduling(false);
+            // Pull the new date/slot (and any re-dispatch) into this screen.
+            void refresh();
+          }}
         />
       )}
 
