@@ -64,8 +64,8 @@ export function DutyCard({ disabled }: { disabled?: boolean }) {
         >
           <BellOff className="mt-0.5 size-4 shrink-0" />
           <span>
-            <span className="font-semibold">Notifications are off on this phone.</span> You'll only get job alerts while the
-            app is open. Tap to turn them on.
+            <span className="font-semibold">Job alerts can't reach this phone when the app is closed.</span> Keep the app
+            open to get new jobs. Tap for notification settings.
           </span>
         </Link>
       )}
