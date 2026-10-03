@@ -2,7 +2,8 @@ import { Link } from "react-router-dom";
 import { BellOff, Loader2, Power } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
-import { useOnlineSwitch, hasRealPushToken } from "../hooks/useOnlineSwitch";
+import { useOnlineSwitch } from "../hooks/useOnlineSwitch";
+import { useAgentMe } from "../api/agent.api";
 
 /**
  * The cleaner's on-duty switch, front and centre on Today. Online stays on
@@ -12,7 +13,11 @@ import { useOnlineSwitch, hasRealPushToken } from "../hooks/useOnlineSwitch";
  */
 export function DutyCard({ disabled }: { disabled?: boolean }) {
   const { online, pending, toggle } = useOnlineSwitch();
-  const pushReady = hasRealPushToken();
+  const { data: me } = useAgentMe();
+  // From the server: whether it holds a real push token for this cleaner —
+  // what actually decides if an offer reaches a closed app. A guess from this
+  // page's local storage can disagree with it.
+  const pushOff = me?.pushReady === false;
 
   return (
     <GlassCard
@@ -51,7 +56,7 @@ export function DutyCard({ disabled }: { disabled?: boolean }) {
         </button>
       </div>
 
-      {online && !pushReady && (
+      {online && pushOff && (
         <Link
           to="/agent/notifications"
           className="mt-4 flex items-start gap-3 rounded-2xl border border-red-300/50 bg-red-50/80 p-3 text-sm text-red-700"

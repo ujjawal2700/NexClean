@@ -1,23 +1,13 @@
 import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   getPushToken,
-  getStoredDeviceToken,
   requestPushPermission,
   saveDeviceToken,
 } from "@shared/lib/push";
 import { apiFetch } from "@shared/lib/api";
-import { useAgentMe, useToggleOnline } from "../api/agent.api";
+import { meKey, useAgentMe, useToggleOnline } from "../api/agent.api";
 import { requestCurrentDeviceFix } from "./useDeviceLocation";
-
-/**
- * Whether this phone can be reached by push with the app closed: a real FCM
- * token (web push, or the store app's native token handed over by its bridge),
- * not the synthetic "web-…" placeholder used when push isn't available.
- */
-export function hasRealPushToken(): boolean {
-  const token = getStoredDeviceToken();
-  return !!token && !token.startsWith("web-");
-}
 
 /**
  * The cleaner's Online / Offline switch.
@@ -31,6 +21,7 @@ export function hasRealPushToken(): boolean {
 export function useOnlineSwitch() {
   const { data: me } = useAgentMe();
   const toggle = useToggleOnline();
+  const qc = useQueryClient();
   const online = me?.online ?? false;
 
   const setOnline = useCallback(
@@ -54,9 +45,11 @@ export function useOnlineSwitch() {
         await apiFetch("/notifications/register-token", { method: "POST", body: { token } });
       } catch {
         /* the banner tells the cleaner if job alerts can't reach a closed app */
+      } finally {
+        qc.invalidateQueries({ queryKey: meKey });
       }
     },
-    [toggle],
+    [toggle, qc],
   );
 
   return { online, pending: toggle.isPending, setOnline, toggle: () => setOnline(!online) };

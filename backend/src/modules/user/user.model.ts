@@ -71,6 +71,13 @@ const userSchema = new Schema(
     addresses: { type: [addressSchema], default: [] },
     activePlan: { type: String, default: null },
     deviceTokens: { type: [String], default: [] },
+    // Which install registered each push token, so signing a cleaner in on a
+    // new phone removes only the other phone's tokens — never one this phone
+    // registered and may not hand over again.
+    pushTokenDevices: {
+      type: [{ _id: false, token: { type: String, required: true }, deviceId: { type: String, required: true } }],
+      default: [],
+    },
     // Versioned proof that the person explicitly accepted the legal documents.
     // Request metadata is audit-only and removed from normal API responses.
     legalConsent: { type: legalConsentSchema, default: undefined },
@@ -155,6 +162,7 @@ const userSchema = new Schema(
         delete ret._id;
         delete ret.__v;
         delete ret.deviceTokens; // never expose push tokens to clients
+        delete ret.pushTokenDevices;
         delete ret.legalConsent;
         // Never expose an agent's precise live GPS or internal dispatch state.
         delete ret.liveLocation;

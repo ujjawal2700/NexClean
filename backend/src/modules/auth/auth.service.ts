@@ -7,6 +7,7 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { isSuperAdmin } from "../../shared/utils/superAdmin";
 import { signToken, signDeviceSwitchTicket, verifyDeviceSwitchTicket, type Role } from "../../shared/utils/jwt";
 import { endUserSessions } from "../../shared/services/socket";
+import { isRealPushToken } from "../user/presence";
 import { generateOtp } from "../../shared/utils/otp";
 import type { CustomerSignupInput, AgentSignupInput, AgentSignupBasicInput } from "./auth.validation";
 import { LEGAL_DOCUMENT_VERSION } from "../../shared/legalDocuments";
@@ -198,13 +199,21 @@ export async function confirmAgentDeviceSwitch(ticket: string, deviceId = "") {
   if (!claims || claims.dev !== deviceId) {
     throw ApiError.badRequest("This login request has expired. Please sign in again.");
   }
+  const current = await User.findById(claims.sub).select("deviceTokens pushTokenDevices");
+  // The other phones' push tokens go, or a signed-out phone would keep ringing
+  // with offers. Only tokens known to belong to another install, plus useless
+  // placeholders — a token this phone registered (or one we can't attribute)
+  // stays: the store app hands its native token over when it decides to, not
+  // on demand, so deleting it can leave the cleaner with no push at all.
+  const otherPhones = (current?.pushTokenDevices ?? []).filter((d) => d.deviceId !== deviceId).map((d) => d.token);
+  const stale = [...otherPhones, ...(current?.deviceTokens ?? []).filter((t) => !isRealPushToken(t))];
   const user = await User.findOneAndUpdate(
     { _id: claims.sub, role: "agent", status: { $ne: "suspended" }, tokenVersion: claims.ver },
-    // The old phone's push tokens go too, or it would keep ringing with offers
-    // after it was signed out; the new phone registers its own on load. Online
-    // is switched off so the cleaner turns it on deliberately on this phone,
-    // which is also where notification permission gets asked for.
-    { $inc: { tokenVersion: 1 }, $set: { agentDeviceId: deviceId || null, deviceTokens: [], online: false } },
+    {
+      $inc: { tokenVersion: 1 },
+      $set: { agentDeviceId: deviceId || null, online: false },
+      $pull: { deviceTokens: { $in: stale }, pushTokenDevices: { token: { $in: stale } } },
+    },
     { new: true },
   );
   if (!user) throw ApiError.badRequest("This login request has expired. Please sign in again.");
@@ -232,7 +241,7 @@ export async function releaseAgentDevice(
   const current = { _id: userId, role: "agent", tokenVersion };
   await User.updateOne(current, {
     $set: { online: false },
-    ...(pushToken ? { $pull: { deviceTokens: pushToken } } : {}),
+    ...(pushToken ? { $pull: { deviceTokens: pushToken, pushTokenDevices: { token: pushToken } } } : {}),
   });
   if (deviceId) await User.updateOne({ ...current, agentDeviceId: deviceId }, { agentDeviceId: null });
 }
@@ -549,5 +558,8 @@ export async function getMe(userId: string) {
   return {
     ...user.toJSON(),
     permissions,
+    // Whether a push can reach this account with the app closed. The tokens
+    // themselves never leave the server; the app only needs the yes/no.
+    pushReady: (user.deviceTokens ?? []).some(isRealPushToken),
   };
 }

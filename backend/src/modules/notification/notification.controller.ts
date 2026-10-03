@@ -9,7 +9,8 @@ const tokenSchema = z.object({ token: z.string().min(8) });
 export async function registerToken(req: Request, res: Response): Promise<Response> {
   const parsed = tokenSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("A valid device token is required");
-  await service.registerToken(req.userId!, parsed.data.token);
+  const deviceId = String(req.get("x-device-id") ?? "").trim().slice(0, 100);
+  await service.registerToken(req.userId!, parsed.data.token, deviceId);
   return ok(res, { registered: true }, "Device registered");
 }
 

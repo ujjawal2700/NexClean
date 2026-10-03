@@ -251,6 +251,9 @@ export function installNativePushBridge(register: (token: string) => Promise<unk
     saveDeviceToken(t);
     try {
       await register(t);
+      // Lets an open screen refresh what it shows about push (e.g. the
+      // cleaner's "notifications are off" warning).
+      window.dispatchEvent(new Event("nexclean:push-registered"));
       return true;
     } catch {
       // Not signed in yet — the saved token is registered on sign-in.

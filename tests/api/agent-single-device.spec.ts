@@ -88,6 +88,41 @@ test.describe("Agent — one phone at a time", () => {
     expect((await me(request, first.token!)).ok()).toBeTruthy();
   });
 
+  test("switching phones drops only the other phone's push token, and pushReady follows", async ({ request }) => {
+    const phone = await newCleaner(request);
+    const a = await login(request, phone, PHONE_A);
+    const reg = await request.post(apiUrl("/notifications/register-token"), {
+      headers: { ...PHONE_A, Authorization: `Bearer ${a.token}` },
+      data: { token: "fcm-phone-a-real-token-123" },
+    });
+    expect(reg.ok()).toBeTruthy();
+    expect((await (await me(request, a.token!)).json()).data.pushReady).toBe(true);
+
+    const b = await login(request, phone, PHONE_B);
+    const confirm = await request.post(apiUrl("/auth/agent/confirm-device-switch"), {
+      headers: PHONE_B,
+      data: { switchTicket: b.switchTicket },
+    });
+    const tokenB = (await confirm.json()).data.token as string;
+    // Phone A's token is gone with phone A's session.
+    expect((await (await me(request, tokenB)).json()).data.pushReady).toBe(false);
+
+    await request.post(apiUrl("/notifications/register-token"), {
+      headers: { ...PHONE_B, Authorization: `Bearer ${tokenB}` },
+      data: { token: "fcm-phone-b-real-token-456" },
+    });
+    expect((await (await me(request, tokenB)).json()).data.pushReady).toBe(true);
+
+    // A placeholder token is not a way to receive pushes.
+    const c = await newCleaner(request);
+    const cs = await login(request, c, PHONE_A);
+    await request.post(apiUrl("/notifications/register-token"), {
+      headers: { ...PHONE_A, Authorization: `Bearer ${cs.token}` },
+      data: { token: "web-placeholder-token-789" },
+    });
+    expect((await (await me(request, cs.token!)).json()).data.pushReady).toBe(false);
+  });
+
   test("after logging out, another phone logs in without the prompt", async ({ request }) => {
     const phone = await newCleaner(request);
     const a = await login(request, phone, PHONE_A);

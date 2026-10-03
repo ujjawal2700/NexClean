@@ -27,17 +27,29 @@ const HEARTBEAT_INTERVAL_MS = 25_000;
 function useRegisterPushToken() {
   const registerToken = useRegisterToken();
   const registered = useRef(false);
+  const qc = useQueryClient();
+
+  // A token the store app hands over later (via the push bridge) changes
+  // whether offers can reach a closed app — refresh what the screens show.
+  useEffect(() => {
+    const refresh = () => qc.invalidateQueries({ queryKey: meKey });
+    window.addEventListener("nexclean:push-registered", refresh);
+    return () => window.removeEventListener("nexclean:push-registered", refresh);
+  }, [qc]);
 
   useEffect(() => {
     if (registered.current) return;
     registered.current = true;
+    // Signed in now: tell the store app the bridge is ready again, so a token
+    // it offered before sign-in (when registering it couldn't work) is resent.
+    window.dispatchEvent(new Event("nexclean:push-bridge-ready"));
     // No requestPermission here on purpose: prompting on page load is how you
     // get permanently denied. This only picks up a real token when the user has
     // already granted permission; the Notifications screen does the asking.
     getPushToken()
       .then((t) => {
         saveDeviceToken(t);
-        registerToken.mutate(t);
+        registerToken.mutate(t, { onSuccess: () => qc.invalidateQueries({ queryKey: meKey }) });
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps

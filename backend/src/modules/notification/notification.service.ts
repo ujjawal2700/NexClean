@@ -39,11 +39,17 @@ export async function pushToUser(userId: string, input: PushPayload): Promise<vo
   await sendPush(user.deviceTokens, input);
 }
 
-export async function registerToken(userId: string, token: string) {
+export async function registerToken(userId: string, token: string, deviceId = "") {
   // Ensure global token uniqueness across all users: pull from any existing user accounts first
-  await User.updateMany({ deviceTokens: token }, { $pull: { deviceTokens: token } });
+  await User.updateMany(
+    { $or: [{ deviceTokens: token }, { "pushTokenDevices.token": token }] },
+    { $pull: { deviceTokens: token, pushTokenDevices: { token } } },
+  );
   // Add token to target user's deviceTokens array (deduplicated via $addToSet)
-  await User.updateOne({ _id: userId }, { $addToSet: { deviceTokens: token } });
+  await User.updateOne(
+    { _id: userId },
+    { $addToSet: { deviceTokens: token }, ...(deviceId ? { $push: { pushTokenDevices: { token, deviceId } } } : {}) },
+  );
 }
 
 export async function unregisterToken(userId: string, token: string) {

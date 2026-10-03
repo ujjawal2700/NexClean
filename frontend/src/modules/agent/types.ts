@@ -97,6 +97,8 @@ export type AreaAlert = {
 
 export type AgentProfile = {
   id: string;
+  /** The server holds a real push token for this cleaner, so offers reach a closed app. */
+  pushReady?: boolean;
   name: string;
   phone: string;
   email?: string;

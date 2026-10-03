@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import { User } from "../user/user.model";
+import { reachableAgentFilter } from "../user/presence";
 import { Booking } from "../booking/booking.model";
 import { ServiceZone } from "../location/location.model";
 import { haversineMeters, orderZonesByDistance, pointInPolygon, type LngLat } from "../../shared/geo";
@@ -45,7 +46,7 @@ async function fetchEligibleAgents(excludeAgentIds: (string | Types.ObjectId)[])
   const docs = await User.find({
     role: "agent",
     agentStatus: "verified",
-    online: true,
+    ...reachableAgentFilter(),
     currentOfferBooking: null,
     "liveLocation.coordinates": { $exists: true },
     ...(exclude.length ? { _id: { $nin: exclude } } : {}),
