@@ -58,6 +58,53 @@ async function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
   };
 }
 
+/** Compact, human-readable copy for an expanded OS job-offer notification. */
+function buildOfferPush(payload: Awaited<ReturnType<typeof buildOfferPayload>>) {
+  const date = new Date(payload.date).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+  });
+  const payout = `₹${Math.round(payload.payout).toLocaleString("en-IN")}`;
+  const distance = payload.distanceKm == null ? "Nearby" : `${payload.distanceKm} km away`;
+  const address = [payload.addressLabel, payload.addressLine].filter(Boolean).join(" — ");
+  const washType = payload.isSubscriptionWash ? "Subscription wash" : "On-demand booking";
+
+  return {
+    title: `🚗 New wash request • ${payout} payout`,
+    body: [
+      `${washType} • ${payload.packageName}`,
+      `${payload.vehicleName} (${payload.vehicleType}) • ${distance}`,
+      `${date} • ${payload.slot}`,
+      address,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    // Keep the complete offer attached to the notification too. Native apps
+    // can render a rich/expanded alert from these fields, and tapping still
+    // restores the authoritative live offer from the server before accepting.
+    data: {
+      bookingId: payload.bookingId,
+      kind: "offer",
+      role: "agent",
+      url: "/agent",
+      customerName: payload.customerName,
+      vehicleType: payload.vehicleType,
+      vehicleName: payload.vehicleName,
+      packageName: payload.packageName,
+      addressLabel: payload.addressLabel,
+      addressLine: payload.addressLine,
+      society: payload.society,
+      date: new Date(payload.date).toISOString(),
+      slot: payload.slot,
+      price: String(payload.price),
+      payout: String(payload.payout),
+      distanceKm: payload.distanceKm == null ? "" : String(payload.distanceKm),
+      isSubscriptionWash: String(payload.isSubscriptionWash),
+      expiresAt: payload.expiresAt ? new Date(payload.expiresAt).toISOString() : "",
+    },
+  };
+}
+
 /**
  * Push search progress to the waiting customer (and anyone watching the
  * booking). Without this the customer's screen is a spinner that never says
@@ -97,12 +144,9 @@ async function sendOffer(b: BookingDocument, candidate: NearbyAgent) {
   const ttlSeconds = b.offerExpiresAt
     ? Math.max(1, Math.round((b.offerExpiresAt.getTime() - Date.now()) / 1000))
     : undefined;
+  const push = buildOfferPush(payload);
   await pushToUser(candidate.id, {
-    title: "🚗 New wash request",
-    body: `${b.packageName} · ${b.vehicleName} · ${(candidate.distanceM / 1000).toFixed(1)} km away — tap to accept`,
-    // url/role: tapping it opens the cleaner app, where the offer popup is
-    // restored from the server. Without them it deep-linked to customer tracking.
-    data: { bookingId: String(b._id), kind: "offer", role: "agent", url: "/agent" },
+    ...push,
     jobOffer: true,
     ttlSeconds,
   }).catch((err) => console.error("offer push failed:", (err as Error).message));
