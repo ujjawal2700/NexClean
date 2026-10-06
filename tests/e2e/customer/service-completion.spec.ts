@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { API_BASE_URL } from "../../playwright.config";
 
-test("an ongoing service completion shows a blocking dialog and OK returns home", async ({ page }) => {
+test("an ongoing service completion shows a blocking rating prompt and Maybe later returns home", async ({ page }) => {
   const baseBooking = {
     id: "booking-live-1",
     user: "customer-1",
@@ -62,7 +62,11 @@ test("an ongoing service completion shows a blocking dialog and OK returns home"
   const dialog = page.getByTestId("service-completed-dialog");
   await expect(dialog).toBeVisible({ timeout: 8_000 });
   await expect(dialog.getByRole("heading", { name: "Your service is completed" })).toBeVisible();
-  await dialog.getByRole("button", { name: "OK" }).click();
+  // It asks the customer to rate the cleaner by name.
+  await expect(dialog).toContainText("Please rate Test");
+  await expect(dialog.getByRole("button", { name: "Rate 5 stars" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Rate now" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Maybe later" }).click();
 
   await expect(page).toHaveURL(/\/app$/);
   await expect(dialog).toHaveCount(0);

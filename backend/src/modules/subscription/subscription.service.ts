@@ -1,4 +1,5 @@
 import { User } from "../user/user.model";
+import { logBookingEvent } from "../booking/bookingEvent.service";
 import { Booking } from "../booking/booking.model";
 import { Plan } from "../catalog/plan.model";
 import { ApiError } from "../../shared/utils/ApiError";
@@ -244,6 +245,9 @@ export async function scheduleSubscriptionWash(
     user: userId,
     vehicleType: vehicle.type,
     vehicleName: vehicle.name,
+    vehiclePlate: vehicle.plate && vehicle.plate !== "—" ? vehicle.plate : "",
+    vehicleColor: vehicle.color ?? "",
+    vehicleColorHex: vehicle.colorHex ?? "",
     packageId: pkg.id,
     packageName: pkg.name,
     date: new Date(input.date),
@@ -259,6 +263,12 @@ export async function scheduleSubscriptionWash(
     agentName: null,
     jobStatus: "assigned",
     dispatchStatus: "scheduled",
+  });
+  logBookingEvent(booking._id, {
+    type: "created",
+    actor: "customer",
+    reason: "Subscription wash scheduled",
+    meta: { slot: input.slot, date: new Date(input.date).toISOString(), subscription: true },
   });
 
   return booking;
@@ -283,10 +293,21 @@ export async function rescheduleSubscriptionWash(
   const user = await User.findById(userId).select("subscriptionEndDate");
   assertWithinCycle(user ?? {}, new Date(input.date));
 
+  const previous = { date: booking.date, slot: booking.slot };
   booking.date = new Date(input.date);
   booking.slot = input.slot;
   // New slot, new reminder windows — the ones already sent were for the old time.
   booking.remindersSent = [];
   await booking.save();
+  logBookingEvent(booking._id, {
+    type: "rescheduled",
+    actor: "customer",
+    meta: {
+      fromDate: previous.date ? new Date(previous.date).toISOString() : null,
+      fromSlot: previous.slot,
+      toDate: booking.date.toISOString(),
+      toSlot: booking.slot,
+    },
+  });
   return booking;
 }

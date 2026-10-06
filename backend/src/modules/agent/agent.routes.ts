@@ -9,6 +9,7 @@ agentRouter.use(requireRole("agent"));
 
 agentRouter.get("/jobs", asyncHandler(controller.jobs));
 agentRouter.get("/summary", asyncHandler(controller.summary));
+agentRouter.get("/reviews", asyncHandler(controller.reviews));
 agentRouter.patch("/jobs/:id/advance", asyncHandler(controller.advance));
 agentRouter.post("/jobs/:id/photo", asyncHandler(controller.photo));
 // Give back an assigned job (before cleaning starts) — it goes back out to other cleaners.

@@ -15,6 +15,11 @@ import { Customers } from "./pages/Customers";
 import { CustomerDetail } from "./pages/CustomerDetail";
 import { Payments } from "./pages/Payments";
 import { Refunds } from "./pages/Refunds";
+import { BookkeepingOverview } from "./pages/bookkeeping/BookkeepingOverview";
+import { Invoices } from "./pages/bookkeeping/Invoices";
+import { InvoiceDetail } from "./pages/bookkeeping/InvoiceDetail";
+import { BookkeepingSettings } from "./pages/bookkeeping/BookkeepingSettings";
+import { InvoiceTemplateEditor } from "./pages/bookkeeping/InvoiceTemplateEditor";
 import { AgentPayouts } from "./pages/AgentPayouts";
 import { PayoutRequests } from "./pages/PayoutRequests";
 import { Pricing } from "./pages/Pricing";
@@ -136,6 +141,17 @@ export function AdminApp() {
               </PermissionGuard>
             }
           />
+          {(
+            [
+              ["bookkeeping", <BookkeepingOverview />],
+              ["bookkeeping/invoices", <Invoices />],
+              ["bookkeeping/invoices/:id", <InvoiceDetail />],
+              ["bookkeeping/settings", <BookkeepingSettings />],
+              ["bookkeeping/template", <InvoiceTemplateEditor />],
+            ] as const
+          ).map(([path, page]) => (
+            <Route key={path} path={path} element={<PermissionGuard permission="bookkeeping">{page}</PermissionGuard>} />
+          ))}
           <Route
             path="refunds"
             element={

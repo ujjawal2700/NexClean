@@ -50,7 +50,10 @@ function slugify(name: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-export async function createPlan(input: { name: string; prices: PlanPrices; washesPerMonth: number }) {
+/** Admin-editable descriptive copy for a plan. */
+export type PlanDetails = { tagline?: string; description?: string; keyPoints?: string[] };
+
+export async function createPlan(input: { name: string; prices: PlanPrices; washesPerMonth: number } & PlanDetails) {
   await ensureSeeded();
   const id = slugify(input.name);
   if (!id) throw ApiError.badRequest("Invalid plan name");
@@ -61,7 +64,7 @@ export async function createPlan(input: { name: string; prices: PlanPrices; wash
 
 export async function updatePlan(
   id: string,
-  patch: { name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean },
+  patch: { name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean } & PlanDetails,
 ) {
   const plan = await Plan.findByIdAndUpdate(id, patch, { new: true });
   if (!plan) throw ApiError.notFound("Plan not found");

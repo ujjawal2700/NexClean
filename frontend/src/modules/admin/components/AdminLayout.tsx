@@ -37,6 +37,10 @@ import {
   RefreshCw,
   CalendarClock,
   Repeat,
+  BookOpenCheck,
+  ReceiptText,
+  Percent,
+  LayoutTemplate,
 } from "lucide-react";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -161,6 +165,17 @@ const NAV_GROUPS: NavGroup[] = [
         permission: "agents",
       },
       { to: "/admin/leads", label: "Leads", icon: Rocket, permission: "leads" },
+    ],
+  },
+  {
+    // GST, invoices and the accounting view of every booking.
+    id: "bookkeeping",
+    label: "Bookkeeping",
+    items: [
+      { to: "/admin/bookkeeping", label: "Overview", icon: BookOpenCheck, permission: "bookkeeping" },
+      { to: "/admin/bookkeeping/invoices", label: "Invoices", icon: ReceiptText, permission: "bookkeeping" },
+      { to: "/admin/bookkeeping/settings", label: "GST & Business", icon: Percent, permission: "bookkeeping" },
+      { to: "/admin/bookkeeping/template", label: "Invoice Template", icon: LayoutTemplate, permission: "bookkeeping" },
     ],
   },
   {

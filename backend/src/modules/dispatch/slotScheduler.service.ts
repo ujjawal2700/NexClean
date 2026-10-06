@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { logBookingEvent } from "../booking/bookingEvent.service";
 import { Booking, type BookingDocument } from "../booking/booking.model";
 import { notifyUser, pushToUser } from "../notification/notification.service";
 import { emitToUser, emitToAdmins } from "../../shared/services/socket";
@@ -195,6 +196,12 @@ export async function sweepAndRescheduleMissedSlots(): Promise<{ processed: numb
     b.offerExpiresAt = null;
     b.set("declinedAgents", []);
     await b.save();
+    logBookingEvent(b._id, {
+      type: "rescheduled",
+      actor: "system",
+      reason: "No cleaner took the job before its slot passed — moved automatically",
+      meta: { fromDate: bDate.toISOString(), fromSlot: prevSlot, toDate: nextDate.toISOString(), toSlot: nextSlot },
+    });
     rescheduled++;
 
     const cid = customerId(b);

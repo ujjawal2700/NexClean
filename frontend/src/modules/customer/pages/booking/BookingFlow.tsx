@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { bookingAmountDue, computeTax, formatMoneyExact, type TaxBreakdown } from "@shared/lib/tax";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "motion/react";
@@ -28,6 +29,7 @@ import {
   BrandModelSelect,
   type VehicleSelection,
 } from "../../components/BrandModelSelect";
+import { VehicleColorPicker, ColorChip } from "../../components/VehicleColorPicker";
 import { ApiError } from "@shared/lib/api";
 import {
   useMe,
@@ -36,6 +38,8 @@ import {
   useWallet,
   useOffPeakHours,
   useTimeSlots,
+  useSlotLeadMinutes,
+  useTaxSettings,
   usePaymentMode,
   vehicleCategoriesKey,
 } from "../../api/queries";
@@ -70,6 +74,10 @@ import { functionalStorageAllowed } from "@shared/lib/cookieConsent";
 type Draft = {
   vehicleType: CarType | null;
   vehicleName: string;
+  /** Number plate and colour, so the cleaner can find the car. */
+  vehiclePlate: string;
+  vehicleColor: string;
+  vehicleColorHex: string;
   packageId: string | null;
   date: string | null;
   slot: string | null;
@@ -88,6 +96,9 @@ type Draft = {
 const EMPTY: Draft = {
   vehicleType: null,
   vehicleName: "",
+  vehiclePlate: "",
+  vehicleColor: "",
+  vehicleColorHex: "",
   packageId: null,
   date: null,
   slot: null,
@@ -240,7 +251,13 @@ export function BookingFlow() {
     draft.vehicleType && pkg
       ? priceFor(basePriceFor(draft.vehicleType), pkg)
       : 0;
-  const payable = appliedDiscount ? appliedDiscount.price : total;
+  // GST is added on top of the discounted price (bookkeeping settings). The
+  // server's quote wins when there is one; otherwise mirror its maths here.
+  const taxSettings = useTaxSettings();
+  const afterDiscount = appliedDiscount ? appliedDiscount.price : total;
+  const taxQuote = appliedDiscount?.tax ?? computeTax(afterDiscount, taxSettings);
+  const taxLabel = appliedDiscount?.tax?.label ?? taxSettings?.label ?? "GST";
+  const payable = total ? taxQuote.payableAmount : 0;
   const address = addresses.find((a) => a.id === draft.addressId) ?? null;
   const walletCoins = wallet?.coins ?? 0;
 
@@ -361,6 +378,9 @@ export function BookingFlow() {
     const bookingInput = {
       vehicleType: draft.vehicleType,
       vehicleName: draft.vehicleName || categoryLabel(draft.vehicleType),
+      vehiclePlate: draft.vehiclePlate.trim() || undefined,
+      vehicleColor: draft.vehicleColor.trim() || undefined,
+      vehicleColorHex: draft.vehicleColorHex || undefined,
       packageId: pkg.id,
       date: draft.date,
       slot: draft.slot,
@@ -520,6 +540,8 @@ export function BookingFlow() {
                   categoryLabel={categoryLabel}
                   subtotal={total}
                   total={payable}
+                  tax={taxQuote}
+                  taxLabel={taxLabel}
                   discountInput={discountInput}
                   setDiscountInput={setDiscountInput}
                   appliedDiscount={appliedDiscount}
@@ -587,7 +609,9 @@ export function BookingFlow() {
         {/* live summary */}
         <OrderSummary
           draft={draft}
-          total={total}
+          total={payable}
+          tax={taxQuote}
+          taxLabel={taxLabel}
           discount={appliedDiscount}
           step={step}
           address={address?.label}
@@ -821,7 +845,13 @@ function VehicleStep({
               <button
                 key={v.id}
                 onClick={() =>
-                  set({ vehicleType: v.type, vehicleName: v.name })
+                  set({
+                    vehicleType: v.type,
+                    vehicleName: v.name,
+                    vehiclePlate: v.plate && v.plate !== "—" ? v.plate : "",
+                    vehicleColor: v.color ?? "",
+                    vehicleColorHex: v.colorHex ?? "",
+                  })
                 }
                 className={cn(
                   "flex items-center gap-3 rounded-card border p-4 text-left transition-all",
@@ -842,7 +872,16 @@ function VehicleStep({
                   <p className="truncate font-display font-semibold text-ink">
                     {v.name}
                   </p>
-                  <p className="text-sm text-muted">{categoryLabel(v.type)}</p>
+                  <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-muted">
+                    {categoryLabel(v.type)}
+                    {v.plate && v.plate !== "—" && <> · {v.plate}</>}
+                    {(v.color || v.colorHex) && (
+                      <>
+                        {" · "}
+                        <ColorChip color={v.color} colorHex={v.colorHex} />
+                      </>
+                    )}
+                  </p>
                 </div>
                 {selected && <Check className="ml-auto size-5 text-primary" />}
               </button>
@@ -863,6 +902,29 @@ function VehicleStep({
           <Check className="size-4 text-primary" /> {draft.vehicleName} ·{" "}
           {categoryLabel(draft.vehicleType)}
         </p>
+      )}
+
+      {/* Plate and colour help the cleaner find the right car on arrival. */}
+      {draft.vehicleType && (
+        <div className="mt-6 space-y-4 rounded-2xl border border-line bg-surface-muted/40 p-4">
+          <div>
+            <p className="font-display font-semibold text-ink">Vehicle details</p>
+            <p className="text-sm text-muted">Helps your specialist spot the right car.</p>
+          </div>
+          <Input
+            name="vehiclePlate"
+            label="Vehicle number"
+            placeholder="GJ 01 AB 1234"
+            maxLength={20}
+            value={draft.vehiclePlate}
+            onChange={(e) => set({ vehiclePlate: e.target.value.toUpperCase() })}
+          />
+          <VehicleColorPicker
+            idPrefix="booking"
+            value={{ color: draft.vehicleColor, colorHex: draft.vehicleColorHex }}
+            onChange={(c) => set({ vehicleColor: c.color, vehicleColorHex: c.colorHex })}
+          />
+        </div>
       )}
     </div>
   );
@@ -951,14 +1013,15 @@ function ScheduleStep({
   set: (p: Partial<Draft>) => void;
 }) {
   const allSlots = useTimeSlots();
-  const dates = upcomingDates(7, allSlots);
-  const slots = availableSlotsForDate(draft.date, allSlots);
+  const leadMinutes = useSlotLeadMinutes();
+  const dates = upcomingDates(7, allSlots, leadMinutes);
+  const slots = availableSlotsForDate(draft.date, allSlots, leadMinutes);
   const { data: offPeakConfig } = useOffPeakHours();
   const offPeakWindows = windowsForDate(offPeakConfig, draft.date);
 
   // When a date is selected, if the currently chosen slot is no longer valid, clear it.
   const selectDate = (iso: string) => {
-    const available = availableSlotsForDate(iso, allSlots);
+    const available = availableSlotsForDate(iso, allSlots, leadMinutes);
     const slotStillValid = draft.slot && available.includes(draft.slot);
     set({ date: iso, slot: slotStillValid ? draft.slot : null });
   };
@@ -1229,11 +1292,15 @@ function PaymentSummary({
   coinsUsed,
   coinDiscount,
   toggleCoins,
+  tax,
+  taxLabel,
 }: {
   draft: Draft;
   categoryLabel: (key: string) => string;
   subtotal: number;
   total: number;
+  tax: TaxBreakdown;
+  taxLabel: string;
   discountInput: string;
   setDiscountInput: (v: string) => void;
   appliedDiscount: PreviewAmountResponse | null;
@@ -1348,7 +1415,7 @@ function PaymentSummary({
           payment step showed no total at all on a phone. */}
       <div className="mt-6 rounded-2xl border border-line bg-surface-muted/50 p-4">
         <dl className="space-y-2 text-sm">
-          {(!!appliedDiscount?.discountAmount || coinDiscount > 0) && (
+          {(!!appliedDiscount?.discountAmount || coinDiscount > 0 || tax.taxAmount > 0) && (
             <div className="flex items-center justify-between">
               <dt className="text-muted">Service total</dt>
               <dd className="text-ink">{formatMoney(subtotal)}</dd>
@@ -1372,14 +1439,28 @@ function PaymentSummary({
               <dd className="text-emerald-600">−{formatMoney(coinDiscount)}</dd>
             </div>
           )}
+          {tax.taxAmount > 0 && (
+            <div className="flex items-center justify-between" data-testid="checkout-tax">
+              <dt className="text-muted">
+                {taxLabel} ({tax.taxRate}%)
+              </dt>
+              <dd className="text-ink">+{formatMoneyExact(tax.taxAmount)}</dd>
+            </div>
+          )}
+          {tax.roundOff !== 0 && (
+            <div className="flex items-center justify-between">
+              <dt className="text-muted">Round off</dt>
+              <dd className="text-ink">{formatMoneyExact(tax.roundOff)}</dd>
+            </div>
+          )}
           <div
             className={cn(
               "flex items-center justify-between",
-              (!!appliedDiscount?.discountAmount || coinDiscount > 0) &&
+              (!!appliedDiscount?.discountAmount || coinDiscount > 0 || tax.taxAmount > 0) &&
                 "border-t border-line pt-2.5",
             )}>
             <dt className="font-medium text-ink">Amount to pay</dt>
-            <dd className="font-display text-lg font-semibold text-ink">
+            <dd className="font-display text-lg font-semibold text-ink" data-testid="checkout-total-amount">
               {formatMoney(total)}
             </dd>
           </div>
@@ -1405,19 +1486,28 @@ function PaymentSummary({
 function OrderSummary({
   draft,
   total,
+  tax,
+  taxLabel,
   discount,
   step,
   address,
 }: {
   draft: Draft;
   total: number;
+  tax: TaxBreakdown;
+  taxLabel: string;
   discount: PreviewAmountResponse | null;
   step: number;
   address?: string;
 }) {
   const pkg = PACKAGES.find((p) => p.id === draft.packageId);
   const rows = [
-    { label: "Vehicle", value: draft.vehicleName || "—" },
+    {
+      label: "Vehicle",
+      value:
+        [draft.vehicleName, draft.vehiclePlate.trim(), draft.vehicleColor.trim()].filter(Boolean).join(" · ") ||
+        "—",
+    },
     { label: "Package", value: pkg?.name ?? "—" },
     {
       label: "When",
@@ -1462,6 +1552,14 @@ function OrderSummary({
             <dd className="max-w-[60%] text-right font-medium text-amber-600">
               −{formatMoney(discount.coinDiscount)}
             </dd>
+          </div>
+        )}
+        {tax.taxAmount > 0 && (
+          <div className="flex items-start justify-between gap-4 text-sm">
+            <dt className="text-muted">
+              {taxLabel} ({tax.taxRate}%)
+            </dt>
+            <dd className="max-w-[60%] text-right font-medium text-ink">+{formatMoneyExact(tax.taxAmount)}</dd>
           </div>
         )}
       </dl>
@@ -1542,7 +1640,7 @@ function Confirmation({ booking }: { booking: Booking }) {
           <div className="flex items-center justify-between border-t border-line pt-3">
             <span className="text-muted">Paid</span>
             <span className="font-display text-xl font-semibold text-ink">
-              {formatMoney(booking.price)}
+              {formatMoney(bookingAmountDue(booking))}
             </span>
           </div>
         </dl>

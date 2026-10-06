@@ -55,11 +55,19 @@ function slotTo24h(slot: string): [number, number] {
   return [hour, m];
 }
 
+/** Offline fallback for the admin-set booking notice (minutes). */
+export const DEFAULT_LEAD_MINUTES = 60;
+
 /**
  * For a given date (ISO string), return only the time slots that are still
- * bookable. On today, we require at least 1 hour of lead time.
+ * bookable. On today, a slot must start at least `leadMinutes` from now — the
+ * notice the admin sets on the Time Slots page (useSlotLeadMinutes()).
  */
-export function availableSlotsForDate(dateIso: string | null, slots: string[] = TIME_SLOTS): string[] {
+export function availableSlotsForDate(
+  dateIso: string | null,
+  slots: string[] = TIME_SLOTS,
+  leadMinutes: number = DEFAULT_LEAD_MINUTES,
+): string[] {
   if (!dateIso) return slots;
   const selected = new Date(dateIso);
   const now = new Date();
@@ -70,20 +78,23 @@ export function availableSlotsForDate(dateIso: string | null, slots: string[] = 
   const nowM = now.getMinutes();
   return slots.filter((slot) => {
     const [h, m] = slotTo24h(slot);
-    // Require at least 60 minutes lead time
-    return h * 60 + m > nowH * 60 + nowM + 60;
+    return h * 60 + m >= nowH * 60 + nowM + leadMinutes;
   });
 }
 
 /** Next N selectable dates starting today (only include today if it has upcoming slots). */
-export function upcomingDates(count = 7, slots: string[] = TIME_SLOTS): Date[] {
+export function upcomingDates(
+  count = 7,
+  slots: string[] = TIME_SLOTS,
+  leadMinutes: number = DEFAULT_LEAD_MINUTES,
+): Date[] {
   const out: Date[] = [];
   const base = new Date();
   for (let i = 0; i < count; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
     // For today, only include if at least one slot is still open
-    if (i === 0 && availableSlotsForDate(d.toISOString(), slots).length === 0) continue;
+    if (i === 0 && availableSlotsForDate(d.toISOString(), slots, leadMinutes).length === 0) continue;
     out.push(d);
   }
   // Always return `count` total days (fill from the end if today was skipped)

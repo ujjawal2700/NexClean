@@ -35,12 +35,17 @@ export const confirmPhoneChangeSchema = z.object({
   code: z.string().min(4).max(8),
 });
 
+/** "#1a2b3c" — the swatch the colour picker produces. */
+export const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
 export const addVehicleSchema = z.object({
   type: z.string().min(1),
   name: z.string().min(1).max(60),
   brand: z.string().max(40).optional(),
   model: z.string().max(40).optional(),
   plate: z.string().max(20).optional(),
+  color: z.string().trim().max(30).optional(),
+  colorHex: z.string().regex(HEX_COLOR, "Pick a valid colour").optional(),
 });
 
 export const addAddressSchema = z.object({

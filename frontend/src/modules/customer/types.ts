@@ -11,6 +11,9 @@ export type Vehicle = {
   model?: string;
   /** plate number */
   plate: string;
+  /** Colour name, e.g. "Pearl White", and its swatch hex. */
+  color?: string;
+  colorHex?: string;
 };
 
 /** An admin-managed vehicle category — pricing is always based on this. */
@@ -93,7 +96,38 @@ export type Booking = {
   afterPhotos?: string[];
   beforePhotoUrl?: string | null;
   afterPhotoUrl?: string | null;
+  vehiclePlate?: string;
+  vehicleColor?: string;
+  vehicleColorHex?: string;
+  /** GST snapshot from checkout; taxableAmount is null on bookings made before GST. */
+  taxableAmount?: number | null;
+  taxRate?: number;
+  taxSupplyType?: "intra" | "inter";
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  taxAmount?: number;
+  taxRoundOff?: number;
+  payableAmount?: number | null;
+  peakUpgradeFeeCharged?: number;
+  /** The customer's rating of the cleaner; null until they leave one. */
+  review?: BookingReview | null;
   createdAt: string;
+};
+
+export type BookingReview = {
+  id: string;
+  bookingId: string;
+  agentId: string;
+  agentName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+};
+
+/** One booking with its cleaner — the customer booking detail page. */
+export type BookingDetail = Booking & {
+  agent: { id: string; name: string; rating: number; ratingCount: number; jobsDone: number } | null;
 };
 
 export type BannerType = "promotional" | "discount" | "off-peak-hours" | "announcement";
@@ -183,6 +217,10 @@ export type CatalogPlan = {
   price: number;
   /** Washes included per month; -1 means unlimited. */
   washesPerMonth: number;
+  /** Admin-written copy; empty when the admin hasn't described the plan yet. */
+  tagline?: string;
+  description?: string;
+  keyPoints?: string[];
   active: boolean;
 };
 

@@ -33,7 +33,9 @@ test.describe("Admin Agent Detail", () => {
 
     await expect(page.locator("h1")).toHaveText("Rohit Kumar");
     await expect(page.getByText(SEED_AGENT_PHONE)).toBeVisible();
-    await expect(page.getByText("Rating")).toBeVisible();
+    // The stat card (the service-history table also has a "Rating" column).
+    await expect(page.getByText("Rating", { exact: true }).first()).toBeVisible();
+    await expect(page.getByTestId("agent-reviews-section")).toBeVisible();
     await expect(page.getByText("Jobs done")).toBeVisible();
     await expect(page.getByText("Bookings assigned")).toBeVisible();
     await expect(page.getByText("Revenue generated")).toBeVisible();

@@ -39,6 +39,7 @@ const PERMISSION_SECTIONS = [
   { key: "customers", label: "Customers" },
   { key: "agents", label: "Agents & Verification" },
   { key: "leads", label: "Leads" },
+  { key: "bookkeeping", label: "Bookkeeping, GST & Invoices" },
   { key: "payments", label: "Payments & Refunds" },
   { key: "agent-payouts", label: "Agent Payouts" },
   { key: "payout-requests", label: "Payout Requests" },

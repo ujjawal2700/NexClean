@@ -6,6 +6,12 @@ import { Button } from "@shared/ui/Button";
 import { Input } from "@shared/ui/Input";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { BrandModelSelect, type VehicleSelection } from "../components/BrandModelSelect";
+import {
+  VehicleColorPicker,
+  ColorChip,
+  EMPTY_VEHICLE_COLOR,
+  type VehicleColor,
+} from "../components/VehicleColorPicker";
 import { useMe, useCategoryLabel, useVehicleCategories } from "../api/queries";
 import { useAddVehicle, useRemoveVehicle } from "../api/mutations";
 
@@ -23,6 +29,7 @@ export function Vehicles() {
   const [showVehicle, setShowVehicle] = useState(false);
   const [selection, setSelection] = useState<VehicleSelection | null>(null);
   const [vPlate, setVPlate] = useState("");
+  const [vColor, setVColor] = useState<VehicleColor>(EMPTY_VEHICLE_COLOR);
 
   const saveVehicle = () => {
     if (!selection) return;
@@ -33,11 +40,14 @@ export function Vehicles() {
         brand: selection.brand,
         model: selection.model,
         plate: vPlate.trim() || "—",
+        color: vColor.color.trim() || undefined,
+        colorHex: vColor.colorHex || undefined,
       },
       {
         onSuccess: () => {
           setSelection(null);
           setVPlate("");
+          setVColor(EMPTY_VEHICLE_COLOR);
           setShowVehicle(false);
         },
       },
@@ -68,7 +78,17 @@ export function Vehicles() {
         {showVehicle && (
           <div className="mt-4 grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
             <BrandModelSelect onResolved={setSelection} />
-            <Input name="vplate" label="Plate" placeholder="GJ 01 AB 1234" value={vPlate} onChange={(e) => setVPlate(e.target.value)} />
+            <Input
+              name="vplate"
+              label="Vehicle number"
+              placeholder="GJ 01 AB 1234"
+              maxLength={20}
+              value={vPlate}
+              onChange={(e) => setVPlate(e.target.value.toUpperCase())}
+            />
+            <div className="sm:col-span-2">
+              <VehicleColorPicker value={vColor} onChange={setVColor} idPrefix="garage" />
+            </div>
             <div className="sm:col-span-2">
               <Button size="sm" onClick={saveVehicle} disabled={addVehicle.isPending || !selection}>
                 Save vehicle
@@ -85,8 +105,14 @@ export function Vehicles() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-display font-semibold text-ink">{v.name}</p>
-                <p className="text-sm text-muted">
+                <p className="flex flex-wrap items-center gap-x-1.5 text-sm text-muted">
                   {categoryLabel(v.type)} · {v.plate}
+                  {(v.color || v.colorHex) && (
+                    <>
+                      {" · "}
+                      <ColorChip color={v.color} colorHex={v.colorHex} />
+                    </>
+                  )}
                 </p>
               </div>
               <button

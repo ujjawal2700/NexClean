@@ -8,6 +8,10 @@ const bookingSchema = new Schema(
     // Vehicle category key — admin-managed, not a fixed enum.
     vehicleType: { type: String, required: true },
     vehicleName: { type: String, required: true },
+    // So the cleaner can spot the car in a crowded parking lot.
+    vehiclePlate: { type: String, default: "", trim: true },
+    vehicleColor: { type: String, default: "", trim: true },
+    vehicleColorHex: { type: String, default: "", trim: true },
     packageId: { type: String, required: true },
     packageName: { type: String, required: true },
     date: { type: Date, required: true },
@@ -17,7 +21,25 @@ const bookingSchema = new Schema(
     society: { type: String, default: "" },
     // Service location captured from the customer's address (Google Places). [lng, lat].
     location: { type: geoPointSchema(), default: undefined },
+    // The service value after discounts and coins, *excluding* GST. Cleaner
+    // payouts and revenue are computed from this, never from the taxed total.
     price: { type: Number, required: true },
+    /**
+     * GST charged at checkout, snapshotted (see bookkeeping/tax.ts). Taxed on
+     * `taxableAmount` — the price at checkout — so a later price change (a
+     * reschedule reclaiming an off-peak subsidy) doesn't silently change the
+     * tax the customer was charged. null on bookings made before GST existed.
+     */
+    taxableAmount: { type: Number, default: null },
+    taxRate: { type: Number, default: 0 },
+    taxSupplyType: { type: String, enum: ["intra", "inter"], default: "intra" },
+    cgstAmount: { type: Number, default: 0 },
+    sgstAmount: { type: Number, default: 0 },
+    igstAmount: { type: Number, default: 0 },
+    taxAmount: { type: Number, default: 0 },
+    taxRoundOff: { type: Number, default: 0 },
+    // What was charged at checkout: taxableAmount + taxAmount + taxRoundOff.
+    payableAmount: { type: Number, default: null },
     discountCode: { type: String, default: null },
     discountAmount: { type: Number, default: 0 },
     // Coins the customer redeemed on this booking and the ₹ discount they bought.
@@ -191,6 +213,9 @@ bookingSchema.index({ location: "2dsphere" });
 // Backs the dashboard counters and the admin booking lists, which filter on
 // exactly these two fields.
 bookingSchema.index({ status: 1, jobStatus: 1 });
+// A customer's bookings, newest first, optionally by status — My bookings pages.
+bookingSchema.index({ user: 1, status: 1, createdAt: -1 });
+bookingSchema.index({ user: 1, createdAt: -1 });
 
 export type BookingDocument = HydratedDocument<InferSchemaType<typeof bookingSchema>>;
 export const Booking = model("Booking", bookingSchema);

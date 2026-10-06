@@ -11,7 +11,10 @@ import { Signup } from "./pages/Signup";
 import { ComingSoon } from "./pages/ComingSoon";
 import { Dashboard } from "./pages/Dashboard";
 import { Bookings } from "./pages/Bookings";
+import { BookingDetail } from "./pages/BookingDetail";
+import { BookingInvoice } from "./pages/BookingInvoice";
 import { Subscriptions } from "./pages/Subscriptions";
+import { PlanDetail } from "./pages/PlanDetail";
 import { Profile } from "./pages/Profile";
 import { EditProfile } from "./pages/EditProfile";
 import { ReferEarn } from "./pages/ReferEarn";
@@ -151,9 +154,16 @@ function CustomerCompletionListener() {
     );
   }
   if (!completedBookingId) return null;
+  const completed = qc.getQueryData<Booking[]>(bookingsKey)?.find((b) => b.id === completedBookingId);
   return (
     <ServiceCompletedDialog
-      onConfirm={() => {
+      agentName={completed?.agentName}
+      onRate={(stars) => {
+        const id = completedBookingId;
+        setCompletedBookingId(null);
+        navigate(`/app/bookings/${id}?${stars ? `rating=${stars}` : "rate=1"}`, { replace: true });
+      }}
+      onLater={() => {
         setCompletedBookingId(null);
         navigate("/app", { replace: true });
       }}
@@ -200,6 +210,7 @@ export function CustomerApp() {
         >
           <Route index element={<Dashboard />} />
           <Route path="plans" element={<Subscriptions />} />
+          <Route path="plans/:id" element={<PlanDetail />} />
         </Route>
 
         {/* Account-only */}
@@ -214,6 +225,8 @@ export function CustomerApp() {
         >
           <Route path="book" element={<BookingFlow />} />
           <Route path="bookings" element={<Bookings />} />
+          <Route path="bookings/:id" element={<BookingDetail />} />
+          <Route path="bookings/:id/invoice" element={<BookingInvoice />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<Profile />} />
           <Route path="profile/edit" element={<EditProfile />} />

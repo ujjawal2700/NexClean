@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { bookingAmountDue } from "../bookkeeping/invoice.service";
 import { Booking, type BookingDocument } from "../booking/booking.model";
 import { User, type UserDoc } from "../user/user.model";
 import { Payment, type PaymentDocument } from "../payment/payment.model";
@@ -15,6 +16,9 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { isAgentLive } from "../user/presence";
 import * as dispatch from "../dispatch/dispatch.service";
 import * as planService from "../catalog/plan.service";
+import type { PlanDetails } from "../catalog/plan.service";
+import { logBookingEvent, adminName, getBookingTimeline } from "../booking/bookingEvent.service";
+import { getReviewForBooking, reviewsByBooking } from "../review/review.service";
 import type { PlanDoc } from "../catalog/plan.model";
 import type { PlanPrices } from "../catalog/catalog.data";
 import { listCategories } from "../catalog/category.service";
@@ -112,7 +116,7 @@ export async function listBookings() {
   return bookings.map(mapBooking);
 }
 
-export async function cancelBooking(id: string) {
+export async function cancelBooking(id: string, adminId?: string | null) {
   const booking = await Booking.findById(id).populate("user", "name");
   if (!booking) throw ApiError.notFound("Booking not found");
   if (booking.status === "cancelled") throw ApiError.badRequest("Booking is already cancelled");
@@ -125,6 +129,7 @@ export async function cancelBooking(id: string) {
   booking.currentOfferAgent = null;
   booking.offerExpiresAt = null;
   await booking.save();
+  logBookingEvent(booking._id, { type: "cancelled", actor: "admin", actorName: await adminName(adminId) });
   // Whatever was paid for it (online and/or coins) goes to Admin → Refunds for approval.
   void queueCancellationRefund(String(booking._id), "admin").catch((err) =>
     console.error("refund queue failed:", (err as Error).message),
@@ -190,6 +195,7 @@ export async function rescheduleBooking(
     booking.offPeakDiscountAmount = 0;
   }
 
+  const previous = { date: booking.date, slot: booking.slot };
   booking.date = new Date(input.date);
   booking.slot = input.slot;
   // New slot, new reminder windows — the ones already sent were for the old time.
@@ -202,6 +208,18 @@ export async function rescheduleBooking(
   booking.offerExpiresAt = null;
   booking.set("declinedAgents", []);
   await booking.save();
+  logBookingEvent(booking._id, {
+    type: "rescheduled",
+    actor: "admin",
+    actorName: await adminName(adminId),
+    meta: {
+      fromDate: previous.date ? new Date(previous.date).toISOString() : null,
+      fromSlot: previous.slot,
+      toDate: booking.date.toISOString(),
+      toSlot: booking.slot,
+      waived: !!input.waiveUpgrade,
+    },
+  });
 
   if (prevOfferAgent) {
     await User.updateOne({ _id: prevOfferAgent, currentOfferBooking: id }, { currentOfferBooking: null });
@@ -225,7 +243,7 @@ export async function rescheduleBooking(
   }).catch((err: unknown) => console.error("reschedule notify failed:", (err as Error).message));
 
   if (quote.requiresPayment && !input.waiveUpgrade) {
-    void syncCashLedgerAmount(booking.id, booking.price + (booking.peakUpgradeFeeCharged ?? 0)).catch((err) =>
+    void syncCashLedgerAmount(booking.id, bookingAmountDue(booking)).catch((err) =>
       console.error("ledger sync after admin reschedule failed:", (err as Error).message),
     );
   }
@@ -236,7 +254,7 @@ export async function rescheduleBooking(
   return mapBooking(booking);
 }
 
-export async function setBookingStatus(id: string, status: DisplayStatus) {
+export async function setBookingStatus(id: string, status: DisplayStatus, adminId?: string | null) {
   const booking = await Booking.findById(id).populate("user", "name");
   if (!booking) throw ApiError.notFound("Booking not found");
 
@@ -286,6 +304,16 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
   }
 
   await booking.save();
+  if (status === "cancelled" || status === "completed" || status === "in_progress") {
+    logBookingEvent(booking._id, {
+      type: status === "in_progress" ? "started" : status,
+      agentId: booking.assignedAgent,
+      agentName: booking.agentName,
+      actor: "admin",
+      actorName: await adminName(adminId),
+      reason: "Status changed by admin",
+    });
+  }
 
   if (status === "cancelled") {
     // Whatever was paid for it (online and/or coins) goes to Admin → Refunds for approval.
@@ -327,14 +355,14 @@ export async function setBookingStatus(id: string, status: DisplayStatus) {
 }
 
 /** Admin manually assigns (or reassigns) a specific cleaner to a booking. */
-export async function assignAgent(bookingId: string, agentId: string) {
-  const booking = await dispatch.assignAgentToBooking(bookingId, agentId);
+export async function assignAgent(bookingId: string, agentId: string, adminId?: string | null) {
+  const booking = await dispatch.assignAgentToBooking(bookingId, agentId, { source: "admin", adminId });
   return mapBooking(booking as BookingDoc);
 }
 
 /** Admin one-tap: assign the nearest available cleaner via the dispatch engine. */
-export async function autoAssignBooking(bookingId: string) {
-  const booking = await dispatch.autoAssignNearest(bookingId);
+export async function autoAssignBooking(bookingId: string, adminId?: string | null) {
+  const booking = await dispatch.autoAssignNearest(bookingId, adminId);
   return mapBooking(booking as BookingDoc);
 }
 
@@ -361,6 +389,7 @@ function mapAgent(a: UserDoc) {
     city: a.city ?? "",
     area: a.area ?? "",
     rating: a.rating ?? 0,
+    ratingCount: a.ratingCount ?? 0,
     jobsDone: a.jobsDone ?? 0,
     online: isAgentLive(a),
     status: a.agentStatus ?? "pending",
@@ -462,8 +491,14 @@ export async function getAgentActivity(id: string) {
     .populate("user", "name")
     .sort({ createdAt: -1 })
     .limit(100);
+  const reviews = await reviewsByBooking(bookings.map((b) => b._id));
 
-  return { bookings: bookings.map(mapBooking) };
+  return {
+    bookings: bookings.map((b) => {
+      const review = reviews.get(String(b._id));
+      return { ...mapBooking(b), rating: review?.rating ?? null, reviewComment: review?.comment ?? "" };
+    }),
+  };
 }
 
 async function mapPlanWithSubscribers(p: PlanDoc) {
@@ -472,7 +507,18 @@ async function mapPlanWithSubscribers(p: PlanDoc) {
   const prices = (p.prices ?? {}) as Record<string, number>;
   const values = Object.values(prices).filter((n): n is number => typeof n === "number");
   const price = values.length ? Math.min(...values) : 0;
-  return { id, name: p.name, prices, price, washesPerMonth: p.washesPerMonth, active: p.active, subscribers };
+  return {
+    id,
+    name: p.name,
+    prices,
+    price,
+    washesPerMonth: p.washesPerMonth,
+    tagline: p.tagline ?? "",
+    description: p.description ?? "",
+    keyPoints: p.keyPoints ?? [],
+    active: p.active,
+    subscribers,
+  };
 }
 
 export async function listPlans() {
@@ -480,14 +526,14 @@ export async function listPlans() {
   return Promise.all(plans.map((p) => mapPlanWithSubscribers(p)));
 }
 
-export async function createPlan(input: { name: string; prices: PlanPrices; washesPerMonth: number }) {
+export async function createPlan(input: { name: string; prices: PlanPrices; washesPerMonth: number } & PlanDetails) {
   const plan = await planService.createPlan(input);
   return mapPlanWithSubscribers(plan);
 }
 
 export async function updatePlan(
   id: string,
-  patch: { name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean },
+  patch: { name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean } & PlanDetails,
 ) {
   const plan = await planService.updatePlan(id, patch);
   return mapPlanWithSubscribers(plan);
@@ -722,7 +768,9 @@ export async function updateAgent(id: string, input: Partial<AgentInput>) {
   if (input.city !== undefined) agent.city = input.city.trim();
   if (input.area !== undefined) agent.area = input.area.trim();
   if (input.aadharNumber !== undefined) agent.aadharNumber = input.aadharNumber.trim();
-  if (input.rating !== undefined) agent.rating = Number(input.rating);
+  // Once customers have reviewed a cleaner, their rating is the average of
+  // those reviews; a hand-typed number would be overwritten by the next one.
+  if (input.rating !== undefined && !((agent.ratingCount ?? 0) > 0)) agent.rating = Number(input.rating);
 
   // Mirrors setAgentStatus(): the account switch follows the verification
   // switch, and a suspension ends live sessions instead of waiting out the
@@ -1491,6 +1539,9 @@ export async function getBookingDetail(id: string) {
 
     vehicleType: booking.vehicleType,
     vehicleName: booking.vehicleName,
+    vehiclePlate: booking.vehiclePlate ?? "",
+    vehicleColor: booking.vehicleColor ?? "",
+    vehicleColorHex: booking.vehicleColorHex ?? "",
     packageName: booking.packageName,
     isSubscriptionWash: !!booking.isSubscriptionWash,
 
@@ -1518,7 +1569,17 @@ export async function getBookingDetail(id: string) {
     offPeakDiscountAmount: booking.offPeakDiscountAmount ?? 0,
     peakUpgradeFeeCharged: booking.peakUpgradeFeeCharged ?? 0,
     upgradeWaivedAmount: booking.upgradeWaivedAmount ?? 0,
-    totalAmount: (booking.price ?? 0) + (booking.peakUpgradeFeeCharged ?? 0),
+    totalAmount: bookingAmountDue(booking),
+    // GST charged at checkout (bookkeeping/tax.ts); null taxableAmount = booked before GST existed.
+    taxableAmount: booking.taxableAmount ?? null,
+    taxRate: booking.taxRate ?? 0,
+    taxSupplyType: booking.taxSupplyType ?? "intra",
+    cgstAmount: booking.cgstAmount ?? 0,
+    sgstAmount: booking.sgstAmount ?? 0,
+    igstAmount: booking.igstAmount ?? 0,
+    taxAmount: booking.taxAmount ?? 0,
+    taxRoundOff: booking.taxRoundOff ?? 0,
+    payableAmount: booking.payableAmount ?? null,
     agentShare,
     agentShareSettled: settled,
 
@@ -1540,5 +1601,10 @@ export async function getBookingDetail(id: string) {
     rescheduleCount: booking.rescheduleCount ?? 0,
     customerRescheduleCount: booking.customerRescheduleCount ?? 0,
     autoRescheduled: !!booking.autoRescheduled,
+
+    // Every step from booking to completion: offers, declines, accepts,
+    // cleaner releases with their reason, reschedules, cancellation.
+    timeline: await getBookingTimeline(String(booking._id)),
+    review: await getReviewForBooking(String(booking._id)),
   };
 }

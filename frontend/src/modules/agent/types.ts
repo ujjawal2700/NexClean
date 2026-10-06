@@ -52,6 +52,10 @@ export type Job = {
   customerName: string;
   vehicleType: CarType;
   vehicleName: string;
+  /** Number plate and colour, to spot the car; empty when the customer gave none. */
+  vehiclePlate?: string;
+  vehicleColor?: string;
+  vehicleColorHex?: string;
   packageName: string;
   date: string; // ISO
   slot: string;
@@ -107,6 +111,8 @@ export type AgentProfile = {
   city?: string;
   area: string;
   rating: number;
+  /** How many customer reviews the rating is averaged over. */
+  ratingCount?: number;
   jobsDone: number;
   online: boolean;
   // "unverified" is the state every new signup starts in, between the details

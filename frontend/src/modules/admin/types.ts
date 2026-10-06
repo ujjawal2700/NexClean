@@ -38,6 +38,42 @@ export type AdminBooking = {
 };
 
 /** One booking, in full — what the admin booking detail page renders. */
+export type BookingTimelineEventType =
+  | "created"
+  | "searching"
+  | "offered"
+  | "declined"
+  | "offer_expired"
+  | "accepted"
+  | "claimed"
+  | "assigned"
+  | "auto_assigned"
+  | "admin_queue"
+  | "released"
+  | "enroute"
+  | "arrived"
+  | "started"
+  | "completed"
+  | "rescheduled"
+  | "cancelled"
+  | "reviewed";
+
+/** One step in a booking's history (Admin → Booking detail → Booking timeline). */
+export type BookingTimelineEntry = {
+  id: string;
+  type: BookingTimelineEventType;
+  at: string | null;
+  /** The cleaner the step is about — links to their admin profile. */
+  agent: { id: string; name: string } | null;
+  actor: "customer" | "agent" | "admin" | "system";
+  actorName: string;
+  /** The cleaner's "can't go" reason, or another free-text reason. */
+  reason: string;
+  meta?: Record<string, unknown>;
+  /** Rebuilt from an older booking's saved timestamps, not logged live. */
+  derived?: boolean;
+};
+
 export type AdminBookingDetail = {
   id: string;
   status: BookingStatus;
@@ -50,6 +86,10 @@ export type AdminBookingDetail = {
   agent: { id: string | null; name: string; phone: string | null; email: string | null } | null;
   vehicleType: string;
   vehicleName: string;
+  /** Empty on bookings made before plate/colour were captured. */
+  vehiclePlate?: string;
+  vehicleColor?: string;
+  vehicleColorHex?: string;
   packageName: string;
   isSubscriptionWash: boolean;
   date: string;
@@ -73,6 +113,16 @@ export type AdminBookingDetail = {
   peakUpgradeFeeCharged: number;
   upgradeWaivedAmount: number;
   totalAmount: number;
+  /** GST charged at checkout; taxableAmount is null on bookings made before GST. */
+  taxableAmount: number | null;
+  taxRate: number;
+  taxSupplyType: "intra" | "inter";
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+  taxAmount: number;
+  taxRoundOff: number;
+  payableAmount: number | null;
   /** null when no cleaner is assigned yet. Provisional until agentShareSettled. */
   agentShare: number | null;
   /** True once the job completed and the payout was frozen. */
@@ -84,6 +134,9 @@ export type AdminBookingDetail = {
   rescheduleCount: number;
   customerRescheduleCount: number;
   autoRescheduled: boolean;
+  timeline: BookingTimelineEntry[];
+  /** The customer's rating of the cleaner; null until they leave one. */
+  review: AdminBookingReview | null;
 };
 
 export type DispatchStatus =
@@ -134,6 +187,8 @@ export type AdminAgent = {
   city: string;
   area: string;
   rating: number;
+  /** How many customer reviews the rating is averaged over. */
+  ratingCount?: number;
   jobsDone: number;
   online: boolean;
   available?: boolean;
@@ -152,7 +207,21 @@ export type AdminAgentDetail = AdminAgent & {
 };
 
 export type AgentActivity = {
-  bookings: AdminBooking[];
+  /** Each with the customer's star rating for that job, null when not rated. */
+  bookings: (AdminBooking & { rating?: number | null; reviewComment?: string })[];
+};
+
+/** A customer's review of the cleaner on one booking. */
+export type AdminBookingReview = {
+  id: string;
+  bookingId: string;
+  agentId: string;
+  agentName: string;
+  customerName: string;
+  packageName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
 };
 
 export type PricingPackage = {
@@ -210,9 +279,18 @@ export type AdminPlan = {
   /** Cheapest vehicle price — used for "from ₹X" display and MRR estimates. */
   price: number;
   washesPerMonth: number;
+  /** One-line pitch under the plan name. */
+  tagline: string;
+  /** Longer copy shown on the customer's plan detail page. */
+  description: string;
+  /** Bullet-point benefits shown on the plan card and detail page. */
+  keyPoints: string[];
   active: boolean;
   subscribers: number;
 };
+
+/** The descriptive copy an admin can edit on a plan. */
+export type PlanDetails = Pick<AdminPlan, "tagline" | "description" | "keyPoints">;
 
 export type ServiceCity = {
   id: string;

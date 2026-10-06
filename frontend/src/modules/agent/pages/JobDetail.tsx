@@ -213,6 +213,29 @@ export function JobDetail() {
           <p className="text-sm text-muted">
             {job.packageName} · {VEHICLE_LABEL[job.vehicleType]} · #{job.id}
           </p>
+          {(job.vehiclePlate || job.vehicleColor || job.vehicleColorHex) && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {job.vehiclePlate && (
+                <span
+                  data-testid="job-vehicle-plate"
+                  className="rounded-lg border border-ink/20 bg-surface px-2.5 py-1 font-mono text-sm font-semibold tracking-wider text-ink">
+                  {job.vehiclePlate}
+                </span>
+              )}
+              {(job.vehicleColor || job.vehicleColorHex) && (
+                <span className="inline-flex items-center gap-1.5 rounded-pill bg-surface-muted px-2.5 py-1 text-sm text-ink-soft">
+                  {job.vehicleColorHex && (
+                    <span
+                      className="size-3.5 rounded-full border border-line"
+                      style={{ backgroundColor: job.vehicleColorHex }}
+                      aria-hidden
+                    />
+                  )}
+                  {job.vehicleColor || "Custom colour"}
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <div className="text-right">
           <p className="text-xs text-muted">Your payout</p>

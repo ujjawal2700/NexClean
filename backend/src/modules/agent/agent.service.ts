@@ -1,5 +1,6 @@
 import { Booking, type BookingDocument } from "../booking/booking.model.js";
 import { User } from "../user/user.model.js";
+import { logBookingEvent } from "../booking/bookingEvent.service";
 import { ApiError } from "../../shared/utils/ApiError.js";
 import { trigger as triggerAreaAlert, assertAgentMayAlert } from "../area-alert/areaAlert.service.js";
 import { maybeCreditReferrer } from "../promotions/referral.service.js";
@@ -65,6 +66,9 @@ function mapJob(b: BookingDocument, payoutOf: PayoutOf, agentPoint?: LngLat) {
     customerName: (user && typeof user === "object" && user.name) || "Customer",
     vehicleType: b.vehicleType,
     vehicleName: b.vehicleName,
+    vehiclePlate: b.vehiclePlate ?? "",
+    vehicleColor: b.vehicleColor ?? "",
+    vehicleColorHex: b.vehicleColorHex ?? "",
     packageName: b.packageName,
     date: b.date,
     slot: b.slot,
@@ -164,6 +168,13 @@ export async function advanceStatus(agentId: string, bookingId: string) {
     await User.updateOne({ _id: agentId }, { $inc: { jobsDone: 1 } });
   }
   await booking.save();
+  logBookingEvent(booking._id, {
+    type: next === "in_progress" ? "started" : (next as "enroute" | "arrived" | "completed"),
+    agentId,
+    agentName: booking.agentName,
+    actor: "agent",
+    actorName: booking.agentName ?? "",
+  });
 
   // The customer's tracking screen is driven entirely by these events, so it
   // has to hear about the change before any of the slower follow-up work.
@@ -470,6 +481,7 @@ export async function claimJob(agentId: string, bookingId: string) {
   ).populate("user", "name");
 
   if (!booking) throw ApiError.badRequest("This job is no longer available");
+  logBookingEvent(booking._id, { type: "claimed", agentId, agentName: agent.name, actor: "agent", actorName: agent.name });
 
   // Release any other agent's offer lock on this booking.
   await User.updateMany({ currentOfferBooking: booking._id }, { currentOfferBooking: null });

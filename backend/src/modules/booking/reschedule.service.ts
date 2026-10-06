@@ -3,8 +3,14 @@ import {
   isOffPeakSlotWithConfig,
   describeWindowsForDay,
 } from "../promotions/offPeakHours.service";
-import { weekdayInTimezone } from "../../shared/timeWindows";
+import {
+  weekdayInTimezone,
+  calendarPartsInTimezone,
+  minutesOfDayInTimezone,
+  parseSlotToMinutes,
+} from "../../shared/timeWindows";
 import { ApiError } from "../../shared/utils/ApiError";
+import { getLeadMinutes } from "../../shared/slots";
 
 /**
  * The single place that decides what moving a booking to another slot costs.
@@ -38,13 +44,12 @@ export type ReschedulableBooking = {
 /** How many times a customer may move one booking before support has to step in. */
 export const MAX_CUSTOMER_RESCHEDULES = 3;
 
-/**
- * How far ahead a slot must be to be bookable, matching the lead time the
- * booking picker already enforces on the customer app. Without it a customer
- * could reschedule onto a slot starting in five minutes, which no cleaner can
- * reach.
- */
-export const MIN_LEAD_MINUTES = 60;
+/** Human phrasing for the admin-set booking notice, e.g. "an hour", "30 minutes". */
+function describeLead(minutes: number): string {
+  if (minutes === 60) return "an hour";
+  if (minutes % 60 === 0) return `${minutes / 60} hours`;
+  return `${minutes} minutes`;
+}
 
 export type RescheduleQuote = {
   /** Is the destination slot inside a configured off-peak window? */
@@ -126,8 +131,44 @@ export function assertCustomerMayReschedule(
   if (Number.isNaN(newSlotStart.getTime())) {
     throw ApiError.badRequest("Pick a valid date and time slot");
   }
-  if (newSlotStart.getTime() < Date.now() + MIN_LEAD_MINUTES * 60 * 1000) {
-    throw ApiError.badRequest("Pick a slot at least an hour from now");
+}
+
+/**
+ * Minutes from now until `slot` starts on the calendar day `date` falls on,
+ * both read in the business timezone (Admin → Off-Peak Hours). The server may
+ * run in UTC, so the server-local clock can't be used: "12:30 PM" has to mean
+ * 12:30 PM to the customer. Negative once the slot has started.
+ */
+async function minutesUntilSlot(date: Date, slot: string): Promise<number | null> {
+  const slotMinutes = parseSlotToMinutes(slot);
+  if (slotMinutes == null || Number.isNaN(date.getTime())) return null;
+  const { timezone } = await getOffPeakHoursConfig();
+  const now = new Date();
+  const day = calendarPartsInTimezone(date, timezone);
+  const today = calendarPartsInTimezone(now, timezone);
+  const dayDiff = Math.round(
+    (Date.UTC(day.year, day.month - 1, day.day) - Date.UTC(today.year, today.month - 1, today.day)) / 86_400_000,
+  );
+  return dayDiff * 24 * 60 + slotMinutes - minutesOfDayInTimezone(now, timezone);
+}
+
+/**
+ * Enforces the admin-set booking notice (Admin → Time Slots): a slot must start
+ * at least that many minutes from now to be booked or rescheduled into. The
+ * customer app's picker hides those slots already; this is the server's copy of
+ * the rule, so a picker left open too long, an old app or a direct API call
+ * can't put a job into dispatch that no cleaner can reach in time.
+ */
+export async function assertSlotHasNotice(date: Date, slot: string): Promise<void> {
+  const minutesAway = await minutesUntilSlot(date, slot);
+  if (minutesAway == null) throw ApiError.badRequest("Pick a valid date and time slot");
+  const leadMinutes = getLeadMinutes();
+  if (minutesAway < leadMinutes) {
+    throw ApiError.badRequest(
+      leadMinutes > 0
+        ? `That slot is too soon — pick one at least ${describeLead(leadMinutes)} from now`
+        : "That slot has already started — please pick a later one",
+    );
   }
 }
 

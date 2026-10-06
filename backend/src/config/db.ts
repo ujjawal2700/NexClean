@@ -52,6 +52,14 @@ async function dropStaleIndexes(): Promise<void> {
   } catch {
     // already dropped, or never existed — nothing to do
   }
+  // invoices.invoiceNumber was briefly a plain unique index; it's now a
+  // partial one (invoiceNumber_unique) so a record can exist for a moment
+  // before its number is assigned.
+  try {
+    await mongoose.connection.db?.collection("invoices").dropIndex("invoiceNumber_1");
+  } catch {
+    // already dropped, or never existed — nothing to do
+  }
 }
 
 export function isDbConnected(): boolean {

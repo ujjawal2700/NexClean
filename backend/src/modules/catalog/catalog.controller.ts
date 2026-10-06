@@ -40,8 +40,8 @@ export async function getPromoBannersCtl(_req: Request, res: Response): Promise<
 /** The admin-managed bookable time slots, for the customer date & time pickers. */
 export async function getTimeSlotsCtl(_req: Request, res: Response): Promise<Response> {
   res.set("Cache-Control", "no-store");
-  const { slots } = await getSlotConfig();
-  return ok(res, { slots });
+  const { slots, leadMinutes } = await getSlotConfig();
+  return ok(res, { slots, leadMinutes });
 }
 
 /**

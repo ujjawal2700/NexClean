@@ -9,6 +9,8 @@ const slotConfigSchema = new Schema(
   {
     _id: { type: String, default: "global" },
     slots: { type: [String], required: true },
+    // Minimum minutes between now and a slot's start for it to be bookable today.
+    leadMinutes: { type: Number, min: 0 },
   },
   {
     timestamps: true,

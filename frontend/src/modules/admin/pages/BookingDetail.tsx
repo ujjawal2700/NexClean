@@ -1,4 +1,8 @@
 import { useMemo, useState } from "react";
+import { useBookingInvoiceAdmin } from "../api/bookkeeping.api";
+import { downloadInvoicePdf } from "@shared/lib/invoicePdf";
+import { INVOICE_STATUS_LABEL } from "@shared/lib/invoice";
+import { formatMoneyExact } from "@shared/lib/tax";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -18,6 +22,9 @@ import {
   X,
   Radio,
   CheckCircle2,
+  Star,
+  ReceiptText,
+  Download,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -29,6 +36,8 @@ import { useLiveTracking, FIX_STALE_SECONDS } from "@shared/hooks/useLiveTrackin
 import { useBookingDetail, useCategoryLabel } from "../api/admin.api";
 import { BOOKING_STATUS_LABEL, BOOKING_STATUS_STYLE } from "../lib/status";
 import type { AdminBookingDetail } from "../types";
+import { BookingTimeline } from "../components/BookingTimeline";
+import { StarDisplay, RATING_LABELS } from "@shared/ui/StarRating";
 
 const JOB_LABEL: Record<AdminBookingDetail["jobStatus"], string> = {
   assigned: "Assigned",
@@ -285,6 +294,20 @@ export function BookingDetail() {
           <dl className="mt-3 space-y-2.5 text-sm">
             <Row label="Package" value={booking.packageName} />
             <Row label="Vehicle" value={`${booking.vehicleName} · ${categoryLabel(booking.vehicleType)}`} />
+            <Row label="Vehicle number" value={booking.vehiclePlate || "—"} />
+            <div className="flex items-start justify-between gap-4">
+              <dt className="shrink-0 text-muted">Colour</dt>
+              <dd className="flex items-center gap-1.5 text-right font-medium text-ink">
+                {booking.vehicleColorHex && (
+                  <span
+                    className="size-3.5 rounded-full border border-line"
+                    style={{ backgroundColor: booking.vehicleColorHex }}
+                    aria-hidden
+                  />
+                )}
+                {booking.vehicleColor || (booking.vehicleColorHex ? "Custom colour" : "—")}
+              </dd>
+            </div>
             <Row label="Scheduled" value={`${formatDate(booking.date)} · ${booking.slot}`} />
             <Row label="Address" value={`${booking.addressLabel} — ${booking.addressLine}`} />
             <Row label="Society" value={booking.society || "—"} />
@@ -323,7 +346,7 @@ export function BookingDetail() {
         </GlassCard>
 
         <GlassCard>
-          <SectionTitle icon={Clock}>Timeline</SectionTitle>
+          <SectionTitle icon={Clock}>Key times</SectionTitle>
           <dl className="mt-3 space-y-2.5 text-sm">
             <Row label="Booked" value={stamp(booking.createdAt)} />
             <Row label="Cleaner assigned" value={stamp(booking.assignedAt)} />
@@ -355,6 +378,47 @@ export function BookingDetail() {
           )}
         </GlassCard>
       </div>
+
+      {/* ── the customer's rating of the cleaner ───────────────────────── */}
+      <GlassCard data-testid="booking-review">
+        <SectionTitle icon={Star}>Customer review</SectionTitle>
+        {booking.review ? (
+          <div className="mt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <StarDisplay value={booking.review.rating} size="size-5" />
+                <span className="font-display text-lg font-semibold text-ink">{booking.review.rating}/5</span>
+                <span className="text-sm text-muted">{RATING_LABELS[booking.review.rating]}</span>
+              </div>
+              <span className="text-xs text-muted">{stamp(booking.review.createdAt)}</span>
+            </div>
+            {booking.review.comment ? (
+              <p className="mt-2 whitespace-pre-line text-sm text-ink-soft">“{booking.review.comment}”</p>
+            ) : (
+              <p className="mt-2 text-sm italic text-muted">No written review.</p>
+            )}
+            <p className="mt-2 text-xs text-muted">
+              By {booking.review.customerName || booking.customer.name} for{" "}
+              {booking.review.agentId ? (
+                <Link to={`/admin/agents/${booking.review.agentId}`} className="font-medium text-primary hover:underline">
+                  {booking.review.agentName || "the cleaner"}
+                </Link>
+              ) : (
+                booking.review.agentName
+              )}
+            </p>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-muted">
+            {booking.rawStatus === "completed"
+              ? "The customer hasn't rated this service yet."
+              : "Customers can rate the cleaner once the service is completed."}
+          </p>
+        )}
+      </GlassCard>
+
+      {/* ── full history: offers, declines, accepts, give-backs ───────── */}
+      <BookingTimeline entries={booking.timeline ?? []} />
 
       {/* ── proof photos ───────────────────────────────────────────────── */}
       <GlassCard className="space-y-6">
@@ -454,14 +518,25 @@ export function BookingDetail() {
         </div>
       </GlassCard>
 
+      <BookingInvoiceCard bookingId={booking.id} />
+
       {/* ── money ──────────────────────────────────────────────────────── */}
       <GlassCard>
         <SectionTitle icon={Wallet}>Payment</SectionTitle>
         <dl className="mt-3 space-y-2.5 text-sm">
-          <Row
-            label="Service price"
-            value={booking.isSubscriptionWash ? "Prepaid via subscription plan" : formatMoney(booking.price)}
-          />
+          {(() => {
+            const taxable = booking.taxableAmount ?? booking.price;
+            return (
+              <Row
+                label="Service value"
+                value={
+                  booking.isSubscriptionWash
+                    ? "Prepaid via subscription plan"
+                    : formatMoneyExact(taxable + booking.discountAmount + booking.coinDiscount)
+                }
+              />
+            );
+          })()}
           {booking.discountAmount > 0 && (
             <Row
               label={`Discount${booking.discountCode ? ` (${booking.discountCode})` : ""}`}
@@ -473,6 +548,30 @@ export function BookingDetail() {
               label={`Coins redeemed (${booking.coinsRedeemed.toLocaleString("en-IN")})`}
               value={`−${formatMoney(booking.coinDiscount)}`}
             />
+          )}
+          {!booking.isSubscriptionWash && (
+            <div className="flex items-center justify-between gap-4 border-t border-dashed border-line pt-2.5" data-testid="booking-taxable">
+              <dt className="font-medium text-ink">Taxable value</dt>
+              <dd className="font-medium text-ink">{formatMoneyExact(booking.taxableAmount ?? booking.price)}</dd>
+            </div>
+          )}
+          {booking.taxAmount > 0 ? (
+            booking.taxSupplyType === "inter" ? (
+              <Row label={`IGST @ ${booking.taxRate}%`} value={formatMoneyExact(booking.igstAmount)} testId="booking-igst" />
+            ) : (
+              <>
+                <Row label={`CGST @ ${booking.taxRate / 2}%`} value={formatMoneyExact(booking.cgstAmount)} testId="booking-cgst" />
+                <Row label={`SGST @ ${booking.taxRate / 2}%`} value={formatMoneyExact(booking.sgstAmount)} testId="booking-sgst" />
+              </>
+            )
+          ) : (
+            !booking.isSubscriptionWash && (
+              <Row label="GST" value={booking.taxableAmount == null ? "Not applicable (booked before GST)" : "Not charged"} />
+            )
+          )}
+          {booking.taxRoundOff !== 0 && <Row label="Round off" value={formatMoneyExact(booking.taxRoundOff)} />}
+          {booking.taxableAmount != null && booking.price > booking.taxableAmount && (
+            <Row label="Off-peak discount reclaimed (reschedule)" value={formatMoneyExact(booking.price - booking.taxableAmount)} />
           )}
           {booking.offPeakLocked && (
             <Row
@@ -513,9 +612,12 @@ export function BookingDetail() {
 
           {booking.agentShare != null && (
             <div className="flex items-center justify-between gap-4">
-              <dt className="text-muted">Platform keeps</dt>
+              <dt className="text-muted">
+                Platform keeps
+                {booking.taxAmount > 0 && <span className="block text-[11px]">after GST ({formatMoneyExact(booking.taxAmount)}) is set aside</span>}
+              </dt>
               <dd className="text-right font-medium text-ink-soft">
-                {formatMoney(booking.totalAmount - booking.agentShare)}
+                {formatMoneyExact(booking.totalAmount - booking.taxAmount - booking.taxRoundOff - booking.agentShare)}
               </dd>
             </div>
           )}
@@ -646,5 +748,57 @@ function PhotoLightbox({
         onClick={(e) => e.stopPropagation()}
       />
     </div>
+  );
+}
+
+/** The booking's invoice: number, status, and a way to open or download it. */
+function BookingInvoiceCard({ bookingId }: { bookingId: string }) {
+  const { data, isLoading } = useBookingInvoiceAdmin(bookingId, true);
+  const [downloading, setDownloading] = useState(false);
+  return (
+    <GlassCard data-testid="booking-invoice-card">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
+            <ReceiptText className="size-5" />
+          </span>
+          <div>
+            <p className="font-display text-lg font-semibold text-ink">Invoice</p>
+            <p className="text-sm text-muted">
+              {isLoading ? "Loading…" : data ? (
+                <>
+                  <span className="font-mono font-medium text-ink" data-testid="booking-invoice-number">
+                    {data.invoice.invoiceNumber}
+                  </span>{" "}
+                  · {INVOICE_STATUS_LABEL[data.invoice.status]} · {formatMoneyExact(data.invoice.total)}
+                </>
+              ) : (
+                "Not available"
+              )}
+            </p>
+          </div>
+        </div>
+        {data && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to={`/admin/bookkeeping/invoices/${data.invoice.id}`}>View &amp; edit</Link>
+            </Button>
+            <Button
+              size="sm"
+              disabled={downloading}
+              onClick={async () => {
+                setDownloading(true);
+                try {
+                  await downloadInvoicePdf(data.invoice, data.template);
+                } finally {
+                  setDownloading(false);
+                }
+              }}>
+              {downloading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />} PDF
+            </Button>
+          </div>
+        )}
+      </div>
+    </GlassCard>
   );
 }

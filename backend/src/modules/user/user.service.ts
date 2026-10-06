@@ -143,7 +143,15 @@ async function pushCapped(
 
 export async function addVehicle(
   userId: string,
-  vehicle: { type: string; name: string; brand?: string; model?: string; plate?: string },
+  vehicle: {
+    type: string;
+    name: string;
+    brand?: string;
+    model?: string;
+    plate?: string;
+    color?: string;
+    colorHex?: string;
+  },
 ) {
   if (!(await isValidCategoryKey(vehicle.type))) throw ApiError.badRequest("Unknown vehicle category");
   // Vehicles and addresses are embedded in the user document, which is loaded
@@ -155,6 +163,8 @@ export async function addVehicle(
     brand: vehicle.brand || "",
     model: vehicle.model || "",
     plate: vehicle.plate || "—",
+    color: vehicle.color || "",
+    colorHex: vehicle.colorHex || "",
   });
   if (!added) throw ApiError.badRequest(`You can save up to ${MAX_VEHICLES} vehicles`);
   return getUser(userId);

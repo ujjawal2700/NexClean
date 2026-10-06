@@ -15,6 +15,7 @@ import { EditProfile } from "./pages/EditProfile";
 import { HelpSupport } from "./pages/HelpSupport";
 import { BankAccount } from "./pages/BankAccount";
 import { Payouts } from "./pages/Payouts";
+import { Reviews } from "./pages/Reviews";
 
 /**
  * Agent module router (base path /agent). Login is public; everything else
@@ -47,6 +48,7 @@ export function AgentApp() {
           <Route path="profile/edit" element={<EditProfile />} />
           <Route path="profile/bank-account" element={<BankAccount />} />
           <Route path="payouts" element={<Payouts />} />
+          <Route path="reviews" element={<Reviews />} />
           <Route path="help" element={<HelpSupport />} />
         </Route>
 

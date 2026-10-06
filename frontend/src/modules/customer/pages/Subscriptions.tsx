@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Check,
   Calendar,
@@ -13,6 +13,7 @@ import {
   Coins,
   Loader2,
   ShieldCheck,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -47,36 +48,14 @@ import {
 } from "../components/ScheduleSheet";
 import type { SubscriptionPreview } from "../api/mutations";
 import type { CarType, CatalogPlan, Booking } from "../types";
+import { planCopy, washesLabel } from "../data/plans";
 
-type PlanMeta = { tagline: string; perks: string[]; featured?: boolean };
-const PLAN_META: Record<string, PlanMeta> = {
-  basic: {
-    tagline: "For the weekend driver.",
-    perks: ["Exterior + interior", "Doorstep service", "Free rescheduling"],
-  },
-  premium: {
-    tagline: "Our most popular plan.",
-    perks: ["Priority scheduling", "Premium products", "10% off add-ons"],
-    featured: true,
-  },
-  elite: {
-    tagline: "Nothing but the best.",
-    perks: ["Same-day guaranteed", "Top specialists", "Concierge support"],
-  },
-};
-const DEFAULT_META: PlanMeta = {
-  tagline: "Subscribe and save on every wash.",
-  perks: ["Doorstep service"],
-};
-
-function washesLabel(washesPerMonth: number): string {
-  return washesPerMonth < 0
-    ? "Unlimited washes"
-    : `${washesPerMonth} washes / month`;
-}
+/** Set by the plan detail page to open checkout for a plan on arrival. */
+export type PlansLocationState = { checkoutPlanId?: string } | null;
 
 export function Subscriptions() {
   const navigate = useNavigate();
+  const location = useLocation();
   const isGuest = useIsGuest();
   const { data: me } = useMe();
   const { data: plans = [], isLoading: plansLoading } = usePlans();
@@ -157,6 +136,19 @@ export function Subscriptions() {
     setSubQuote(null);
     setCheckoutError("");
   };
+
+  // "Choose plan" on the plan detail page lands here with the plan to check out.
+  const handoffPlanId = (location.state as PlansLocationState)?.checkoutPlanId;
+  useEffect(() => {
+    if (!handoffPlanId || plansLoading) return;
+    const plan = plans.find((p) => p.id === handoffPlanId);
+    // Clear the hand-off so a refresh or back-navigation doesn't reopen checkout.
+    navigate(location.pathname, { replace: true, state: null });
+    if (!plan) return;
+    setShowCatalog(true);
+    openCheckout(plan);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoffPlanId, plansLoading]);
 
   const payableSub = subQuote
     ? subQuote.price
@@ -777,14 +769,20 @@ export function Subscriptions() {
 
       <div className="grid items-stretch gap-6 lg:grid-cols-3">
         {plans.map((plan) => {
-          const meta = PLAN_META[plan.id] ?? DEFAULT_META;
+          const meta = planCopy(plan);
           const active = activePlan === plan.id;
-          const features = [washesLabel(plan.washesPerMonth), ...meta.perks];
+          const features = [
+            ...(plan.washesPerMonth !== 0 ? [washesLabel(plan.washesPerMonth)] : []),
+            ...meta.keyPoints,
+          ];
+          const openDetails = () => navigate(`/app/plans/${plan.id}`);
           return (
             <div
               key={plan.id}
+              data-testid={`plan-card-${plan.id}`}
+              onClick={openDetails}
               className={cn(
-                "relative flex h-full flex-col rounded-card border p-7 transition-transform",
+                "relative flex h-full cursor-pointer flex-col rounded-card border p-7 transition-transform",
                 meta.featured
                   ? "border-primary/30 bg-gradient-to-br from-primary to-primary-soft text-white shadow-[var(--shadow-glow)] lg:-translate-y-3"
                   : "border-line bg-surface/70 shadow-[var(--shadow-soft)]",
@@ -801,13 +799,15 @@ export function Subscriptions() {
                 )}>
                 {plan.name}
               </h2>
-              <p
-                className={cn(
-                  "mt-1 text-sm",
-                  meta.featured ? "text-white/80" : "text-muted",
-                )}>
-                {meta.tagline}
-              </p>
+              {meta.tagline ? (
+                <p
+                  className={cn(
+                    "mt-1 text-sm",
+                    meta.featured ? "text-white/80" : "text-muted",
+                  )}>
+                  {meta.tagline}
+                </p>
+              ) : null}
               <div className="mt-5 flex items-end gap-1">
                 {!vehicleType && (
                   <span
@@ -839,32 +839,48 @@ export function Subscriptions() {
                 </p>
               )}
 
-              <ul className="mt-6 space-y-3">
-                {features.map((f) => (
-                  <li key={f} className="flex items-center gap-3 text-sm">
-                    <span
-                      className={cn(
-                        "grid size-5 shrink-0 place-items-center rounded-full",
-                        meta.featured ? "bg-white/20" : "bg-primary/10",
-                      )}>
-                      <Check
+              {features.length > 0 && (
+                <ul className="mt-6 space-y-3">
+                  {features.map((f) => (
+                    <li key={f} className="flex items-center gap-3 text-sm">
+                      <span
                         className={cn(
-                          "size-3",
-                          meta.featured ? "text-white" : "text-primary",
-                        )}
-                      />
-                    </span>
-                    <span
-                      className={
-                        meta.featured ? "text-white/95" : "text-ink-soft"
-                      }>
-                      {f}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                          "grid size-5 shrink-0 place-items-center rounded-full",
+                          meta.featured ? "bg-white/20" : "bg-primary/10",
+                        )}>
+                        <Check
+                          className={cn(
+                            "size-3",
+                            meta.featured ? "text-white" : "text-primary",
+                          )}
+                        />
+                      </span>
+                      <span
+                        className={
+                          meta.featured ? "text-white/95" : "text-ink-soft"
+                        }>
+                        {f}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-              <div className="mt-auto pt-7">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openDetails();
+                }}
+                aria-label={`View ${plan.name} plan details`}
+                className={cn(
+                  "mt-5 inline-flex w-fit cursor-pointer items-center gap-1 rounded-lg text-sm font-medium hover:underline",
+                  meta.featured ? "text-white" : "text-primary",
+                )}>
+                View plan details <ChevronRight className="size-4" />
+              </button>
+
+              <div className="mt-auto pt-7" onClick={(e) => e.stopPropagation()}>
                 {active && !expired ? (
                   <Button
                     variant={meta.featured ? "glass" : "outline"}
@@ -915,7 +931,7 @@ export function Subscriptions() {
       {/* Subscription checkout: bottom sheet on phones, dialog on larger screens. */}
       {checkoutPlan &&
         (() => {
-          const meta = PLAN_META[checkoutPlan.id] ?? DEFAULT_META;
+          const meta = planCopy(checkoutPlan);
           const validUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString("en-IN", {
             day: "numeric",
             month: "short",
@@ -968,9 +984,11 @@ export function Subscriptions() {
                 )}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className={cn("text-xs font-semibold uppercase tracking-wider", meta.featured ? "text-white/75" : "text-muted")}>
-                      {meta.tagline}
-                    </p>
+                    {meta.tagline ? (
+                      <p className={cn("text-xs font-semibold uppercase tracking-wider", meta.featured ? "text-white/75" : "text-muted")}>
+                        {meta.tagline}
+                      </p>
+                    ) : null}
                     <p className="mt-1 font-display text-2xl font-semibold">{checkoutPlan.name}</p>
                   </div>
                   <div className="text-right">
@@ -978,20 +996,29 @@ export function Subscriptions() {
                     <p className={cn("text-xs", meta.featured ? "text-white/75" : "text-muted")}>per month</p>
                   </div>
                 </div>
-                <ul className="mt-4 grid gap-2 text-sm">
-                  {[washesLabel(checkoutPlan.washesPerMonth), ...meta.perks].map((f) => (
-                    <li key={f} className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "grid size-5 shrink-0 place-items-center rounded-full",
-                          meta.featured ? "bg-white/20" : "bg-primary/10 text-primary",
-                        )}>
-                        <Check className="size-3" />
-                      </span>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
+                {(() => {
+                  const checkoutFeatures = [
+                    ...(checkoutPlan.washesPerMonth !== 0 ? [washesLabel(checkoutPlan.washesPerMonth)] : []),
+                    ...meta.keyPoints,
+                  ];
+                  if (checkoutFeatures.length === 0) return null;
+                  return (
+                    <ul className="mt-4 grid gap-2 text-sm">
+                      {checkoutFeatures.map((f) => (
+                        <li key={f} className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "grid size-5 shrink-0 place-items-center rounded-full",
+                              meta.featured ? "bg-white/20" : "bg-primary/10 text-primary",
+                            )}>
+                            <Check className="size-3" />
+                          </span>
+                          {f}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
                 <p className={cn("mt-4 border-t pt-3 text-xs", meta.featured ? "border-white/20 text-white/80" : "border-line text-muted")}>
                   {vehicleType ? `For your ${categoryLabel(vehicleType)} · ` : ""}Valid for 30 days, until {validUntil}
                 </p>

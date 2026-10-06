@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ReviewSummaryData } from "@shared/components/ReviewsSummary";
 import { apiFetch } from "@shared/lib/api";
 import { useAgentSession } from "../store/sessionStore";
 import type {
@@ -106,6 +107,16 @@ export function useAgentSignup() {
 export function useAgentMe() {
   const authenticated = useAgentSession((s) => s.authenticated);
   return useQuery({ queryKey: meKey, queryFn: () => apiFetch<AgentProfile>("/auth/me"), enabled: authenticated });
+}
+
+/** The cleaner's rating, star breakdown and customer reviews. */
+export function useMyReviews() {
+  const authenticated = useAgentSession((s) => s.authenticated);
+  return useQuery({
+    queryKey: ["agent", "reviews"],
+    queryFn: () => apiFetch<ReviewSummaryData>("/agent/reviews"),
+    enabled: authenticated,
+  });
 }
 
 export function useJobs() {

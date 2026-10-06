@@ -2,8 +2,12 @@ import { SlotConfig } from "./slotConfig.model";
 import {
   TIME_SLOTS,
   MAX_SLOTS,
+  DEFAULT_LEAD_MINUTES,
+  MAX_LEAD_MINUTES,
   getLiveSlots,
   setLiveSlots,
+  getLeadMinutes,
+  setLeadMinutes,
   slotToMinutes,
   normalizeSlot,
 } from "../../shared/slots";
@@ -34,8 +38,9 @@ export function cleanSlots(slots: string[]): string[] {
 
 /** Re-reads the list from the database. Keeps the current cache if the read fails. */
 export async function refreshSlotCache(): Promise<void> {
-  const doc = await SlotConfig.findById("global").select("slots").lean();
+  const doc = await SlotConfig.findById("global").select("slots leadMinutes").lean();
   setLiveSlots(doc?.slots?.length ? doc.slots : TIME_SLOTS);
+  setLeadMinutes(doc?.leadMinutes);
 }
 
 export function startSlotCacheRefresh(): void {
@@ -51,18 +56,43 @@ export function stopSlotCacheRefresh(): void {
   refreshHandle = null;
 }
 
-export async function getSlotConfig(): Promise<{ slots: string[]; defaults: string[]; maxSlots: number }> {
+export type SlotConfigView = {
+  slots: string[];
+  defaults: string[];
+  maxSlots: number;
+  /** Minimum notice (minutes) before a slot's start for it to be bookable. */
+  leadMinutes: number;
+  defaultLeadMinutes: number;
+  maxLeadMinutes: number;
+};
+
+export async function getSlotConfig(): Promise<SlotConfigView> {
   await refreshSlotCache();
-  return { slots: [...getLiveSlots()], defaults: [...TIME_SLOTS], maxSlots: MAX_SLOTS };
+  return {
+    slots: [...getLiveSlots()],
+    defaults: [...TIME_SLOTS],
+    maxSlots: MAX_SLOTS,
+    leadMinutes: getLeadMinutes(),
+    defaultLeadMinutes: DEFAULT_LEAD_MINUTES,
+    maxLeadMinutes: MAX_LEAD_MINUTES,
+  };
 }
 
 /**
  * Replaces the bookable slots. Existing bookings keep whatever slot they were
  * made with — removing a slot only stops new bookings and reschedules into it.
  */
-export async function updateSlotConfig(slots: string[]) {
+export async function updateSlotConfig(slots: string[], leadMinutes?: number) {
   const cleaned = cleanSlots(slots);
-  await SlotConfig.findByIdAndUpdate("global", { $set: { slots: cleaned } }, { upsert: true });
+  const set: { slots: string[]; leadMinutes?: number } = { slots: cleaned };
+  if (leadMinutes !== undefined) {
+    if (!Number.isInteger(leadMinutes) || leadMinutes < 0 || leadMinutes > MAX_LEAD_MINUTES) {
+      throw new Error(`Booking notice must be between 0 and ${MAX_LEAD_MINUTES} minutes.`);
+    }
+    set.leadMinutes = leadMinutes;
+  }
+  await SlotConfig.findByIdAndUpdate("global", { $set: set }, { upsert: true });
   setLiveSlots(cleaned);
+  if (leadMinutes !== undefined) setLeadMinutes(leadMinutes);
   return getSlotConfig();
 }

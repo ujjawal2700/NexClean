@@ -5,6 +5,7 @@ import { env, assertProductionConfig } from "./config/env";
 import { initSocket } from "./shared/services/socket";
 import { initFcm } from "./shared/services/fcm";
 import { startDispatchWorker, resumeDispatch, stopDispatchWorker } from "./modules/dispatch/dispatch.service";
+import { ensureNotificationRetention } from "./modules/notification/notificationRetention";
 import { refreshSlotCache, startSlotCacheRefresh, stopSlotCacheRefresh } from "./modules/dispatch/slotConfig.service";
 
 // Fail fast before binding a port: a production server running on development
@@ -40,6 +41,8 @@ initSocket(server).catch((err: unknown) => {
 connectDb()
   .then(() => seedDemoData())
   .then(async () => {
+    // Index setup is idempotent, so every instance can run it safely.
+    await ensureNotificationRetention();
     // Every instance validates bookings against the slot list, so every
     // instance (not just the primary) loads it and keeps it fresh.
     await refreshSlotCache().catch((err) =>

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import * as bk from "../bookkeeping/bookkeeping.controller";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { requireRole, requirePermission } from "../../shared/middleware/auth";
 import * as c from "./admin.controller";
@@ -37,6 +38,16 @@ adminRouter.patch("/bookings/:id/reschedule", requirePermission("bookings"), asy
 adminRouter.post("/bookings/:id/reschedule/quote", requirePermission("bookings"), asyncHandler(c.rescheduleQuote));
 adminRouter.post("/bookings/:id/auto-assign", requirePermission("bookings"), asyncHandler(c.autoAssignBooking));
 adminRouter.get("/bookings/:id/assignable-agents", requirePermission("bookings"), asyncHandler(c.assignableAgents));
+adminRouter.get("/bookings/:id/invoice", requirePermission("bookings"), asyncHandler(bk.bookingInvoice));
+
+// Bookkeeping — GST, invoices, invoice template, finance overview
+adminRouter.get("/bookkeeping/config", requirePermission("bookkeeping"), asyncHandler(bk.getConfig));
+adminRouter.put("/bookkeeping/config", requirePermission("bookkeeping"), asyncHandler(bk.updateConfig));
+adminRouter.post("/bookkeeping/template/reset", requirePermission("bookkeeping"), asyncHandler(bk.resetTemplate));
+adminRouter.get("/bookkeeping/summary", requirePermission("bookkeeping"), asyncHandler(bk.summary));
+adminRouter.get("/bookkeeping/invoices", requirePermission("bookkeeping"), asyncHandler(bk.invoices));
+adminRouter.get("/bookkeeping/invoices/:id", requirePermission("bookkeeping"), asyncHandler(bk.invoice));
+adminRouter.patch("/bookkeeping/invoices/:id", requirePermission("bookkeeping"), asyncHandler(bk.editInvoice));
 adminRouter.get("/dispatch/queue", requirePermission("bookings"), asyncHandler(c.dispatchQueue));
 adminRouter.post("/dispatch/auto-assign-all", requirePermission("bookings"), asyncHandler(c.autoAssignAll));
 adminRouter.get("/dispatch/config", requirePermission("bookings"), asyncHandler(c.getDispatchConfigCtl));
@@ -50,6 +61,7 @@ adminRouter.patch("/agents/:id", requirePermission("agents"), asyncHandler(c.upd
 adminRouter.delete("/agents/:id", requirePermission("agents"), asyncHandler(c.deleteAgent));
 adminRouter.get("/agents/:id", requirePermission("agents"), asyncHandler(c.agentDetail));
 adminRouter.get("/agents/:id/activity", requirePermission("agents"), asyncHandler(c.agentActivity));
+adminRouter.get("/agents/:id/reviews", requirePermission("agents"), asyncHandler(c.agentReviews));
 adminRouter.patch("/agents/:id/status", requirePermission("agents"), asyncHandler(c.setAgentStatus));
 adminRouter.patch("/agents/:id/area", requirePermission("agents"), asyncHandler(c.updateAgentArea));
 

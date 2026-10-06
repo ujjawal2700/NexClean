@@ -1,6 +1,8 @@
 import { ApiError } from "../../shared/utils/ApiError";
+import { bookingAmountDue } from "../bookkeeping/invoice.service";
 import { Types } from "mongoose";
 import { createBooking, computePrice, type ComputedBookingPrice } from "../booking/booking.service";
+import { assertSlotHasNotice } from "../booking/reschedule.service";
 import { Payment } from "./payment.model";
 import { paymentsLive, createRazorpayOrder, verifyRazorpaySignature, razorpayKeyId, mockOrderId } from "./razorpay";
 import type { CreateOrderInput, VerifyPaymentInput } from "./payment.validation";
@@ -17,13 +19,26 @@ export async function previewAmount(
     slot?: string;
   },
 ) {
-  const { basePrice, price, discountAmount, discountCodeLabel, coinsRedeemed, coinDiscount } =
+  const { basePrice, price, discountAmount, discountCodeLabel, coinsRedeemed, coinDiscount, tax } =
     await computePrice(userId, input);
-  return { basePrice, price, discountAmount, discountCode: discountCodeLabel, coinsRedeemed, coinDiscount };
+  return {
+    basePrice,
+    // Service value after discounts, before GST.
+    price,
+    discountAmount,
+    discountCode: discountCodeLabel,
+    coinsRedeemed,
+    coinDiscount,
+    tax,
+    // What the customer will be charged.
+    payable: tax.payableAmount,
+  };
 }
 
 /** Create a payment order. In cash/mock mode returns a synthetic order id. */
 export async function createOrder(userId: string, input: CreateOrderInput) {
+  // Before the customer pays: a slot inside the admin-set booking notice is refused here.
+  await assertSlotHasNotice(new Date(input.booking.date), input.booking.slot);
   const computed = await computePrice(userId, input.booking);
   // `pkg` originates as an embedded Mongoose subdocument. Flatten it before
   // putting it in a Mixed field so its virtual `id` is not lost on reload.
@@ -37,7 +52,8 @@ export async function createOrder(userId: string, input: CreateOrderInput) {
       active: computed.pkg.active,
     },
   };
-  const amount = pricingSnapshot.price;
+  // GST-inclusive: the service price plus tax, rounded to the rupee.
+  const amount = pricingSnapshot.tax.payableAmount;
 
   if (input.expectedAmount !== undefined && Math.abs(input.expectedAmount - amount) > 0.009) {
     throw ApiError.conflict("The price has been updated. Review the new total before paying.", {
@@ -127,7 +143,7 @@ export async function verifyAndBook(userId: string, input: VerifyPaymentInput) {
         user: userId,
         booking: booking.id,
         orderId: mockOrderId("cash"),
-        amount: booking.price,
+        amount: bookingAmountDue(booking),
         status: "created",
         bookingDraft: input.booking,
       });
@@ -161,7 +177,8 @@ export async function verifyAndBook(userId: string, input: VerifyPaymentInput) {
   }
 
   const snapshot = payment.pricingSnapshot as ComputedBookingPrice | undefined;
-  if (snapshot && snapshot.price !== payment.amount) {
+  // Orders opened before GST carry no tax in the snapshot and were charged their price.
+  if (snapshot && (snapshot.tax?.payableAmount ?? snapshot.price) !== payment.amount) {
     throw ApiError.badRequest("Payment order has an invalid pricing snapshot");
   }
   const booking = await createBooking(userId, draft, snapshot);

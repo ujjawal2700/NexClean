@@ -10,6 +10,10 @@ const planSchema = new Schema(
     // admin-managed and dynamic — new categories get a key added at runtime.
     prices: { type: Object, required: true },
     washesPerMonth: { type: Number, required: true },
+    // Admin-written marketing copy shown on the customer plan card and detail page.
+    tagline: { type: String, trim: true, default: "" },
+    description: { type: String, trim: true, default: "" },
+    keyPoints: { type: [String], default: [] },
     active: { type: Boolean, default: true },
   },
   {

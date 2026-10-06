@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { getAgentReviews } from "../review/review.service";
 import { z } from "zod";
 import { ok, created } from "../../shared/utils/apiResponse";
 import { ApiError } from "../../shared/utils/ApiError";
@@ -117,7 +118,7 @@ export async function bookingDetail(req: Request, res: Response): Promise<Respon
 }
 
 export async function cancelBooking(req: Request, res: Response): Promise<Response> {
-  return ok(res, await service.cancelBooking(String(req.params.id)), "Booking cancelled");
+  return ok(res, await service.cancelBooking(String(req.params.id), req.userId), "Booking cancelled");
 }
 
 const bookingStatusSchema = z.object({
@@ -126,18 +127,18 @@ const bookingStatusSchema = z.object({
 export async function setBookingStatus(req: Request, res: Response): Promise<Response> {
   const parsed = bookingStatusSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Invalid status");
-  return ok(res, await service.setBookingStatus(String(req.params.id), parsed.data.status), "Booking status updated");
+  return ok(res, await service.setBookingStatus(String(req.params.id), parsed.data.status, req.userId), "Booking status updated");
 }
 
 const assignSchema = z.object({ agentId: z.string().min(1) });
 export async function assignBooking(req: Request, res: Response): Promise<Response> {
   const parsed = assignSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Agent is required");
-  return ok(res, await service.assignAgent(String(req.params.id), parsed.data.agentId), "Agent assigned");
+  return ok(res, await service.assignAgent(String(req.params.id), parsed.data.agentId, req.userId), "Agent assigned");
 }
 
 export async function autoAssignBooking(req: Request, res: Response): Promise<Response> {
-  return ok(res, await service.autoAssignBooking(String(req.params.id)), "Agent auto-assigned");
+  return ok(res, await service.autoAssignBooking(String(req.params.id), req.userId), "Agent auto-assigned");
 }
 
 const rescheduleSchema = z.object({
@@ -211,12 +212,15 @@ export async function getTimeSlots(_req: Request, res: Response): Promise<Respon
   return ok(res, await getSlotConfig());
 }
 
-const timeSlotsSchema = z.object({ slots: z.array(z.string()).min(1) });
+const timeSlotsSchema = z.object({
+  slots: z.array(z.string()).min(1),
+  leadMinutes: z.number().int().min(0).optional(),
+});
 export async function updateTimeSlots(req: Request, res: Response): Promise<Response> {
   const parsed = timeSlotsSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Add at least one time slot");
   try {
-    return ok(res, await updateSlotConfig(parsed.data.slots), "Time slots updated");
+    return ok(res, await updateSlotConfig(parsed.data.slots, parsed.data.leadMinutes), "Time slots updated");
   } catch (err) {
     throw ApiError.badRequest((err as Error).message);
   }
@@ -411,7 +415,18 @@ export async function plans(_req: Request, res: Response): Promise<Response> {
   return ok(res, await service.listPlans());
 }
 
-const createPlanSchema = z.object({
+/** The descriptive copy customers see on the plan card and plan detail page. */
+const planDetailsSchema = z.object({
+  tagline: z.string().trim().max(120).optional(),
+  description: z.string().trim().max(2000).optional(),
+  keyPoints: z
+    .array(z.string().trim().max(120))
+    .max(12)
+    .transform((points) => points.filter(Boolean))
+    .optional(),
+});
+
+const createPlanSchema = planDetailsSchema.extend({
   name: z.string().min(1),
   prices: pricesSchema,
   washesPerMonth: z.number().int(),
@@ -422,7 +437,7 @@ export async function createPlan(req: Request, res: Response): Promise<Response>
   return created(res, await service.createPlan(parsed.data), "Plan created");
 }
 
-const updatePlanSchema = z.object({
+const updatePlanSchema = planDetailsSchema.extend({
   name: z.string().min(1).optional(),
   prices: pricesSchema.optional(),
   washesPerMonth: z.number().int().optional(),
@@ -1319,4 +1334,9 @@ export async function attentionCounts(_req: Request, res: Response): Promise<Res
     countAwaitingSupport(),
   ]);
   return ok(res, { payoutRequests, refunds, supportChats });
+}
+
+/** A cleaner's rating, star breakdown and every customer review, newest first. */
+export async function agentReviews(req: Request, res: Response): Promise<Response> {
+  return ok(res, await getAgentReviews(String(req.params.id), { limit: 200 }));
 }

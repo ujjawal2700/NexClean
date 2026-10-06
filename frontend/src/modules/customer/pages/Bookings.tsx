@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { bookingAmountDue } from "@shared/lib/tax";
 import { Link, useNavigate } from "react-router-dom";
-import { CalendarDays, MapPin, Clock, Plus, ArrowLeft, UserCheck, Loader2, RefreshCw, Radio, Camera } from "lucide-react";
+import { CalendarDays, MapPin, Clock, Plus, ArrowLeft, UserCheck, Loader2, RefreshCw, Radio, Camera, Star, ChevronRight } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
 import { CarSilhouette } from "@shared/components/visual/CarSilhouette";
 import { SkeletonListCards } from "@shared/ui/Skeleton";
-import { useBookings } from "../api/queries";
+import { useBookingsPages, type BookingStatusFilter } from "../api/queries";
 import { useCancelBooking } from "../api/mutations";
 import { RescheduleModal } from "../components/RescheduleModal";
 import { ServicePhotosModal } from "../components/ServicePhotosModal";
@@ -64,9 +65,27 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
 
 export function Bookings() {
   const navigate = useNavigate();
-  const { data: bookings = [], isLoading } = useBookings();
   const cancelBooking = useCancelBooking();
-  const [filter, setFilter] = useState<BookingStatus | "all">("all");
+  const [filter, setFilter] = useState<BookingStatusFilter>("all");
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } = useBookingsPages(filter);
+  const list = data?.pages.flatMap((p) => p.items) ?? [];
+  const lastPage = data?.pages[data.pages.length - 1];
+  const counts = data?.pages[0]?.counts;
+
+  // Load the next page as the end of the list scrolls into view.
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !hasNextPage) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting) && !isFetchingNextPage) void fetchNextPage();
+      },
+      { rootMargin: "400px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, list.length]);
   const [rescheduling, setRescheduling] = useState<Booking | null>(null);
   const [viewingPhotos, setViewingPhotos] = useState<Booking | null>(null);
   const [cancelling, setCancelling] = useState<Booking | null>(null);
@@ -82,7 +101,6 @@ export function Bookings() {
     });
   };
 
-  const list = filter === "all" ? bookings : bookings.filter((b) => b.status === filter);
 
   return (
     <div>
@@ -117,12 +135,31 @@ export function Bookings() {
             )}
           >
             {f.label}
+            {counts && (
+              <span
+                aria-hidden
+                data-testid={`count-${f.id}`}
+                className={cn(
+                  "ml-1.5 rounded-pill px-1.5 text-xs",
+                  filter === f.id ? "bg-white/20" : "bg-surface-muted",
+                )}
+              >
+                {counts[f.id]}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
       {isLoading ? (
         <SkeletonListCards count={3} />
+      ) : isError && list.length === 0 ? (
+        <GlassCard className="py-12 text-center">
+          <p className="text-muted">Couldn't load your bookings.</p>
+          <Button variant="outline" className="mt-4" onClick={() => void refetch()}>
+            Try again
+          </Button>
+        </GlassCard>
       ) : list.length === 0 ? (
         <GlassCard className="py-16 text-center">
           <p className="text-muted">No bookings here yet.</p>
@@ -184,21 +221,48 @@ export function Bookings() {
 
               <CleanerStatus booking={b} />
 
+              <Link
+                to={`/app/bookings/${b.id}`}
+                className="flex items-center justify-between rounded-2xl border border-line px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:border-primary/40 hover:bg-primary/5"
+                data-testid={`booking-details-${b.id}`}
+              >
+                View booking details
+                <ChevronRight className="size-4" />
+              </Link>
+
               {/* Footer: price on the left, actions on the right. */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Total</p>
-                  <p className="font-display text-xl font-semibold text-ink">{formatMoney(b.price)}</p>
+                  <p className="font-display text-xl font-semibold text-ink">{formatMoney(bookingAmountDue(b))}</p>
                 </div>
                 {b.status === "completed" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setViewingPhotos(b)}
-                    data-testid={`view-photos-${b.id}`}
-                  >
-                    <Camera className="size-3.5" /> Service Photos
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {b.review ? (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-pill bg-amber-400/15 px-2.5 py-1 text-xs font-semibold text-amber-700"
+                        data-testid={`rated-${b.id}`}
+                        title="Your rating">
+                        <Star className="size-3.5 fill-amber-400 text-amber-400" /> {b.review.rating}
+                      </span>
+                    ) : (
+                      b.agentName && (
+                        <Button size="sm" asChild data-testid={`rate-${b.id}`}>
+                          <Link to={`/app/bookings/${b.id}?rate=1`}>
+                            <Star className="size-3.5" /> Rate service
+                          </Link>
+                        </Button>
+                      )
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setViewingPhotos(b)}
+                      data-testid={`view-photos-${b.id}`}
+                    >
+                      <Camera className="size-3.5" /> Photos
+                    </Button>
+                  </div>
                 )}
                 {b.status === "upcoming" && (
                   <Button size="sm" asChild data-testid={`track-${b.id}`}>
@@ -232,6 +296,32 @@ export function Bookings() {
               )}
             </GlassCard>
           ))}
+
+          <div ref={sentinel} aria-hidden />
+          {hasNextPage ? (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => void fetchNextPage()}
+              disabled={isFetchingNextPage}
+              data-testid="load-more-bookings"
+            >
+              {isFetchingNextPage ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Loading…
+                </>
+              ) : (
+                "Load more bookings"
+              )}
+            </Button>
+          ) : (
+            lastPage &&
+            lastPage.total > (lastPage.limit || 0) && (
+              <p className="py-2 text-center text-xs text-muted" data-testid="bookings-end">
+                You've reached the end · {lastPage.total} bookings
+              </p>
+            )
+          )}
         </div>
       )}
 

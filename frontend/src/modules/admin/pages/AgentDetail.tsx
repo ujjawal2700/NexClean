@@ -10,6 +10,7 @@ import { usePagination } from "@shared/lib/usePagination";
 import {
   useAgent,
   useAgentActivity,
+  useAgentReviews,
   useSetAgentStatus,
   useCategoryLabel,
   useUpdateAgent,
@@ -20,12 +21,14 @@ import { AgentLocationModal } from "../components/AgentLocationModal";
 import { AgentLiveLocationSection } from "../components/AgentLiveLocationSection";
 import { AGENT_STATUS_STYLE, BOOKING_STATUS_STYLE, BOOKING_STATUS_LABEL } from "../lib/status";
 import { BookingPrice } from "../components/BookingPrice";
+import { ReviewsSummary } from "@shared/components/ReviewsSummary";
 
 export function AgentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: agent } = useAgent(id ?? "");
   const { data: activity } = useAgentActivity(id ?? "");
+  const { data: reviews } = useAgentReviews(id ?? "");
   const setAgentStatus = useSetAgentStatus();
   const updateAgent = useUpdateAgent();
   const deleteAgent = useDeleteAgent();
@@ -119,7 +122,10 @@ export function AgentDetail() {
         <GlassCard>
           <p className="text-sm text-muted">Rating</p>
           <p className="mt-1.5 flex items-center gap-1 font-display text-2xl font-semibold text-ink">
-            <Star className="size-4 fill-primary text-primary" /> {agent.rating > 0 ? Number(agent.rating).toFixed(1) : "New"}
+            <Star className="size-4 fill-amber-400 text-amber-400" /> {agent.rating > 0 ? Number(agent.rating).toFixed(1) : "New"}
+          </p>
+          <p className="mt-0.5 text-xs text-muted" data-testid="agent-rating-count">
+            {reviews?.ratingCount ?? agent.ratingCount ?? 0} review{(reviews?.ratingCount ?? agent.ratingCount ?? 0) === 1 ? "" : "s"}
           </p>
         </GlassCard>
         <GlassCard>
@@ -222,6 +228,30 @@ export function AgentDetail() {
         )}
       </GlassCard>
 
+      <GlassCard data-testid="agent-reviews-section">
+        <p className="flex items-center gap-2 font-display text-lg font-semibold text-ink">
+          <Star className="size-4 fill-amber-400 text-amber-400" /> Ratings &amp; reviews
+        </p>
+        <p className="mt-1 text-sm text-muted">
+          Every customer rating this cleaner has received, with the booking it was for.
+        </p>
+        <div className="mt-5">
+          {reviews ? (
+            <ReviewsSummary
+              data={reviews}
+              emptyText="No customer has rated this cleaner yet."
+              bookingLink={(bookingId, children) => (
+                <Link to={`/admin/bookings/${bookingId}`} className="hover:text-primary hover:underline">
+                  {children}
+                </Link>
+              )}
+            />
+          ) : (
+            <p className="text-sm text-muted">Loading reviews…</p>
+          )}
+        </div>
+      </GlassCard>
+
       <GlassCard className="overflow-x-auto">
         <p className="font-display text-lg font-semibold text-ink">Service history</p>
         <table className="mt-4 w-full min-w-[640px] text-sm">
@@ -232,6 +262,7 @@ export function AgentDetail() {
               <th className="px-2 py-2 font-medium">When</th>
               <th className="px-2 py-2 font-medium">Vehicle</th>
               <th className="px-2 py-2 font-medium">Status</th>
+              <th className="px-2 py-2 font-medium">Rating</th>
               <th className="px-2 py-2 text-right font-medium">Amount</th>
             </tr>
           </thead>
@@ -256,12 +287,21 @@ export function AgentDetail() {
                     {BOOKING_STATUS_LABEL[b.status]}
                   </span>
                 </td>
+                <td className="px-2 py-3" data-testid={`history-rating-${b.id}`}>
+                  {b.rating ? (
+                    <span className="inline-flex items-center gap-1 font-medium text-ink" title={b.reviewComment || undefined}>
+                      <Star className="size-3.5 fill-amber-400 text-amber-400" /> {b.rating}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted">{b.status === "completed" ? "Not rated" : "—"}</span>
+                  )}
+                </td>
                 <td className="px-2 py-3 text-right font-medium text-ink"><BookingPrice price={b.price} isSubscriptionWash={b.isSubscriptionWash} /></td>
               </tr>
             ))}
             {bookings.pageItems.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-2 py-8 text-center text-muted">
+                <td colSpan={7} className="px-2 py-8 text-center text-muted">
                   No bookings handled yet.
                 </td>
               </tr>

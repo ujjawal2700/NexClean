@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { publicTax } from "../bookkeeping/bookkeeping.controller";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import {
   getPackages,
@@ -25,6 +26,7 @@ catalogRouter.get("/content", asyncHandler(getContentCtl));
 catalogRouter.get("/promo-banners", asyncHandler(getPromoBannersCtl));
 catalogRouter.get("/off-peak-hours", asyncHandler(getOffPeakHoursCtl));
 catalogRouter.get("/time-slots", asyncHandler(getTimeSlotsCtl));
+catalogRouter.get("/tax", asyncHandler(publicTax));
 catalogRouter.get("/payment-mode", getPaymentModeCtl);
 catalogRouter.get("/vehicle-categories", asyncHandler(getVehicleCategoriesCtl));
 catalogRouter.get("/vehicle-brands", asyncHandler(getVehicleBrandsCtl));

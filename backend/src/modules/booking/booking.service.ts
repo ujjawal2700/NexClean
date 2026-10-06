@@ -1,5 +1,10 @@
-import { Booking } from "./booking.model";
+import { Booking, type BookingDocument } from "./booking.model";
+import { computeTax } from "../bookkeeping/tax";
+import { getTaxSettings } from "../bookkeeping/bookkeepingConfig.service";
+import { bookingAmountDue } from "../bookkeeping/invoice.service";
+import { Types } from "mongoose";
 import { User } from "../user/user.model";
+import { getReviewForBooking, reviewsByBooking } from "../review/review.service";
 import { ApiError } from "../../shared/utils/ApiError";
 import { getPrice, getPackageRecord } from "../pricing/pricing.service";
 import { applyDiscountCode, incrementDiscountUsage } from "../promotions/discountCode.service";
@@ -15,12 +20,13 @@ import {
   claimReschedulePayment,
   onlinePaymentAvailable,
 } from "../payment/ledger.service";
-import { evaluateReschedule, assertCustomerMayReschedule } from "./reschedule.service";
+import { evaluateReschedule, assertCustomerMayReschedule, assertSlotHasNotice } from "./reschedule.service";
 import { toPoint } from "../../shared/geo";
 import { broadcastJobStatus, forgetAgentBookings } from "../tracking/tracking.service";
 import type { CreateBookingInput } from "./booking.validation";
 import { queueCancellationRefund } from "../refund/refund.service";
 import { tellAgentJobCancelled } from "./jobCancelled";
+import { logBookingEvent } from "./bookingEvent.service";
 
 /** The wall-clock instant a slot begins on a given date — used for lead-time checks. */
 function slotStart(date: Date, slot: string): Date {
@@ -28,8 +34,96 @@ function slotStart(date: Date, slot: string): Date {
   return getSlotTimeRange(date, slot).start;
 }
 
+/** How many finished/cancelled bookings the unpaged list carries alongside every upcoming one. */
+const RECENT_HISTORY = 20;
+/** Upper bound on upcoming bookings in the unpaged list — far more than anyone has in flight. */
+const MAX_UPCOMING = 100;
+
+async function withReviews(bookings: BookingDocument[]) {
+  const reviews = await reviewsByBooking(bookings.filter((b) => b.status === "completed").map((b) => b._id));
+  return bookings.map((b) => ({ ...b.toJSON(), review: reviews.get(String(b._id)) ?? null }));
+}
+
+/**
+ * The customer's working set: every upcoming booking (live tracking, the
+ * completion listener and the dashboard all need those) plus the most recent
+ * finished ones, newest first. Bounded — the full history is paged through
+ * listBookingsPage instead, so a long-time customer's app doesn't download
+ * years of bookings on every open.
+ */
 export async function listBookings(userId: string) {
-  return Booking.find({ user: userId }).sort({ createdAt: -1 });
+  const [upcoming, recent] = await Promise.all([
+    Booking.find({ user: userId, status: "upcoming" }).sort({ createdAt: -1 }).limit(MAX_UPCOMING),
+    Booking.find({ user: userId, status: { $ne: "upcoming" } }).sort({ createdAt: -1 }).limit(RECENT_HISTORY),
+  ]);
+  const merged = [...upcoming, ...recent].sort((a, b) => {
+    const diff = new Date(b.get("createdAt")).getTime() - new Date(a.get("createdAt")).getTime();
+    return diff !== 0 ? diff : String(b._id).localeCompare(String(a._id));
+  });
+  return withReviews(merged);
+}
+
+export type BookingStatusFilter = "all" | "upcoming" | "completed" | "cancelled";
+
+/**
+ * One page of the customer's bookings for the My bookings screen, filtered
+ * by status on the server, newest first, plus the per-status counts the
+ * filter tabs show.
+ */
+export async function listBookingsPage(
+  userId: string,
+  opts: { status: BookingStatusFilter; page: number; limit: number },
+) {
+  const filter: Record<string, unknown> = { user: userId };
+  if (opts.status !== "all") filter.status = opts.status;
+  const skip = (opts.page - 1) * opts.limit;
+  const [items, total, grouped] = await Promise.all([
+    Booking.find(filter).sort({ createdAt: -1, _id: -1 }).skip(skip).limit(opts.limit),
+    Booking.countDocuments(filter),
+    Booking.aggregate<{ _id: string; n: number }>([
+      { $match: { user: new Types.ObjectId(userId) } },
+      { $group: { _id: "$status", n: { $sum: 1 } } },
+    ]),
+  ]);
+  const counts = { all: 0, upcoming: 0, completed: 0, cancelled: 0 };
+  grouped.forEach((g) => {
+    if (g._id in counts) counts[g._id as keyof typeof counts] = g.n;
+    counts.all += g.n;
+  });
+  return {
+    items: await withReviews(items),
+    page: opts.page,
+    limit: opts.limit,
+    total,
+    hasMore: skip + items.length < total,
+    counts,
+  };
+}
+
+/** One of the customer's own bookings, with the cleaner and any review — the booking detail page. */
+export async function getOwnBooking(userId: string, bookingId: string) {
+  if (!Types.ObjectId.isValid(bookingId)) throw ApiError.notFound("Booking not found");
+  const booking = await Booking.findOne({ _id: bookingId, user: userId });
+  if (!booking) throw ApiError.notFound("Booking not found");
+  const [review, agent] = await Promise.all([
+    getReviewForBooking(bookingId),
+    booking.assignedAgent
+      ? User.findById(booking.assignedAgent).select("name rating ratingCount jobsDone").lean()
+      : Promise.resolve(null),
+  ]);
+  return {
+    ...booking.toJSON(),
+    review,
+    agent: agent
+      ? {
+          id: String(agent._id),
+          name: agent.name ?? booking.agentName ?? "Cleaner",
+          rating: agent.rating ?? 0,
+          ratingCount: agent.ratingCount ?? 0,
+          jobsDone: agent.jobsDone ?? 0,
+        }
+      : null,
+  };
 }
 
 /**
@@ -105,10 +199,16 @@ export async function computePrice(
   // subsidy the customer never actually received.
   const offPeakDiscountAmount = discountWasOffPeakGated ? discountAmount : 0;
 
+  const price = priceAfterDiscount - coinDiscount;
+  const taxSettings = await getTaxSettings();
+  const tax = { ...computeTax(price, taxSettings), supplyType: taxSettings.supplyType, label: taxSettings.label };
+
   return {
     pkg,
     basePrice,
-    price: priceAfterDiscount - coinDiscount,
+    price,
+    // GST on top of `price` (bookkeeping/tax.ts). `tax.payableAmount` is what gets charged.
+    tax,
     discountAmount,
     discountCodeId,
     discountCodeLabel,
@@ -130,10 +230,16 @@ export async function createBooking(
   // browser request.
   pricedAtOrder?: ComputedBookingPrice,
 ) {
+  // A paid order was checked for notice when it was created (createOrder); the
+  // customer has paid since, so it isn't turned away for the minutes that took.
+  if (!pricedAtOrder) await assertSlotHasNotice(new Date(input.date), input.slot);
+
   const {
     pkg, price, discountAmount, discountCodeId, discountCodeLabel, isSpecialCoupon,
-    coinsRedeemed, coinDiscount, offPeakLocked, offPeakDiscountAmount,
+    coinsRedeemed, coinDiscount, offPeakLocked, offPeakDiscountAmount, tax: pricedTax,
   } = pricedAtOrder ?? await computePrice(userId, input);
+  // An order opened before GST existed carries no tax in its snapshot: it was charged without any.
+  const tax = pricedTax ?? { ...computeTax(price, null), supplyType: "intra" as const };
 
   // Debit the redeemed coins up front so a discounted booking can never be
   // created without the coins actually being spent (throws if balance is short).
@@ -159,6 +265,9 @@ export async function createBooking(
     user: userId,
     vehicleType: input.vehicleType,
     vehicleName: input.vehicleName,
+    vehiclePlate: input.vehiclePlate && input.vehiclePlate !== "—" ? input.vehiclePlate : "",
+    vehicleColor: input.vehicleColor ?? "",
+    vehicleColorHex: input.vehicleColorHex ?? "",
     packageId: pkg.id,
     packageName: pkg.name,
     date: new Date(input.date),
@@ -168,6 +277,15 @@ export async function createBooking(
     society,
     location,
     price,
+    taxableAmount: tax.taxableAmount,
+    taxRate: tax.taxRate,
+    taxSupplyType: tax.supplyType,
+    cgstAmount: tax.cgstAmount,
+    sgstAmount: tax.sgstAmount,
+    igstAmount: tax.igstAmount,
+    taxAmount: tax.taxAmount,
+    taxRoundOff: tax.roundOff,
+    payableAmount: tax.payableAmount,
     discountCode: discountCodeLabel,
     discountAmount,
     coinsRedeemed,
@@ -179,6 +297,12 @@ export async function createBooking(
     agentName: null,
     jobStatus: "assigned",
     dispatchStatus: "searching",
+  });
+  logBookingEvent(booking._id, {
+    type: "created",
+    actor: "customer",
+    actorName: customer?.name ?? "",
+    meta: { slot: input.slot, date: new Date(input.date).toISOString(), price, payable: tax.payableAmount },
   });
 
   // Fire-and-forget: broadcast the job to nearby cleaners (nearest-first offers).
@@ -227,6 +351,7 @@ export async function previewReschedule(
   const booking = await getOwnedUpcomingBooking(userId, bookingId);
   const newDate = new Date(input.date);
   assertCustomerMayReschedule(booking, slotStart(newDate, input.slot));
+  await assertSlotHasNotice(newDate, input.slot);
   const quote = await evaluateReschedule(booking, newDate, input.slot);
   // The screen needs to know whether to offer "pay now" at all — without a live
   // gateway the only honest option is paying the cleaner.
@@ -246,6 +371,7 @@ export async function createRescheduleUpgradeOrder(
   const booking = await getOwnedUpcomingBooking(userId, bookingId);
   const newDate = new Date(input.date);
   assertCustomerMayReschedule(booking, slotStart(newDate, input.slot));
+  await assertSlotHasNotice(newDate, input.slot);
 
   const quote = await evaluateReschedule(booking, newDate, input.slot);
   if (!quote.requiresPayment) {
@@ -290,6 +416,7 @@ export async function rescheduleOwnBooking(
   const booking = await getOwnedUpcomingBooking(userId, bookingId);
   const newDate = new Date(input.date);
   assertCustomerMayReschedule(booking, slotStart(newDate, input.slot));
+  await assertSlotHasNotice(newDate, input.slot);
 
   const quote = await evaluateReschedule(booking, newDate, input.slot);
 
@@ -332,6 +459,7 @@ export async function rescheduleOwnBooking(
     booking.offPeakDiscountAmount = 0;
   }
 
+  const previous = { date: booking.date, slot: booking.slot };
   booking.date = newDate;
   booking.slot = input.slot;
   booking.lastRescheduledAt = new Date();
@@ -347,6 +475,17 @@ export async function rescheduleOwnBooking(
   booking.offerExpiresAt = null;
   booking.set("declinedAgents", []);
   await booking.save();
+  logBookingEvent(booking._id, {
+    type: "rescheduled",
+    actor: "customer",
+    meta: {
+      fromDate: previous.date ? new Date(previous.date).toISOString() : null,
+      fromSlot: previous.slot,
+      toDate: newDate.toISOString(),
+      toSlot: input.slot,
+      feePaid: quote.requiresPayment ? quote.totalDue : 0,
+    },
+  });
 
   // Counted with $inc rather than a read-modify-write on the document.
   // Simultaneous moves each start from the same snapshot, so `count + 1` makes
@@ -370,7 +509,7 @@ export async function rescheduleOwnBooking(
   // would bill the customer for the upgrade twice — once at the gateway and
   // again at the door.
   if (quote.requiresPayment && !paidOnline) {
-    void syncCashLedgerAmount(booking.id, booking.price + (booking.peakUpgradeFeeCharged ?? 0)).catch((err) =>
+    void syncCashLedgerAmount(booking.id, bookingAmountDue(booking)).catch((err) =>
       console.error("ledger sync after reschedule failed:", (err as Error).message),
     );
   }
@@ -411,6 +550,12 @@ export async function cancelBooking(userId: string, bookingId: string) {
   booking.currentOfferAgent = null;
   booking.offerExpiresAt = null;
   await booking.save();
+  logBookingEvent(booking._id, {
+    type: "cancelled",
+    actor: "customer",
+    agentId: booking.assignedAgent,
+    agentName: booking.agentName,
+  });
   // Whatever was paid for it (online and/or coins) goes to Admin → Refunds for approval.
   void queueCancellationRefund(String(booking._id), "customer").catch((err) =>
     console.error("refund queue failed:", (err as Error).message),

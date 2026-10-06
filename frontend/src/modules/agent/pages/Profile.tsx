@@ -102,6 +102,7 @@ export function Profile() {
             <span className="font-bold text-ink">
               {me?.rating ? Number(me.rating).toFixed(1) : "New"}
             </span>
+            {(me?.ratingCount ?? 0) > 0 && <span>({me?.ratingCount} reviews)</span>}
             <span>· {me?.jobsDone ?? 0} jobs done</span>
           </div>
         </div>
@@ -109,14 +110,16 @@ export function Profile() {
 
       {/* Account Summary Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <GlassCard className="p-4 text-center">
-          <p className="font-display text-xl font-bold text-primary">
-            {me?.rating ? `${Number(me.rating).toFixed(1)}★` : "New"}
-          </p>
-          <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">
-            Rating
-          </p>
-        </GlassCard>
+        <Link to="/agent/reviews" aria-label="See my reviews">
+          <GlassCard className="h-full p-4 text-center transition-colors hover:border-primary/30">
+            <p className="font-display text-xl font-bold text-primary">
+              {me?.rating ? `${Number(me.rating).toFixed(1)}★` : "New"}
+            </p>
+            <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">
+              Rating · {me?.ratingCount ?? 0} reviews
+            </p>
+          </GlassCard>
+        </Link>
         <GlassCard className="p-4 text-center">
           <p className="font-display text-xl font-bold text-ink">
             {me?.jobsDone ?? 0}
@@ -237,6 +240,24 @@ export function Profile() {
               </GlassCard>
             </Link>
           )}
+
+          {/* Reviews Link */}
+          <Link to="/agent/reviews">
+            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-400/15 text-amber-500">
+                <Star className="size-4.5 fill-amber-400" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display font-semibold text-ink text-sm sm:text-base">
+                  My reviews
+                </p>
+                <p className="text-xs text-muted truncate">
+                  See your ratings and what customers said
+                </p>
+              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted" />
+            </GlassCard>
+          </Link>
 
           {/* Payouts Link */}
           <Link to="/agent/payouts">

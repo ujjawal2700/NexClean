@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ReviewSummaryData } from "@shared/components/ReviewsSummary";
 import { apiFetch } from "@shared/lib/api";
 import type { SiteContent } from "@shared/types/content";
 import type { AgentLocationSnapshot } from "@shared/types/tracking";
@@ -11,6 +12,7 @@ import type {
   AdminAgentDetail,
   AgentActivity,
   AdminPlan,
+  PlanDetails,
   PlanPrices,
   Pricing,
   AlertSettings,
@@ -249,6 +251,9 @@ export const useAgents = () => useAuthedQuery<AdminAgent[]>(keys.agents, "/admin
 export const useAgent = (id: string) => useAuthedQuery<AdminAgentDetail>(keys.agent(id), `/admin/agents/${id}`);
 export const useAgentActivity = (id: string) =>
   useAuthedQuery<AgentActivity>(keys.agentActivity(id), `/admin/agents/${id}/activity`);
+/** A cleaner's rating, star breakdown and every customer review. */
+export const useAgentReviews = (id: string) =>
+  useAuthedQuery<ReviewSummaryData>(["admin", "agents", id, "reviews"], `/admin/agents/${id}/reviews`);
 /** Polled only while the live-location view is actually open — no point streaming an idle agent's GPS into a closed modal. */
 export const useAgentLocation = (id: string, enabled: boolean) =>
   useAuthedQuery<AgentLocationSnapshot>(keys.agentLocation(id), `/tracking/agents/${id}`, {
@@ -634,6 +639,10 @@ export type TimeSlotConfig = {
   /** The original eight slots, for "reset to defaults". */
   defaults: string[];
   maxSlots: number;
+  /** Minimum minutes between now and a slot's start for customers to book it. */
+  leadMinutes: number;
+  defaultLeadMinutes: number;
+  maxLeadMinutes: number;
 };
 
 export const useTimeSlots = () => useAuthedQuery<TimeSlotConfig>(keys.timeSlots, "/admin/time-slots");
@@ -641,7 +650,7 @@ export const useTimeSlots = () => useAuthedQuery<TimeSlotConfig>(keys.timeSlots,
 export function useUpdateTimeSlots() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { slots: string[] }) =>
+    mutationFn: (vars: { slots: string[]; leadMinutes?: number }) =>
       apiFetch<TimeSlotConfig>("/admin/time-slots", { method: "PUT", body: vars }),
     onSuccess: (data) => {
       qc.setQueryData(keys.timeSlots, data);
@@ -758,7 +767,7 @@ export function useUpdateAgentArea() {
 export function useCreatePlan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { name: string; prices: PlanPrices; washesPerMonth: number }) =>
+    mutationFn: (vars: { name: string; prices: PlanPrices; washesPerMonth: number } & Partial<PlanDetails>) =>
       apiFetch<AdminPlan>("/admin/plans", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.plans }),
   });
@@ -767,7 +776,9 @@ export function useCreatePlan() {
 export function useUpdatePlan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { id: string; name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean }) =>
+    mutationFn: (
+      vars: { id: string; name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean } & Partial<PlanDetails>,
+    ) =>
       apiFetch<AdminPlan>(`/admin/plans/${vars.id}`, { method: "PATCH", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.plans }),
   });

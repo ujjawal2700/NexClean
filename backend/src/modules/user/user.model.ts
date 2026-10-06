@@ -20,6 +20,9 @@ const vehicleSchema = new Schema(
     brand: { type: String, default: "", trim: true },
     model: { type: String, default: "", trim: true },
     plate: { type: String, default: "—", trim: true },
+    // Colour name the customer typed or picked ("Pearl White") and its swatch.
+    color: { type: String, default: "", trim: true },
+    colorHex: { type: String, default: "", trim: true },
   },
   { _id: true, toJSON: subdocJson },
 );
@@ -111,7 +114,10 @@ const userSchema = new Schema(
     // (see dispatch/dispatch.query.ts), not a label set once at signup.
     city: { type: String, default: "" },
     area: { type: String, default: "" },
+    // Average of the customer reviews this cleaner has had (review.service
+    // keeps it in sync), and how many reviews that average is over.
     rating: { type: Number, default: 0 },
+    ratingCount: { type: Number, default: 0 },
     jobsDone: { type: Number, default: 0 },
     online: { type: Boolean, default: true },
     lastSeenAt: { type: Date, default: null },

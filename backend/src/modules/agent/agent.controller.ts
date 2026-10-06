@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { getAgentReviews } from "../review/review.service";
 import { z } from "zod";
 import { ok } from "../../shared/utils/apiResponse";
 import { ApiError } from "../../shared/utils/ApiError";
@@ -68,6 +69,11 @@ export async function acceptOffer(req: Request, res: Response): Promise<Response
 }
 
 const releaseSchema = z.object({ reason: z.string().trim().min(3, "Tell us why you can't do this job").max(300) });
+/** The cleaner's own rating, star breakdown and customer reviews. */
+export async function reviews(req: Request, res: Response): Promise<Response> {
+  return ok(res, await getAgentReviews(req.userId!, { forAgent: true, limit: 100 }));
+}
+
 export async function releaseJob(req: Request, res: Response): Promise<Response> {
   const parsed = releaseSchema.safeParse(req.body ?? {});
   if (!parsed.success) throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "A reason is required");

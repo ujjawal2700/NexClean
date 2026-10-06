@@ -6,9 +6,117 @@ import { Input } from "@shared/ui/Input";
 import { formatMoney } from "@shared/lib/format";
 import { StatCard } from "../components/StatCard";
 import { usePlans, useCreatePlan, useUpdatePlan, useDeletePlan, useVehicleCategories } from "../api/admin.api";
-import type { AdminPlan, VehicleCategory, PlanPrices } from "../types";
+import type { AdminPlan, VehicleCategory, PlanPrices, PlanDetails } from "../types";
 
 type PriceDraft = Record<string, string>;
+
+const MAX_KEY_POINTS = 12;
+const EMPTY_DETAILS: PlanDetails = { tagline: "", description: "", keyPoints: [] };
+
+/** Trim the copy and drop blank key points before sending it to the server. */
+function cleanDetails(d: PlanDetails): PlanDetails {
+  return {
+    tagline: d.tagline.trim(),
+    description: d.description.trim(),
+    keyPoints: d.keyPoints.map((k) => k.trim()).filter(Boolean),
+  };
+}
+
+/**
+ * The customer-facing copy for a plan: a one-line tagline, a longer
+ * description and bullet key points. Shown on the customer's plan card and
+ * plan detail page.
+ */
+function PlanDetailsFields({ value, onChange }: { value: PlanDetails; onChange: (next: PlanDetails) => void }) {
+  const [point, setPoint] = useState("");
+
+  const addPoint = () => {
+    const text = point.trim();
+    if (!text || value.keyPoints.length >= MAX_KEY_POINTS) return;
+    onChange({ ...value, keyPoints: [...value.keyPoints, text] });
+    setPoint("");
+  };
+
+  const editPoint = (index: number, text: string) =>
+    onChange({ ...value, keyPoints: value.keyPoints.map((k, i) => (i === index ? text : k)) });
+
+  const removePoint = (index: number) =>
+    onChange({ ...value, keyPoints: value.keyPoints.filter((_, i) => i !== index) });
+
+  return (
+    <div className="space-y-3">
+      <Input
+        name="tagline"
+        label="Tagline"
+        placeholder="e.g. Our most popular plan."
+        maxLength={120}
+        value={value.tagline}
+        onChange={(e) => onChange({ ...value, tagline: e.target.value })}
+      />
+      <div>
+        <label htmlFor="planDescription" className="mb-1.5 block text-sm font-medium text-ink">
+          Description
+        </label>
+        <textarea
+          id="planDescription"
+          rows={4}
+          maxLength={2000}
+          value={value.description}
+          onChange={(e) => onChange({ ...value, description: e.target.value })}
+          placeholder="What the plan includes, who it's for, and anything customers should know."
+          className="w-full rounded-2xl border border-line bg-surface px-4 py-3 text-sm text-ink outline-none placeholder:text-muted/70 focus:border-primary/50"
+        />
+      </div>
+      <div>
+        <p className="mb-1.5 text-sm font-medium text-ink">
+          Key points <span className="font-normal text-muted">({value.keyPoints.length}/{MAX_KEY_POINTS})</span>
+        </p>
+        <div className="space-y-2">
+          {value.keyPoints.map((k, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Check className="size-4 shrink-0 text-primary" />
+              <input
+                value={k}
+                maxLength={120}
+                onChange={(e) => editPoint(i, e.target.value)}
+                aria-label={`Key point ${i + 1}`}
+                className="h-10 flex-1 rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none focus:border-primary/50"
+              />
+              <button
+                type="button"
+                onClick={() => removePoint(i)}
+                aria-label={`Remove key point ${i + 1}`}
+                className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-xl text-muted transition-colors hover:bg-red-500/10 hover:text-red-600">
+                <X className="size-4" />
+              </button>
+            </div>
+          ))}
+          {value.keyPoints.length < MAX_KEY_POINTS && (
+            <div className="flex items-center gap-2">
+              <input
+                value={point}
+                maxLength={120}
+                onChange={(e) => setPoint(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addPoint();
+                  }
+                }}
+                placeholder="e.g. Free rescheduling"
+                aria-label="New key point"
+                className="h-10 flex-1 rounded-xl border border-dashed border-line bg-surface px-3 text-sm text-ink outline-none placeholder:text-muted/70 focus:border-primary/50"
+              />
+              <Button size="sm" variant="outline" onClick={addPoint} disabled={!point.trim()}>
+                <Plus className="size-4" /> Add
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function emptyDraft(categories: VehicleCategory[]): PriceDraft {
   return Object.fromEntries(categories.map((c) => [c.key, ""]));
@@ -57,10 +165,25 @@ function PlanCard({ plan, categories }: { plan: AdminPlan; categories: VehicleCa
     () => Object.fromEntries(categories.map((c) => [c.key, String(plan.prices[c.key] ?? "")])),
   );
   const [washes, setWashes] = useState(String(plan.washesPerMonth));
+  const [details, setDetails] = useState<PlanDetails>(() => ({
+    tagline: plan.tagline ?? "",
+    description: plan.description ?? "",
+    keyPoints: plan.keyPoints ?? [],
+  }));
+
+  const startEditing = () => {
+    setDetails({ tagline: plan.tagline ?? "", description: plan.description ?? "", keyPoints: plan.keyPoints ?? [] });
+    setEditing(true);
+  };
 
   const save = () => {
     update.mutate(
-      { id: plan.id, prices: toPrices(prices, categories), washesPerMonth: Number(washes) || 0 },
+      {
+        id: plan.id,
+        prices: toPrices(prices, categories),
+        washesPerMonth: Number(washes) || 0,
+        ...cleanDetails(details),
+      },
       { onSuccess: () => setEditing(false) },
     );
   };
@@ -100,9 +223,13 @@ function PlanCard({ plan, categories }: { plan: AdminPlan; categories: VehicleCa
               className="h-9 w-16 bg-transparent text-right text-ink outline-none"
             />
           </label>
+          <div className="border-t border-line/70 pt-3">
+            <PlanDetailsFields value={details} onChange={setDetails} />
+          </div>
         </div>
       ) : (
         <>
+          {plan.tagline && <p className="mt-1 text-sm text-muted">{plan.tagline}</p>}
           <div className="mt-5 flex items-end justify-between">
             <div>
               <p className="font-display text-3xl font-semibold text-ink">{plan.subscribers}</p>
@@ -121,6 +248,26 @@ function PlanCard({ plan, categories }: { plan: AdminPlan; categories: VehicleCa
               </div>
             ))}
           </dl>
+
+          {plan.keyPoints?.length || plan.description ? (
+            <div className="mt-4 space-y-2 border-t border-line/70 pt-4 text-sm">
+              {plan.keyPoints?.length > 0 && (
+                <ul className="space-y-1.5">
+                  {plan.keyPoints.map((k) => (
+                    <li key={k} className="flex items-start gap-2 text-ink-soft">
+                      <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                      {k}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {plan.description && <p className="line-clamp-3 text-muted">{plan.description}</p>}
+            </div>
+          ) : (
+            <p className="mt-4 border-t border-line/70 pt-4 text-sm text-muted">
+              No description or key points yet. Use Edit to add them.
+            </p>
+          )}
         </>
       )}
 
@@ -136,7 +283,7 @@ function PlanCard({ plan, categories }: { plan: AdminPlan; categories: VehicleCa
           </>
         ) : (
           <>
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditing(true)}>
+            <Button size="sm" variant="outline" className="flex-1" onClick={startEditing}>
               Edit
             </Button>
             <Button
@@ -162,11 +309,17 @@ function NewPlanForm({ categories, onClose }: { categories: VehicleCategory[]; o
   const [name, setName] = useState("");
   const [washes, setWashes] = useState("");
   const [prices, setPrices] = useState<PriceDraft>(() => emptyDraft(categories));
+  const [details, setDetails] = useState<PlanDetails>(EMPTY_DETAILS);
 
   const submit = () => {
     if (!name.trim()) return;
     create.mutate(
-      { name: name.trim(), prices: toPrices(prices, categories), washesPerMonth: Number(washes) || 0 },
+      {
+        name: name.trim(),
+        prices: toPrices(prices, categories),
+        washesPerMonth: Number(washes) || 0,
+        ...cleanDetails(details),
+      },
       { onSuccess: () => onClose() },
     );
   };
@@ -187,6 +340,8 @@ function NewPlanForm({ categories, onClose }: { categories: VehicleCategory[]; o
       </div>
       <p className="mt-5 mb-2 text-sm font-medium text-ink">Monthly price per vehicle category</p>
       <VehiclePriceInputs categories={categories} draft={prices} onChange={(key, value) => setPrices((p) => ({ ...p, [key]: value }))} />
+      <p className="mt-5 mb-2 text-sm font-medium text-ink">What customers see</p>
+      <PlanDetailsFields value={details} onChange={setDetails} />
       <div className="mt-4 flex gap-2">
         <Button onClick={submit} disabled={create.isPending || !name.trim()}>
           <Check className="size-4" /> Create plan

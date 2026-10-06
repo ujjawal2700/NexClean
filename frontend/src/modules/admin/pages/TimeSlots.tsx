@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, Check, Loader2, Plus, Save, Trash2, Info } from "lucide-react";
+import { CalendarClock, Check, Hourglass, Loader2, Plus, Save, Trash2, Info } from "lucide-react";
 import { ApiError } from "@shared/lib/api";
 import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
@@ -41,9 +41,26 @@ function slotMinutes(slot: string): number {
   return (match[3].toUpperCase() === "PM" ? h + 12 : h) * 60 + Number(match[2]);
 }
 
+/** 810 → "13:30" (clamped to the same day). */
+function minutesTo24h(total: number): string {
+  const mins = Math.min(Math.max(total, 0), 23 * 60 + 59);
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
+
 function to24h(slot: string): string {
   const mins = slotMinutes(slot);
   return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+}
+
+/** One-tap choices for the booking notice, in minutes. */
+const LEAD_PRESETS = [0, 15, 30, 45, 60, 90, 120];
+
+/** 90 → "1 hr 30 min", 0 → "No notice". */
+function formatLead(minutes: number): string {
+  if (minutes <= 0) return "No notice";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return [h ? `${h} hr` : "", m ? `${m} min` : ""].filter(Boolean).join(" ");
 }
 
 const sortSlots = (slots: string[]) => [...slots].sort((a, b) => slotMinutes(a) - slotMinutes(b));
@@ -59,16 +76,24 @@ export function TimeSlots() {
   const update = useUpdateTimeSlots();
   const [draft, setDraft] = useState<string[]>([]);
   const [newTime, setNewTime] = useState("07:00");
+  const [leadDraft, setLeadDraft] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    if (config) setDraft(config.slots);
+    if (config) {
+      setDraft(config.slots);
+      setLeadDraft(String(config.leadMinutes ?? config.defaultLeadMinutes ?? 60));
+    }
   }, [config]);
 
   const maxSlots = config?.maxSlots ?? 48;
   const defaults = config?.defaults ?? [];
-  const dirty = config ? !sameList(draft, config.slots) : false;
+  const maxLead = config?.maxLeadMinutes ?? 1440;
+  const leadValue = leadDraft.trim() === "" ? NaN : Number(leadDraft);
+  const leadValid = Number.isInteger(leadValue) && leadValue >= 0 && leadValue <= maxLead;
+  const leadDirty = config ? leadValid && leadValue !== config.leadMinutes : false;
+  const dirty = config ? !sameList(draft, config.slots) || leadDirty : false;
   const presets = useMemo(
     () => [{ label: "Standard", hint: "08:00 AM – 06:30 PM, every 90 min", slots: defaults }, ...PRESETS],
     [defaults],
@@ -98,9 +123,16 @@ export function TimeSlots() {
     change(draft.filter((_, i) => i !== index));
   };
 
-  const save = () => {
+  const changeLead = (value: string) => {
     setError("");
-    update.mutate({ slots: draft }, { onSuccess: () => setSaved(true) });
+    setSaved(false);
+    setLeadDraft(value);
+  };
+
+  const save = () => {
+    if (!leadValid) return setError(`Booking notice must be a whole number between 0 and ${maxLead} minutes.`);
+    setError("");
+    update.mutate({ slots: draft, leadMinutes: leadValue }, { onSuccess: () => setSaved(true) });
   };
 
   return (
@@ -119,7 +151,7 @@ export function TimeSlots() {
               <Check className="size-4" /> Saved
             </span>
           )}
-          <Button onClick={save} disabled={!dirty || draft.length === 0 || update.isPending}>
+          <Button onClick={save} disabled={!dirty || !leadValid || draft.length === 0 || update.isPending}>
             {update.isPending ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> Saving…
@@ -209,6 +241,63 @@ export function TimeSlots() {
         </div>
       </GlassCard>
 
+      <GlassCard className="space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
+            <Hourglass className="size-5" />
+          </div>
+          <div>
+            <p className="font-display text-lg font-semibold text-ink">Booking notice</p>
+            <p className="text-sm text-muted">
+              How far ahead of a slot's start customers must book. With{" "}
+              <span className="font-medium text-ink">{leadValid ? formatLead(leadValue) : "—"}</span>, a customer
+              booking at 12:00 PM today only sees slots starting{" "}
+              {leadValid && leadValue > 0 ? `at or after ${to12h(minutesTo24h(12 * 60 + leadValue))}` : "from 12:00 PM"}
+              . This also applies to reschedules.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {LEAD_PRESETS.filter((m) => m <= maxLead).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => changeLead(String(m))}
+              className={cn(
+                "cursor-pointer rounded-pill border px-4 py-2 text-sm font-medium transition-colors",
+                leadValid && leadValue === m
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-line text-ink-soft hover:border-primary/40",
+              )}>
+              {formatLead(m)}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3 border-t border-line pt-5">
+          <div>
+            <label htmlFor="leadMinutes" className="mb-1.5 block text-sm font-medium text-ink">
+              Custom notice (minutes)
+            </label>
+            <input
+              id="leadMinutes"
+              type="number"
+              min={0}
+              max={maxLead}
+              step={5}
+              value={leadDraft}
+              onChange={(e) => changeLead(e.target.value)}
+              className={cn(
+                "h-11 w-40 rounded-2xl border bg-surface px-4 text-sm text-ink outline-none focus:border-primary/50",
+                leadValid ? "border-line" : "border-red-400",
+              )}
+            />
+          </div>
+          <p className="pb-3 text-xs text-muted">0 – {maxLead} minutes. 0 lets customers book any slot that hasn't started.</p>
+        </div>
+      </GlassCard>
+
       <GlassCard className="space-y-4">
         <div>
           <p className="font-display text-lg font-semibold text-ink">Quick schedules</p>
@@ -241,7 +330,7 @@ export function TimeSlots() {
       <div className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm text-ink-soft">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" />
         <p>
-          Saved slots reach the customer app within about 30 seconds. Off-peak pricing still follows the
+          Saved slots and the booking notice reach the customer app within about 30 seconds. Off-peak pricing still follows the
           windows on the Off-Peak Hours page, so check those cover any new early or late slots you add.
         </p>
       </div>

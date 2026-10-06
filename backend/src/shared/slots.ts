@@ -31,9 +31,18 @@ export const TIME_SLOTS = [
 /** The most an admin may configure — every 30 minutes around the clock. */
 export const MAX_SLOTS = 48;
 
+/**
+ * Minimum notice, in minutes, between "now" and the start of a slot a customer
+ * may book or reschedule into today. Admin-managed alongside the slot list.
+ */
+export const DEFAULT_LEAD_MINUTES = 60;
+/** Upper bound for the notice — a full day. */
+export const MAX_LEAD_MINUTES = 24 * 60;
+
 const SLOT_RE = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i;
 
 let liveSlots: string[] = [...TIME_SLOTS];
+let liveLeadMinutes = DEFAULT_LEAD_MINUTES;
 
 /** "08:00 AM" → 480. Returns -1 for anything that is not a real 12-hour time. */
 export function slotToMinutes(slot: string): number {
@@ -62,6 +71,19 @@ export function getLiveSlots(): readonly string[] {
 /** Called by slotConfig.service only — after a save or a database refresh. */
 export function setLiveSlots(slots: readonly string[]): void {
   liveSlots = slots.length > 0 ? [...slots] : [...TIME_SLOTS];
+}
+
+/** The current minimum booking notice, in minutes. */
+export function getLeadMinutes(): number {
+  return liveLeadMinutes;
+}
+
+/** Called by slotConfig.service only — after a save or a database refresh. */
+export function setLeadMinutes(minutes: number | null | undefined): void {
+  liveLeadMinutes =
+    typeof minutes === "number" && Number.isFinite(minutes) && minutes >= 0
+      ? Math.min(Math.round(minutes), MAX_LEAD_MINUTES)
+      : DEFAULT_LEAD_MINUTES;
 }
 
 export function isValidSlot(slot: unknown): slot is string {

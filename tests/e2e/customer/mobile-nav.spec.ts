@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { loginCustomerUI } from "../../fixtures/ui-helpers";
 
 // The bottom tab bar belongs to the five top-level tabs; nested screens have
@@ -34,6 +34,28 @@ test.describe("Customer mobile tab bar", () => {
   });
 });
 
+/**
+ * The tab bar slides up into place with a spring when the page mounts. Reading
+ * tab positions mid-slide gives coordinates the bar is about to leave, so a
+ * press there can miss the active tab entirely — which is what made the drag
+ * test flaky. Wait until the bar's position stops changing before measuring.
+ */
+async function waitForBarToSettle(nav: Locator) {
+  let last = "";
+  await expect
+    .poll(
+      async () => {
+        const b = await nav.boundingBox();
+        const now = b ? `${Math.round(b.x)},${Math.round(b.y)},${Math.round(b.width)},${Math.round(b.height)}` : "";
+        const settled = now !== "" && now === last;
+        last = now;
+        return settled;
+      },
+      { intervals: [100], timeout: 5_000 },
+    )
+    .toBe(true);
+}
+
 test.describe("Customer tab bar: liquid drag", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -44,6 +66,7 @@ test.describe("Customer tab bar: liquid drag", () => {
     const nav = page.getByTestId("customer-mobile-nav");
     const pill = page.getByTestId("customer-mobile-nav-pill");
     await expect(pill).toBeVisible();
+    await waitForBarToSettle(nav);
 
     const from = await nav.getByRole("link", { name: "Dashboard" }).boundingBox();
     const to = await nav.getByRole("link", { name: "Plans" }).boundingBox();
@@ -75,6 +98,8 @@ test.describe("Customer tab bar: liquid drag", () => {
     await loginCustomerUI(page);
     await page.goto("/app");
     const nav = page.getByTestId("customer-mobile-nav");
+    await expect(nav).toBeVisible();
+    await waitForBarToSettle(nav);
     const home = await nav.getByRole("link", { name: "Dashboard" }).boundingBox();
     if (!home) throw new Error("tab not laid out");
     const cx = home.x + home.width / 2;

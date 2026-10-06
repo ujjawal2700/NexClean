@@ -70,6 +70,41 @@ test.describe("Bookings list", () => {
     await expect(page.getByText("Listed Car")).toBeVisible();
   });
 
+  test("loads 10 bookings at first and the rest as you scroll, with counts on the tabs", async ({ page }) => {
+    test.setTimeout(90_000);
+    const phone = freshPhone();
+    const api = await apiContext();
+    const { token } = await mintTokenForPhone(api, phone);
+    const packageId = await firstPackageId(api);
+    for (let i = 0; i < 12; i++) {
+      await createBooking(api, token, { ...validBookingPayload(packageId), vehicleName: `Paged Car ${i}` });
+    }
+    await api.dispose();
+
+    // Watch the requests the page makes.
+    const pageRequests: string[] = [];
+    page.on("request", (r) => {
+      const u = new URL(r.url());
+      if (u.pathname.endsWith("/bookings") && u.searchParams.has("page")) pageRequests.push(u.search);
+    });
+
+    await loginCustomerUI(page, phone);
+    await page.goto("/app/bookings");
+    await expect(page.getByTestId("count-all")).toHaveText("12");
+    await expect(page.getByText("Paged Car 11")).toBeVisible();
+    // First page only: the oldest two aren't loaded yet.
+    await expect(page.getByText(/^Paged Car \d+$/)).toHaveCount(10);
+    expect(pageRequests.some((q) => q.includes("page=1"))).toBe(true);
+    expect(pageRequests.some((q) => q.includes("page=2"))).toBe(false);
+
+    // Scrolling to the end fetches page 2.
+    await page.getByTestId("load-more-bookings").scrollIntoViewIfNeeded();
+    await expect(page.getByText(/^Paged Car \d+$/)).toHaveCount(12);
+    await expect(page.getByText("Paged Car 0", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("bookings-end")).toContainText("12 bookings");
+    expect(pageRequests.some((q) => q.includes("page=2"))).toBe(true);
+  });
+
   test("New booking link navigates to the booking flow", async ({ page }) => {
     await loginCustomerUI(page);
     await page.goto("/app/bookings");

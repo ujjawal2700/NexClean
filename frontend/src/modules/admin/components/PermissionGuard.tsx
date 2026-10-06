@@ -13,6 +13,7 @@ const NAV_PERMISSIONS = [
   { to: "/admin/agent-verification", permission: "agents" },
   { to: "/admin/leads", permission: "leads" },
   { to: "/admin/payments", permission: "payments" },
+  { to: "/admin/bookkeeping", permission: "bookkeeping" },
   { to: "/admin/pricing", permission: "pricing" },
   { to: "/admin/area-alerts", permission: "area-alerts" },
   { to: "/admin/notifications", permission: "notifications" },

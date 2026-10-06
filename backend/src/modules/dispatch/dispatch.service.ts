@@ -23,6 +23,7 @@ import {
 } from "./dispatch.config";
 import { getOfferTtlMs } from "./dispatchConfig.service";
 import { runBookingReminders } from "../booking/reminder.service";
+import { logBookingEvent, adminName } from "../booking/bookingEvent.service";
 
 /* ----------------------------- helpers ---------------------------------- */
 
@@ -200,6 +201,10 @@ async function moveToAdminQueue(b: BookingDocument) {
     { new: true },
   ).populate("user", "name");
   if (!moved) return;
+  logBookingEvent(moved._id, {
+    type: "admin_queue",
+    reason: bookingPoint(moved) ? "No cleaner accepted within the search area" : "Booking has no map location",
+  });
   emitSearchProgress(moved);
   emitDispatchUpdate();
   emitToAdmins("dispatch_pending", { bookingId: String(moved._id) });
@@ -237,6 +242,7 @@ export async function startDispatch(bookingId: string): Promise<void> {
   b.currentOfferAgent = null;
   b.offerExpiresAt = null;
   await b.save();
+  logBookingEvent(b._id, { type: "searching" });
   emitSearchProgress(b);
   await offerNext(bookingId);
 }
@@ -327,6 +333,12 @@ export async function offerNext(bookingId: string): Promise<void> {
         return;
       }
 
+      logBookingEvent(claimed._id, {
+        type: "offered",
+        agentId: candidate.id,
+        agentName: candidate.name,
+        meta: { distanceM: Math.round(candidate.distanceM), expiresAt: expiresAt.toISOString() },
+      });
       await sendOffer(claimed, candidate);
       emitSearchProgress(claimed);
       emitDispatchUpdate();
@@ -383,6 +395,7 @@ export async function acceptOffer(agentId: string, bookingId: string) {
   }
 
   await User.updateOne({ _id: agentId }, { currentOfferBooking: null, missedOffers: 0 });
+  logBookingEvent(booking._id, { type: "accepted", agentId, agentName: agent.name, actor: "agent", actorName: agent.name });
   await onAssigned(booking, { id: String(agent._id), name: agent.name });
   return booking;
 }
@@ -401,6 +414,7 @@ export async function declineOffer(agentId: string, bookingId: string) {
   // A decline is an answer: the phone is reachable.
   await User.updateOne({ _id: agentId }, { missedOffers: 0 });
   if (booking) {
+    logBookingEvent(booking._id, { type: "declined", agentId, actor: "agent" });
     revokeAgentTracking(agentId, bookingId);
     emitToUser(agentId, "offer_revoked", { bookingId });
     await offerNext(bookingId);
@@ -463,6 +477,15 @@ export async function releaseJob(agentId: string, bookingId: string, reason: str
     { new: true },
   ).populate("user", "name");
   if (!booking) throw ApiError.conflict("This job changed just now — refresh and try again.");
+  logBookingEvent(booking._id, {
+    type: "released",
+    agentId,
+    agentName: agent?.name ?? "",
+    actor: "agent",
+    actorName: agent?.name ?? "",
+    reason,
+    meta: { jobStatus: current.jobStatus },
+  });
 
   revokeAgentTracking(agentId, bookingId);
   forgetAgentBookings(agentId);
@@ -530,7 +553,17 @@ export async function getOfferForAgent(agentId: string) {
  * Canonical assignment used by the admin console and the subscription
  * scheduler. Bypasses the offer flow and pins a specific cleaner.
  */
-export async function assignAgentToBooking(bookingId: string, agentId: string) {
+/**
+ * How an assignment came about, for the booking timeline: an admin picking a
+ * cleaner, an admin's one-tap auto-assign, or the subscription scheduler.
+ */
+export type AssignSource = { source: "admin" | "auto" | "scheduler"; adminId?: string | null };
+
+export async function assignAgentToBooking(
+  bookingId: string,
+  agentId: string,
+  how: AssignSource = { source: "admin" },
+) {
   const agent = await User.findOne({ _id: agentId, role: "agent" });
   if (!agent) throw ApiError.notFound("Agent not found");
   if (agent.agentStatus !== "verified") throw ApiError.badRequest("Agent is not verified");
@@ -566,6 +599,17 @@ export async function assignAgentToBooking(bookingId: string, agentId: string) {
   booking.currentOfferAgent = null;
   booking.offerExpiresAt = null;
   await booking.save();
+  logBookingEvent(booking._id, {
+    type: how.source === "admin" ? "assigned" : "auto_assigned",
+    agentId: agent._id,
+    agentName: agent.name,
+    actor: how.source === "scheduler" ? "system" : "admin",
+    actorName: how.source === "scheduler" ? "" : await adminName(how.adminId),
+    meta:
+      previousAssignedAgent && previousAssignedAgent !== String(agent._id)
+        ? { replacedAgentId: previousAssignedAgent }
+        : undefined,
+  });
 
   if (previousAssignedAgent && previousAssignedAgent !== String(agent._id)) {
     revokeAgentTracking(previousAssignedAgent, String(booking._id));
@@ -600,7 +644,7 @@ export async function assignAgentToBooking(bookingId: string, agentId: string) {
 }
 
 /** Assign the single nearest eligible cleaner right now (admin "auto-assign"). */
-export async function autoAssignNearest(bookingId: string) {
+export async function autoAssignNearest(bookingId: string, adminId?: string | null) {
   const booking = await Booking.findById(bookingId);
   if (!booking) throw ApiError.notFound("Booking not found");
   const point = bookingPoint(booking);
@@ -608,7 +652,7 @@ export async function autoAssignNearest(bookingId: string) {
   const tiers = await buildDispatchTiers(point);
   const found = await findAcrossTiers(point, tiers, 0, [], 1);
   if (!found) throw ApiError.badRequest("No available cleaners nearby to auto-assign");
-  return assignAgentToBooking(bookingId, found.candidates[0].id);
+  return assignAgentToBooking(bookingId, found.candidates[0].id, { source: "auto", adminId });
 }
 
 /**
@@ -785,7 +829,7 @@ export async function runSubscriptionScheduler(): Promise<void> {
     const tiers = await buildDispatchTiers(point);
     const found = await findAcrossTiers(point, tiers, 0, [], 1);
     if (found) {
-      await assignAgentToBooking(String(b._id), found.candidates[0].id);
+      await assignAgentToBooking(String(b._id), found.candidates[0].id, { source: "scheduler" });
     } else if (b.date.getTime() <= now) {
       // Slot has arrived and still nobody available → let an admin place it.
       await moveToAdminQueue(b);
@@ -820,6 +864,7 @@ export async function sweepOffers(): Promise<void> {
     );
     // Another tick/worker/decline already advanced this exact offer.
     if (advanced.modifiedCount === 0) continue;
+    if (agentId) logBookingEvent(b._id, { type: "offer_expired", agentId });
     if (agentId) {
       await User.updateOne({ _id: agentId, currentOfferBooking: b._id }, { currentOfferBooking: null });
       revokeAgentTracking(agentId, String(b._id));

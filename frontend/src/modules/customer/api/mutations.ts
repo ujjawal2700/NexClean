@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { TaxBreakdown } from "@shared/lib/tax";
 import { apiFetch } from "@shared/lib/api";
 import { meKey, bookingsKey, notificationsKey, walletKey, referralsKey } from "./queries";
 import type { RazorpayResponse } from "@shared/lib/razorpay";
-import type { User, Booking, CarType, SupportTicket, ChatMessage, SupportConfig, SupportTopic } from "../types";
+import type { User, Booking, BookingReview, CarType, SupportTicket, ChatMessage, SupportConfig, SupportTopic } from "../types";
 
 /* ---------------------------- Notifications ------------------------------ */
 
@@ -124,7 +125,15 @@ export function useConfirmPhoneChange() {
 }
 
 export function useAddVehicle() {
-  return useUserMutation((v: { type: CarType; name: string; brand?: string; model?: string; plate?: string }) =>
+  return useUserMutation((v: {
+    type: CarType;
+    name: string;
+    brand?: string;
+    model?: string;
+    plate?: string;
+    color?: string;
+    colorHex?: string;
+  }) =>
     apiFetch<User>("/users/me/vehicles", { method: "POST", body: v }),
   );
 }
@@ -249,11 +258,16 @@ export function useCreateOrder() {
 
 export type PreviewAmountResponse = {
   basePrice: number;
+  /** After discounts and coins, before GST. */
   price: number;
   discountAmount: number;
   discountCode: string | null;
   coinsRedeemed: number;
   coinDiscount: number;
+  /** GST on `price`; absent from servers older than bookkeeping. */
+  tax?: TaxBreakdown & { label?: string; supplyType?: "intra" | "inter" };
+  /** What will be charged: price + GST, rounded to the rupee. */
+  payable?: number;
 };
 
 /** Validate a discount code / coin redemption and preview the final total before paying. */
@@ -463,5 +477,20 @@ export function useRemindReferredUser() {
         method: "POST",
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: referralsKey }),
+  });
+}
+
+/* ------------------------------- Reviews -------------------------------- */
+
+/** Rate the cleaner of a completed booking (1–5 stars + optional review). */
+export function useSubmitReview(bookingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: { rating: number; comment?: string }) =>
+      apiFetch<BookingReview>(`/bookings/${bookingId}/review`, { method: "POST", body: vars }),
+    onSuccess: () => {
+      // Prefix match: refreshes the list and this booking's detail.
+      qc.invalidateQueries({ queryKey: bookingsKey });
+    },
   });
 }

@@ -1,7 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import type { InvoiceWithTemplate } from "@shared/lib/invoice";
+import type { TaxSettings } from "@shared/lib/tax";
 import { apiFetch } from "@shared/lib/api";
 import { useSessionStore } from "../store/sessionStore";
-import { TIME_SLOTS } from "../data/catalog";
+import { DEFAULT_LEAD_MINUTES, TIME_SLOTS } from "../data/catalog";
 import { useAdminSession } from "../../admin/store/sessionStore";
 import { useAgentSession } from "../../agent/store/sessionStore";
 import type {
@@ -20,6 +22,7 @@ import type {
   SupportConfig,
   SupportTicket,
   ChatMessage,
+  BookingDetail,
 } from "../types";
 
 export const meKey = ["me"] as const;
@@ -58,7 +61,80 @@ export function usePlans() {
   });
 }
 
-/** The customer's bookings, newest first. */
+/** GST settings for the checkout preview (public; the server re-checks every order). */
+export function useTaxSettings(): TaxSettings | null {
+  const { data } = useQuery({
+    queryKey: ["catalog", "tax"],
+    queryFn: () => apiFetch<TaxSettings>("/catalog/tax"),
+    staleTime: 60_000,
+  });
+  return data ?? null;
+}
+
+/** A booking's invoice and the template to render it with; issued on first request if needed. */
+export function useBookingInvoice(id: string, enabled = true) {
+  const authenticated = useSessionStore((s) => s.authenticated);
+  return useQuery({
+    queryKey: ["bookings", id, "invoice"],
+    queryFn: () => apiFetch<InvoiceWithTemplate>(`/bookings/${id}/invoice`),
+    enabled: authenticated && !!id && enabled,
+  });
+}
+
+export const bookingDetailKey = (id: string) => ["bookings", id] as const;
+
+/** One of the customer's bookings, with its cleaner and review. */
+export function useBookingDetail(id: string) {
+  const authenticated = useSessionStore((s) => s.authenticated);
+  return useQuery({
+    queryKey: bookingDetailKey(id),
+    queryFn: () => apiFetch<BookingDetail>(`/bookings/${id}`),
+    enabled: authenticated && !!id,
+  });
+}
+
+export type BookingStatusFilter = "all" | "upcoming" | "completed" | "cancelled";
+
+export type BookingsPage = {
+  items: Booking[];
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+  counts: Record<BookingStatusFilter, number>;
+};
+
+export const BOOKINGS_PAGE_SIZE = 10;
+
+/**
+ * My bookings, one server page at a time (newest first, filtered by status
+ * on the server). Keyed under "bookings" so every mutation that invalidates
+ * the bookings list refreshes the loaded pages too.
+ */
+export function useBookingsPages(status: BookingStatusFilter) {
+  const authenticated = useSessionStore((s) => s.authenticated);
+  return useInfiniteQuery({
+    queryKey: ["bookings", "pages", status] as const,
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const data = await apiFetch<BookingsPage | Booking[]>(
+        `/bookings?page=${pageParam}&limit=${BOOKINGS_PAGE_SIZE}&status=${status}`,
+      );
+      // An older server ignores the paging params and returns the plain list.
+      if (Array.isArray(data)) {
+        const items = status === "all" ? data : data.filter((b) => b.status === status);
+        const counts = { all: data.length, upcoming: 0, completed: 0, cancelled: 0 };
+        data.forEach((b) => (counts[b.status] += 1));
+        return { items, page: 1, limit: items.length, total: items.length, hasMore: false, counts } satisfies BookingsPage;
+      }
+      return data;
+    },
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+    enabled: authenticated,
+  });
+}
+
+/** The customer's working set: every upcoming booking plus the 20 most recent others, newest first. */
 export function useBookings() {
   const authenticated = useSessionStore((s) => s.authenticated);
   return useQuery({
@@ -91,13 +167,26 @@ export function usePromoBanners() {
  * The bookable time slots set by the admin (public catalog). Falls back to the
  * built-in list while loading, so the picker never renders empty.
  */
-export function useTimeSlots(): string[] {
-  const { data } = useQuery({
+function useTimeSlotConfig() {
+  return useQuery({
     queryKey: timeSlotsKey,
-    queryFn: () => apiFetch<{ slots: string[] }>("/catalog/time-slots"),
+    queryFn: () => apiFetch<{ slots: string[]; leadMinutes?: number }>("/catalog/time-slots"),
     staleTime: 60_000,
   });
+}
+
+export function useTimeSlots(): string[] {
+  const { data } = useTimeSlotConfig();
   return data?.slots?.length ? data.slots : TIME_SLOTS;
+}
+
+/**
+ * The admin-set minimum notice (minutes) before a slot's start for it to be
+ * bookable today. Shares the time-slots query, so it costs no extra request.
+ */
+export function useSlotLeadMinutes(): number {
+  const { data } = useTimeSlotConfig();
+  return typeof data?.leadMinutes === "number" ? data.leadMinutes : DEFAULT_LEAD_MINUTES;
 }
 
 /**

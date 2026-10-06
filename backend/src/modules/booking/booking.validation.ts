@@ -1,9 +1,13 @@
 import { z } from "zod";
 import { isValidSlot } from "../../shared/slots";
+import { HEX_COLOR } from "../user/user.validation";
 
 export const createBookingSchema = z.object({
   vehicleType: z.string().min(1),
   vehicleName: z.string().min(1).max(60),
+  vehiclePlate: z.string().trim().max(20).optional(),
+  vehicleColor: z.string().trim().max(30).optional(),
+  vehicleColorHex: z.string().regex(HEX_COLOR, "Pick a valid colour").optional(),
   packageId: z.string().min(1),
   // Bounded on both sides: a back-dated job would enter dispatch and sit in the
   // schedule for a slot that has already gone, and there is no reason to accept
@@ -34,8 +38,8 @@ export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 
 /**
  * Moving an existing booking. The date is bounded on the upper side only —
- * `assertCustomerMayReschedule` owns the lead-time rule, so it can explain
- * "pick a slot at least an hour from now" rather than this returning a flat
+ * `assertSlotHasNotice` owns the lead-time rule, so it can explain
+ * "pick one at least an hour from now" rather than this returning a flat
  * "invalid date" the customer cannot act on.
  */
 export const rescheduleBookingSchema = z.object({
