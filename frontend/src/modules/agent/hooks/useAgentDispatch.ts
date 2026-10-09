@@ -136,7 +136,10 @@ export function useAgentDispatch(): AgentDispatch {
     const socket = io(SOCKET_URL, {
       withCredentials: true,
       transports: ["websocket"],
-      auth: { role: "agent" },
+      auth: (callback) => {
+        const token = useAgentSession.getState().token;
+        callback({ role: "agent", ...(token ? { token } : {}) });
+      },
     });
     socketRef.current = socket;
 
@@ -162,6 +165,7 @@ export function useAgentDispatch(): AgentDispatch {
 
     // Signed in on another phone: this one no longer holds the account.
     socket.on("session_replaced", () => {
+      offerEventVersionRef.current += 1;
       setOffer(null);
       setSessionReplaced(true);
     });
@@ -173,6 +177,7 @@ export function useAgentDispatch(): AgentDispatch {
 
     // Dispatch switched us offline after a run of unanswered offers.
     socket.on("auto_offline", () => {
+      offerEventVersionRef.current += 1;
       setOffer(null);
       qc.invalidateQueries({ queryKey: meKey });
     });
@@ -180,13 +185,14 @@ export function useAgentDispatch(): AgentDispatch {
     socket.on("job_offer", (o: JobOffer) => {
       offerEventVersionRef.current += 1;
       setError(null);
-      setOffer(o);
+      setOffer(new Date(o.expiresAt).getTime() > Date.now() ? o : null);
     });
     socket.on("offer_revoked", ({ bookingId }: { bookingId: string }) => {
       offerEventVersionRef.current += 1;
       setOffer((prev) => (prev?.bookingId === bookingId ? null : prev));
     });
     socket.on("job_assigned", () => {
+      checkOfferRef.current();
       qc.invalidateQueries({ queryKey: jobsKey });
       qc.invalidateQueries({ queryKey: summaryKey });
     });
@@ -195,6 +201,7 @@ export function useAgentDispatch(): AgentDispatch {
       qc.invalidateQueries({ queryKey: summaryKey });
     });
     socket.on("push_notification", () => {
+      checkOfferRef.current();
       qc.invalidateQueries({ queryKey: jobsKey });
       qc.invalidateQueries({ queryKey: summaryKey });
     });
@@ -230,15 +237,23 @@ export function useAgentDispatch(): AgentDispatch {
 
   // Restore a live offer that arrived while the app was closed/reconnecting or on tab focus.
   useEffect(() => {
-    if (!authenticated) return;
+    if (!authenticated || sessionReplaced) return;
+    let disposed = false;
+    let requestId = 0;
     const checkOffer = () => {
+      // Middleware rejections do not trigger Socket.IO's automatic reconnect.
+      // Retry transient authentication/DB failures on the same safety cadence.
+      const socket = socketRef.current;
+      if (socket && !socket.connected && !socket.active) socket.connect();
+      const id = ++requestId;
       const versionAtRequest = offerEventVersionRef.current;
       fetchCurrentOffer()
         .then((o) => {
           // A socket event that arrived after this request began is newer than
           // its response. Never let a slow `null` reconciliation erase that
           // freshly delivered popup.
-          if (o || offerEventVersionRef.current === versionAtRequest) setOffer(o);
+          if (disposed || id !== requestId || offerEventVersionRef.current !== versionAtRequest) return;
+          setOffer(o && new Date(o.expiresAt).getTime() > Date.now() ? o : null);
         })
         .catch(() => {});
     };
@@ -254,12 +269,13 @@ export function useAgentDispatch(): AgentDispatch {
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      disposed = true;
       window.clearInterval(poll);
       window.removeEventListener("focus", checkOffer);
       document.removeEventListener("visibilitychange", onVisibility);
       checkOfferRef.current = () => {};
     };
-  }, [authenticated, online]);
+  }, [authenticated, online, sessionReplaced]);
 
   // Stream GPS so dispatch can rank by real distance and the customer's live
   // map can follow the cleaner in. The fix comes from the app-wide watch, which
@@ -297,7 +313,9 @@ export function useAgentDispatch(): AgentDispatch {
     setAccepting(true);
     setError(null);
     try {
+      offerEventVersionRef.current += 1;
       await acceptOffer(offer.bookingId);
+      offerEventVersionRef.current += 1;
       setOffer(null);
       qc.invalidateQueries({ queryKey: jobsKey });
       qc.invalidateQueries({ queryKey: summaryKey });
@@ -313,12 +331,23 @@ export function useAgentDispatch(): AgentDispatch {
   const decline = useCallback(async () => {
     if (!offer) return;
     const id = offer.bookingId;
+    offerEventVersionRef.current += 1;
     setOffer(null);
     try {
       await declineOffer(id);
     } catch {
       /* dispatch will time it out regardless */
     }
+  }, [offer]);
+
+  // Expiry also stops the ringtone when the socket or REST endpoint is down.
+  useEffect(() => {
+    if (!offer) return;
+    const timer = window.setTimeout(() => {
+      offerEventVersionRef.current += 1;
+      setOffer(null);
+    }, Math.max(0, new Date(offer.expiresAt).getTime() - Date.now()));
+    return () => window.clearTimeout(timer);
   }, [offer]);
 
   // Keep the phone buzzing for as long as the offer is waiting, like an
