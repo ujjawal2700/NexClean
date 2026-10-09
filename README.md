@@ -14,6 +14,11 @@ NexClean/
 
 The Flutter wrap / APK is handled separately by the client.
 
+Use Node.js 22 or newer for development and production. Firebase Admin 14
+requires this runtime; update the Node version used by PM2 before deploying.
+Excel exports use SheetJS 0.20.3 from its official CDN because the npm registry
+release is outdated. Both dependency lockfiles must be deployed with the code.
+
 ## Frontend structure
 
 ```

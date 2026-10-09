@@ -52,7 +52,7 @@ export function DutyCard({ disabled }: { disabled?: boolean }) {
           )}
         >
           {pending ? <Loader2 className="size-4 animate-spin" /> : <Power className="size-4" />}
-          {online ? "Go offline" : "Go online"}
+          {pending ? "Updating…" : online ? "Go offline" : "Go online"}
         </button>
       </div>
 

@@ -350,7 +350,7 @@ function AssignControls({
                 <span className="min-w-0">
                   <span className="block truncate font-medium text-ink">{a.name}</span>
                   <span className="text-xs text-muted">
-                    {a.distanceKm != null ? `${a.distanceKm} km` : a.area || "—"}
+                    {a.distanceKm != null ? `${a.distanceKm} km` : `${a.area || "Location"} · GPS unavailable`}
                   </span>
                 </span>
                 <span className="shrink-0 rounded-pill bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">

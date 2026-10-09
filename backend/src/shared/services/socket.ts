@@ -1,4 +1,5 @@
 import { Server, Socket } from "socket.io";
+import { Types } from "mongoose";
 import { createClient } from "redis";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { verifyToken } from "../utils/jwt";
@@ -171,11 +172,30 @@ export async function initSocket(server: any) {
 
     console.log(`🔌 User connected: ${userId} (${role}) | Socket: ${socket.id}`);
 
-    // Handle joining ticket room
-    socket.on("join_ticket", (ticketId: string) => {
-      if (!ticketId || typeof ticketId !== "string") return;
-      socket.join(`ticket:${ticketId}`);
-      console.log(`🎟️ Socket ${socket.id} joined ticket:${ticketId}`);
+    // Match REST chat authorization: owners see their own conversation,
+    // support admins can work any ticket. Never disclose whether a stranger's
+    // ticket exists, and fail closed if the database lookup fails.
+    socket.on("join_ticket", async (ticketId: string, ack?: (res: unknown) => void) => {
+      const respond = typeof ack === "function" ? ack : () => {};
+      if (typeof ticketId !== "string" || !Types.ObjectId.isValid(ticketId)) {
+        respond({ ok: false, error: "Ticket not found" });
+        return;
+      }
+      try {
+        const accessible = await SupportTicket.exists({
+          _id: ticketId,
+          ...(role === "admin" ? {} : { user: userId }),
+        });
+        if (!accessible) {
+          respond({ ok: false, error: "Ticket not found" });
+          return;
+        }
+        if (!socket.connected) return;
+        await socket.join(`ticket:${ticketId}`);
+        respond({ ok: true, ticketId });
+      } catch {
+        respond({ ok: false, error: "Ticket not found" });
+      }
     });
 
     // Handle leaving ticket room

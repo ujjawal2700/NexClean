@@ -684,71 +684,37 @@ export async function autoAssignAll(): Promise<{ kicked: number; skipped: number
   return { kicked, skipped };
 }
 
-/** Nearby cleaners for the admin picker, ranked by distance when coords exist. */
+/** Online, available cleaners for manual assignment; GPS only affects ordering. */
 export async function listAssignableAgents(bookingId: string) {
   const booking = await Booking.findById(bookingId);
   if (!booking) throw ApiError.notFound("Booking not found");
   const point = bookingPoint(booking);
+  const busy = await Booking.find({
+    _id: { $ne: booking._id },
+    status: "upcoming",
+    jobStatus: { $in: ["assigned", "enroute", "arrived", "in_progress"] },
+    assignedAgent: { $ne: null },
+  }).distinct("assignedAgent");
 
-  if (point) {
-    const agents = await User.aggregate<{
-      _id: Types.ObjectId;
-      name: string;
-      distanceM: number;
-      online: boolean;
-      lastSeenAt: Date | null;
-      area: string;
-    }>([
-      {
-        $geoNear: {
-          near: { type: "Point", coordinates: point },
-          distanceField: "distanceM",
-          spherical: true,
-          query: {
-            role: "agent",
-            agentStatus: "verified",
-            online: true,
-            currentOfferBooking: { $in: [null, booking._id] },
-          },
-        },
-      },
-      { $limit: 50 },
-      { $project: { name: 1, distanceM: 1, online: 1, lastSeenAt: 1, area: 1 } },
-    ]);
-    const busy = await Booking.find({
-      assignedAgent: { $in: agents.map((a) => a._id) },
-      status: "upcoming",
-      jobStatus: { $in: ["assigned", "enroute", "arrived", "in_progress"] },
-    }).distinct("assignedAgent");
-    const busyIds = new Set(busy.map(String));
-    return agents.filter((a) => !busyIds.has(String(a._id))).map((a) => ({
-      id: String(a._id),
-      name: a.name,
-      area: a.area ?? "",
-      distanceKm: Number((a.distanceM / 1000).toFixed(1)),
-      online: true,
-    }));
-  }
-
+  // $geoNear omits documents without liveLocation, which hid newly verified
+  // cleaners entirely. Admins can place these jobs manually; automatic offers
+  // still require GPS to establish who is actually near the service address.
   const agents = await User.find({
     role: "agent",
     agentStatus: "verified",
+    status: { $ne: "suspended" },
     online: true,
     currentOfferBooking: { $in: [null, booking._id] },
-  }).limit(50);
-  const busy = await Booking.find({
-    assignedAgent: { $in: agents.map((a) => a._id) },
-    status: "upcoming",
-    jobStatus: { $in: ["assigned", "enroute", "arrived", "in_progress"] },
-  }).distinct("assignedAgent");
-  const busyIds = new Set(busy.map(String));
-  return agents.filter((a) => !busyIds.has(String(a._id))).map((a) => ({
-    id: String(a.id),
-    name: a.name,
-    area: a.area ?? "",
-    distanceKm: null,
-    online: true,
-  }));
+    _id: { $nin: busy },
+  }).select("name area liveLocation").lean();
+
+  return agents.map((a) => {
+    const coords = a.liveLocation?.coordinates;
+    const distanceKm = point && coords?.length === 2
+      ? Number((haversineMeters([coords[0], coords[1]], point) / 1000).toFixed(1))
+      : null;
+    return { id: String(a._id), name: a.name, area: a.area ?? "", distanceKm, online: true };
+  }).sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) || a.name.localeCompare(b.name)).slice(0, 50);
 }
 
 /* ------------------------------ admin queue ------------------------------ */

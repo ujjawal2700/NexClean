@@ -41,7 +41,7 @@ function publish() {
 
 function describeError(err: GeolocationPositionError): string {
   if (err.code === err.PERMISSION_DENIED) {
-    return "Location is off. Turn it on so the customer can see you coming.";
+    return "Location access is blocked. Enable location for this site in your browser or app settings, then try again.";
   }
   if (err.code === err.TIMEOUT) return "Still getting a GPS fix — check your signal.";
   return "Couldn't get a GPS fix — check your signal.";
@@ -50,24 +50,32 @@ function describeError(err: GeolocationPositionError): string {
 /**
  * Resolve a fresh fix from a direct user action (notably the Online button).
  * Requesting here lets the browser show its permission prompt while the click
- * gesture is still active, then sends the first coordinates in the same API
- * call that marks the cleaner online.
+ * gesture is still active. The caller sends the coordinates in a heartbeat
+ * independently of the availability switch.
  */
 export function requestCurrentDeviceFix(): Promise<DeviceFix> {
   if (typeof navigator === "undefined" || !navigator.geolocation) {
     return Promise.reject(new Error("This device can't share its location."));
   }
   return new Promise((resolve, reject) => {
+    // Browser timeouts can exclude time spent waiting for permission. Keep our
+    // own deadline so an unanswered prompt cannot leave the UI waiting forever.
+    const deadline = window.setTimeout(() => reject(new Error("Still waiting for location. Allow location access and turn on your device's location, then try again.")), 12_000);
     navigator.geolocation.getCurrentPosition(
-      (pos) =>
+      (pos) => {
+        window.clearTimeout(deadline);
         resolve({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
           speed: Number.isFinite(pos.coords.speed) ? pos.coords.speed : null,
           at: Date.now(),
-        }),
-      (err) => reject(new Error(describeError(err))),
+        });
+      },
+      (err) => {
+        window.clearTimeout(deadline);
+        reject(new Error(describeError(err)));
+      },
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
     );
   });

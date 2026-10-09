@@ -32,14 +32,8 @@ async function getMessaging() {
   if (!pushEnabled) return null;
 
   try {
-    // tsconfig uses module: "nodenext", so tsc leaves this as a real ESM
-    // dynamic import even in the CommonJS build. firebase-admin is CommonJS and
-    // exposes `apps` as a getter, which cjs-module-lexer doesn't detect, so the
-    // namespace object has no `apps` and `admin.apps.length` threw
-    // "Cannot read properties of undefined (reading 'length')" in production —
-    // silently disabling push. Everything real hangs off the default export.
-    const ns = await import("firebase-admin");
-    const admin = ((ns as unknown as { default?: typeof ns }).default ?? ns) as typeof ns;
+    const { getApps, getApp, initializeApp, cert } = await import("firebase-admin/app");
+    const { getMessaging: messagingForApp } = await import("firebase-admin/messaging");
     const raw = env.firebaseServiceAccount.trim().replace(/^['"]|['"]$/g, "");
 
     let json: any;
@@ -68,8 +62,8 @@ async function getMessaging() {
       throw new Error("FIREBASE_SERVICE_ACCOUNT_BASE64 must contain valid Firebase service account JSON or base64 string");
     }
 
-    const app = admin.apps.length ? admin.app() : admin.initializeApp({ credential: admin.credential.cert(json) });
-    messaging = admin.messaging(app) as unknown as typeof messaging;
+    const app = getApps().length ? getApp() : initializeApp({ credential: cert(json) });
+    messaging = messagingForApp(app) as unknown as typeof messaging;
     console.log("✓ Firebase Cloud Messaging initialized for project:", json.project_id);
   } catch (err) {
     console.error("✗ FCM init failed, falling back to mock mode:", (err as Error).message);

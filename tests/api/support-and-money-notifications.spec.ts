@@ -63,6 +63,13 @@ test.describe("Notifications that link somewhere useful", () => {
     const { token: agentToken, userId: agentId } = await loginAsAgent(request);
     await completeAnyOpenJobsForAgent(request, agentToken);
     await goOnlineNear(request, agentToken);
+    // Earlier dispatch tests share this seeded cleaner. Release an outstanding
+    // offer before manual assignment; the API correctly rejects competing work.
+    const offer = (await (await request.get(apiUrl("/agent/offers/current"), { headers: authHeader(agentToken) })).json()).data;
+    if (offer) {
+      const declined = await request.post(apiUrl(`/agent/offers/${offer.bookingId}/decline`), { headers: authHeader(agentToken) });
+      expect(declined.ok()).toBeTruthy();
+    }
     const assigned = await request.patch(apiUrl(`/admin/bookings/${booking.id}/assign`), {
       headers: authHeader(admin),
       data: { agentId },

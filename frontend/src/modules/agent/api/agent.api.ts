@@ -106,7 +106,18 @@ export function useAgentSignup() {
 
 export function useAgentMe() {
   const authenticated = useAgentSession((s) => s.authenticated);
-  return useQuery({ queryKey: meKey, queryFn: () => apiFetch<AgentProfile>("/auth/me"), enabled: authenticated });
+  return useQuery({
+    queryKey: meKey,
+    queryFn: () => apiFetch<AgentProfile>("/auth/me"),
+    enabled: authenticated,
+    refetchOnWindowFocus: true,
+    // Pending agents do not mount the layout/socket yet. Poll approval so the
+    // admin verifying them unlocks availability without a logout or reload.
+    refetchInterval: (query) => {
+      const status = query.state.data?.agentStatus;
+      return status === "pending" || status === "unverified" ? 5_000 : false;
+    },
+  });
 }
 
 /** The cleaner's rating, star breakdown and customer reviews. */
@@ -180,7 +191,7 @@ export function useToggleOnline() {
   return useMutation({
     mutationFn: (vars: { online: boolean; lat?: number; lng?: number }) =>
       apiFetch<AgentProfile>("/agent/online", { method: "PATCH", body: vars }),
-    onSuccess: (user) => qc.setQueryData(meKey, user),
+    onSuccess: (user) => qc.setQueryData<AgentProfile>(meKey, (previous) => ({ ...previous, ...user })),
   });
 }
 

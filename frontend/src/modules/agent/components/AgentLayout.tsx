@@ -114,7 +114,7 @@ export function OnlineToggle() {
         {online && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />}
         <span className={cn("relative inline-flex size-2.5 rounded-full", online ? "bg-emerald-500" : "bg-muted")} />
       </span>
-      {online ? "Online" : "Offline"}
+      {pending ? "Updating…" : online ? "Online" : "Offline"}
     </button>
   );
 }
@@ -168,6 +168,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
   useAgentHeartbeat();
   useRegisterPushToken();
   const dispatch = useAgentDispatch();
+  const availability = useOnlineSwitch();
   const clearSession = useAgentSession((s) => s.clear);
 
   const showLocationNudge = (me?.online ?? false) && !dispatch.locating;
@@ -247,9 +248,22 @@ export function AgentLayout({ children }: { children: ReactNode }) {
         {showLocationNudge && (
           <div className="mb-5 flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
             <MapPinOff className="size-4 shrink-0" />
-            <span>Turn on location access to receive nearby job requests while you're online.</span>
+            <div className="flex-1">
+              <p>Allow location access and turn on your device's location to receive nearby job requests. Your signup city and zone do not replace your current location.</p>
+              {availability.locationError && <p role="alert" className="mt-1">{availability.locationError}</p>}
+              <button
+                type="button"
+                className="mt-2 rounded-pill border border-amber-500/40 px-3 py-1.5 font-semibold disabled:opacity-50"
+                onClick={() => void availability.requestLocation()}
+                disabled={availability.locationPending}
+                data-testid="enable-agent-location"
+              >
+                {availability.locationPending ? "Getting location…" : "Enable location"}
+              </button>
+            </div>
           </div>
         )}
+        {availability.error && <p role="alert" className="mb-4 text-sm text-red-600">{availability.error}</p>}
         {children}
       </main>
 

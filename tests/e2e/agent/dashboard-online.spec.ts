@@ -67,10 +67,17 @@ test.describe("Agent dashboard + online toggle", () => {
       if (!request.url().includes("/agent/online") || request.method() !== "PATCH") return false;
       return (request.postDataJSON() as { online?: boolean }).online === true;
     });
+    // Availability no longer waits on GPS. Verify the separate location write
+    // still reaches dispatch when permission has already been granted.
+    const locationRequest = page.waitForRequest((request) => {
+      if (!request.url().includes("/agent/heartbeat") || request.method() !== "PATCH") return false;
+      return (request.postDataJSON() as { lat?: number } | null)?.lat != null;
+    });
     await page.locator("header").getByRole("button", { name: /Online|Offline/ }).click();
-    const onlineBody = (await onlineRequest).postDataJSON() as { lat?: number; lng?: number };
-    expect(onlineBody.lat).toBeCloseTo(NEAR_LAT, 4);
-    expect(onlineBody.lng).toBeCloseTo(NEAR_LNG, 4);
+    expect((await onlineRequest).postDataJSON().online).toBe(true);
+    const locationBody = (await locationRequest).postDataJSON() as { lat: number; lng: number };
+    expect(locationBody.lat).toBeCloseTo(NEAR_LAT, 4);
+    expect(locationBody.lng).toBeCloseTo(NEAR_LNG, 4);
     await expect(page.locator("header").getByRole("button", { name: /Online|Offline/ })).toHaveText("Online");
     await page.reload();
     await expect(page.locator("header").getByRole("button", { name: /Online|Offline/ })).toHaveText("Online");

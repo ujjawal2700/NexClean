@@ -7,6 +7,8 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_DIR"
 
+node -e 'if (Number(process.versions.node.split(".")[0]) < 22) { console.error("NexClean requires Node.js 22 or newer, including the PM2 runtime."); process.exit(1); }'
+
 echo "==> Pulling latest code"
 git pull origin main
 
