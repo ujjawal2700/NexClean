@@ -21,6 +21,12 @@ release is outdated. Both dependency lockfiles must be deployed with the code.
 
 ## Agent job delivery
 
+Signed-in agents must allow device location and obtain a GPS fix before any
+agent page is accessible. Denied or unavailable location shows a blocking
+screen with retry/settings guidance and logout. Revoking permission blocks the
+app again and takes an online agent offline. Going online requires a fresh fix;
+restoring location unlocks the app without automatically going online.
+
 Dispatch offers each job to one eligible nearby agent at a time, nearest-first
 within the zone tiers. Agents must be verified, online, reachable by a recent
 heartbeat or real push token, have GPS coordinates, and have no active job or

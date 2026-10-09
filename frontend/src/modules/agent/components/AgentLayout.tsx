@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@shared/lib/api";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ListChecks, Wallet, User, MapPinOff, Bell } from "lucide-react";
+import { LayoutDashboard, ListChecks, Wallet, User, Bell } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { LiquidTabBar } from "@shared/components/LiquidTabBar";
 import { Logo } from "@shared/components/brand/Logo";
@@ -164,14 +164,12 @@ export function AgentLayout({ children }: { children: ReactNode }) {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const { data: me } = useAgentMe();
   useAgentHeartbeat();
   useRegisterPushToken();
   const dispatch = useAgentDispatch();
   const availability = useOnlineSwitch();
   const clearSession = useAgentSession((s) => s.clear);
 
-  const showLocationNudge = (me?.online ?? false) && !dispatch.locating;
   // The tab bar belongs only to the four top-level destinations. Keeping it
   // off detail/settings screens prevents it competing with those pages' back
   // navigation and primary actions.
@@ -245,24 +243,6 @@ export function AgentLayout({ children }: { children: ReactNode }) {
           "mx-auto max-w-5xl px-4 pt-6 sm:px-5 sm:pt-8",
           showMobileNav ? "mobile-content-with-nav" : "pb-8",
         )}>
-        {showLocationNudge && (
-          <div className="mb-5 flex items-center gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
-            <MapPinOff className="size-4 shrink-0" />
-            <div className="flex-1">
-              <p>Allow location access and turn on your device's location to receive nearby job requests. Your signup city and zone do not replace your current location.</p>
-              {availability.locationError && <p role="alert" className="mt-1">{availability.locationError}</p>}
-              <button
-                type="button"
-                className="mt-2 rounded-pill border border-amber-500/40 px-3 py-1.5 font-semibold disabled:opacity-50"
-                onClick={() => void availability.requestLocation()}
-                disabled={availability.locationPending}
-                data-testid="enable-agent-location"
-              >
-                {availability.locationPending ? "Getting location…" : "Enable location"}
-              </button>
-            </div>
-          </div>
-        )}
         {availability.error && <p role="alert" className="mb-4 text-sm text-red-600">{availability.error}</p>}
         {children}
       </main>

@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { RouteErrorBoundary } from "@shared/components/RouteErrorBoundary";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { KycGate } from "./components/KycGate";
+import { LocationGate } from "./components/LocationGate";
 import { AgentLayout } from "./components/AgentLayout";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
@@ -31,11 +32,13 @@ export function AgentApp() {
         <Route
           element={
             <ProtectedRoute>
-              <KycGate>
-                <AgentLayout>
-                  <Outlet />
-                </AgentLayout>
-              </KycGate>
+              <LocationGate>
+                <KycGate>
+                  <AgentLayout>
+                    <Outlet />
+                  </AgentLayout>
+                </KycGate>
+              </LocationGate>
             </ProtectedRoute>
           }
         >

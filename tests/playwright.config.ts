@@ -48,7 +48,8 @@ export default defineConfig({
     {
       name: "agent-e2e",
       testDir: "./e2e/agent",
-      use: { viewport: { width: 1280, height: 720 }, baseURL: WEB_BASE_URL },
+      use: { viewport: { width: 1280, height: 720 }, baseURL: WEB_BASE_URL,
+        permissions: ["geolocation"], geolocation: { latitude: 22.7196, longitude: 75.8577 } },
     },
     {
       name: "admin-e2e",

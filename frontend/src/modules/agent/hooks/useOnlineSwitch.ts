@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { useQueryClient } from "@tanstack/react-query";
 import { getPushToken, requestPushPermission, saveDeviceToken } from "@shared/lib/push";
 import { apiFetch } from "@shared/lib/api";
-import { meKey, sendLocationHeartbeat, useAgentMe, useToggleOnline } from "../api/agent.api";
+import { meKey, useAgentMe, useToggleOnline } from "../api/agent.api";
 import type { AgentProfile } from "../types";
 import { requestCurrentDeviceFix } from "./useDeviceLocation";
 
@@ -12,9 +12,7 @@ import { requestCurrentDeviceFix } from "./useDeviceLocation";
 const useAvailability = create<{
   pending: boolean;
   error: string | null;
-  locationPending: boolean;
-  locationError: string | null;
-}>(() => ({ pending: false, error: null, locationPending: false, locationError: null }));
+}>(() => ({ pending: false, error: null }));
 
 export function useOnlineSwitch() {
   const { data: me } = useAgentMe();
@@ -23,26 +21,11 @@ export function useOnlineSwitch() {
   const state = useAvailability();
   const online = me?.online ?? false;
 
-  const requestLocation = useCallback(async () => {
-    if (useAvailability.getState().locationPending) return;
-    useAvailability.setState({ locationPending: true, locationError: null });
-    try {
-      const fix = await requestCurrentDeviceFix();
-      await sendLocationHeartbeat(fix.lat, fix.lng);
-    } catch (error) {
-      useAvailability.setState({ locationError: error instanceof Error ? error.message : "Couldn't share your location. Please try again." });
-    } finally {
-      useAvailability.setState({ locationPending: false });
-    }
-  }, []);
-
   const setOnline = useCallback(async (next: boolean) => {
     if (useAvailability.getState().pending) return;
     useAvailability.setState({ pending: true, error: null });
-    // Permissions and token registration run independently of availability.
-    // A GPS or notification prompt can stay unanswered for minutes.
+    // Push registration remains optional; going online requires a fresh GPS fix.
     if (next) {
-      void requestLocation();
       void requestPushPermission()
         .then(() => getPushToken())
         .then(async (token) => {
@@ -52,16 +35,17 @@ export function useOnlineSwitch() {
         .catch(() => {});
     }
     try {
-      await mutation.mutateAsync({ online: next });
+      const fix = next ? await requestCurrentDeviceFix() : null;
+      await mutation.mutateAsync({ online: next, ...(fix ? { lat: fix.lat, lng: fix.lng } : {}) });
     } catch (error) {
       useAvailability.setState({ error: error instanceof Error ? error.message : "Couldn't update your availability. Please try again." });
     } finally {
       useAvailability.setState({ pending: false });
     }
-  }, [mutation, requestLocation]);
+  }, [mutation]);
 
   return {
-    ...state, online, setOnline, requestLocation,
+    ...state, online, setOnline,
     toggle: () => setOnline(!(qc.getQueryData<AgentProfile>(meKey)?.online ?? online)),
   };
 }

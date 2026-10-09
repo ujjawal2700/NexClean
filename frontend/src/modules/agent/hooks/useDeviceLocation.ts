@@ -32,6 +32,7 @@ type State = { fix: DeviceFix | null; error: string | null };
 let watchId: number | null = null;
 let latest: DeviceFix | null = null;
 let lastError: string | null = null;
+let stopPermissionWatch: (() => void) | null = null;
 const subscribers = new Set<(state: State) => void>();
 
 function publish() {
@@ -60,20 +61,32 @@ export function requestCurrentDeviceFix(): Promise<DeviceFix> {
   return new Promise((resolve, reject) => {
     // Browser timeouts can exclude time spent waiting for permission. Keep our
     // own deadline so an unanswered prompt cannot leave the UI waiting forever.
-    const deadline = window.setTimeout(() => reject(new Error("Still waiting for location. Allow location access and turn on your device's location, then try again.")), 12_000);
+    const deadline = window.setTimeout(() => {
+      latest = null;
+      lastError = "Still waiting for location. Allow location access and turn on your device's location, then try again.";
+      publish();
+      reject(new Error(lastError));
+    }, 12_000);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         window.clearTimeout(deadline);
-        resolve({
+        const fix: DeviceFix = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
           speed: Number.isFinite(pos.coords.speed) ? pos.coords.speed : null,
           at: Date.now(),
-        });
+        };
+        latest = fix;
+        lastError = null;
+        publish();
+        resolve(fix);
       },
       (err) => {
         window.clearTimeout(deadline);
+        latest = null;
+        lastError = describeError(err);
+        publish();
         reject(new Error(describeError(err)));
       },
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
@@ -104,6 +117,7 @@ function startWatch() {
   };
 
   const onError = (err: GeolocationPositionError) => {
+    latest = null;
     lastError = describeError(err);
     publish();
   };
@@ -134,12 +148,40 @@ function startWatch() {
     enableHighAccuracy: true,
     maximumAge: 0,
   });
+
+  // Revoking permission in browser settings must also invalidate a cached fix.
+  // Safari/web views without the Permissions API still report watch errors.
+  let disposed = false;
+  let permission: PermissionStatus | null = null;
+  const changed = () => {
+    if (permission?.state === "granted") {
+      void requestCurrentDeviceFix().catch(() => {});
+    } else {
+      latest = null;
+      lastError = "Location access is required. Allow location in your browser or app settings, then try again.";
+      publish();
+    }
+  };
+  void navigator.permissions?.query({ name: "geolocation" }).then((status) => {
+    if (disposed) return;
+    permission = status;
+    status.addEventListener("change", changed);
+    if (status.state === "denied") changed();
+  }).catch(() => {});
+  stopPermissionWatch = () => {
+    disposed = true;
+    permission?.removeEventListener("change", changed);
+  };
 }
 
 function stopWatchIfIdle() {
   if (subscribers.size > 0 || watchId === null) return;
   navigator.geolocation.clearWatch(watchId);
   watchId = null;
+  stopPermissionWatch?.();
+  stopPermissionWatch = null;
+  latest = null;
+  lastError = null;
 }
 
 /** Test/teardown hook: forget the cached fix and release the hardware. */
