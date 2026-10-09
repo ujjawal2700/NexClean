@@ -19,6 +19,25 @@ requires this runtime; update the Node version used by PM2 before deploying.
 Excel exports use SheetJS 0.20.3 from its official CDN because the npm registry
 release is outdated. Both dependency lockfiles must be deployed with the code.
 
+## Agent job delivery
+
+Dispatch offers each job to one eligible nearby agent at a time, nearest-first
+within the zone tiers. Agents must be verified, online, reachable by a recent
+heartbeat or real push token, have GPS coordinates, and have no active job or
+offer. Declined and timed-out agents remain excluded for that booking.
+
+The primary dispatch worker retries searching/admin-queued jobs every 10 seconds
+as availability changes. Reservations have recovery leases; valid offers survive
+restarts. The open agent app checks the current offer on reconnect/focus and
+polls every 5 seconds while online, independently of socket delivery. Background
+alerts depend on notification permission, a valid Firebase token and OS delivery.
+
+Regression tests run against local MongoDB only:
+
+```bash
+REDIS_URL='' tests/run-all.sh --project=api --project=agent-e2e --grep 'dispatch|offer|online|location'
+```
+
 ## Frontend structure
 
 ```

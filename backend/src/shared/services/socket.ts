@@ -366,7 +366,7 @@ export async function broadcastNewMessage(ticketId: string, message: any, sender
         // Deep link into that exact conversation in the right app — tapping the
         // push used to open the app with no way back to the chat.
         const base = owner?.role === "agent" ? "/agent/help" : "/app/help";
-        const text = String(message.text ?? "");
+        const text = String(message.text ?? "") || (message.imageUrl ? "Support sent you a photo" : "Support replied to your conversation");
         await notifyUser(String(owner?._id ?? ticket.user), {
           type: "system",
           title: "💬 NexClean Support replied",

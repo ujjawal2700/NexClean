@@ -131,6 +131,8 @@ const userSchema = new Schema(
     locationUpdatedAt: { type: Date, default: null },
     // The booking this agent currently has an outstanding offer for (one at a time).
     currentOfferBooking: { type: Types.ObjectId, ref: "Booking", default: null },
+    // Recovery lease for crashes between reserving the agent and publishing the offer.
+    currentOfferLeaseUntil: { type: Date, default: null },
 
     // Agent KYC (submitted at signup, reviewed by admin before activation)
     aadharNumber: { type: String, default: "" },
@@ -174,6 +176,7 @@ const userSchema = new Schema(
         delete ret.liveLocation;
         delete ret.locationUpdatedAt;
         delete ret.currentOfferBooking;
+        delete ret.currentOfferLeaseUntil;
         // Never expose sensitive Aadhaar KYC document info in standard JSON serialization.
         delete ret.aadharNumber;
         delete ret.aadharFrontUrl;
@@ -193,6 +196,7 @@ const userSchema = new Schema(
 // indexes ignore documents missing the field, so customers/agents without a
 // live location simply aren't matched.
 userSchema.index({ liveLocation: "2dsphere" });
+userSchema.index({ role: 1, currentOfferLeaseUntil: 1 });
 
 // Referral codes are unique only among users that actually have one. A plain
 // `sparse` unique index is NOT enough here: sparse skips documents where the

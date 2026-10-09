@@ -1,3 +1,4 @@
+import { chatText, storeChatImage } from "../../shared/utils/chatImage";
 import { Types } from "mongoose";
 import { SupportTicket, SUPPORT_TOPICS, type SupportTopic } from "./ticket.model";
 import { Booking } from "../booking/booking.model";
@@ -150,6 +151,7 @@ export async function countAwaitingSupport(): Promise<number> {
  * A stranger gets "Ticket not found", not "forbidden", so ids stay unprobeable.
  */
 async function getAccessibleTicket(ticketId: string, userId: string, role?: string) {
+  if (!Types.ObjectId.isValid(ticketId)) throw ApiError.notFound("Ticket not found");
   const ticket = await SupportTicket.findById(ticketId);
   if (!ticket) throw ApiError.notFound("Ticket not found");
   if (role !== "admin" && String(ticket.user) !== String(userId)) {
@@ -189,16 +191,22 @@ export async function saveMessage(
   ticketId: string,
   senderId: string,
   senderType: "customer" | "staff",
-  text: string,
+  rawText: unknown,
   role?: string,
+  image?: unknown,
 ) {
   const ticket = await getAccessibleTicket(ticketId, senderId, role);
+  if (ticket.status === "closed") throw ApiError.badRequest("Reopen this conversation before sending a message");
+  const text = chatText(rawText);
+  if (!text && image == null) throw ApiError.badRequest("Message text or photo is required");
+  const imageUrl = await storeChatImage(image, `nexclean/support/${ticketId}`);
 
   const message = await ChatMessage.create({
     ticket: ticketId,
     sender: senderId,
     senderType,
     text,
+    imageUrl,
   });
 
   // Bubble it to the top, and remember who spoke last (see countAwaitingSupport).

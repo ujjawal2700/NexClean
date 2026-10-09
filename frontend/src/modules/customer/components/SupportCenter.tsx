@@ -1,3 +1,6 @@
+import { ChatComposer } from "@shared/components/chat/ChatComposer";
+import { ChatImage } from "@shared/components/chat/ChatImage";
+import { FullscreenChat } from "@shared/components/chat/FullscreenChat";
 import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { io, type Socket } from "socket.io-client";
@@ -12,7 +15,6 @@ import {
   Lock,
   MessageSquare,
   RotateCcw,
-  Send,
   Smartphone,
   UserCog,
 } from "lucide-react";
@@ -157,14 +159,14 @@ export function SupportCenter({
         onReopen={() => reopenTicket.mutateAsync(active.id).then(() => refetchTickets())}
         closing={closeTicket.isPending}
         reopening={reopenTicket.isPending}
-        send={(text) => sendMessage.mutateAsync({ ticketId: active.id, text })}
+        send={(text, image) => sendMessage.mutateAsync({ ticketId: active.id, text, image })}
         onStatusChange={() => void refetchTickets()}
       />
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-3xl space-y-4">
       <div className="sticky top-0 z-20 -mx-4 flex items-center gap-3 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
         <button
           onClick={() => (view === "pickJob" ? setView("home") : navigate(-1))}
@@ -360,15 +362,13 @@ function ChatView({
   onReopen: () => Promise<unknown>;
   closing: boolean;
   reopening: boolean;
-  send: (text: string) => Promise<unknown>;
+  send: (text: string, image?: string) => Promise<unknown>;
   onStatusChange: () => void;
 }) {
   const { data: history } = useTicketMessages(ticket.id);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [text, setText] = useState("");
-  const [sendError, setSendError] = useState("");
   const [confirmClose, setConfirmClose] = useState(false);
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const threadRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -397,28 +397,16 @@ function ChatView({
   }, [ticket.id, authenticated, role]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    const thread = threadRef.current;
+    if (thread) thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
   }, [messages]);
-
-  const submit = async () => {
-    const body = text.trim();
-    if (!body) return;
-    setText("");
-    setSendError("");
-    try {
-      await send(body);
-    } catch (e) {
-      setText(body);
-      setSendError(e instanceof ApiError ? e.message : "Message not sent. Try again.");
-    }
-  };
 
   const closed = ticket.status === "closed";
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-7rem)] max-w-3xl flex-col overflow-hidden rounded-card border border-line bg-surface shadow-[var(--shadow-soft)] md:h-[75vh]">
+    <FullscreenChat>
       {/* Header: what this is about */}
-      <header className="flex items-center gap-3 border-b border-line px-4 py-3">
+      <header className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2">
         <button
           type="button"
           onClick={onBack}
@@ -470,7 +458,7 @@ function ChatView({
       )}
 
       {/* Messages */}
-      <div className="flex-1 space-y-3 overflow-y-auto bg-surface-muted/20 p-4" data-lenis-prevent="true">
+      <div ref={threadRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain bg-surface-muted/20 p-3" data-lenis-prevent="true">
         <div className="mx-auto max-w-sm rounded-2xl bg-primary/5 px-4 py-3 text-center text-xs text-ink-soft">
           {ticket.booking
             ? `This chat is about your ${ticket.booking.packageName} on ${formatDay(ticket.booking.date)}. Support can see its details.`
@@ -482,12 +470,13 @@ function ChatView({
             <div key={m.id} className={cn("flex", own ? "justify-end" : "justify-start")}>
               <div
                 className={cn(
-                  "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm shadow-sm",
+                  "max-w-[85%] break-words [overflow-wrap:anywhere] rounded-2xl px-4 py-2.5 text-sm shadow-sm",
                   own ? "rounded-br-md bg-primary text-white" : "rounded-bl-md border border-line bg-surface text-ink",
                 )}
               >
                 {!own && <p className="mb-0.5 text-[11px] font-semibold text-primary">NexClean Support</p>}
-                <p className="whitespace-pre-line leading-relaxed">{m.text}</p>
+                <ChatImage src={m.imageUrl} />
+                {m.text && <p className="whitespace-pre-line leading-relaxed">{m.text}</p>}
                 <span className={cn("mt-1 block text-right text-[10px]", own ? "text-white/70" : "text-muted")}>
                   {formatTime(m.createdAt)}
                 </span>
@@ -495,46 +484,18 @@ function ChatView({
             </div>
           );
         })}
-        <div ref={endRef} />
       </div>
 
-      {/* Composer */}
-      <footer className="border-t border-line p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        {closed ? (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface-muted/60 px-4 py-3 text-sm text-muted">
-            <span className="flex items-center gap-1.5">
-              <Lock className="size-4" /> This conversation is closed.
-            </span>
+      {closed ? (
+        <footer className="shrink-0 border-t border-line p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
+            <span className="flex items-center gap-1.5"><Lock className="size-4" /> This conversation is closed.</span>
             <Button size="sm" variant="outline" disabled={reopening} onClick={() => onReopen()}>
-              {reopening ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
-              Reopen
+              {reopening ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />} Reopen
             </Button>
           </div>
-        ) : (
-          <>
-            {sendError && <p className="mb-2 text-xs text-red-600">{sendError}</p>}
-            <div className="flex items-end gap-2">
-              <textarea
-                value={text}
-                rows={1}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void submit();
-                  }
-                }}
-                placeholder="Type your message…"
-                aria-label="Message"
-                className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-line bg-surface px-4 py-2.5 text-sm text-ink outline-none select-text focus:border-primary/50"
-              />
-              <Button className="h-11 w-11 shrink-0 rounded-2xl p-0" onClick={() => void submit()} disabled={!text.trim()} aria-label="Send">
-                <Send className="size-4" />
-              </Button>
-            </div>
-          </>
-        )}
-      </footer>
-    </div>
+        </footer>
+      ) : <ChatComposer key={ticket.id} onSend={send} />}
+    </FullscreenChat>
   );
 }

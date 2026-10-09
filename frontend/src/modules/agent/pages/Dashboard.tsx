@@ -30,7 +30,7 @@ export function Dashboard() {
   const isUnverified = me?.agentStatus !== "verified";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       {isUnverified && (
         <GlassCard className="border-red-300/40 bg-red-50/60 text-red-700 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="space-y-1">
@@ -55,13 +55,13 @@ export function Dashboard() {
 
       {me && !isUnverified && <DutyCard />}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {summaryLoading ? (
           <SkeletonStatCards count={4} />
         ) : (
           stats.map((s) => (
-            <GlassCard key={s.label} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary sm:size-11">
+            <GlassCard key={s.label} className="flex items-center gap-2.5 rounded-2xl p-3 sm:gap-3">
+              <span className="grid size-8 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary sm:size-9">
                 <s.icon className="size-4 sm:size-5" />
               </span>
               <div className="min-w-0">
@@ -74,12 +74,12 @@ export function Dashboard() {
       </div>
 
       <section>
-        <h2 className="mb-4 font-display text-xl font-semibold text-ink">
+        <h2 className="mb-2 font-display text-lg font-semibold text-ink">
           {jobsLoading ? "Current job" : active ? "Current job" : "You're all caught up"}
         </h2>
         {jobsLoading ? (
-          <GlassCard className="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <Skeleton className="h-24 w-28 shrink-0 rounded-2xl" />
+          <GlassCard className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+            <Skeleton className="h-24 w-16 shrink-0 rounded-2xl" />
             <div className="flex-1 space-y-2.5">
               <Skeleton className="h-5 w-1/3" />
               <Skeleton className="h-3.5 w-1/2" />
@@ -87,8 +87,8 @@ export function Dashboard() {
             </div>
           </GlassCard>
         ) : active ? (
-          <GlassCard className="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <div className="w-28 shrink-0">
+          <GlassCard className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+            <div className="w-16 shrink-0">
               <CarSilhouette type={active.vehicleType} uid={`agdash-${active.id}`} />
             </div>
             <div className="flex-1">
@@ -121,14 +121,14 @@ export function Dashboard() {
             </div>
           </GlassCard>
         ) : (
-          <GlassCard className="py-12 text-center">
+          <GlassCard className="flex flex-wrap items-center justify-between gap-3 p-4">
             <p className="text-muted">No active jobs right now. Nice work! 🎉</p>
             {isUnverified ? (
-              <Button variant="outline" className="mt-4" disabled>
+              <Button variant="outline" size="sm" disabled>
                 View all jobs
               </Button>
             ) : (
-              <Button asChild variant="outline" className="mt-4">
+              <Button asChild variant="outline" size="sm">
                 <Link to="/agent/jobs">View all jobs</Link>
               </Button>
             )}

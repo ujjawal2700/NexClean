@@ -35,7 +35,10 @@ function mapConfig(c: PayoutConfigDoc): PayoutRule {
 export async function getPayoutConfigDoc(): Promise<PayoutConfigDoc> {
   const existing = await PayoutConfig.findById("global");
   if (existing) return existing;
-  return PayoutConfig.create({ _id: "global" });
+  // A single upsert prevents simultaneous first offers racing to create
+  // the global rule and failing with a duplicate-key error.
+  return (await PayoutConfig.findByIdAndUpdate("global", { $setOnInsert: { _id: "global" } },
+    { new: true, upsert: true, setDefaultsOnInsert: true }))!;
 }
 
 export async function getPayoutConfig(): Promise<PayoutRule> {

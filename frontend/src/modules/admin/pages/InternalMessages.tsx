@@ -1,7 +1,8 @@
+import { ChatComposer } from "@shared/components/chat/ChatComposer";
+import { ChatImage } from "@shared/components/chat/ChatImage";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Mail, MessageSquare, Search, Send, Users } from "lucide-react";
+import { ArrowLeft, Mail, MessageSquare, Search, Users } from "lucide-react";
 import { cn } from "@shared/lib/utils";
-import { Button } from "@shared/ui/Button";
 import {
   useAdminMe,
   useInternalConversations,
@@ -35,7 +36,6 @@ export function InternalMessages() {
   const [query, setQuery] = useState("");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [selectedContact, setSelectedContact] = useState<InternalMessageContact | null>(null);
-  const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
   const { data: messages = [], isLoading: messagesLoading } = useInternalMessages(selectedConversationId);
 
@@ -76,18 +76,6 @@ export function InternalMessages() {
     }
     const conversation = await startConversation.mutateAsync(contact.id);
     setSelectedConversationId(conversation.id);
-  };
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const text = draft.trim();
-    if (!text || !selectedConversationId) return;
-    setDraft("");
-    try {
-      await sendMessage.mutateAsync({ conversationId: selectedConversationId, text });
-    } catch {
-      setDraft(text);
-    }
   };
 
   return (
@@ -212,7 +200,8 @@ export function InternalMessages() {
                         <div key={message.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
                           <div className={cn("max-w-[82%] rounded-2xl px-4 py-2.5", mine ? "rounded-br-md bg-primary text-white" : "rounded-bl-md border border-line bg-surface text-ink")}>
                             {!mine && <p className="mb-1 text-[10px] font-semibold text-primary">{message.sender.name} · {message.sender.roleName}</p>}
-                            <p className="whitespace-pre-wrap break-words text-sm leading-5" data-testid="internal-message-text">
+                            <ChatImage src={message.imageUrl} />
+                            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-5" data-testid="internal-message-text">
                               {message.text}
                             </p>
                             <p className={cn("mt-1 text-right text-[10px]", mine ? "text-white/70" : "text-muted")}>{timeLabel(message.createdAt)}</p>
@@ -225,25 +214,9 @@ export function InternalMessages() {
                 )}
               </div>
 
-              <form onSubmit={submit} className="flex shrink-0 items-end gap-2 border-t border-line/70 bg-surface p-3 sm:p-4">
-                <textarea
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value.slice(0, 4000))}
-                  disabled={!selectedConversationId || startConversation.isPending}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      event.currentTarget.form?.requestSubmit();
-                    }
-                  }}
-                  rows={1}
-                  placeholder={startConversation.isPending ? "Preparing secure conversation…" : `Message ${selectedContact.name}`}
-                  className="max-h-28 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-line bg-surface-muted/40 px-4 py-3 text-sm text-ink outline-none focus:border-primary/50 disabled:cursor-wait disabled:opacity-60"
-                />
-                <Button type="submit" disabled={!selectedConversationId || !draft.trim() || sendMessage.isPending} className="size-11 shrink-0 px-0" aria-label="Send message">
-                  <Send className="size-4" />
-                </Button>
-              </form>
+              <ChatComposer key={selectedConversationId || selectedContact.id} placeholder={`Message ${selectedContact.name}`} sendLabel="Send message"
+                disabled={!selectedConversationId || startConversation.isPending}
+                onSend={(text, image) => sendMessage.mutateAsync({ conversationId: selectedConversationId!, text, image })} />
             </>
           ) : (
             <div className="grid h-full place-items-center p-8 text-center">

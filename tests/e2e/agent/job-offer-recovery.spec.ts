@@ -111,3 +111,17 @@ test("expiry closes the popup even when reconciliation fails", async ({ page }) 
   await expect(page.getByText("New wash request", { exact: true })).toBeVisible();
   await expect(page.getByText("New wash request", { exact: true })).toHaveCount(0, { timeout: 5_000 });
 });
+
+test("REST responses slower than the polling interval still restore the popup", async ({ page }) => {
+  await setup(page);
+  const pending = offer();
+  let requests = 0;
+  await page.route("**/api/agent/offers/current", async (route) => {
+    requests++;
+    await new Promise((resolve) => setTimeout(resolve, 6_000));
+    await route.fulfill({ json: { success: true, data: pending } });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByText("New wash request", { exact: true })).toBeVisible({ timeout: 12_000 });
+  expect(requests).toBe(1);
+});

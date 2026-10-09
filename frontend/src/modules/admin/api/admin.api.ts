@@ -229,10 +229,10 @@ export function useStartInternalConversation() {
 export function useSendInternalMessage() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { conversationId: string; text: string }) =>
+    mutationFn: (vars: { conversationId: string; text: string; image?: string }) =>
       apiFetch<InternalMessage>(`/admin/internal-messages/conversations/${vars.conversationId}/messages`, {
         method: "POST",
-        body: { text: vars.text },
+        body: { text: vars.text, image: vars.image },
       }),
     onSuccess: (message, vars) => {
       qc.setQueryData<InternalMessage[]>(keys.internalMessages(vars.conversationId), (current = []) =>

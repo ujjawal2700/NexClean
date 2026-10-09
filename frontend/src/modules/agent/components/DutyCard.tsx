@@ -22,13 +22,13 @@ export function DutyCard({ disabled }: { disabled?: boolean }) {
   return (
     <GlassCard
       className={cn(
-        "p-5 transition-colors",
+        "p-4 transition-colors",
         online ? "border-emerald-400/40 bg-emerald-50/60" : "border-amber-300/40 bg-amber-50/60",
       )}
       data-testid="duty-card"
     >
-      <div className="flex items-center gap-4">
-        <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-[140px] flex-1">
           <p className={cn("font-display text-lg font-semibold", online ? "text-emerald-700" : "text-amber-700")}>
             {online ? "You're online" : "You're offline"}
           </p>
@@ -47,7 +47,7 @@ export function DutyCard({ disabled }: { disabled?: boolean }) {
           disabled={pending || disabled}
           data-testid="duty-switch"
           className={cn(
-            "flex min-h-12 shrink-0 items-center gap-2 rounded-pill px-4 text-sm font-semibold text-white shadow-sm transition-colors disabled:opacity-50",
+            "flex min-h-11 shrink-0 items-center gap-2 rounded-pill px-4 text-sm font-semibold text-white shadow-sm transition-colors disabled:opacity-50",
             online ? "bg-ink hover:bg-ink/90" : "bg-emerald-600 hover:bg-emerald-700",
           )}
         >

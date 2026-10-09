@@ -343,7 +343,12 @@ test.describe("Agent", () => {
     await request.put("/admin/dispatch/config", { headers: authHeader(adminToken), data: { offerTimeoutSeconds: 10 } });
     try {
       const { token: agentToken } = await createFreshVerifiedAgent(request);
-      await goOnlineNear(request, agentToken);
+      // Keep prior queued jobs outside this agent's search radius: recovery
+      // now correctly offers those old jobs to newly available cleaners.
+      const missedLat = DISPATCH_LAT - 1;
+      const onlineResponse = await request.patch("/agent/online", { headers: authHeader(agentToken),
+        data: { online: true, lat: missedLat, lng: DISPATCH_LNG } });
+      expect(onlineResponse.ok()).toBeTruthy();
       const packageId = await firstPackageId(request);
 
       for (let miss = 1; miss <= 3; miss++) {
@@ -360,7 +365,7 @@ test.describe("Agent", () => {
               slot: "11:00 AM",
               addressLabel: "Home",
               addressLine: "123 Test Street",
-              lat: DISPATCH_LAT,
+              lat: missedLat,
               lng: DISPATCH_LNG,
             },
           })

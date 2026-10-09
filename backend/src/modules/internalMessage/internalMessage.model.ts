@@ -4,7 +4,8 @@ const internalMessageSchema = new Schema(
   {
     conversation: { type: Schema.Types.ObjectId, ref: "InternalConversation", required: true, index: true },
     sender: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    text: { type: String, required: true, trim: true, maxlength: 4000 },
+    text: { type: String, default: "", trim: true, maxlength: 4000 },
+    imageUrl: { type: String },
   },
   {
     timestamps: true,

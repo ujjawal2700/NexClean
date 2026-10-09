@@ -240,14 +240,21 @@ export function useAgentDispatch(): AgentDispatch {
     if (!authenticated || sessionReplaced) return;
     let disposed = false;
     let requestId = 0;
+    let inFlight: AbortController | null = null;
     const checkOffer = () => {
       // Middleware rejections do not trigger Socket.IO's automatic reconnect.
       // Retry transient authentication/DB failures on the same safety cadence.
       const socket = socketRef.current;
       if (socket && !socket.connected && !socket.active) socket.connect();
+      // Do not continually supersede a slow response on a weak network.
+      // A bounded single request can still recover an offer after >5 seconds.
+      if (inFlight) return;
+      const controller = new AbortController();
+      inFlight = controller;
+      const timeout = window.setTimeout(() => controller.abort(), 12_000);
       const id = ++requestId;
       const versionAtRequest = offerEventVersionRef.current;
-      fetchCurrentOffer()
+      fetchCurrentOffer(controller.signal)
         .then((o) => {
           // A socket event that arrived after this request began is newer than
           // its response. Never let a slow `null` reconciliation erase that
@@ -255,7 +262,11 @@ export function useAgentDispatch(): AgentDispatch {
           if (disposed || id !== requestId || offerEventVersionRef.current !== versionAtRequest) return;
           setOffer(o && new Date(o.expiresAt).getTime() > Date.now() ? o : null);
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          window.clearTimeout(timeout);
+          if (inFlight === controller) inFlight = null;
+        });
     };
     checkOfferRef.current = checkOffer;
     checkOffer();
@@ -270,6 +281,7 @@ export function useAgentDispatch(): AgentDispatch {
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       disposed = true;
+      inFlight?.abort();
       window.clearInterval(poll);
       window.removeEventListener("focus", checkOffer);
       document.removeEventListener("visibilitychange", onVisibility);

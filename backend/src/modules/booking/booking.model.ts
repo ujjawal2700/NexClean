@@ -147,7 +147,7 @@ const bookingSchema = new Schema(
       // searching  → looking for a cleaner (sequential nearest-first offers)
       // offered    → an offer is currently out to `currentOfferAgent`
       // assigned   → a cleaner accepted / was assigned
-      // pending_admin → radius exhausted, awaiting manual assignment
+      // pending_admin → radius exhausted; visible to admin, retried as agents become available
       // cancelled  → booking cancelled
       enum: ["scheduled", "searching", "offered", "assigned", "pending_admin", "cancelled"],
       default: "assigned",

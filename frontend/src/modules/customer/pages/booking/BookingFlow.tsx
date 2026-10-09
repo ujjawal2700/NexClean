@@ -509,7 +509,7 @@ export function BookingFlow() {
 
       <Stepper current={step} />
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
         {/* step body */}
         <div className="min-w-0">
           <AnimatePresence mode="wait">
@@ -890,7 +890,7 @@ function VehicleStep({
         </div>
       )}
 
-      <p className="mb-3 mt-6 text-sm font-medium text-muted">
+      <p className="mb-2 mt-4 text-sm font-medium text-muted">
         Or search your brand &amp; model
       </p>
       <div className="grid gap-3 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:grid-cols-2">
@@ -906,7 +906,7 @@ function VehicleStep({
 
       {/* Plate and colour help the cleaner find the right car on arrival. */}
       {draft.vehicleType && (
-        <div className="mt-6 space-y-4 rounded-2xl border border-line bg-surface-muted/40 p-4">
+        <div className="mt-4 space-y-3 rounded-2xl border border-line bg-surface-muted/40 p-4">
           <div>
             <p className="font-display font-semibold text-ink">Vehicle details</p>
             <p className="text-sm text-muted">Helps your specialist spot the right car.</p>
@@ -1068,7 +1068,7 @@ function ScheduleStep({
         </div>
       </div>
 
-      <div className="mb-3 mt-6 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-2 mt-4 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium text-muted">Time slot</p>
         {offPeakWindows.length > 0 && (
           <span className="flex items-center gap-1.5 text-[11px] text-emerald-600">
@@ -1413,7 +1413,7 @@ function PaymentSummary({
 
       {/* The order summary alongside is desktop-only, so without this the
           payment step showed no total at all on a phone. */}
-      <div className="mt-6 rounded-2xl border border-line bg-surface-muted/50 p-4">
+      <div className="mt-4 rounded-2xl border border-line bg-surface-muted/50 p-4">
         <dl className="space-y-2 text-sm">
           {(!!appliedDiscount?.discountAmount || coinDiscount > 0 || tax.taxAmount > 0) && (
             <div className="flex items-center justify-between">
@@ -1520,7 +1520,7 @@ function OrderSummary({
   ];
 
   return (
-    <GlassCard className="hidden h-fit lg:block lg:sticky lg:top-24">
+    <GlassCard className="hidden h-fit p-4 lg:block lg:sticky lg:top-24">
       <p className="font-display text-lg font-semibold text-ink">Summary</p>
       <p className="mt-1 text-xs text-muted">
         Step {step + 1} of {STEP_LABELS.length}
@@ -1613,7 +1613,7 @@ function Confirmation({ booking }: { booking: Booking }) {
         Booking ID <span className="font-medium text-ink">{booking.id}</span>
       </p>
 
-      <GlassCard className="mt-8 text-left">
+      <GlassCard className="mt-5 p-4 text-left">
         <dl className="space-y-3 text-sm">
           <Row label="Vehicle" value={booking.vehicleName} />
           <Row label="Package" value={booking.packageName} />

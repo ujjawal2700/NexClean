@@ -4,7 +4,7 @@ import { reachableAgentFilter } from "../user/presence";
 import { Booking } from "../booking/booking.model";
 import { ServiceZone } from "../location/location.model";
 import { haversineMeters, orderZonesByDistance, pointInPolygon, type LngLat } from "../../shared/geo";
-import { MAX_CANDIDATES, MAX_FETCHED_AGENTS, MAX_SEARCH_RADIUS_M } from "./dispatch.config";
+import { MAX_CANDIDATES, MAX_SEARCH_RADIUS_M } from "./dispatch.config";
 
 export type NearbyAgent = {
   id: string;
@@ -41,18 +41,20 @@ export type DispatchTier = {
 type EligibleAgent = { id: string; name: string; coordinates: LngLat };
 
 /** Fetch the raw pool of agents eligible for a new offer, unordered. */
-async function fetchEligibleAgents(excludeAgentIds: (string | Types.ObjectId)[]): Promise<EligibleAgent[]> {
+async function fetchEligibleAgents(point: LngLat, radiusM: number, excludeAgentIds: (string | Types.ObjectId)[]): Promise<EligibleAgent[]> {
   const exclude = excludeAgentIds.map((id) => new Types.ObjectId(String(id)));
   const docs = await User.find({
     role: "agent",
     agentStatus: "verified",
     ...reachableAgentFilter(),
     currentOfferBooking: null,
-    "liveLocation.coordinates": { $exists: true },
+    status: { $ne: "suspended" },
+    // Bound the pool geographically BEFORE ranking. An arbitrary fleet-wide
+    // limit can hide nearby agents behind hundreds of agents in other cities.
+    liveLocation: { $geoWithin: { $centerSphere: [point, radiusM / 6_371_000] } },
     ...(exclude.length ? { _id: { $nin: exclude } } : {}),
   })
     .select("name liveLocation")
-    .limit(MAX_FETCHED_AGENTS)
     .lean();
 
   return docs
@@ -100,19 +102,26 @@ export async function findNearestEligibleAgents(
   limit = MAX_CANDIDATES,
   ring?: LngLat[] | null,
 ): Promise<NearbyAgent[]> {
-  const pool = await fetchEligibleAgents(excludeAgentIds);
+  const pool = await fetchEligibleAgents(point, radiusM, excludeAgentIds);
   if (pool.length === 0) return [];
 
   const ranked = rankAgentsForTier(point, pool, { ring, radiusM });
   if (ranked.length === 0) return [];
 
-  // Post-filter agents who are mid-job on another booking.
-  const busy = await Booking.find({
-    assignedAgent: { $in: ranked.map((c) => new Types.ObjectId(c.id)) },
-    jobStatus: { $in: ACTIVE_JOB_STATUSES },
-    status: "upcoming",
-  }).distinct("assignedAgent");
-  const busyIds = new Set(busy.map((id) => String(id)));
+  // Check the booking side as well as the reservation. This also protects
+  // older live offers whose agent-side lock was lost during a past restart.
+  const candidateIds = ranked.map((c) => new Types.ObjectId(c.id));
+  const [busy, offered] = await Promise.all([
+    Booking.find({
+      assignedAgent: { $in: candidateIds },
+      jobStatus: { $in: ACTIVE_JOB_STATUSES }, status: "upcoming",
+    }).distinct("assignedAgent"),
+    Booking.find({
+      currentOfferAgent: { $in: candidateIds }, status: "upcoming",
+      dispatchStatus: "offered", offerExpiresAt: { $gt: new Date() },
+    }).distinct("currentOfferAgent"),
+  ]);
+  const busyIds = new Set([...busy, ...offered].map((id) => String(id)));
 
   return ranked.filter((c) => !busyIds.has(c.id)).slice(0, limit);
 }

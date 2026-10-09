@@ -18,17 +18,22 @@ export type PushPayload = {
 
 // Loosely typed to avoid a hard compile-time dependency on firebase-admin
 // when push is running in mock mode.
-let messaging: {
+type MessagingClient = {
   sendEachForMulticast: (msg: unknown) => Promise<{
     successCount: number;
     responses: Array<{ success: boolean; error?: { code?: string; message?: string } }>;
   }>;
-} | null = null;
-let initialized = false;
+};
+let messaging: MessagingClient | null = null;
+let initialization: Promise<MessagingClient | null> | null = null;
 
-async function getMessaging() {
-  if (initialized) return messaging;
-  initialized = true;
+function getMessaging() {
+  // Concurrent sends must await the same initialization. Returning the still
+  // null client during dynamic imports silently treated real pushes as mocks.
+  return initialization ??= initializeMessaging();
+}
+
+async function initializeMessaging() {
   if (!pushEnabled) return null;
 
   try {

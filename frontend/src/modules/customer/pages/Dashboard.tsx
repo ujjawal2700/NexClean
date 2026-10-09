@@ -67,7 +67,7 @@ export function Dashboard() {
   const categoryImageMap = new Map(categories.map((c) => [c.key, c.imageUrl]));
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-3">
       {/* greeting & notification button */}
       <div className="flex items-center justify-between gap-4">
         <div>
@@ -99,7 +99,7 @@ export function Dashboard() {
       {!isGuest && unread > 0 && unreadNotification && (
         <Link
           to="/app/notifications"
-          className="group -mt-4 flex items-center justify-between gap-3 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-primary/5 to-surface p-3.5 shadow-xs transition-all hover:border-primary/40 hover:shadow-sm"
+          className="group flex items-center justify-between gap-3 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 via-primary/5 to-surface p-3.5 shadow-xs transition-all hover:border-primary/40 hover:shadow-sm"
         >
           <div className="flex items-center gap-3 min-w-0">
             <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
@@ -127,8 +127,8 @@ export function Dashboard() {
       )}
 
       {/* hero CTA + next booking */}
-      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-        <div className="relative overflow-hidden rounded-card bg-gradient-to-br from-primary to-primary-soft p-5 text-white shadow-[var(--shadow-glow)] sm:p-8">
+      <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">
+        <div className="relative overflow-hidden rounded-card bg-gradient-to-br from-primary to-primary-soft p-4 text-white shadow-[var(--shadow-glow)] sm:p-6">
           <div
             className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full opacity-40 blur-2xl"
             style={{ background: "radial-gradient(circle, #00C2FF, transparent 70%)" }}
@@ -143,7 +143,7 @@ export function Dashboard() {
             <p className="mt-1.5 text-sm text-white/85 sm:mt-2 sm:max-w-sm">
               Book a certified specialist to your location in under a minute.
             </p>
-            <Button asChild variant="glass" className="mt-4 bg-white text-primary hover:bg-white sm:mt-6">
+            <Button asChild variant="glass" className="mt-3 !bg-white text-ink hover:!bg-white sm:mt-4">
               <Link to="/app/book">
                 Book a cleaning <ArrowRight className="size-4" />
               </Link>
@@ -152,7 +152,7 @@ export function Dashboard() {
         </div>
 
         {/* next booking */}
-        <GlassCard className="flex flex-col">
+        <GlassCard className="flex flex-col p-4">
           <div className="flex items-center justify-between">
             <p className="font-display text-lg font-semibold text-ink">
               {showMembershipFeature ? "Membership plans" : "Next booking"}
@@ -266,7 +266,7 @@ export function Dashboard() {
 
       {/* promotional banners */}
       {banners.length > 0 && (
-        <section className="space-y-4">
+        <section className="space-y-3">
           <div className="flex items-center gap-2">
             <Sparkles className="size-5 text-primary" />
             <h2 className="font-display text-xl font-semibold text-ink">Special Offers</h2>
@@ -312,7 +312,7 @@ export function Dashboard() {
 
       {/* garage — a guest has none yet, so the slot sells the account instead */}
       {isGuest ? (
-        <GlassCard className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <GlassCard className="flex flex-col items-start justify-between gap-3 p-4 sm:flex-row sm:items-center">
           <div>
             <p className="font-display font-semibold text-ink">Your garage</p>
             <p className="mt-1 text-sm text-muted">
@@ -325,64 +325,76 @@ export function Dashboard() {
             </Link>
           </Button>
         </GlassCard>
+      ) : vehicles.length > 0 || meLoading ? (
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="font-display text-xl font-semibold text-ink">Your garage</h2>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/app/profile/vehicles">
+                <Plus className="size-4" /> Manage
+              </Link>
+            </Button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {meLoading
+              ? Array.from({ length: 3 }).map((_, i) => (
+                  <GlassCard key={i} className="flex items-center gap-3 p-3.5">
+                    <Skeleton className="h-16 w-16 shrink-0 rounded-2xl" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-2/3" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                  </GlassCard>
+                ))
+              : vehicles.map((v) => (
+                  <GlassCard key={v.id} interactive className="flex items-center gap-3 p-3.5">
+                    <div className="w-16 shrink-0">
+                      <CarSilhouette type={v.type} imageUrl={categoryImageMap.get(v.type)} uid={`dash-${v.id}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-display font-semibold text-ink">{v.name}</p>
+                      <p className="text-sm text-muted">{categoryLabel(v.type)}</p>
+                      <p className="mt-0.5 text-xs text-muted">{v.plate}</p>
+                    </div>
+                  </GlassCard>
+                ))}
+          </div>
+        </section>
       ) : (
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold text-ink">Your garage</h2>
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/app/profile">
-              <Plus className="size-4" /> Manage
-            </Link>
+        <GlassCard className="flex items-center justify-between gap-3 p-4">
+          <div className="min-w-0">
+            <p className="font-display font-semibold text-ink">Your garage</p>
+            <p className="text-sm text-muted">Add a vehicle for faster booking.</p>
+          </div>
+          <Button asChild size="sm" variant="outline" className="shrink-0">
+            <Link to="/app/profile/vehicles"><Plus className="size-4" /> Add vehicle</Link>
           </Button>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {meLoading
-            ? Array.from({ length: 3 }).map((_, i) => (
-                <GlassCard key={i} className="flex items-center gap-4">
-                  <Skeleton className="h-16 w-24 shrink-0 rounded-2xl" />
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <Skeleton className="h-4 w-2/3" />
-                    <Skeleton className="h-3 w-1/2" />
-                  </div>
-                </GlassCard>
-              ))
-            : vehicles.map((v) => (
-                <GlassCard key={v.id} interactive className="flex items-center gap-4">
-                  <div className="w-24 shrink-0">
-                    <CarSilhouette type={v.type} imageUrl={categoryImageMap.get(v.type)} uid={`dash-${v.id}`} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-display font-semibold text-ink">{v.name}</p>
-                    <p className="text-sm text-muted">{categoryLabel(v.type)}</p>
-                    <p className="mt-0.5 text-xs text-muted">{v.plate}</p>
-                  </div>
-                </GlassCard>
-              ))}
-        </div>
-      </section>
+        </GlassCard>
       )}
 
       {/* plan strip */}
-      <GlassCard className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-3">
-          <span className="grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
-            <CreditCard className="size-5" />
-          </span>
-          <div>
-            <p className="font-display font-semibold text-ink">
-              {activePlan ? `${activePlan[0].toUpperCase()}${activePlan.slice(1)} plan active` : "No active plan"}
-            </p>
-            <p className="text-sm text-muted">
-              {activePlan
-                ? "Enjoy priority scheduling and savings."
-                : "Subscribe and save on every wash."}
-            </p>
+      {!showMembershipFeature && (
+        <GlassCard className="flex flex-col items-start justify-between gap-3 p-4 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-3">
+            <span className="grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
+              <CreditCard className="size-5" />
+            </span>
+            <div>
+              <p className="font-display font-semibold text-ink">
+                {activePlan ? `${activePlan[0].toUpperCase()}${activePlan.slice(1)} plan active` : "No active plan"}
+              </p>
+              <p className="text-sm text-muted">
+                {activePlan
+                  ? "Enjoy priority scheduling and savings."
+                  : "Subscribe and save on every wash."}
+              </p>
+            </div>
           </div>
-        </div>
-        <Button asChild variant={activePlan ? "outline" : "primary"} size="sm">
-          <Link to="/app/plans">{activePlan ? "Manage plan" : "View plans"}</Link>
-        </Button>
-      </GlassCard>
+          <Button asChild variant={activePlan ? "outline" : "primary"} size="sm">
+            <Link to="/app/plans">{activePlan ? "Manage plan" : "View plans"}</Link>
+          </Button>
+        </GlassCard>
+      )}
 
       <p className="text-center text-xs text-muted">
         Starting prices from {formatMoney(PACKAGES[0].factor * cheapestBase)} · Cancel anytime

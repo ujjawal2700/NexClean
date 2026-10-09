@@ -1,3 +1,5 @@
+import { Types } from "mongoose";
+import { chatText, storeChatImage } from "../../shared/utils/chatImage";
 import { InternalConversation } from "./internalConversation.model";
 import { InternalMessage } from "./internalMessage.model";
 import { User } from "../user/user.model";
@@ -27,11 +29,13 @@ function messageDto(message: any) {
     conversationId: String(message.conversation),
     sender: staffDto(message.sender),
     text: message.text,
+    imageUrl: message.imageUrl,
     createdAt: message.createdAt,
   };
 }
 
 async function accessibleConversation(conversationId: string, userId: string) {
+  if (!Types.ObjectId.isValid(conversationId)) throw ApiError.notFound("Conversation not found");
   const conversation = await InternalConversation.findOne({ _id: conversationId, participants: userId });
   if (!conversation) throw ApiError.notFound("Conversation not found");
   return conversation;
@@ -121,16 +125,16 @@ export async function listMessages(conversationId: string, userId: string) {
   return messages.map(messageDto);
 }
 
-export async function sendMessage(conversationId: string, userId: string, rawText: string) {
-  const text = rawText.trim();
-  if (!text) throw ApiError.badRequest("Message text is required");
-  if (text.length > 4000) throw ApiError.badRequest("Message must be 4000 characters or fewer");
+export async function sendMessage(conversationId: string, userId: string, rawText: unknown, image?: unknown) {
+  const text = chatText(rawText);
+  if (!text && image == null) throw ApiError.badRequest("Message text or photo is required");
 
   const conversation = await accessibleConversation(conversationId, userId);
-  const message = await InternalMessage.create({ conversation: conversationId, sender: userId, text });
+  const imageUrl = await storeChatImage(image, `nexclean/internal/${conversationId}`);
+  const message = await InternalMessage.create({ conversation: conversationId, sender: userId, text, imageUrl });
   await message.populate({ path: "sender", select: "name email phone adminRoleId", populate: { path: "adminRoleId", select: "name" } });
 
-  conversation.lastMessagePreview = text.slice(0, 160);
+  conversation.lastMessagePreview = text.slice(0, 160) || "Photo";
   conversation.lastMessageAt = message.createdAt;
   await markConversationRead(conversation, userId);
 

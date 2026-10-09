@@ -146,7 +146,7 @@ async function sendOffer(b: BookingDocument, candidate: NearbyAgent) {
     ? Math.max(1, Math.round((b.offerExpiresAt.getTime() - Date.now()) / 1000))
     : undefined;
   const push = buildOfferPush(payload);
-  await pushToUser(candidate.id, {
+  void pushToUser(candidate.id, {
     ...push,
     jobOffer: true,
     ttlSeconds,
@@ -180,6 +180,7 @@ async function recordMissedOffer(agentId: string): Promise<void> {
 }
 
 async function moveToAdminQueue(b: BookingDocument) {
+  if (b.dispatchStatus === "pending_admin") return;
   // Do not let a concurrent no-candidate search overwrite an offer another
   // caller has just claimed. This is the same booking-side compare-and-swap
   // used when publishing an offer below.
@@ -233,15 +234,9 @@ async function onAssigned(b: BookingDocument, agent: { id: string; name: string 
 /** Kick off the sequential nearest-first search for a freshly created booking. */
 export async function startDispatch(bookingId: string): Promise<void> {
   const b = await Booking.findById(bookingId).populate("user", "name");
-  if (!b) return;
-  b.dispatchStatus = "searching";
-  b.dispatchTierIndex = 0;
-  b.searchRadiusM = 0;
-  b.set("declinedAgents", []);
-  b.dispatchAttempts = 0;
-  b.currentOfferAgent = null;
-  b.offerExpiresAt = null;
-  await b.save();
+  // Booking creation already initializes dispatch fields. A delayed/repeated
+  // kickoff must never save an old snapshot over a live offer or assignment.
+  if (!b || b.status !== "upcoming" || b.assignedAgent || b.dispatchStatus !== "searching") return;
   logBookingEvent(b._id, { type: "searching" });
   emitSearchProgress(b);
   await offerNext(bookingId);
@@ -255,7 +250,7 @@ export async function startDispatch(bookingId: string): Promise<void> {
 export async function offerNext(bookingId: string): Promise<void> {
   const b = await Booking.findById(bookingId).populate("user", "name");
   if (!b || b.status !== "upcoming") return;
-  if (b.dispatchStatus === "assigned" || b.dispatchStatus === "cancelled") return;
+  if (b.assignedAgent || b.dispatchStatus === "assigned" || b.dispatchStatus === "cancelled") return;
 
   const point = bookingPoint(b);
 
@@ -287,10 +282,14 @@ export async function offerNext(bookingId: string): Promise<void> {
       const candidate = candidates[0];
       if (!candidate) continue; // widen to the next tier
 
+      // Resolve configuration before locking: a failed config read must not
+      // leave an agent reserved without a published offer.
+      const expiresAt = new Date(Date.now() + (await getOfferTtlMs()));
+      const leaseUntil = new Date(expiresAt.getTime() + 30_000);
       // Atomically lock the cleaner to this offer (guards concurrent dispatch).
       const locked = await User.updateOne(
-        { _id: candidate.id, currentOfferBooking: null },
-        { currentOfferBooking: b._id },
+        { _id: candidate.id, currentOfferBooking: null, role: "agent", agentStatus: "verified", status: { $ne: "suspended" }, online: true },
+        { currentOfferBooking: b._id, currentOfferLeaseUntil: leaseUntil },
       );
       if (locked.modifiedCount === 0) {
         excluded.push(candidate.id); // taken by another job — skip and retry this tier
@@ -298,16 +297,18 @@ export async function offerNext(bookingId: string): Promise<void> {
         continue;
       }
 
-      const expiresAt = new Date(Date.now() + (await getOfferTtlMs()));
       // Claim the booking as well as the agent. Two HTTP/worker paths can both
       // enter offerNext (timeout + decline, reconnect recovery, etc.). The
       // agent lock alone is insufficient: each path could lock a different
       // agent and the later save would overwrite the first offer, leaving a
       // popup on an agent who can no longer accept it.
+      // On ambiguous DB failure, retain the lease: reconciliation checks the
+      // booking before releasing it, since the write may have committed.
       const claimed = await Booking.findOneAndUpdate(
         {
           _id: b._id,
           status: "upcoming",
+          assignedAgent: null,
           dispatchStatus: b.dispatchStatus,
           currentOfferAgent: b.currentOfferAgent ?? null,
           offerExpiresAt: b.offerExpiresAt ?? null,
@@ -327,8 +328,8 @@ export async function offerNext(bookingId: string): Promise<void> {
 
       if (!claimed) {
         await User.updateOne(
-          { _id: candidate.id, currentOfferBooking: b._id },
-          { currentOfferBooking: null },
+          { _id: candidate.id, currentOfferBooking: b._id, currentOfferLeaseUntil: leaseUntil },
+          { currentOfferBooking: null, currentOfferLeaseUntil: null },
         );
         return;
       }
@@ -394,7 +395,7 @@ export async function acceptOffer(agentId: string, bookingId: string) {
     throw ApiError.badRequest("This job is no longer available");
   }
 
-  await User.updateOne({ _id: agentId }, { currentOfferBooking: null, missedOffers: 0 });
+  await User.updateOne({ _id: agentId, currentOfferBooking: bookingId }, { currentOfferBooking: null, currentOfferLeaseUntil: null, missedOffers: 0 });
   logBookingEvent(booking._id, { type: "accepted", agentId, agentName: agent.name, actor: "agent", actorName: agent.name });
   await onAssigned(booking, { id: String(agent._id), name: agent.name });
   return booking;
@@ -410,7 +411,7 @@ export async function declineOffer(agentId: string, bookingId: string) {
     },
     { new: true },
   );
-  await User.updateOne({ _id: agentId, currentOfferBooking: bookingId }, { currentOfferBooking: null });
+  await User.updateOne({ _id: agentId, currentOfferBooking: bookingId }, { currentOfferBooking: null, currentOfferLeaseUntil: null });
   // A decline is an answer: the phone is reachable.
   await User.updateOne({ _id: agentId }, { missedOffers: 0 });
   if (booking) {
@@ -510,21 +511,29 @@ export async function releaseJob(agentId: string, bookingId: string, reason: str
   return { ok: true };
 }
 
-/** The current live offer for an agent (used to restore the popup on reconnect). */
-/**
- * Clear an offer lock that points at a booking which no longer exists or is
- * already cancelled/completed. Such a lock makes the cleaner invisible to
- * dispatch ("reviewing another job") indefinitely. Only a dead booking is
- * released: a live one may be mid-way between the agent lock and the booking
- * claim in offerNext, and clearing it there would break that handshake.
- */
+/** Release abandoned reservations without interfering with an in-flight claim. */
 async function releaseDeadOfferLock(agentId: string): Promise<void> {
-  const agent = await User.findById(agentId).select("currentOfferBooking");
+  const agent = await User.findById(agentId).select("currentOfferBooking currentOfferLeaseUntil");
   const held = agent?.currentOfferBooking;
   if (!held) return;
-  const live = await Booking.exists({ _id: held, status: "upcoming" });
+  const now = new Date();
+  // Stamp legacy locks once during rollout. Heartbeats update updatedAt,
+  // so using that field for expiry would keep abandoned locks alive forever.
+  if (!agent.currentOfferLeaseUntil) {
+    await User.updateOne({ _id: agentId, currentOfferBooking: held, currentOfferLeaseUntil: null },
+      { currentOfferLeaseUntil: new Date(now.getTime() + 90_000) });
+    return;
+  }
+  if (agent.currentOfferLeaseUntil > now) return;
+  const live = await Booking.exists({
+    _id: held, status: "upcoming", dispatchStatus: "offered",
+    currentOfferAgent: agentId, offerExpiresAt: { $gt: now },
+  });
   if (live) return;
-  await User.updateOne({ _id: agentId, currentOfferBooking: held }, { currentOfferBooking: null });
+  await User.updateOne({
+    _id: agentId, currentOfferBooking: held,
+    currentOfferLeaseUntil: agent.currentOfferLeaseUntil ?? null,
+  }, { currentOfferBooking: null, currentOfferLeaseUntil: null });
 }
 
 export async function getOfferForAgent(agentId: string) {
@@ -618,13 +627,13 @@ export async function assignAgentToBooking(
 
   // Release any offer locks tied to this booking.
   if (previousOfferAgent) {
-    await User.updateOne({ _id: previousOfferAgent, currentOfferBooking: booking._id }, { currentOfferBooking: null });
+    await User.updateOne({ _id: previousOfferAgent, currentOfferBooking: booking._id }, { currentOfferBooking: null, currentOfferLeaseUntil: null });
     if (previousOfferAgent !== String(agent._id)) {
       revokeAgentTracking(previousOfferAgent, String(booking._id));
       emitToUser(previousOfferAgent, "offer_revoked", { bookingId: String(booking._id) });
     }
   }
-  await User.updateOne({ _id: agent._id, currentOfferBooking: booking._id }, { currentOfferBooking: null });
+  await User.updateOne({ _id: agent._id, currentOfferBooking: booking._id }, { currentOfferBooking: null, currentOfferLeaseUntil: null });
 
   // Tell the assigned cleaner.
   emitToUser(String(agent._id), "job_assigned", { bookingId: String(booking._id) });
@@ -810,42 +819,50 @@ export async function runSubscriptionScheduler(): Promise<void> {
 export async function sweepOffers(): Promise<void> {
   const now = new Date();
   const expired = await Booking.find({
+    status: "upcoming",
     dispatchStatus: "offered",
     offerExpiresAt: { $lt: now },
   }).select("_id currentOfferAgent");
 
   for (const b of expired) {
-    const agentId = b.currentOfferAgent ? String(b.currentOfferAgent) : null;
-    const advanced = await Booking.updateOne(
-      {
-        _id: b._id,
-        dispatchStatus: "offered",
-        currentOfferAgent: b.currentOfferAgent ?? null,
-        offerExpiresAt: { $lt: now },
-      },
-      {
-        ...(agentId ? { $addToSet: { declinedAgents: new Types.ObjectId(agentId) as never } } : {}),
-        $set: { currentOfferAgent: null, offerExpiresAt: null, dispatchStatus: "searching" },
-      },
-    );
-    // Another tick/worker/decline already advanced this exact offer.
-    if (advanced.modifiedCount === 0) continue;
-    if (agentId) logBookingEvent(b._id, { type: "offer_expired", agentId });
-    if (agentId) {
-      await User.updateOne({ _id: agentId, currentOfferBooking: b._id }, { currentOfferBooking: null });
-      revokeAgentTracking(agentId, String(b._id));
-      emitToUser(agentId, "offer_revoked", { bookingId: String(b._id) });
-      await recordMissedOffer(agentId).catch((err) =>
-        console.error("missed-offer tracking failed:", (err as Error).message),
+    try {
+      const agentId = b.currentOfferAgent ? String(b.currentOfferAgent) : null;
+      const advanced = await Booking.updateOne(
+        {
+          _id: b._id,
+          status: "upcoming",
+          dispatchStatus: "offered",
+          currentOfferAgent: b.currentOfferAgent ?? null,
+          offerExpiresAt: { $lt: now },
+        },
+        {
+          ...(agentId ? { $addToSet: { declinedAgents: new Types.ObjectId(agentId) as never } } : {}),
+          $set: { currentOfferAgent: null, offerExpiresAt: null, dispatchStatus: "searching" },
+        },
       );
+      // Another tick/worker/decline already advanced this exact offer.
+      if (advanced.modifiedCount === 0) continue;
+      if (agentId) logBookingEvent(b._id, { type: "offer_expired", agentId });
+      if (agentId) {
+        await User.updateOne({ _id: agentId, currentOfferBooking: b._id }, { currentOfferBooking: null, currentOfferLeaseUntil: null });
+        revokeAgentTracking(agentId, String(b._id));
+        emitToUser(agentId, "offer_revoked", { bookingId: String(b._id) });
+        await recordMissedOffer(agentId).catch((err) =>
+          console.error("missed-offer tracking failed:", (err as Error).message),
+        );
+      }
+      await offerNext(String(b._id));
+    } catch (err) {
+      console.error("offer expiry recovery failed:", String(b._id), (err as Error).message);
     }
-    await offerNext(String(b._id));
   }
 }
 
 import { sweepAndRescheduleMissedSlots } from "./slotScheduler.service";
 
 let workerHandle: NodeJS.Timeout | null = null;
+let workerRunning = false;
+let lastRecoveryRun = 0;
 let lastSubscriptionRun = 0;
 let lastReminderRun = 0;
 const SUBSCRIPTION_TICK_MS = 30_000;
@@ -853,12 +870,18 @@ const SUBSCRIPTION_TICK_MS = 30_000;
 export function startDispatchWorker() {
   if (workerHandle) return;
   workerHandle = setInterval(() => {
+    if (workerRunning) return;
+    workerRunning = true;
     void (async () => {
       try {
         await sweepOffers();
         await sweepAndRescheduleMissedSlots().catch((err) =>
           console.error("missed slot sweep failed:", (err as Error).message),
         );
+        if (Date.now() - lastRecoveryRun >= 10_000) {
+          lastRecoveryRun = Date.now();
+          await recoverDispatch();
+        }
         if (Date.now() - lastSubscriptionRun >= SUBSCRIPTION_TICK_MS) {
           lastSubscriptionRun = Date.now();
           await runSubscriptionScheduler();
@@ -871,6 +894,8 @@ export function startDispatchWorker() {
         }
       } catch (err) {
         console.error("dispatch worker tick failed:", (err as Error).message);
+      } finally {
+        workerRunning = false;
       }
     })();
   }, SWEEP_INTERVAL_MS);
@@ -886,28 +911,36 @@ export function stopDispatchWorker() {
 }
 
 /**
- * Startup recovery (single-instance): release stale offer locks, reset
- * in-flight offers, and re-drive any bookings still searching.
+ * Repair abandoned reservations and retry unassigned jobs when availability
+ * changes (GPS arrives, an agent comes online, or finishes another job).
+ * Declines remain excluded; admin visibility is retained until an offer wins.
  */
-export async function resumeDispatch(): Promise<void> {
-  await User.updateMany({ role: "agent", currentOfferBooking: { $ne: null } }, { currentOfferBooking: null });
-  await Booking.updateMany(
-    { dispatchStatus: "offered" },
-    { $set: { dispatchStatus: "searching", currentOfferAgent: null, offerExpiresAt: null } },
-  );
-
-  // Auto-reschedule any past missed slots on startup
-  await sweepAndRescheduleMissedSlots().catch((err) =>
-    console.error("startup missed slot sweep failed:", (err as Error).message),
-  );
-
-  const pending = await Booking.find({
-    dispatchStatus: "searching",
-    status: "upcoming",
-    assignedAgent: null,
+export async function recoverDispatch(): Promise<void> {
+  const staleLocks = await User.find({
+    role: "agent", currentOfferBooking: { $ne: null },
+    $or: [
+      { currentOfferLeaseUntil: { $lte: new Date() } },
+      { currentOfferLeaseUntil: null },
+    ],
   }).select("_id");
-  for (const b of pending) {
-    await offerNext(String(b._id)).catch((err) => console.error("resume offer failed:", (err as Error).message));
+  for (const agent of staleLocks) {
+    await releaseDeadOfferLock(String(agent._id)).catch((err) =>
+      console.error("offer lock recovery failed:", (err as Error).message));
   }
-  if (pending.length) console.log(`🛰️  Resumed dispatch for ${pending.length} booking(s)`);
+  const pending = await Booking.find({
+    dispatchStatus: { $in: ["searching", "pending_admin"] },
+    status: "upcoming", assignedAgent: null,
+    "location.coordinates.0": { $exists: true },
+  }).sort({ createdAt: 1 }).select("_id");
+  for (const b of pending) {
+    await offerNext(String(b._id)).catch((err) => console.error("dispatch recovery failed:", (err as Error).message));
+  }
+}
+
+/** Preserve valid offers across restarts, including rolling multi-worker restarts. */
+export async function resumeDispatch(): Promise<void> {
+  await sweepOffers();
+  await sweepAndRescheduleMissedSlots().catch((err) =>
+    console.error("startup missed slot sweep failed:", (err as Error).message));
+  await recoverDispatch();
 }

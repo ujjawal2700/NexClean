@@ -78,18 +78,18 @@ export function Profile() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-3">
       {/* Title */}
       <h1 className="font-display text-2xl text-ink sm:text-3xl">Profile</h1>
 
       {/* User Header Info Card */}
-      <GlassCard className="flex flex-col sm:flex-row items-center gap-5 p-6 bg-gradient-to-br from-surface to-surface-muted/30">
-        <div className="size-20 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-display text-2xl font-bold text-primary shadow-sm shrink-0">
+      <GlassCard className="flex items-center gap-3 p-4 bg-gradient-to-br from-surface to-surface-muted/30">
+        <div className="size-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center font-display text-2xl font-bold text-primary shadow-sm shrink-0">
           {getInitials()}
         </div>
-        <div className="text-center sm:text-left space-y-1 min-w-0 flex-1">
-          <div className="flex items-center justify-center gap-2 sm:justify-start">
-            <h2 className="font-display text-2xl font-bold text-ink truncate">
+        <div className="text-left space-y-1 min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="font-display text-xl font-bold text-ink truncate">
               {me?.name || "Specialist"}
             </h2>
             {verified && (
@@ -97,21 +97,14 @@ export function Profile() {
             )}
           </div>
           <p className="text-sm text-ink-soft truncate">{me?.phone}</p>
-          <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-muted pt-1">
-            <Star className="size-4 fill-primary text-primary" />
-            <span className="font-bold text-ink">
-              {me?.rating ? Number(me.rating).toFixed(1) : "New"}
-            </span>
-            {(me?.ratingCount ?? 0) > 0 && <span>({me?.ratingCount} reviews)</span>}
-            <span>· {me?.jobsDone ?? 0} jobs done</span>
-          </div>
+
         </div>
       </GlassCard>
 
       {/* Account Summary Stats */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2">
         <Link to="/agent/reviews" aria-label="See my reviews">
-          <GlassCard className="h-full p-4 text-center transition-colors hover:border-primary/30">
+          <GlassCard className="h-full p-3 text-center transition-colors hover:border-primary/30">
             <p className="font-display text-xl font-bold text-primary">
               {me?.rating ? `${Number(me.rating).toFixed(1)}★` : "New"}
             </p>
@@ -120,7 +113,7 @@ export function Profile() {
             </p>
           </GlassCard>
         </Link>
-        <GlassCard className="p-4 text-center">
+        <GlassCard className="p-3 text-center">
           <p className="font-display text-xl font-bold text-ink">
             {me?.jobsDone ?? 0}
           </p>
@@ -128,8 +121,8 @@ export function Profile() {
             Jobs done
           </p>
         </GlassCard>
-        <GlassCard className="col-span-2 p-4 text-center sm:col-span-1">
-          <p className="font-display text-xl font-bold text-emerald-600 capitalize">
+        <GlassCard className="p-3 text-center">
+          <p className="font-display text-sm font-bold leading-7 text-emerald-600 capitalize">
             {verified ? "Verified" : (me?.agentStatus ?? "—")}
           </p>
           <p className="text-[10px] uppercase font-bold tracking-wider text-muted mt-0.5">
@@ -139,7 +132,7 @@ export function Profile() {
       </div>
 
       {/* Account Details Card */}
-      <GlassCard className="space-y-4 p-5 sm:p-6">
+      <GlassCard className="space-y-1 p-4">
         <div className="flex items-center justify-between border-b border-line/50 pb-2">
           <h3 className="font-display text-lg font-semibold text-ink">
             Account Summary
@@ -173,7 +166,7 @@ export function Profile() {
       </GlassCard>
 
       {/* Availability Toggle Option */}
-      <GlassCard className="flex items-center justify-between p-5 border border-line bg-surface">
+      <GlassCard className="flex items-center justify-between gap-3 p-3.5 border border-line bg-surface">
         <div className="flex items-center gap-3">
           <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">
             <Power className="size-4.5" />
@@ -203,11 +196,11 @@ export function Profile() {
           Settings &amp; Preferences
         </h3>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           {/* Edit Profile Link */}
           {isUnverified ? (
             <div className="opacity-50 cursor-not-allowed h-full">
-              <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface h-full">
+              <GlassCard className="flex items-center gap-3 p-3.5 border border-line bg-surface h-full">
                 <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
                   <Pencil className="size-4.5" />
                 </span>
@@ -224,7 +217,7 @@ export function Profile() {
             </div>
           ) : (
             <Link to="/agent/profile/edit">
-              <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+              <GlassCard className="flex items-center gap-3 p-3.5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
                 <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
                   <Pencil className="size-4.5" />
                 </span>
@@ -243,7 +236,7 @@ export function Profile() {
 
           {/* Reviews Link */}
           <Link to="/agent/reviews">
-            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+            <GlassCard className="flex items-center gap-3 p-3.5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-400/15 text-amber-500">
                 <Star className="size-4.5 fill-amber-400" />
               </span>
@@ -261,7 +254,7 @@ export function Profile() {
 
           {/* Payouts Link */}
           <Link to="/agent/payouts">
-            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+            <GlassCard className="flex items-center gap-3 p-3.5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
                 <Wallet className="size-4.5" />
               </span>
@@ -279,7 +272,7 @@ export function Profile() {
 
           {/* Bank Account Link */}
           <Link to="/agent/profile/bank-account">
-            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+            <GlassCard className="flex items-center gap-3 p-3.5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
                 <Landmark className="size-4.5" />
               </span>
@@ -297,7 +290,7 @@ export function Profile() {
 
           {/* Help & Support Link */}
           <Link to="/agent/help">
-            <GlassCard className="flex items-center gap-3 p-5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
+            <GlassCard className="flex items-center gap-3 p-3.5 border border-line bg-surface hover:bg-surface-muted/20 hover:border-primary/20 transition-all duration-300 cursor-pointer h-full">
               <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
                 <HelpCircle className="size-4.5" />
               </span>
@@ -323,7 +316,7 @@ export function Profile() {
       </GlassCard>
 
       {/* Account Action Buttons */}
-      <div className="space-y-3 pt-4">
+      <div className="grid grid-cols-2 gap-2 pt-1">
         <Button
           variant="outline"
           onClick={handleLogout}

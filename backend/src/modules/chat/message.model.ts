@@ -5,7 +5,8 @@ const chatMessageSchema = new Schema(
     ticket: { type: Schema.Types.ObjectId, ref: "SupportTicket", required: true, index: true },
     sender: { type: Schema.Types.ObjectId, ref: "User", required: true },
     senderType: { type: String, enum: ["customer", "staff"], required: true },
-    text: { type: String, required: true },
+    text: { type: String, default: "", maxlength: 4000 },
+    imageUrl: { type: String },
   },
   {
     timestamps: true,

@@ -46,13 +46,13 @@ export function Jobs() {
         <h1 className="font-display text-2xl text-ink sm:text-3xl">Jobs</h1>
       </div>
 
-      <div className="mb-6 inline-flex gap-1 rounded-pill border border-line bg-surface/70 p-1">
+      <div className="mb-3 inline-flex gap-1 rounded-pill border border-line bg-surface/70 p-1">
         {FILTERS.map((f) => (
           <button
             key={f.id}
             onClick={() => setFilter(f.id)}
             className={cn(
-              "rounded-pill px-4 py-1.5 text-sm font-medium transition-colors",
+              "rounded-pill min-h-10 px-4 py-1.5 text-sm font-medium transition-colors",
               filter === f.id ? "bg-primary text-white" : "text-muted hover:text-ink",
             )}
           >
@@ -66,38 +66,34 @@ export function Jobs() {
       ) : list.length === 0 ? (
         <GlassCard className="py-16 text-center text-muted">No jobs here.</GlassCard>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-2.5 md:grid-cols-2">
           {list.map((j) => (
             <Link key={j.id} to={`/agent/jobs/${j.id}`} className="block">
-              <GlassCard interactive className="flex items-center gap-4">
-                <div className="w-24 shrink-0">
-                  <CarSilhouette type={j.vehicleType} uid={`job-${j.id}`} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-display text-lg font-semibold text-ink">{j.vehicleName}</p>
-                    <span className={cn("rounded-pill px-2.5 py-0.5 text-xs font-medium", STATUS_STYLES[j.status])}>
+              <GlassCard interactive className="h-full p-3.5 sm:p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-16 shrink-0 sm:w-20">
+                    <CarSilhouette type={j.vehicleType} uid={`job-${j.id}`} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-base font-semibold text-ink [overflow-wrap:anywhere]">{j.vehicleName}</p>
+                    <p className="mt-0.5 text-xs text-muted">{j.packageName} · {VEHICLE_LABEL[j.vehicleType]}</p>
+                    <p className="mt-1 truncate text-xs text-ink-soft">{j.customerName}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-display text-base font-semibold text-ink">{formatMoney(j.payout)}</p>
+                    <span className={cn("mt-1 inline-block rounded-pill px-2 py-0.5 text-[10px] font-medium", STATUS_STYLES[j.status])}>
                       {STATUS_LABEL[j.status]}
                     </span>
                   </div>
-                  <p className="text-sm text-muted">
-                    {j.customerName} · {j.packageName} · {VEHICLE_LABEL[j.vehicleType]}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-ink-soft">
-                    <span className="flex items-center gap-1.5">
-                      <Clock className="size-4 text-primary" /> {formatDate(j.date)} · {j.slot}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <MapPin className="size-4 text-primary" /> {j.addressLabel}
-                    </span>
-                    <span className="hidden items-center gap-1.5 sm:flex">
-                      <Navigation className="size-4 text-primary" /> {j.distanceKm != null ? `${j.distanceKm} km` : "Nearby"}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-line/60 pt-2.5 text-xs text-ink-soft">
+                  <div className="min-w-0 space-y-1">
+                    <span className="flex items-center gap-1.5"><Clock className="size-3.5 shrink-0 text-primary" /> {formatDate(j.date)} · {j.slot}</span>
+                    <span className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0 text-primary" /><span className="truncate">{j.addressLabel}</span>
+                      <span className="hidden items-center gap-1 sm:flex"><Navigation className="size-3.5" />{j.distanceKm != null ? `${j.distanceKm} km` : "Nearby"}</span>
                     </span>
                   </div>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <p className="font-display text-lg font-semibold text-ink">{formatMoney(j.payout)}</p>
-                  <ChevronRight className="size-5 text-muted" />
+                  <ChevronRight className="size-4 shrink-0 text-muted" />
                 </div>
               </GlassCard>
             </Link>

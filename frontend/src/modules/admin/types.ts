@@ -784,5 +784,6 @@ export type InternalMessage = {
   conversationId: string;
   sender: InternalMessageContact;
   text: string;
+  imageUrl?: string;
   createdAt: string;
 };

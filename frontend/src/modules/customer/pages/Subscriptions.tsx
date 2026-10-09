@@ -366,7 +366,7 @@ export function Subscriptions() {
     const canSchedule = !expired && remaining > 0;
 
     return (
-      <div className="space-y-8">
+      <div className="space-y-4">
         <div className="sticky top-0 z-20 -mx-4 flex flex-col gap-4 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:flex-row sm:items-start sm:justify-between sm:px-5">
           <div>
             <div className="flex items-center gap-3">
@@ -709,7 +709,7 @@ export function Subscriptions() {
   // --- RENDER 2: Subscriptions Catalog Catalog ---
   return (
     <div>
-      <div className="sticky top-0 z-20 -mx-4 mb-5 flex flex-col gap-4 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:flex-row sm:items-start sm:justify-between sm:px-5">
+      <div className="sticky top-0 z-20 -mx-4 mb-3 flex flex-col gap-2 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:flex-row sm:items-start sm:justify-between sm:px-5">
         <div>
           <div className="flex items-center gap-3">
             <button
@@ -722,7 +722,7 @@ export function Subscriptions() {
               Subscription plans
             </h1>
           </div>
-          <p className="mt-2 text-sm text-muted pl-12">
+          <p className="mt-1 text-sm text-muted pl-12">
             Subscribe once, save on every wash. Cancel anytime.
           </p>
         </div>
@@ -740,7 +740,7 @@ export function Subscriptions() {
       {/* Vehicle selector — pricing varies by vehicle type. */}
       {ownedTypes.length > 0 ? (
         ownedTypes.length > 1 && (
-          <div className="mb-6 flex flex-wrap items-center gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted">Pricing for</span>
             {ownedTypes.map((t) => (
               <button
@@ -758,7 +758,7 @@ export function Subscriptions() {
           </div>
         )
       ) : (
-        <p className="mb-6 text-sm text-muted">
+        <p className="mb-3 text-sm text-muted">
           {isGuest
             ? "Log in and add a vehicle to see its exact price — showing the lowest tier for now."
             : "Add a vehicle in your profile to see its exact price — showing the lowest tier for now."}
@@ -767,7 +767,7 @@ export function Subscriptions() {
 
       {plansLoading && <p className="text-muted">Loading plans…</p>}
 
-      <div className="grid items-stretch gap-6 lg:grid-cols-3">
+      <div className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {plans.map((plan) => {
           const meta = planCopy(plan);
           const active = activePlan === plan.id;
@@ -782,19 +782,19 @@ export function Subscriptions() {
               data-testid={`plan-card-${plan.id}`}
               onClick={openDetails}
               className={cn(
-                "relative flex h-full cursor-pointer flex-col rounded-card border p-7 transition-transform",
+                "relative flex h-full cursor-pointer flex-col rounded-2xl border p-4 sm:p-5 transition-transform",
                 meta.featured
-                  ? "border-primary/30 bg-gradient-to-br from-primary to-primary-soft text-white shadow-[var(--shadow-glow)] lg:-translate-y-3"
+                  ? "border-primary/30 bg-gradient-to-br from-primary to-primary-soft text-white shadow-[var(--shadow-glow)]"
                   : "border-line bg-surface/70 shadow-[var(--shadow-soft)]",
               )}>
               {meta.featured && (
-                <span className="absolute right-6 top-6 rounded-pill bg-white/20 px-3 py-1 text-xs font-medium backdrop-blur">
+                <span className="absolute right-4 top-4 rounded-pill bg-white/20 px-3 py-1 text-xs font-medium backdrop-blur">
                   Popular
                 </span>
               )}
               <h2
                 className={cn(
-                  "font-display text-2xl font-semibold",
+                  "pr-20 font-display text-xl font-semibold",
                   meta.featured ? "text-white" : "text-ink",
                 )}>
                 {plan.name}
@@ -808,7 +808,7 @@ export function Subscriptions() {
                   {meta.tagline}
                 </p>
               ) : null}
-              <div className="mt-5 flex items-end gap-1">
+              <div className="mt-3 flex items-end gap-1">
                 {!vehicleType && (
                   <span
                     className={cn(
@@ -818,7 +818,7 @@ export function Subscriptions() {
                     from
                   </span>
                 )}
-                <span className="font-display text-3xl font-semibold sm:text-4xl">
+                <span className="font-display text-3xl font-semibold">
                   {formatMoney(priceForPlan(plan))}
                 </span>
                 <span
@@ -840,9 +840,9 @@ export function Subscriptions() {
               )}
 
               {features.length > 0 && (
-                <ul className="mt-6 space-y-3">
+                <ul className="mt-3 space-y-2">
                   {features.map((f) => (
-                    <li key={f} className="flex items-center gap-3 text-sm">
+                    <li key={f} className="flex items-center gap-2 text-sm">
                       <span
                         className={cn(
                           "grid size-5 shrink-0 place-items-center rounded-full",
@@ -874,13 +874,13 @@ export function Subscriptions() {
                 }}
                 aria-label={`View ${plan.name} plan details`}
                 className={cn(
-                  "mt-5 inline-flex w-fit cursor-pointer items-center gap-1 rounded-lg text-sm font-medium hover:underline",
+                  "mt-3 inline-flex min-h-10 w-fit cursor-pointer items-center gap-1 rounded-lg text-sm font-medium hover:underline",
                   meta.featured ? "text-white" : "text-primary",
                 )}>
                 View plan details <ChevronRight className="size-4" />
               </button>
 
-              <div className="mt-auto pt-7" onClick={(e) => e.stopPropagation()}>
+              <div className="mt-auto pt-2" onClick={(e) => e.stopPropagation()}>
                 {active && !expired ? (
                   <Button
                     variant={meta.featured ? "glass" : "outline"}
@@ -897,7 +897,7 @@ export function Subscriptions() {
                     variant={meta.featured ? "glass" : "primary"}
                     className={cn(
                       "w-full",
-                      meta.featured && "bg-white text-primary hover:bg-white",
+                      meta.featured && "!bg-white text-ink hover:!bg-white",
                     )}
                     disabled={busy}
                     onClick={() => openCheckout(plan)}>

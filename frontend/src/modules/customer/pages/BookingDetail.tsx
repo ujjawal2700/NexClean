@@ -62,7 +62,7 @@ export function BookingDetail() {
 
   const goBack = () => (window.history.length > 1 ? navigate(-1) : navigate("/app/bookings"));
   const header = (
-    <div className="sticky top-0 z-20 -mx-4 mb-5 flex items-center gap-3 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
+    <div className="sticky top-0 z-20 -mx-4 mb-2 flex items-center gap-3 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
       <button
         onClick={goBack}
         className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-line bg-surface text-ink-soft transition-colors hover:text-primary"
@@ -110,7 +110,7 @@ export function BookingDetail() {
   const canRate = booking.status === "completed" && !booking.review && !!booking.agent;
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="mx-auto max-w-4xl space-y-3 pb-6">
       {header}
 
       {canRate && (
@@ -122,9 +122,9 @@ export function BookingDetail() {
       )}
       {booking.review && <YourReviewCard booking={booking} />}
 
-      <GlassCard>
+      <GlassCard className="p-4">
         <p className="font-display text-lg font-semibold text-ink">Service</p>
-        <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+        <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
           <Detail icon={Package} label="Package" value={booking.packageName} />
           <Detail
             icon={CalendarDays}
@@ -171,7 +171,7 @@ export function BookingDetail() {
         </dl>
 
         {booking.status === "upcoming" && (
-          <div className="mt-5 border-t border-line pt-4">
+          <div className="mt-3 border-t border-line pt-3">
             <Button asChild>
               <Link to={`/app/track/${booking.id}`}>
                 <Radio className="size-4" /> Track live
@@ -233,7 +233,7 @@ function RateServiceCard({
   const send = () => submit.mutate({ rating: stars, comment: comment.trim() || undefined });
 
   return (
-    <GlassCard ref={cardRef} className="scroll-mt-24 border-primary/30" data-testid="rate-service-card">
+    <GlassCard ref={cardRef} className="scroll-mt-24 border-primary/30 p-4" data-testid="rate-service-card">
       <div className="flex items-start gap-3">
         <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-amber-400/15 text-amber-500">
           <Star className="size-5 fill-amber-400" />
@@ -304,7 +304,7 @@ function RateServiceCard({
 function YourReviewCard({ booking }: { booking: BookingDetailData }) {
   const review = booking.review!;
   return (
-    <GlassCard className="border-emerald-500/25" data-testid="your-review-card">
+    <GlassCard className="border-emerald-500/25 p-4" data-testid="your-review-card">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-2 font-display text-lg font-semibold text-ink">
           <Sparkles className="size-5 text-amber-500" /> Your review
@@ -340,7 +340,7 @@ function PhotosCard({ booking }: { booking: BookingDetailData }) {
   }, [open]);
 
   return (
-    <GlassCard data-testid="booking-photos">
+    <GlassCard className="p-4" data-testid="booking-photos">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="flex items-center gap-2 font-display text-lg font-semibold text-ink">
           <Camera className="size-5 text-primary" /> Before &amp; after
@@ -363,7 +363,7 @@ function PhotosCard({ booking }: { booking: BookingDetailData }) {
       </div>
 
       {shown.length === 0 ? (
-        <div className="mt-4 grid place-items-center gap-2 rounded-2xl border border-dashed border-line py-10 text-center text-sm text-muted">
+        <div className="mt-4 grid place-items-center gap-2 rounded-2xl border border-dashed border-line py-5 text-center text-sm text-muted">
           <ImageOff className="size-6" />
           {booking.status === "completed"
             ? `No ${tab} photos were uploaded for this service.`
@@ -430,7 +430,7 @@ function PriceBreakdownCard({ booking: b }: { booking: BookingDetailData }) {
     ...((b.peakUpgradeFeeCharged ?? 0) > 0 ? [{ label: "Peak-slot upgrade fee", value: b.peakUpgradeFeeCharged ?? 0 }] : []),
   ];
   return (
-    <GlassCard data-testid="price-breakdown">
+    <GlassCard className="p-4" data-testid="price-breakdown">
       <p className="font-display text-lg font-semibold text-ink">Price breakdown</p>
       {b.isSubscriptionWash ? (
         <p className="mt-3 text-sm text-muted">This wash is included in your subscription — nothing to pay.</p>
@@ -477,7 +477,7 @@ function InvoiceCard({ booking }: { booking: BookingDetailData }) {
   };
 
   return (
-    <GlassCard data-testid="invoice-card">
+    <GlassCard className="p-4" data-testid="invoice-card">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">

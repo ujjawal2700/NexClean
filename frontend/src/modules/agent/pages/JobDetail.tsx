@@ -186,7 +186,7 @@ export function JobDetail() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-3">
       <div className="sticky top-0 z-20 -mx-4 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
         <Button variant="ghost" size="sm" onClick={() => navigate("/agent/jobs")}>
           <ArrowLeft className="size-4" /> All jobs
@@ -194,13 +194,13 @@ export function JobDetail() {
       </div>
 
       {/* Header */}
-      <GlassCard className="flex flex-col gap-5 sm:flex-row sm:items-center">
-        <div className="w-28 shrink-0">
+      <GlassCard className="grid grid-cols-[4rem_minmax(0,1fr)] gap-x-3 gap-y-2 p-4 sm:grid-cols-[5rem_minmax(0,1fr)]">
+        <div className="w-16 shrink-0 sm:w-20">
           <CarSilhouette type={job.vehicleType} uid={`detail-${job.id}`} />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-2xl font-semibold text-ink">{job.vehicleName}</h1>
+            <h1 className="font-display text-xl font-semibold text-ink [overflow-wrap:anywhere]">{job.vehicleName}</h1>
             <span
               className={cn(
                 "rounded-pill px-2.5 py-0.5 text-xs font-medium",
@@ -210,8 +210,9 @@ export function JobDetail() {
               {STATUS_LABEL[job.status]}
             </span>
           </div>
-          <p className="text-sm text-muted">
-            {job.packageName} · {VEHICLE_LABEL[job.vehicleType]} · #{job.id}
+          <p className="mt-1 text-xs text-muted [overflow-wrap:anywhere]">
+            {job.packageName} · {VEHICLE_LABEL[job.vehicleType]}
+            <span className="mt-1 block text-[10px]" title={job.id}>Job #{job.id.slice(-8).toUpperCase()}</span>
           </p>
           {(job.vehiclePlate || job.vehicleColor || job.vehicleColorHex) && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -237,7 +238,7 @@ export function JobDetail() {
             </div>
           )}
         </div>
-        <div className="text-right">
+        <div className="col-span-2 flex items-center justify-between border-t border-line/60 pt-2">
           <p className="text-xs text-muted">Your payout</p>
           <p className={cn("font-display text-2xl font-semibold", cancelled ? "text-muted line-through" : "text-ink")}>
             {formatMoney(job.payout)}
@@ -262,11 +263,11 @@ export function JobDetail() {
 
       {/* Status progress */}
       {!cancelled && (
-        <GlassCard>
+        <GlassCard className="p-3 sm:p-4">
           <ol className="flex items-center gap-2">
             {STATUS_FLOW.map((s, i) => {
-              const done = i < stepIndex;
-              const active = i === stepIndex;
+              const done = i < stepIndex || job.status === "completed";
+              const active = i === stepIndex && !done;
               return (
                 <li key={s} className="flex flex-1 items-center gap-2 last:flex-none">
                   <div className="flex flex-col items-center gap-1.5 sm:flex-row">
@@ -280,7 +281,7 @@ export function JobDetail() {
                     >
                       {done ? <Check className="size-3.5" /> : i + 1}
                     </span>
-                    <span className={cn("hidden text-xs font-medium sm:inline", active ? "text-ink" : "text-muted")}>
+                    <span className={cn("text-[9px] font-medium sm:text-xs", active ? "text-ink" : "text-muted")}>
                       {STATUS_LABEL[s as JobStatus]}
                     </span>
                   </div>
@@ -305,7 +306,7 @@ export function JobDetail() {
       )}
 
       {/* Customer + location */}
-      <GlassCard className="space-y-4">
+      <GlassCard className="space-y-3 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="grid size-11 place-items-center rounded-full bg-primary/10 font-display font-semibold text-primary">
@@ -321,7 +322,7 @@ export function JobDetail() {
           </Button>
         </div>
 
-        <div className="rounded-2xl border border-line bg-surface-muted/40 p-4">
+        <div className="rounded-2xl border border-line bg-surface-muted/40 p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-2.5">
               <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
@@ -365,7 +366,7 @@ export function JobDetail() {
 
       {/* ── BEFORE PHOTOS SECTION (When arrived or in progress or completed) ── */}
       {(job.status === "arrived" || job.status === "in_progress" || job.status === "completed") && (
-        <GlassCard className="space-y-4">
+        <GlassCard className="space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="font-display text-lg font-semibold text-ink">Before Wash Photos</p>
@@ -399,7 +400,7 @@ export function JobDetail() {
 
       {/* ── AFTER PHOTOS SECTION (When in progress or completed) ── */}
       {(job.status === "in_progress" || job.status === "completed") && (
-        <GlassCard className="space-y-4">
+        <GlassCard className="space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="font-display text-lg font-semibold text-ink">After Wash Photos</p>
@@ -471,7 +472,7 @@ export function JobDetail() {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 rounded-card border border-emerald-500/30 bg-emerald-50/60 p-5 text-emerald-700"
+          className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-50/60 p-4 text-emerald-700"
         >
           <CheckCircle2 className="size-6" />
           <div>

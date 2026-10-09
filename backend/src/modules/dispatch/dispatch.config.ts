@@ -27,13 +27,6 @@ export const OFFER_BATCH = Number(process.env.DISPATCH_OFFER_BATCH ?? 1);
 /** Max candidates to pull from a geo query per radius step. */
 export const MAX_CANDIDATES = 25;
 
-/**
- * Safety cap on how many eligible-agent documents a single dispatch attempt
- * will fetch before ranking them in JS (see dispatch.query.ts). Not a tuning
- * knob like the above — just a ceiling against a pathological fleet size.
- */
-export const MAX_FETCHED_AGENTS = 500;
-
 /** How often the sweeper checks for expired offers + due subscription washes. */
 export const SWEEP_INTERVAL_MS = Number(process.env.DISPATCH_SWEEP_INTERVAL_MS ?? 2_000);
 

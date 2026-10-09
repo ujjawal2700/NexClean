@@ -441,10 +441,10 @@ export function useReopenTicket() {
 export function useSendMessage() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { ticketId: string; text: string }) =>
+    mutationFn: (vars: { ticketId: string; text: string; image?: string }) =>
       apiFetch<ChatMessage>(`/chat/tickets/${vars.ticketId}/messages`, {
         method: "POST",
-        body: { text: vars.text },
+        body: { text: vars.text, image: vars.image },
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["chat", "tickets", vars.ticketId, "messages"] });

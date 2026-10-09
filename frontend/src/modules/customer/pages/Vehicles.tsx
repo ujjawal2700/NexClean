@@ -55,7 +55,7 @@ export function Vehicles() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-4xl space-y-3">
       <div className="sticky top-0 z-20 -mx-4 flex items-center gap-3 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
         <button
           onClick={() => navigate(-1)}
@@ -67,7 +67,7 @@ export function Vehicles() {
         <h1 className="font-display text-2xl text-ink sm:text-3xl">Your garage</h1>
       </div>
 
-      <GlassCard>
+      <GlassCard className="p-4">
         <div className="flex items-center justify-between">
           <p className="font-display text-lg font-semibold text-ink">Vehicles</p>
           <Button variant="ghost" size="sm" onClick={() => setShowVehicle((v) => !v)}>
@@ -97,10 +97,10 @@ export function Vehicles() {
           </div>
         )}
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {vehicles.map((v) => (
-            <div key={v.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4">
-              <div className="w-20 shrink-0">
+            <div key={v.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3">
+              <div className="w-16 shrink-0">
                 <CarSilhouette type={v.type} imageUrl={categoryImageMap.get(v.type)} uid={`prof-${v.id}`} />
               </div>
               <div className="min-w-0 flex-1">
@@ -117,7 +117,7 @@ export function Vehicles() {
               </div>
               <button
                 onClick={() => removeVehicle.mutate(v.id)}
-                className="grid size-9 place-items-center rounded-full text-muted transition-colors hover:bg-red-50 hover:text-red-500"
+                className="grid size-11 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-red-50 hover:text-red-500"
                 aria-label={`Remove ${v.name}`}
               >
                 <Trash2 className="size-4" />

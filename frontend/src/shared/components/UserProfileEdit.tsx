@@ -225,10 +225,10 @@ export function UserProfileEdit({
       : "U";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 sm:space-y-6">
+    <div className="mx-auto max-w-3xl space-y-3">
       {/* Header Profile Summary */}
-      <GlassCard className="flex items-start gap-3 overflow-hidden bg-gradient-to-br from-primary/[0.08] via-surface to-surface p-5 sm:items-center sm:gap-5 sm:p-6">
-        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-accent text-lg font-bold text-white shadow-md sm:size-16 sm:text-2xl">
+      <GlassCard className="flex items-start gap-3 overflow-hidden bg-gradient-to-br from-primary/[0.08] via-surface to-surface p-4 sm:items-center sm:gap-4">
+        <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary to-accent text-lg font-bold text-white shadow-md sm:size-12 sm:text-xl">
           {initialChar}
         </span>
 
@@ -249,7 +249,7 @@ export function UserProfileEdit({
       </GlassCard>
 
       {/* Section 1: Edit Profile Details */}
-      <GlassCard className="space-y-5 p-5 sm:p-6">
+      <GlassCard className="space-y-3 p-4">
         <div className="flex items-center gap-2 border-b border-line/60 pb-3">
           <UserIcon className="size-5 text-primary" />
           <h3 className="font-display text-lg font-semibold text-ink">Personal Information</h3>
@@ -269,8 +269,8 @@ export function UserProfileEdit({
           </div>
         )}
 
-        <form onSubmit={handleSaveProfile} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={handleSaveProfile} className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Input
               name="name"
               label="Full Name"
@@ -307,7 +307,7 @@ export function UserProfileEdit({
           </div>
 
           <div className="pt-1 sm:pt-2">
-            <Button type="submit" size="sm" disabled={profileSaving} className="w-full sm:w-auto">
+            <Button type="submit" size="md" disabled={profileSaving} className="w-full sm:w-auto">
               {profileSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Save Profile Changes
             </Button>
@@ -316,7 +316,7 @@ export function UserProfileEdit({
       </GlassCard>
 
       {/* Section 2: Password Reset with OTP Verification */}
-      <GlassCard className="space-y-5 p-5 sm:p-6">
+      <GlassCard className="space-y-3 p-4">
         <div className="flex items-center gap-2 border-b border-line/60 pb-3">
           <ShieldCheck className="size-5 text-primary" />
           <h3 className="font-display text-lg font-semibold text-ink">Password &amp; Security</h3>
@@ -334,9 +334,9 @@ export function UserProfileEdit({
             </p>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-3">
             {/* Step 1 & 2: OTP Verification Card */}
-            <div className="space-y-4 rounded-2xl border border-line bg-surface-muted/40 p-4 sm:p-5">
+            <div className="space-y-3 rounded-xl border border-line bg-surface-muted/40 p-3">
               <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
                 <div className="min-w-0">
                   <p className="font-semibold text-ink text-sm">Security OTP Verification</p>
@@ -397,7 +397,7 @@ export function UserProfileEdit({
             </div>
 
             {/* Step 3: Password Form (Unlocked when verified) */}
-            <form onSubmit={handleChangePassword} className="space-y-4">
+            <form onSubmit={handleChangePassword} className="space-y-3">
               {passwordSuccess && (
                 <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-600">
                   <CheckCircle2 className="size-4 shrink-0" />
@@ -412,7 +412,7 @@ export function UserProfileEdit({
                 </div>
               )}
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Input
                   name="newPassword"
                   label="New Password"
@@ -473,7 +473,7 @@ export function UserProfileEdit({
               </div>
 
               <div className="pt-1">
-                <Button type="submit" size="sm" disabled={otpStep !== "verified" || passwordSaving} className="w-full sm:w-auto">
+                <Button type="submit" size="md" disabled={otpStep !== "verified" || passwordSaving} className="w-full sm:w-auto">
                   {passwordSaving ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
                   Update Password
                 </Button>

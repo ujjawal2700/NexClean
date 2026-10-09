@@ -48,18 +48,16 @@ export async function listMessagesCtl(req: Request, res: Response): Promise<Resp
 
 export async function createMessageCtl(req: Request, res: Response): Promise<Response> {
   const { ticketId } = req.params;
-  const { text } = req.body;
-  if (!text || !text.trim()) {
-    throw ApiError.badRequest("Message text is required");
-  }
+  const { text, image } = req.body ?? {};
   
   const senderType = req.userRole === "admin" ? "staff" : "customer";
   const message = await chatService.saveMessage(
     String(ticketId || ""),
     req.userId!,
     senderType,
-    text.trim(),
+    text,
     req.userRole,
+    image,
   );
   return ok(res, message, "Message sent successfully");
 }

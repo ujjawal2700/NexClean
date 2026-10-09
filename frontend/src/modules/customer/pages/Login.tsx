@@ -74,6 +74,10 @@ export function Login() {
     setError("");
     try {
       const { token, user } = await verifyOtp.mutateAsync({ phone: phoneRef.current, code: otp });
+      if (!user) {
+        setError("This number may belong to an agent account. Please use Agent Login, or try again with your customer number.");
+        return;
+      }
       if (user.role === "agent" || user.role === "cleaner") {
         setError("Agent accounts cannot log in to the customer app.");
         return;

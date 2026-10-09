@@ -1,3 +1,4 @@
+import { PNG_PHOTO } from "../../fixtures/chat-photos";
 import { test, expect } from "@playwright/test";
 import { ADMIN_EMAIL, ADMIN_PASSWORD, authHeader } from "../../fixtures/api-client";
 import { apiUrl } from "../../fixtures/admin-e2e-ops-helpers";
@@ -53,6 +54,32 @@ test("internal messages deliver live and show an unread badge with staff identit
     await staffPage.getByText("Super Admin", { exact: true }).locator("xpath=ancestor::button").click();
     await expect(staffPage.getByTestId("internal-message-text").filter({ hasText: text })).toBeVisible();
     await expect(staffPage.getByText("Super Admin", { exact: true }).last()).toBeVisible();
+    await page.getByLabel("Choose photo", { exact: true }).setInputFiles({ name: "handoff.png", mimeType: "image/png", buffer: Buffer.from(PNG_PHOTO, "base64") });
+    const imageRequest = page.waitForRequest((r) => r.url().includes("/internal-messages/conversations/") && r.url().endsWith("/messages") && r.method() === "POST");
+    await page.getByRole("button", { name: "Send message", exact: true }).click();
+    expect((await imageRequest).postDataJSON().image).toMatch(/^data:image\/webp;base64,/);
+    await expect(staffPage.getByAltText("Shared photo", { exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByAltText("Shared photo", { exact: true })).toBeVisible();
+    await staffPage.getByLabel("Take photo", { exact: true }).setInputFiles({ name: "reply.png", mimeType: "image/png", buffer: Buffer.from(PNG_PHOTO, "base64") });
+    await staffPage.getByRole("button", { name: "Send message", exact: true }).click();
+    await expect(page.getByAltText("Shared photo", { exact: true })).toHaveCount(2);
+
+    // Another staff member cannot read or upload into this private conversation.
+    const outsiderEmail = `outsider-${stamp}@example.com`;
+    const outsiderResponse = await request.post(apiUrl("/admin/staff"), {
+      headers: authHeader(superToken), data: { name: "Outside Staff", email: outsiderEmail, password: staffPassword, adminRoleId: role.id },
+    });
+    const outsider = (await outsiderResponse.json()).data;
+    try {
+      const login = await request.post(apiUrl("/auth/admin-login"), { data: { email: outsiderEmail, password: staffPassword } });
+      const outsiderToken = (await login.json()).data.token;
+      const messagesUrl = (await imageRequest).url();
+      const storedPhoto = (await imageRequest).postDataJSON().image;
+      expect((await request.get(messagesUrl, { headers: authHeader(outsiderToken) })).status()).toBe(404);
+      expect((await request.post(messagesUrl, { headers: authHeader(outsiderToken), data: { image: storedPhoto } })).status()).toBe(404);
+    } finally {
+      await request.delete(apiUrl(`/admin/staff/${outsider.id}`), { headers: authHeader(superToken) });
+    }
   } finally {
     await request.delete(apiUrl(`/admin/staff/${staff.id}`), { headers: authHeader(superToken) });
     await request.delete(apiUrl(`/admin/roles/${role.id}`), { headers: authHeader(superToken) });

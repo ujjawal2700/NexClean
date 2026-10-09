@@ -22,10 +22,10 @@ export async function messages(req: Request, res: Response): Promise<Response> {
 }
 
 export async function send(req: Request, res: Response): Promise<Response> {
-  const text = typeof req.body?.text === "string" ? req.body.text : "";
+  const { text, image } = req.body ?? {};
   return created(
     res,
-    await service.sendMessage(String(req.params.conversationId ?? ""), req.userId!, text),
+    await service.sendMessage(String(req.params.conversationId ?? ""), req.userId!, text, image),
     "Message sent",
   );
 }

@@ -1,3 +1,4 @@
+import { PNG_PHOTO } from "../../fixtures/chat-photos";
 import { test, expect, seedAssignedJob, SEED_AGENT_PHONE } from "../../fixtures/agent-e2e-helpers";
 import { loginAgentUI } from "../../fixtures/ui-helpers";
 
@@ -30,4 +31,16 @@ test.describe("Agent Help & Support", () => {
     await expect(page.getByText(text)).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Message" })).toHaveValue("");
   });
+});
+
+test("agents can attach photos from their fullscreen support conversation", async ({ page }) => {
+  await loginAgentUI(page, SEED_AGENT_PHONE);
+  await page.setViewportSize({ width: 375, height: 899 });
+  await page.goto("/agent/help");
+  await page.getByTestId("support-topic-payment").click();
+  const box = await page.getByTestId("support-chat").boundingBox();
+  expect(box?.width).toBe(375);
+  await page.getByLabel("Choose photo", { exact: true }).setInputFiles({ name: "agent.png", mimeType: "image/png", buffer: Buffer.from(PNG_PHOTO, "base64") });
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByAltText("Shared photo", { exact: true })).toBeVisible();
 });

@@ -1,6 +1,8 @@
+import { ChatComposer } from "@shared/components/chat/ChatComposer";
+import { ChatImage } from "@shared/components/chat/ChatImage";
 import { useState, useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import { MessageSquare, Send, Mail, Phone, Lock, Unlock, Search } from "lucide-react";
+import { MessageSquare, Mail, Phone, Lock, Unlock, Search } from "lucide-react";
 import { Button } from "@shared/ui/Button";
 import {
   useSupportConfig,
@@ -44,7 +46,6 @@ export function ChatPanel() {
   >("all");
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [messageText, setMessageText] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [localOnlineStatus, setLocalOnlineStatus] = useState(false);
 
@@ -180,21 +181,6 @@ export function ChatPanel() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
-
-  const handleSendMessage = async () => {
-    if (!messageText.trim() || !selectedTicketId) return;
-    const text = messageText.trim();
-    setMessageText("");
-
-    try {
-      await sendMessageMutation.mutateAsync({
-        ticketId: selectedTicketId,
-        text,
-      });
-    } catch (err) {
-      console.error("Failed to send message:", err);
-    }
-  };
 
   const handleToggleStatus = async () => {
     if (!selectedTicket) return;
@@ -568,14 +554,13 @@ export function ChatPanel() {
                         )}>
                         <div
                           className={cn(
-                            "max-w-[70%] rounded-2xl px-4 py-2.5 text-sm shadow-sm",
+                            "max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 text-sm shadow-sm",
                             isOwn
                               ? "bg-primary text-white rounded-tr-none"
                               : "bg-surface border border-line text-ink rounded-tl-none",
                           )}>
-                          <p className="leading-relaxed whitespace-pre-line">
-                            {msg.text}
-                          </p>
+                          <ChatImage src={msg.imageUrl} />
+                          {msg.text && <p className="leading-relaxed whitespace-pre-line break-words [overflow-wrap:anywhere]">{msg.text}</p>}
                           <span
                             className={cn(
                               "block mt-1 text-[9px] text-right",
@@ -595,7 +580,7 @@ export function ChatPanel() {
               </div>
 
               {/* Chat Input field */}
-              <div className="border-t border-line p-4 bg-surface shrink-0">
+              <div className="bg-surface shrink-0">
                 {selectedTicket.status === "closed" ? (
                   <div className="flex items-center justify-center gap-1.5 rounded-xl bg-gray-50 border border-line/60 p-3.5 text-xs text-muted italic">
                     <Lock className="size-4 text-muted/80" />
@@ -604,25 +589,7 @@ export function ChatPanel() {
                     </span>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={messageText}
-                      onChange={(e) => setMessageText(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && handleSendMessage()
-                      }
-                      placeholder="Type your response here..."
-                      className="flex-1 h-11 rounded-xl border border-line bg-surface-muted/30 px-4 text-sm text-ink outline-none transition-all focus:border-primary/50 focus:bg-surface focus:ring-1 focus:ring-primary/25"
-                    />
-                    <Button
-                      size="sm"
-                      className="h-11 px-4 rounded-xl"
-                      onClick={handleSendMessage}
-                      disabled={!messageText.trim()}>
-                      <Send className="size-4" />
-                    </Button>
-                  </div>
+                  <ChatComposer key={selectedTicket.id} placeholder="Type your response here..." onSend={(text, image) => sendMessageMutation.mutateAsync({ ticketId: selectedTicket.id, text, image })} />
                 )}
               </div>
             </div>

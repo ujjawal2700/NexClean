@@ -124,13 +124,13 @@ export function Bookings() {
 
       {/* Full-width segmented control; scrolls instead of clipping on very
           narrow phones. */}
-      <div className="mb-6 flex w-full gap-1 overflow-x-auto rounded-pill border border-line bg-surface/70 p-1 [scrollbar-width:none] sm:inline-flex sm:w-auto [&::-webkit-scrollbar]:hidden">
+      <div className="mb-3 flex w-full gap-1 overflow-x-auto rounded-pill border border-line bg-surface/70 p-1 [scrollbar-width:none] sm:inline-flex sm:w-auto [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((f) => (
           <button
             key={f.id}
             onClick={() => setFilter(f.id)}
             className={cn(
-              "flex-1 shrink-0 cursor-pointer whitespace-nowrap rounded-pill px-3 py-1.5 text-sm font-medium transition-colors sm:flex-none sm:px-4",
+              "min-h-10 flex-1 shrink-0 cursor-pointer whitespace-nowrap rounded-pill px-3 py-1.5 text-sm font-medium transition-colors sm:flex-none sm:px-4",
               filter === f.id ? "bg-primary text-white" : "text-muted hover:text-ink",
             )}
           >
@@ -168,16 +168,16 @@ export function Bookings() {
           </Button>
         </GlassCard>
       ) : (
-        <div className="space-y-4">
+        <div className="grid items-start gap-3 md:grid-cols-2">
           {list.map((b) => (
-            <GlassCard key={b.id} className="space-y-4 p-4 sm:p-5">
+            <GlassCard key={b.id} className="space-y-3 p-3.5 sm:p-4">
               {/* Header: car · title · status, spread across the full width. */}
               <div className="flex items-start gap-3">
-                <div className="w-20 shrink-0 overflow-hidden rounded-xl sm:w-24">
+                <div className="w-14 shrink-0 overflow-hidden rounded-xl sm:w-16">
                   <CarSilhouette type={b.vehicleType} uid={`bk-${b.id}`} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-display text-lg font-semibold leading-tight text-ink wrap-anywhere">
+                  <p className="font-display text-base font-semibold leading-tight text-ink wrap-anywhere">
                     {b.vehicleName}
                   </p>
                   <p className="mt-0.5 text-sm text-muted">{b.packageName}</p>
@@ -196,7 +196,7 @@ export function Bookings() {
               </div>
 
               {/* Details: three equal columns so the card reads evenly. */}
-              <dl className="grid grid-cols-3 divide-x divide-line rounded-2xl bg-surface-muted/60 py-3 text-center">
+              <dl className="grid grid-cols-3 divide-x divide-line rounded-xl bg-surface-muted/60 py-2 text-center">
                 <div className="min-w-0 px-2">
                   <dt className="flex items-center justify-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted">
                     <CalendarDays className="size-3.5 text-primary" /> Date
@@ -221,21 +221,16 @@ export function Bookings() {
 
               <CleanerStatus booking={b} />
 
-              <Link
-                to={`/app/bookings/${b.id}`}
-                className="flex items-center justify-between rounded-2xl border border-line px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:border-primary/40 hover:bg-primary/5"
-                data-testid={`booking-details-${b.id}`}
-              >
-                View booking details
-                <ChevronRight className="size-4" />
-              </Link>
-
-              {/* Footer: price on the left, actions on the right. */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-                <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Total</p>
-                  <p className="font-display text-xl font-semibold text-ink">{formatMoney(bookingAmountDue(b))}</p>
-                </div>
+              {/* Keep the amount and primary action together. */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2">
+                <p className="font-display text-lg font-semibold text-ink">
+                  <span className="mr-2 font-sans text-xs font-normal text-muted">Total</span>
+                  {formatMoney(bookingAmountDue(b))}
+                </p>
+                <Link to={`/app/bookings/${b.id}`} data-testid={`booking-details-${b.id}`}
+                  className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary hover:underline">
+                  View booking details <ChevronRight className="size-4" />
+                </Link>
                 {b.status === "completed" && (
                   <div className="flex flex-wrap items-center gap-2">
                     {b.review ? (
@@ -297,11 +292,11 @@ export function Bookings() {
             </GlassCard>
           ))}
 
-          <div ref={sentinel} aria-hidden />
+          <div ref={sentinel} aria-hidden className="md:col-span-2" />
           {hasNextPage ? (
             <Button
               variant="outline"
-              className="w-full"
+              className="w-full md:col-span-2"
               onClick={() => void fetchNextPage()}
               disabled={isFetchingNextPage}
               data-testid="load-more-bookings"

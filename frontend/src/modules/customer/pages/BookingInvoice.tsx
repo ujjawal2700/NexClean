@@ -25,7 +25,7 @@ export function BookingInvoice() {
   };
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="mx-auto max-w-4xl space-y-3 pb-6">
       <div className="sticky top-0 z-20 -mx-4 flex items-center gap-3 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
         <button
           onClick={() => (window.history.length > 1 ? navigate(-1) : navigate(`/app/bookings/${id}`))}
@@ -51,11 +51,7 @@ export function BookingInvoice() {
           </Button>
         </GlassCard>
       ) : (
-        <div className="-mx-1 overflow-x-auto px-1">
-          <div className="min-w-[640px]">
-            <InvoiceDocument invoice={data.invoice} template={data.template} />
-          </div>
-        </div>
+        <InvoiceDocument invoice={data.invoice} template={data.template} />
       )}
     </div>
   );

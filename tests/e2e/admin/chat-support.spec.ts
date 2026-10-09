@@ -1,3 +1,4 @@
+import { PNG_PHOTO } from "../../fixtures/chat-photos";
 import { test, expect } from "@playwright/test";
 import { loginAdminUI } from "../../fixtures/ui-helpers";
 import { authHeader, uniqueName } from "../../fixtures/api-client";
@@ -68,6 +69,15 @@ test.describe("Admin live chat support", () => {
     await sendButton.click();
     await sendResponse;
     await expect(page.getByText(replyText)).toBeVisible();
+
+    // Staff can send an image without a text caption, using the same optimized upload.
+    await page.getByLabel("Choose photo", { exact: true }).setInputFiles({ name: "support.png", mimeType: "image/png", buffer: Buffer.from(PNG_PHOTO, "base64") });
+    const photoRequest = page.waitForRequest((r) => r.url().includes(`/chat/tickets/${ticketId}/messages`) && r.method() === "POST");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    expect((await photoRequest).postDataJSON().image).toMatch(/^data:image\/webp;base64,/);
+    await expect(page.getByAltText("Shared photo", { exact: true })).toBeVisible();
+    const ownerHistory = await page.request.get(`${API_BASE_URL}/chat/tickets/${ticketId}/messages`, { headers: authHeader(customerToken) });
+    expect((await ownerHistory.json()).data.some((m: any) => m.senderType === "staff" && m.imageUrl)).toBe(true);
 
     // Close the ticket.
     const closeResponse = page.waitForResponse(

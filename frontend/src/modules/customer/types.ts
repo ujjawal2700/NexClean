@@ -293,6 +293,7 @@ export type ChatMessage = {
   sender: string;
   senderType: "customer" | "staff";
   text: string;
+  imageUrl?: string;
   createdAt: string;
 };
 

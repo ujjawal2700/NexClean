@@ -324,8 +324,8 @@ export function useRequestPayout() {
 /* -------------------------- Dispatch offers ------------------------------ */
 
 /** The agent's current live offer (used to restore the popup after a reconnect). */
-export function fetchCurrentOffer() {
-  return apiFetch<JobOffer | null>("/agent/offers/current");
+export function fetchCurrentOffer(signal?: AbortSignal) {
+  return apiFetch<JobOffer | null>("/agent/offers/current", { signal });
 }
 
 /** Accept an offer — first cleaner wins; a "no longer available" error means it was taken. */
