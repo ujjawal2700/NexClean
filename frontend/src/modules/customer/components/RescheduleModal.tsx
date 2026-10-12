@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { X, Loader2, Clock, AlertCircle } from "lucide-react";
+import { Loader2, Clock, AlertCircle } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/ui/Button";
 import { ApiError } from "@shared/lib/api";
@@ -15,6 +15,7 @@ import {
 } from "../api/mutations";
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import type { Booking } from "../types";
+import { ScheduleSheet } from "./ScheduleSheet";
 
 /**
  * Move an existing booking.
@@ -154,25 +155,65 @@ export function RescheduleModal({
   const ready = !!date && !!slot && !!quote;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-card bg-surface p-5 shadow-xl sm:rounded-card sm:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="font-display text-xl font-semibold text-ink">
-              Move this booking
-            </h3>
-            <p className="mt-0.5 text-sm text-muted">
-              {booking.packageName} · {booking.vehicleName}
-            </p>
-          </div>
-          <button
+    <ScheduleSheet
+      title="Move this booking"
+      subtitle={`${booking.packageName} · ${booking.vehicleName}`}
+      onClose={() => {
+        if (!reschedule.isPending && !payingOnline) onClose();
+      }}
+      footer={
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          {quote?.requiresPayment ? (
+            <>
+              <Button
+                onClick={() => confirm("cash")}
+                disabled={busy || !ready}
+                className="min-h-12 sm:flex-1">
+                {reschedule.isPending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Moving…
+                  </>
+                ) : (
+                  <>Pay {formatMoney(quote.totalDue)}</>
+                )}
+              </Button>
+              {/* Only offered when a gateway is actually configured — otherwise
+                  the only honest option is paying the cleaner. */}
+              {quote.onlinePaymentAvailable && (
+                <Button
+                  variant="outline"
+                  onClick={payOnlineThenMove}
+                  disabled={busy || !ready}
+                  className="min-h-12 sm:flex-1">
+                  Pay now online
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button
+              onClick={() => confirm()}
+              disabled={busy || !ready}
+              className="min-h-12 sm:flex-1">
+              {reschedule.isPending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Moving…
+                </>
+              ) : (
+                "Confirm new time"
+              )}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
             onClick={onClose}
-            className="text-muted hover:text-ink"
-            aria-label="Close">
-            <X className="size-5" />
-          </button>
+            disabled={reschedule.isPending || payingOnline}
+            className="min-h-12">
+            Cancel
+          </Button>
         </div>
-
+      }
+    >
+      <div>
         <p className="mt-5 text-sm font-medium text-muted">Pick a new date</p>
         <div className="mt-2 flex gap-2.5 overflow-x-auto pb-2">
           {dates.map((d) => {
@@ -182,6 +223,9 @@ export function RescheduleModal({
             return (
               <button
                 key={iso}
+                type="button"
+                aria-pressed={!!selected}
+                disabled={reschedule.isPending || payingOnline}
                 onClick={() => {
                   setDate(iso);
                   setSlot(null);
@@ -229,8 +273,10 @@ export function RescheduleModal({
               return (
                 <button
                   key={s}
+                  type="button"
+                  aria-pressed={selected}
                   onClick={() => setSlot(s)}
-                  disabled={!date}
+                  disabled={!date || reschedule.isPending || payingOnline}
                   className={cn(
                     "relative rounded-xl border px-2 py-2.5 text-sm font-medium transition-all disabled:opacity-50",
                     selected
@@ -296,56 +342,7 @@ export function RescheduleModal({
             </p>
           </div>
         )}
-
-        <div className="mt-5 flex flex-wrap gap-2">
-          {quote?.requiresPayment ? (
-            <>
-              <Button
-                onClick={() => confirm("cash")}
-                disabled={busy || !ready}
-                className="flex-1">
-                {reschedule.isPending ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Moving…
-                  </>
-                ) : (
-                  <>Pay {formatMoney(quote.totalDue)}</>
-                )}
-              </Button>
-              {/* Only offered when a gateway is actually configured — otherwise
-                  the only honest option is paying the cleaner. */}
-              {quote.onlinePaymentAvailable && (
-                <Button
-                  variant="outline"
-                  onClick={payOnlineThenMove}
-                  disabled={busy || !ready}
-                  className="flex-1">
-                  Pay now online
-                </Button>
-              )}
-            </>
-          ) : (
-            <Button
-              onClick={() => confirm()}
-              disabled={busy || !ready}
-              className="flex-1">
-              {reschedule.isPending ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" /> Moving…
-                </>
-              ) : (
-                "Confirm new time"
-              )}
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            disabled={reschedule.isPending}>
-            Cancel
-          </Button>
-        </div>
       </div>
-    </div>
+    </ScheduleSheet>
   );
 }

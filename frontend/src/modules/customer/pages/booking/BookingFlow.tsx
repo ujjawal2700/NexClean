@@ -558,19 +558,6 @@ export function BookingFlow() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Mobile total strip — earlier steps only; the payment step shows a
-              full breakdown of its own, so repeating it there just duplicates. */}
-          {step > 0 && step < 4 && total > 0 && (
-            <div className="mt-6 flex items-center justify-between rounded-2xl border border-line bg-surface-muted/60 px-4 py-3 lg:hidden">
-              <span className="text-sm text-muted">Estimated total</span>
-              <span className="font-display text-lg font-semibold text-ink">
-                {appliedDiscount
-                  ? formatMoney(appliedDiscount.price)
-                  : formatMoney(total)}
-              </span>
-            </div>
-          )}
-
           {/* nav */}
           <div className="mt-6 flex items-center justify-between gap-3">
             <Button

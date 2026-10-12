@@ -238,6 +238,18 @@
   padding-bottom: max(env(safe-area-inset-bottom, 0px), 1.25rem);
 }
 
+/* Reserve Android's three-button navigation height even when an edge-to-edge
+   WebView reports zero insets. Keep an additional gap below the tap targets. */
+.schedule-sheet-actions {
+  padding-bottom: calc(max(var(--mobile-system-bottom), 48px) + 1rem);
+}
+
+@media (min-width: 640px) {
+  .schedule-sheet-actions {
+    padding-bottom: calc(var(--mobile-system-bottom) + 1.5rem);
+  }
+}
+
 @media (min-width: 768px) {
   .mobile-content-with-nav {
     padding-bottom: 4rem;

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { AlertCircle, Check, Plus, X } from "lucide-react";
 import { cn } from "@shared/lib/utils";
@@ -42,7 +43,7 @@ export function ScheduleSheet({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 backdrop-blur-sm sm:items-center sm:p-5"
       onClick={onClose}
@@ -53,14 +54,14 @@ export function ScheduleSheet({
         aria-modal="true"
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-line bg-surface shadow-2xl sm:max-h-[88dvh] sm:max-w-lg sm:rounded-[28px]"
+        className="flex max-h-[calc(100dvh-max(0.75rem,env(safe-area-inset-top,0px)))] w-full flex-col overflow-hidden rounded-t-[28px] border border-line bg-surface shadow-2xl sm:max-h-[88dvh] sm:max-w-lg sm:rounded-[28px]"
       >
         {/* Grab handle — signals "sheet" on phones. */}
         <div className="flex justify-center pt-2.5 sm:hidden" aria-hidden>
           <span className="h-1 w-10 rounded-full bg-line" />
         </div>
 
-        <header className="flex items-start justify-between gap-3 px-5 pb-4 pt-3 sm:px-6 sm:pt-6">
+        <header className="flex shrink-0 items-start justify-between gap-3 px-5 pb-4 pt-3 sm:px-6 sm:pt-6">
           <div className="min-w-0">
             <h2 id={titleId} className="font-display text-xl font-semibold text-ink sm:text-2xl">
               {title}
@@ -91,11 +92,12 @@ export function ScheduleSheet({
           {children}
         </div>
 
-        <footer className="border-t border-line bg-surface px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-6">
+        <footer className="schedule-sheet-actions shrink-0 border-t border-line bg-surface px-5 pt-4 sm:px-6">
           {footer}
         </footer>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

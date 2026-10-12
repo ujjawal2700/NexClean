@@ -40,9 +40,10 @@ function customerId(b: BookingDocument): string {
 /** Payload the agent app renders in the incoming-offer popup. */
 async function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
   const payoutOf = await payoutCalculator();
+  const user = b.user as unknown as { name?: string } | null;
   return {
     bookingId: String(b._id),
-    customerName: "Customer",
+    customerName: user?.name || "Customer",
     vehicleType: b.vehicleType,
     vehicleName: b.vehicleName,
     packageName: b.packageName,
@@ -61,28 +62,19 @@ async function buildOfferPayload(b: BookingDocument, distanceM: number | null) {
 
 /** Compact, human-readable copy for an expanded OS job-offer notification. */
 function buildOfferPush(payload: Awaited<ReturnType<typeof buildOfferPayload>>) {
-  const date = new Date(payload.date).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-  });
-  const payout = `₹${Math.round(payload.payout).toLocaleString("en-IN")}`;
-  const distance = payload.distanceKm == null ? "Nearby" : `${payload.distanceKm} km away`;
   const address = [payload.addressLabel, payload.addressLine].filter(Boolean).join(" — ");
-  const washType = payload.isSubscriptionWash ? "Subscription wash" : "On-demand booking";
 
   return {
-    title: `🚗 New wash request • ${payout} payout`,
+    title: "🚗 New wash request",
     body: [
-      `${washType} • ${payload.packageName}`,
-      `${payload.vehicleName} (${payload.vehicleType}) • ${distance}`,
-      `${date} • ${payload.slot}`,
-      address,
+      `Customer: ${payload.customerName}`,
+      `Location: ${address}`,
+      `Wash type: ${payload.packageName}`,
     ]
       .filter(Boolean)
       .join("\n"),
-    // Keep the complete offer attached to the notification too. Native apps
-    // can render a rich/expanded alert from these fields, and tapping still
-    // restores the authoritative live offer from the server before accepting.
+    // Attach offer details without financial amounts. Tapping restores the
+    // authoritative live offer from the server before accepting.
     data: {
       bookingId: payload.bookingId,
       kind: "offer",
@@ -97,8 +89,6 @@ function buildOfferPush(payload: Awaited<ReturnType<typeof buildOfferPayload>>) 
       society: payload.society,
       date: new Date(payload.date).toISOString(),
       slot: payload.slot,
-      price: String(payload.price),
-      payout: String(payload.payout),
       distanceKm: payload.distanceKm == null ? "" : String(payload.distanceKm),
       isSubscriptionWash: String(payload.isSubscriptionWash),
       expiresAt: payload.expiresAt ? new Date(payload.expiresAt).toISOString() : "",

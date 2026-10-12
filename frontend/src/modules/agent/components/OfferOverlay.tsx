@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Navigation, Clock, MapPin, Car, Sparkles, Check, X } from "lucide-react";
+import { MapPin, User, Sparkles, Check, X } from "lucide-react";
 import { Button } from "@shared/ui/Button";
-import { formatMoney } from "@shared/lib/format";
-import { VEHICLE_LABEL } from "../types";
 import type { AgentDispatch } from "../hooks/useAgentDispatch";
 
 /** Full-screen incoming-offer popup with a live countdown (Uber/food-delivery style). */
@@ -59,11 +57,6 @@ function OfferCard({
   const R = 26;
   const C = 2 * Math.PI * R;
 
-  const when = useMemo(
-    () => new Date(offer.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
-    [offer.date],
-  );
-
   return (
     <motion.div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 p-4 sm:p-6 backdrop-blur-md"
@@ -87,9 +80,6 @@ function OfferCard({
             </span>
             <div>
               <p className="font-display text-base font-semibold leading-tight">New wash request</p>
-              <p className="text-xs text-white/80">
-                {offer.isSubscriptionWash ? "Subscription wash" : "On-demand booking"}
-              </p>
             </div>
           </div>
           <div className="relative grid size-16 place-items-center">
@@ -114,41 +104,30 @@ function OfferCard({
 
         {/* Body */}
         <div className="space-y-4 p-5">
-          <div className="flex items-center justify-between gap-3">
-            <span className="inline-flex items-center gap-1.5 rounded-pill bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
-              <Navigation className="size-4" />
-              {offer.distanceKm != null ? String(offer.distanceKm) + " km away" : "Nearby"}
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-sm text-muted">
-              <Clock className="size-4" /> {when} · {offer.slot}
-            </span>
-          </div>
-
-          <div className="rounded-2xl border border-line bg-surface-muted/40 p-4">
-            <div className="flex items-center gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <Car className="size-5" />
-              </span>
+          <div className="space-y-3 rounded-2xl border border-line bg-surface-muted/40 p-4">
+            <div className="flex items-start gap-3">
+              <User className="mt-0.5 size-5 shrink-0 text-primary" />
               <div className="min-w-0">
-                <p className="truncate font-display font-semibold text-ink">{offer.vehicleName}</p>
-                <p className="text-sm text-muted">
-                  {VEHICLE_LABEL[offer.vehicleType] ?? offer.vehicleType} · {offer.packageName}
+                <p className="text-xs text-muted">Customer</p>
+                <p className="font-display font-semibold text-ink">{offer.customerName}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 border-t border-line/70 pt-3">
+              <MapPin className="mt-0.5 size-5 shrink-0 text-primary" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Location</p>
+                <p className="text-sm text-ink">
+                  {[offer.addressLabel, offer.addressLine].filter(Boolean).join(" — ")}
                 </p>
               </div>
             </div>
-            <div className="mt-3 flex items-start gap-2 border-t border-line/70 pt-3 text-sm text-ink-soft">
-              <MapPin className="mt-0.5 size-4 shrink-0 text-muted" />
-              <span className="min-w-0">
-                <span className="font-medium text-ink">{offer.addressLabel}</span> — {offer.addressLine}
-              </span>
+            <div className="flex items-start gap-3 border-t border-line/70 pt-3">
+              <Sparkles className="mt-0.5 size-5 shrink-0 text-primary" />
+              <div className="min-w-0">
+                <p className="text-xs text-muted">Wash type</p>
+                <p className="font-display font-semibold text-ink">{offer.packageName}</p>
+              </div>
             </div>
-          </div>
-
-          <div className="flex items-center justify-between rounded-2xl bg-emerald-500/10 px-4 py-3">
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700">
-              <Sparkles className="size-4" /> Your payout
-            </span>
-            <span className="font-display text-2xl font-bold text-emerald-700">{formatMoney(offer.payout)}</span>
           </div>
 
           <div className="flex gap-3 pt-1">
