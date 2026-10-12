@@ -1,5 +1,29 @@
 # Security incident — repository implants, 2026-06-23 to 2026-09-09
 
+## Recurrence found during push — 13 October 2026
+
+Fetching GitHub revealed that `origin/main` had been force-updated from
+`33be69d` to `b69bcedffeee7b6701410cc5cd70de250e937796`. The latter reused the
+legitimate payout-display commit's subject and application change, while adding:
+
+- `backend/api.js`, containing obfuscated JavaScript, and hooks running
+  `node api.js` before the backend `dev`, `build`, and `start` scripts;
+- `public/fonts/fa-solid-700.fml`, also containing obfuscated JavaScript;
+- a hidden `.vscode/tasks.json` task executing that fake font on `folderOpen`,
+  together with `task.allowAutomaticTasks: true` in `.vscode/settings.json`;
+- unrelated editor/debug configuration and changes to `.gitignore` that removed
+  the editor-directory ignore and added `.gitignore` itself to the ignore list.
+
+The remote-only files were inspected as text and were not checked out or
+executed. A normal merge retained the previously tested local tree, excluding
+all nine injected remote-only changes while preserving the remote ancestry.
+The payout display and the app review fixes remain intact. No force push was
+used. Repository write access still needs review: this cleanup does not prevent
+another remote injection. This finding does not establish whether another
+developer machine or deployment executed the payload.
+
+---
+
 Two separate implants were committed to this repository by an identity that is
 not a project maintainer. Both are removed as of `0963e8e`. **Code removal is
 the smaller half of this.** The delivery mechanism was a commit pushed to
