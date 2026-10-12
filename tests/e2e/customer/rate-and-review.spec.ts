@@ -124,6 +124,8 @@ test("customer rates a completed service (suggested + custom review); cleaner an
   await expect(page.getByTestId(`rated-${bookingId}`)).toContainText("4");
 
   // ── Cleaner ─────────────────────────────────────────────────────────────
+  await page.context().grantPermissions(["geolocation"]);
+  await page.context().setGeolocation({ latitude: 22.7196, longitude: 75.8577 });
   await loginAgentUI(page, agent.phone);
   await page.goto("/agent/reviews");
   await expect(page.getByTestId("reviews-count")).toHaveText("1 review");

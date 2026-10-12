@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('SMSINDIAHUB OTP E2E Login Flow', () => {
+  let phone: string;
+  test.beforeEach(async ({ page }) => {
+    phone = '8' + String(Date.now()).slice(-9);
+    const signup = await page.request.post('http://localhost:4400/api/auth/customer/signup', {
+      data: { name: 'OTP Test Customer', phone, privacyAccepted: true, termsAccepted: true },
+    });
+    expect(signup.ok()).toBe(true);
+    await page.context().clearCookies();
+    await page.addInitScript(() => localStorage.setItem('nexclean-cookie-consent', JSON.stringify({ version: 1, necessary: true, functional: false })));
+  });
   test('should successfully request OTP and login using the demo code', async ({ page }) => {
     // Navigate to the customer login page
     await page.goto('/app/login');
@@ -12,11 +22,11 @@ test.describe('SMSINDIAHUB OTP E2E Login Flow', () => {
     await expect(phoneInput).toBeVisible();
 
     // Type a valid 10-digit mobile number
-    await phoneInput.fill('9876543210');
+    await phoneInput.fill(phone);
 
     // Prepare intercepting the SMS/OTP send request
     const sendOtpPromise = page.waitForResponse(response =>
-      response.url().includes('/auth/send-otp') && response.status() === 200
+      response.url().includes('/auth/send-login-otp') && response.status() === 200
     );
 
     // Click "Send OTP"
@@ -59,13 +69,13 @@ test.describe('SMSINDIAHUB OTP E2E Login Flow', () => {
     await expect(page).toHaveURL(/\/app$/);
 
     // Dashboard header verification
-    await expect(page.locator('h1')).toContainText('NexClean Member');
+    await expect(page.locator('h1')).toContainText('OTP');
   });
 
   test('should display validation error for incorrect OTP', async ({ page }) => {
     await page.goto('/app/login');
     const phoneInput = page.locator('input[name="phone"]');
-    await phoneInput.fill('9876543211');
+    await phoneInput.fill(phone);
 
     // Click Send OTP
     await page.locator('button:has-text("Send OTP")').click();

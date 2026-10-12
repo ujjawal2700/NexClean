@@ -160,12 +160,12 @@ test.describe("Agent signup", () => {
     // Malformed aadhar.
     await page.locator('input[name="aadhar"]').fill("123");
     await page.getByRole("button", { name: "Submit application" }).click();
-    await expect(page.getByText("Aadhar number must be 12 digits")).toBeVisible();
+    await expect(page.getByText("Aadhaar number must be 12 digits")).toBeVisible();
 
     // Valid aadhar, but no photos uploaded yet.
     await page.locator('input[name="aadhar"]').fill("123456789012");
     await page.getByRole("button", { name: "Submit application" }).click();
-    await expect(page.getByText("Upload both sides of your Aadhar card")).toBeVisible();
+    await expect(page.getByText("Upload both sides of your Aadhaar card")).toBeVisible();
 
     // Still on the kyc step, not submitted.
     await expect(page.locator("h1")).toHaveText("Identity verification");
@@ -220,8 +220,8 @@ test.describe("Agent signup", () => {
     await fileInputs.nth(0).setInputFiles(tinyPngFile("aadhar-front.png"));
     await fileInputs.nth(1).setInputFiles(tinyPngFile("aadhar-back.png"));
 
-    await expect(page.getByAltText("Aadhar front preview")).toBeVisible();
-    await expect(page.getByAltText("Aadhar back preview")).toBeVisible();
+    await expect(page.getByAltText("Aadhaar front preview")).toBeVisible();
+    await expect(page.getByAltText("Aadhaar back preview")).toBeVisible();
 
     const submitted = page.waitForRequest(
       (request) => request.url().includes("/auth/agent/signup") && request.method() === "POST",
@@ -269,8 +269,8 @@ test.describe("Agent signup", () => {
     const fileInputs = page.locator('input[type="file"]');
     await fileInputs.nth(0).setInputFiles(tinyPngFile("ios-camera-front.png"));
     await fileInputs.nth(1).setInputFiles(tinyPngFile("ios-camera-back.png"));
-    await expect(page.getByAltText("Aadhar front preview")).toBeVisible();
-    await expect(page.getByAltText("Aadhar back preview")).toBeVisible();
+    await expect(page.getByAltText("Aadhaar front preview")).toBeVisible();
+    await expect(page.getByAltText("Aadhaar back preview")).toBeVisible();
     await expect(page.getByText(/cannot convert photos to WebP/i)).toHaveCount(0);
 
     const submitted = page.waitForRequest(

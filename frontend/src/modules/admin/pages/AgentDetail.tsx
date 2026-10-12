@@ -187,7 +187,7 @@ export function AgentDetail() {
       <GlassCard>
         <div className="flex items-center justify-between">
           <p className="flex items-center gap-1.5 font-display text-lg font-semibold text-ink">
-            <CreditCard className="size-4 text-primary" /> KYC documents · Aadhar {agent.aadharNumber || "Not provided"}
+            <CreditCard className="size-4 text-primary" /> KYC documents · Aadhaar {agent.aadharNumber || "Not provided"}
           </p>
           <Button size="sm" variant="outline" onClick={() => setShowDocs((v) => !v)}>
             {showDocs ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -211,7 +211,7 @@ export function AgentDetail() {
                   rel="noreferrer"
                   className="block overflow-hidden rounded-2xl border border-line"
                 >
-                  <img src={doc.url} alt={`Aadhar ${doc.label}`} className="aspect-[4/3] w-full object-cover" />
+                  <img src={doc.url} alt={`Aadhaar ${doc.label}`} className="aspect-[4/3] w-full object-cover" />
                 </a>
               ) : (
                 <div

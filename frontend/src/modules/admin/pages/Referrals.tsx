@@ -279,7 +279,7 @@ export function Referrals() {
           </div>
           <p className="font-semibold text-ink">No referral logs found</p>
           <p className="text-sm text-muted">
-            Referrals will appear here once customers share their invite codes.
+              Referrals will appear here once customers sign up with an invite code.
           </p>
         </GlassCard>
       ) : filtered.length === 0 ? (

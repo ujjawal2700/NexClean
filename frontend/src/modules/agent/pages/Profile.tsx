@@ -343,7 +343,7 @@ export function Profile() {
 
       {/* Custom Deactivate Confirmation Modal */}
       {showDeactivateConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/30 backdrop-blur-sm animate-fade-in">
+        <div className="safe-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-ink/30 backdrop-blur-sm animate-fade-in">
           <GlassCard className="w-full max-w-sm space-y-6 bg-surface p-6 shadow-xl border border-line">
             <div className="space-y-2 text-center">
               <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-red-100 text-red-600">

@@ -96,9 +96,9 @@ export function AccountNotFoundDialog({ phone, onClose, onSignUp, audience = "cu
         aria-describedby={descriptionId}
         tabIndex={-1}
         data-testid="account-not-found-dialog"
-        className="relative w-full max-w-md overflow-hidden rounded-t-[2rem] border border-line bg-surface shadow-2xl outline-none sm:rounded-[2rem]"
+        className="relative flex max-h-[calc(100dvh-1rem)] w-full max-w-md flex-col overflow-hidden rounded-t-[2rem] border border-line bg-surface shadow-2xl outline-none sm:rounded-[2rem]"
       >
-        <div className="h-1.5 bg-gradient-to-r from-primary via-primary-soft to-accent" aria-hidden="true" />
+        <div className="h-1.5 shrink-0 bg-gradient-to-r from-primary via-primary-soft to-accent" aria-hidden="true" />
         <button
           type="button"
           onClick={onClose}
@@ -108,7 +108,7 @@ export function AccountNotFoundDialog({ phone, onClose, onSignUp, audience = "cu
           <X className="size-5" />
         </button>
 
-        <div className="px-6 pb-3 pt-7 text-center sm:px-8 sm:pt-8">
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-6 pb-3 pt-7 text-center sm:px-8 sm:pt-8" data-lenis-prevent>
           <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-primary/10 text-primary ring-8 ring-primary/5">
             <UserPlus className="size-8" aria-hidden="true" />
           </div>
@@ -131,7 +131,7 @@ export function AccountNotFoundDialog({ phone, onClose, onSignUp, audience = "cu
           </div>
         </div>
 
-        <div className="account-dialog-actions space-y-3 border-t border-line/70 bg-surface-muted/35 px-6 pb-5 pt-5 sm:px-8 sm:pb-7">
+        <div className="account-dialog-actions shrink-0 space-y-3 border-t border-line/70 bg-surface-muted/35 px-6 pt-5 sm:px-8">
           <Button ref={primaryActionRef} type="button" size="lg" className="h-[56px] w-full text-base" onClick={onSignUp}>
             {copy.cta} <ArrowRight className="size-5" />
           </Button>

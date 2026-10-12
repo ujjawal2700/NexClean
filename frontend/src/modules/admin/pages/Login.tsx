@@ -51,7 +51,7 @@ export function Login() {
       setSession(token, user.name, (user as any).permissions || []);
       navigate("/admin", { replace: true });
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Login failed. Is the API running?");
+      setError(e instanceof ApiError ? e.message : "Couldn't sign you in. Please try again.");
     }
   };
 

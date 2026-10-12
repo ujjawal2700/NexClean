@@ -311,12 +311,12 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4 backdrop-blur-sm"
+      className="safe-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-labelledby="add-address-modal-title"
     >
-      <div className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl">
+      <div className="relative flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
           <div className="flex items-center gap-2.5">
@@ -608,7 +608,7 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
 
         {/* Fixed Footer Actions */}
         <div className="flex shrink-0 items-center justify-end gap-3 border-t border-line bg-surface px-6 py-4">
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={isPending}>
+          <Button type="button" variant="ghost" size="sm" className="min-h-[48px]" onClick={onClose} disabled={isPending}>
             Cancel
           </Button>
           <Button
@@ -616,6 +616,7 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
             form="add-address-form"
             size="sm"
             disabled={isPending || checkingCoverage || !houseNo.trim() || !buildingSociety.trim()}
+            className="min-h-[48px]"
             data-testid="save-address-btn"
           >
             {checkingCoverage ? (

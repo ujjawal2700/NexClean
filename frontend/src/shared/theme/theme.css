@@ -235,7 +235,19 @@
 }
 
 .account-dialog-actions {
-  padding-bottom: max(env(safe-area-inset-bottom, 0px), 1.25rem);
+  padding-bottom: calc(max(var(--mobile-system-bottom), 48px) + 1rem);
+}
+
+.safe-modal-overlay {
+  padding: max(1rem, env(safe-area-inset-top, 0px))
+    max(1rem, env(safe-area-inset-right, 0px))
+    calc(max(var(--mobile-system-bottom), 48px) + 0.75rem)
+    max(1rem, env(safe-area-inset-left, 0px));
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+  .safe-modal-overlay { padding-bottom: 1.5rem; }
+  .account-dialog-actions { padding-bottom: 1.5rem; }
 }
 
 /* Reserve Android's three-button navigation height even when an edge-to-edge

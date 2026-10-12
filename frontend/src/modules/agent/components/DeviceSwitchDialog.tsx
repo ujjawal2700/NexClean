@@ -33,14 +33,14 @@ export function DeviceSwitchDialog({
   }, [onCancel, pending]);
 
   return createPortal(
-    <div className="fixed inset-0 z-[130] flex items-end justify-center sm:items-center sm:p-4" data-testid="device-switch-dialog">
+    <div className="safe-modal-overlay fixed inset-0 z-[130] flex items-end justify-center sm:items-center" data-testid="device-switch-dialog">
       <div className="absolute inset-0 bg-slate-950/55 backdrop-blur-[3px]" />
       <section
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="relative w-full rounded-t-[2rem] border border-line/80 bg-surface/95 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[var(--shadow-lift)] backdrop-blur-xl sm:max-w-md sm:rounded-[2rem] sm:p-6"
+        className="relative max-h-full w-full overflow-y-auto overscroll-contain rounded-t-[2rem] border border-line/80 bg-surface/95 p-5 shadow-[var(--shadow-lift)] backdrop-blur-xl sm:max-w-md sm:rounded-[2rem] sm:p-6"
       >
         <span className="grid size-12 place-items-center rounded-2xl border border-amber-500/20 bg-amber-500/10 text-amber-600">
           <Smartphone className="size-5" />

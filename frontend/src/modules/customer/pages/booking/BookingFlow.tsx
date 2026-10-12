@@ -709,13 +709,13 @@ function ResumeBookingDialog({
   ].filter((r): r is { label: string; value: string } => !!r.value);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/55 p-4 backdrop-blur-sm" role="presentation">
+    <div className="safe-modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-ink/55 backdrop-blur-sm" role="presentation">
       <section
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="resume-booking-title"
         aria-describedby="resume-booking-description"
-        className="w-full max-w-md rounded-[28px] border border-line bg-surface p-6 shadow-2xl sm:p-7"
+        className="max-h-full w-full max-w-md overflow-y-auto overscroll-contain rounded-[28px] border border-line bg-surface p-6 shadow-2xl sm:p-7"
       >
         <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <History className="size-7" />
@@ -786,13 +786,13 @@ function PriceChangedDialog({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/55 p-4 backdrop-blur-sm" role="presentation">
+    <div className="safe-modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-ink/55 backdrop-blur-sm" role="presentation">
       <section
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="price-changed-title"
         aria-describedby="price-changed-description"
-        className="w-full max-w-md rounded-[28px] border border-line bg-surface p-6 shadow-2xl sm:p-7"
+        className="max-h-full w-full max-w-md overflow-y-auto overscroll-contain rounded-[28px] border border-line bg-surface p-6 shadow-2xl sm:p-7"
       >
         <div className="mb-5 flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600">
           <IndianRupee className="size-7" />
@@ -1104,7 +1104,7 @@ function ScheduleStep({
       </div>
       {draft.date && slots.length === 0 ? (
         <p className="rounded-2xl border border-amber-300/40 bg-amber-50/60 px-4 py-3 text-sm text-amber-700">
-          No more slots available today — please pick a future date.
+          No slots available for this date — choose another day.
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-2.5 xs:grid-cols-3 sm:grid-cols-4">

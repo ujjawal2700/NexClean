@@ -1,22 +1,21 @@
 import { useState, useRef } from "react";
 import { useNavigate, useLocation, Link, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2, UserX, Mail, MapPin, X, Compass } from "lucide-react";
+import { Phone, ArrowRight, ArrowLeft, ShieldCheck, Loader2, Compass } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Badge } from "@shared/ui/Badge";
 import { Input } from "@shared/ui/Input";
 import { Button } from "@shared/ui/Button";
 import { Logo } from "@shared/components/brand/Logo";
-import { GlassCard } from "@shared/ui/GlassCard";
 import { ApiError } from "@shared/lib/api";
 import { Stepper } from "@shared/ui/Stepper";
 import { useSendLoginOtp, useVerifyOtp } from "../api/mutations";
 import { meKey } from "../api/queries";
 import { useSessionStore } from "../store/sessionStore";
+import { AccountDeactivatedDialog } from "@shared/components/AccountDeactivatedDialog";
 import { AccountNotFoundDialog } from "@shared/components/AccountNotFoundDialog";
 
 
-const DEMO_OTP = "123456";
 
 export function Login() {
   const navigate = useNavigate();
@@ -61,7 +60,7 @@ export function Login() {
         setShowDeactivatedModal(true);
         setError("Your account has been deactivated.");
       } else {
-        setError(msg || "Couldn't send OTP. Is the API running?");
+        setError(msg || "Couldn't send the verification code. Please try again.");
       }
     }
   };
@@ -167,7 +166,7 @@ export function Login() {
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && verify()}
-                  hint={`Demo code: ${DEMO_OTP}`}
+
                   error={error}
                 />
                 <Button className="w-full" onClick={verify} disabled={verifyOtp.isPending}>
@@ -178,7 +177,7 @@ export function Login() {
           )}
 
           <p className="mt-6 flex items-center justify-center gap-2 text-xs text-muted">
-            <ShieldCheck className="size-3.5 text-primary" /> Secured with end-to-end verification
+            <ShieldCheck className="size-3.5 text-primary" /> Secure sign-in with a one-time code
           </p>
 
           {step === "phone" && (
@@ -214,63 +213,7 @@ export function Login() {
       </div>
 
       {showDeactivatedModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-md animate-fade-in">
-          <GlassCard className="w-full max-w-md space-y-6 bg-surface p-6 shadow-2xl border border-line relative">
-            <button
-              onClick={() => setShowDeactivatedModal(false)}
-              className="absolute top-4 right-4 text-muted hover:text-ink p-1 rounded-lg transition-colors"
-            >
-              <X className="size-5" />
-            </button>
-
-            <div className="space-y-3 text-center pt-2">
-              <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-red-500/10 text-red-600">
-                <UserX className="size-7" />
-              </div>
-              <h3 className="font-display text-2xl font-bold text-ink">Account Deactivated</h3>
-              <p className="text-sm text-muted leading-relaxed">
-                Your profile has been deactivated. Only an administrator can reactivate your account. Please contact customer support for assistance.
-              </p>
-            </div>
-
-            <div className="space-y-3 rounded-2xl border border-line bg-surface-muted/50 p-4 text-left text-xs">
-              <div className="flex items-center gap-3">
-                <Phone className="size-4 text-primary shrink-0" />
-                <div>
-                  <p className="text-muted font-medium">Customer Support Phone</p>
-                  <p className="font-bold text-ink text-sm">+91 98765 43210</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 border-t border-line/40 pt-2.5">
-                <Mail className="size-4 text-primary shrink-0" />
-                <div>
-                  <p className="text-muted font-medium">Support Email</p>
-                  <p className="font-bold text-ink text-sm">support@nexclean.in</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 border-t border-line/40 pt-2.5">
-                <MapPin className="size-4 text-primary shrink-0" />
-                <div>
-                  <p className="text-muted font-medium">Office Address</p>
-                  <p className="font-medium text-ink">NexClean HQ, 102 Sector 5, HSR Layout, Bengaluru 560102</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <a href="tel:+919876543210" className="flex-1">
-                <Button className="w-full rounded-xl">Call Support</Button>
-              </a>
-              <Button
-                variant="outline"
-                onClick={() => setShowDeactivatedModal(false)}
-                className="flex-1 rounded-xl"
-              >
-                Close
-              </Button>
-            </div>
-          </GlassCard>
-        </div>
+        <AccountDeactivatedDialog onClose={() => setShowDeactivatedModal(false)} />
       )}
 
       {showNotRegisteredModal && (

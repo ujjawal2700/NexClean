@@ -35,7 +35,7 @@ export function Dashboard() {
         <GlassCard className="border-red-300/40 bg-red-50/60 text-red-700 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="space-y-1">
             <p className="font-semibold text-lg">⚠️ KYC Verification Required</p>
-            <p className="text-sm">Please submit your Aadhar and KYC documents to get verified and start receiving jobs.</p>
+            <p className="text-sm">Please submit your Aadhaar and KYC documents to get verified and start receiving jobs.</p>
           </div>
           <Button asChild className="shrink-0">
             <Link to="/agent/signup">Submit KYC</Link>

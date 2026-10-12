@@ -122,7 +122,7 @@ export function Signup() {
       setResendSuccess("");
       setStep("otp");
     } catch (e: any) {
-      const msg = e?.message || "Couldn't send OTP. Is the API running?";
+      const msg = e?.message || "Couldn't send the verification code. Please try again.";
       setError(msg);
       if (msg.toLowerCase().includes("already exist") || msg.toLowerCase().includes("exists")) {
         setToast("User already exists with this number");
@@ -167,8 +167,8 @@ export function Signup() {
   };
 
   const submitKyc = async () => {
-    if (!/^\d{12}$/.test(aadharNumber)) return setError("Aadhar number must be 12 digits");
-    if (!aadharFront || !aadharBack) return setError("Upload both sides of your Aadhar card");
+    if (!/^\d{12}$/.test(aadharNumber)) return setError("Aadhaar number must be 12 digits");
+    if (!aadharFront || !aadharBack) return setError("Upload both sides of your Aadhaar card");
     setError("");
     try {
       const res = await signup.mutateAsync({
@@ -187,7 +187,7 @@ export function Signup() {
         navigate("/agent", { replace: true });
       }
     } catch (e: any) {
-      setError(e?.message || "Couldn't submit application. Is the API running?");
+      setError(e?.message || "Couldn't submit your application. Please try again.");
     }
   };
 
@@ -302,7 +302,7 @@ export function Signup() {
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && verifyOtp()}
-                  hint="Demo code: 123456"
+
                   error={error}
                 />
                 {resendSuccess && (
@@ -338,14 +338,14 @@ export function Signup() {
 
               <h1 className="text-2xl text-ink">Identity verification</h1>
               <p className="mt-2 text-sm text-muted">
-                Submit your Aadhar for KYC. Our team reviews this before you can go live.
+                Submit your Aadhaar for KYC. Our team reviews this before you can go live.
               </p>
 
               <div className="mt-6 space-y-4">
                 <Input
                   name="aadhar"
                   autoComplete="off"
-                  label="Aadhar number"
+                  label="Aadhaar number"
                   inputMode="numeric"
                   maxLength={12}
                   placeholder="XXXX XXXX XXXX"
@@ -354,8 +354,8 @@ export function Signup() {
                   onChange={(e) => setAadharNumber(e.target.value.replace(/\D/g, ""))}
                 />
                 <div className="grid grid-cols-2 gap-4">
-                  <KycTile label="Aadhar front" value={aadharFront} onPick={setAadharFront} />
-                  <KycTile label="Aadhar back" value={aadharBack} onPick={setAadharBack} />
+                  <KycTile label="Aadhaar front" value={aadharFront} onPick={setAadharFront} />
+                  <KycTile label="Aadhaar back" value={aadharBack} onPick={setAadharBack} />
                 </div>
                 {!legalConsent && <LegalConsent checked={legalConsent} onChange={setLegalConsent} />}
                 {error && <p className="rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-500">{error}</p>}

@@ -98,7 +98,7 @@ export function Notifications() {
 
       {permission === "granted" && (
         <div className="mb-4 flex items-center gap-2 text-xs font-medium text-emerald-600">
-          <CheckCircle2 className="size-4" /> OS Push notifications active
+          <CheckCircle2 className="size-4" /> Push notifications are on for this device.
         </div>
       )}
 

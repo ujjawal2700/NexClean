@@ -34,7 +34,7 @@ export function ServicePhotosModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
+      className="safe-modal-overlay fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -45,7 +45,7 @@ export function ServicePhotosModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl rounded-3xl border border-line bg-surface p-6 shadow-2xl"
+        className="max-h-full w-full max-w-2xl overflow-y-auto overscroll-contain rounded-3xl border border-line bg-surface p-6 shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-line pb-4">
           <div className="flex items-center gap-2.5">

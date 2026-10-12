@@ -49,7 +49,7 @@ export function ServiceCompletedDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm"
+      className="safe-modal-overlay fixed inset-0 z-[120] flex items-center justify-center bg-ink/60 backdrop-blur-sm"
       role="presentation"
       data-testid="service-completed-dialog"
     >
@@ -59,14 +59,14 @@ export function ServiceCompletedDialog({
         aria-modal="true"
         aria-labelledby="service-completed-title"
         aria-describedby="service-completed-description"
-        className="w-full max-w-sm rounded-[28px] border border-line bg-surface p-6 text-center shadow-2xl sm:p-8"
+        className="max-h-full w-full max-w-sm overflow-y-auto overscroll-contain rounded-[28px] border border-line bg-surface p-6 text-center shadow-2xl sm:p-8"
       >
         <div className="relative mx-auto grid size-16 place-items-center rounded-3xl bg-emerald-500/10 text-emerald-600">
           <CheckCircle2 className="size-9" />
           <Sparkles className="absolute -right-1 -top-1 size-5 text-amber-500" />
         </div>
         <h2 id="service-completed-title" className="mt-5 font-display text-2xl font-semibold text-ink">
-          Your service is completed
+          Your service is complete
         </h2>
         <p id="service-completed-description" className="mt-2 text-sm leading-6 text-muted">
           Your vehicle is sparkling clean! Please rate {who} — it takes a few seconds and helps us keep every wash

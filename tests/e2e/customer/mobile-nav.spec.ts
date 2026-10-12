@@ -1,10 +1,11 @@
 import { test, expect, type Locator } from "@playwright/test";
 import { loginCustomerUI } from "../../fixtures/ui-helpers";
 
-// The bottom tab bar belongs to the five top-level tabs; nested screens have
+// The bottom tab bar belongs to the top-level browsing tabs; nested screens have
 // their own back button and must not show it.
-const TAB_PAGES = ["/app", "/app/book", "/app/bookings", "/app/plans", "/app/profile"];
+const TAB_PAGES = ["/app", "/app/bookings", "/app/plans", "/app/profile"];
 const NESTED_PAGES = [
+  "/app/book", // Booking has its own persistent action bar.
   "/app/profile/edit",
   "/app/profile/refer",
   "/app/profile/refer/users",
@@ -16,7 +17,7 @@ const NESTED_PAGES = [
 ];
 
 test.describe("Customer mobile tab bar", () => {
-  test("shows only on the five top-level tabs", async ({ page }) => {
+  test("shows only on the top-level browsing tabs", async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: 390, height: 844 });
     await loginCustomerUI(page);

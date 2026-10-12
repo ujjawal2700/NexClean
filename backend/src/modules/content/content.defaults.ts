@@ -208,7 +208,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       },
       {
         q: "What's included in a standard wash?",
-        a: "Every package includes an exterior wash and interior clean at minimum. Premium and Elite plans add detailing, dedicated support, and priority scheduling — see the Subscription plans section for the full breakdown.",
+        a: "Express Wash covers the exterior, wheels, tyres and glass. Premium Detail adds interior cleaning, and Ultimate Detail adds further detailing. Check the package or subscription plan details for the services included.",
       },
       {
         q: "Can I reschedule or cancel a booking?",

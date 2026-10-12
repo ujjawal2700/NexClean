@@ -6,6 +6,7 @@ import { SplitReveal } from "@shared/motion/SplitReveal";
 import { Reveal } from "@shared/motion/Reveal";
 import { PhoneMockup } from "@shared/components/visual/PhoneMockup";
 import { useSiteContent } from "@shared/hooks/useSiteContent";
+import { customerPlayStoreUrl } from "@shared/lib/site";
 
 // Icons for the quick-action mockup grid and the feature pills (labels are editable).
 const FEATURE_ICONS = [CalendarCheck, Repeat, Bell, Wallet, History];
@@ -93,8 +94,10 @@ export function AppShowcase() {
               <Button variant="primary" disabled title="Coming soon">
                 <Apple className="size-5" /> App Store · Coming soon
               </Button>
-              <Button variant="outline" disabled title="Coming soon">
-                <Play className="size-5 fill-current" /> Google Play · Coming soon
+              <Button variant="outline" asChild>
+                <a href={customerPlayStoreUrl("")} target="_blank" rel="noopener noreferrer">
+                  <Play className="size-5 fill-current" /> Get it on Google Play
+                </a>
               </Button>
             </div>
           </Reveal>

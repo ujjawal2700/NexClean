@@ -31,14 +31,14 @@ test.describe("Admin Agent Verification", () => {
     await expect(page.locator("div.glass", { hasText: name })).toHaveCount(0);
   });
 
-  test("shows KYC Aadhar details for a pending agent", async ({ page, request }) => {
+  test("shows KYC Aadhaar details for a pending agent", async ({ page, request }) => {
     const { name } = await seedPendingAgent(request, "KYC E2E Agent");
 
     await page.reload();
     await page.locator('input[name="search"]').fill(name);
     const card = page.locator("div.glass", { hasText: name });
     await expect(card).toBeVisible();
-    await expect(card.getByText(/Aadhar:/)).toBeVisible();
+    await expect(card.getByText(/Aadhaar:/)).toBeVisible();
     await expect(card.getByText("123456789012")).toBeVisible();
   });
 

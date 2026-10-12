@@ -298,7 +298,7 @@ export function Agents() {
             {(a.aadharFrontUrl || a.aadharBackUrl) && (
               <div className="mt-3 rounded-2xl border border-line bg-surface/60 p-3">
                 <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                  <CreditCard className="size-3.5 text-primary" /> Aadhar{" "}
+                  <CreditCard className="size-3.5 text-primary" /> Aadhaar{" "}
                   {a.aadharNumber || "—"}
                 </p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
@@ -316,7 +316,7 @@ export function Agents() {
                           className="block overflow-hidden rounded-xl border border-line">
                           <img
                             src={doc.url}
-                            alt={`Aadhar ${doc.label}`}
+                            alt={`Aadhaar ${doc.label}`}
                             className="aspect-[4/3] w-full object-cover"
                           />
                         </a>

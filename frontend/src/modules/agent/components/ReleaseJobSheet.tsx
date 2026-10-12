@@ -34,13 +34,13 @@ export function ReleaseJobSheet({
   const reason = choice === "Other" ? other.trim() : choice;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 backdrop-blur-sm sm:items-center sm:p-5" onClick={onClose}>
+    <div className="safe-modal-overlay fixed inset-0 z-50 flex items-end justify-center bg-ink/60 backdrop-blur-sm sm:items-center" onClick={onClose}>
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="release-title"
         onClick={(e) => e.stopPropagation()}
-        className="w-full space-y-4 rounded-t-[28px] border border-line bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-w-md sm:rounded-[28px] sm:p-6"
+        className="max-h-full w-full space-y-4 overflow-y-auto overscroll-contain rounded-t-[28px] border border-line bg-surface p-5 shadow-2xl sm:max-w-md sm:rounded-[28px] sm:p-6"
       >
         <div className="flex items-start justify-between gap-3">
           <div>

@@ -553,7 +553,7 @@ function MapFallback({
         <p className="max-w-[26ch] text-xs text-muted">
           {meters != null
             ? `About ${(meters / 1000).toFixed(1)} km away — the map needs a Google Maps key to draw the route.`
-            : "Tracking still works; the map view needs a Google Maps key."}
+            : "The live map is temporarily unavailable. You can still follow your cleaner's progress."}
         </p>
       </div>
     </div>

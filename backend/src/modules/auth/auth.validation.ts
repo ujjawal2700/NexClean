@@ -61,7 +61,7 @@ export const agentSignupSchema = z.object({
   city: z.string().trim().max(80).optional(),
   // Optional because a city may legitimately have no zones listed yet.
   area: z.string().trim().max(120).optional(),
-  aadharNumber: z.string().regex(/^\d{12}$/, "Aadhar number must be 12 digits"),
+  aadharNumber: z.string().regex(/^\d{12}$/, "Aadhaar number must be 12 digits"),
   aadharFront: dataUri,
   aadharBack: dataUri,
   // Existing unverified agents may already have accepted in signup-basic.

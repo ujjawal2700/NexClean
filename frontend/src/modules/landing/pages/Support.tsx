@@ -1,128 +1,56 @@
-import { Phone, Mail, MapPin, Headphones, ShieldCheck, MessageSquare, ArrowRight } from "lucide-react";
+import { Phone, Mail, MapPin, Headphones, MessageSquare, ArrowRight } from "lucide-react";
 import { Aurora } from "@shared/components/visual/Aurora";
 import { Container } from "@shared/components/layout/Container";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { Button } from "@shared/ui/Button";
+import { useSiteContent } from "@shared/hooks/useSiteContent";
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
 
 export function Support() {
+  const { contact } = useSiteContent();
+  const primary = contact.channels.find(channel => channel.type === "phone" && channel.href)
+    ?? contact.channels.find(channel => channel.type === "email" && channel.href);
+
   return (
     <div className="min-h-dvh bg-bg">
       <Navbar />
-
-
-      <main className="relative pt-24 pb-20 overflow-hidden">
+      <main className="relative overflow-hidden pb-20 pt-24">
         <Aurora />
-
         <Container className="relative z-10 max-w-5xl space-y-12">
-          {/* Header */}
-          <div className="text-center space-y-4 max-w-2xl mx-auto">
+          <div className="mx-auto max-w-2xl space-y-4 text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3.5 py-1 text-xs font-semibold text-primary">
-              <Headphones className="size-3.5" /> 24/7 Dedicated Assistance
+              <Headphones className="size-3.5" /> Customer support
             </span>
-            <h1 className="font-display text-4xl sm:text-5xl font-bold text-ink tracking-tight">
-              Customer <span className="text-gradient">Support &amp; Contact</span>
-            </h1>
-            <p className="text-muted text-base leading-relaxed">
-              We're here to help! Whether you have questions about your bookings, subscriptions, agent onboarding, or account recovery, reach out to our team anytime.
-            </p>
+            <h1 className="font-display text-4xl font-bold tracking-tight text-ink sm:text-5xl">Customer <span className="text-gradient">Support &amp; Contact</span></h1>
+            <p className="text-muted">Get help with bookings, subscriptions, agent onboarding, or account recovery through our published contact channels.</p>
           </div>
-
-          {/* Primary Contact Cards Grid */}
           <div className="grid gap-6 md:grid-cols-3">
-            {/* Phone Support */}
-            <GlassCard className="p-6 space-y-4 border border-line bg-surface hover:border-primary/30 transition-all">
-              <span className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <Phone className="size-6" />
-              </span>
-              <div>
-                <h3 className="font-display text-lg font-bold text-ink">Phone Support</h3>
-                <p className="text-xs text-muted mt-1">Speak directly with our support team</p>
-              </div>
-              <div className="pt-2 border-t border-line/50">
-                <p className="font-display text-lg font-bold text-ink">+91 98765 43210</p>
-                <p className="text-xs text-emerald-600 font-medium mt-0.5">Mon–Sun: 7:00 AM – 9:00 PM</p>
-              </div>
-              <a href="tel:+919876543210" className="block pt-2">
-                <Button variant="outline" className="w-full justify-between group">
-                  <span>Call Us Now</span>
-                  <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </a>
-            </GlassCard>
-
-            {/* Email Support */}
-            <GlassCard className="p-6 space-y-4 border border-line bg-surface hover:border-primary/30 transition-all">
-              <span className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <Mail className="size-6" />
-              </span>
-              <div>
-                <h3 className="font-display text-lg font-bold text-ink">Email Support</h3>
-                <p className="text-xs text-muted mt-1">For inquiries, complaints &amp; account issues</p>
-              </div>
-              <div className="pt-2 border-t border-line/50">
-                <p className="font-display text-base font-bold text-ink truncate">support@nexclean.in</p>
-                <p className="text-xs text-muted mt-0.5">Average response time: &lt; 2 hours</p>
-              </div>
-              <a href="mailto:support@nexclean.in" className="block pt-2">
-                <Button variant="outline" className="w-full justify-between group">
-                  <span>Send an Email</span>
-                  <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </a>
-            </GlassCard>
-
-            {/* Office Headquarters */}
-            <GlassCard className="p-6 space-y-4 border border-line bg-surface hover:border-primary/30 transition-all">
-              <span className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary">
-                <MapPin className="size-6" />
-              </span>
-              <div>
-                <h3 className="font-display text-lg font-bold text-ink">Head Office</h3>
-                <p className="text-xs text-muted mt-1">Visit our operations office</p>
-              </div>
-              <div className="pt-2 border-t border-line/50">
-                <p className="text-sm font-medium text-ink leading-snug">
-                  NexClean HQ, 102 Sector 5, HSR Layout, Bengaluru, Karnataka 560102
-                </p>
-              </div>
-              <a
-                href="https://maps.google.com/?q=HSR+Layout+Bengaluru"
-                target="_blank"
-                rel="noreferrer"
-                className="block pt-2"
-              >
-                <Button variant="outline" className="w-full justify-between group">
-                  <span>Get Directions</span>
-                  <ArrowRight className="size-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </a>
-            </GlassCard>
+            {contact.channels.map(channel => {
+              const Icon = channel.type === "phone" ? Phone : channel.type === "email" ? Mail : MapPin;
+              const action = channel.type === "phone" ? "Call support" : channel.type === "email" ? "Send an email" : "Get directions";
+              return (
+                <GlassCard key={channel.type + channel.label} className="min-w-0 space-y-4 border border-line bg-surface p-6">
+                  <span className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary"><Icon className="size-6" /></span>
+                  <h2 className="font-display text-lg font-semibold text-ink">{channel.label}</h2>
+                  <p className="break-words text-sm text-ink">{channel.value}</p>
+                  {channel.href && <Button asChild variant="outline" className="min-h-[48px] w-full justify-between">
+                    <a href={channel.href}><span>{action}</span><ArrowRight className="size-4" /></a>
+                  </Button>}
+                </GlassCard>
+              );
+            })}
           </div>
-
-          {/* Service Guarantee Banner */}
-          <GlassCard className="p-8 bg-gradient-to-r from-primary/10 via-surface to-surface border border-primary/20 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-primary text-white shadow-lg">
-                <ShieldCheck className="size-7" />
-              </span>
-              <div>
-                <h3 className="font-display text-xl font-bold text-ink">100% Satisfaction Guarantee</h3>
-                <p className="text-sm text-muted mt-1 max-w-xl">
-                  Not happy with your vehicle clean? Contact our support team within 24 hours of your appointment for a free re-wash or full refund.
-                </p>
-              </div>
+          <GlassCard className="flex flex-col items-start justify-between gap-6 border border-primary/20 bg-primary/5 p-6 md:flex-row md:items-center">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-ink">Need help with a service?</h2>
+              <p className="mt-2 max-w-xl text-sm text-muted">Share your registered mobile number, booking details, and a description of the issue so our team can help.</p>
+              <a href="/refund" className="mt-2 inline-block text-sm font-medium text-primary underline">Read our refund and cancellation policy</a>
             </div>
-            <a href="tel:+919876543210" className="shrink-0 w-full md:w-auto">
-              <Button size="lg" className="w-full md:w-auto gap-2">
-                <MessageSquare className="size-4" /> Talk to Support
-              </Button>
-            </a>
+            <Button asChild className="min-h-[48px] shrink-0"><a href={primary?.href ?? "/contact"}><MessageSquare className="size-4" /> Contact support</a></Button>
           </GlassCard>
         </Container>
       </main>
-
       <Footer />
     </div>
   );

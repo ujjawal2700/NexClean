@@ -87,7 +87,7 @@ export function PlanDetail() {
   };
 
   return (
-    <div className="pb-28">
+    <div className="pb-[calc(8rem+var(--mobile-system-bottom))]">
       {header(plan.name)}
 
       {/* Hero */}
@@ -218,8 +218,8 @@ export function PlanDetail() {
       </div>
 
       {/* Sticky action — the tab bar is hidden here, so this sits at the bottom edge. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 sm:px-1">
+      <div className="booking-flow-actions fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 px-4 pt-3 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 sm:px-1">
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-ink">{plan.name}</p>
             <p className="text-xs text-muted">
@@ -227,11 +227,11 @@ export function PlanDetail() {
             </p>
           </div>
           {isCurrent ? (
-            <Button variant="outline" className="min-h-12 shrink-0" onClick={() => navigate("/app/plans")}>
+            <Button variant="outline" className="min-h-[48px] max-w-full shrink-0 whitespace-normal" onClick={() => navigate("/app/plans")}>
               Manage my plan
             </Button>
           ) : (
-            <Button className="min-h-12 shrink-0" onClick={choose}>
+            <Button className="min-h-[48px] max-w-full shrink-0 whitespace-normal" onClick={choose}>
               {isGuest ? `Log in to choose` : `Choose ${plan.name}`}
             </Button>
           )}

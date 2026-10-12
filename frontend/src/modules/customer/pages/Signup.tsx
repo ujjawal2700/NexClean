@@ -19,7 +19,6 @@ import { meKey } from "../api/queries";
 import { usePublicCities, usePublicZones, useSubmitLead } from "../api/public";
 import type { PublicCity, PublicZone } from "../api/public";
 
-const DEMO_OTP = "123456";
 
 type Step = "details" | "location" | "otp";
 
@@ -163,7 +162,7 @@ export function Signup() {
         });
         setStep("otp");
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : "Couldn't create account. Is the API running?");
+        setError(e instanceof ApiError ? e.message : "Couldn't create your account. Please try again.");
       }
     } else {
       // Unserviced city — still create account, then capture lead
@@ -180,7 +179,7 @@ export function Signup() {
         });
         setStep("otp");
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : "Couldn't create account. Is the API running?");
+        setError(e instanceof ApiError ? e.message : "Couldn't create your account. Please try again.");
       }
     }
   };
@@ -480,7 +479,7 @@ export function Signup() {
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && verify()}
-                  hint={`Demo code: ${DEMO_OTP}`}
+
                   error={error}
                 />
                 <Button
@@ -499,7 +498,7 @@ export function Signup() {
           )}
 
           <p className="mt-6 flex items-center justify-center gap-2 text-xs text-muted">
-            <ShieldCheck className="size-3.5 text-primary" /> Secured with end-to-end verification
+            <ShieldCheck className="size-3.5 text-primary" /> Secure sign-in with a one-time code
           </p>
         </div>
 

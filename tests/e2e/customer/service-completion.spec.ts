@@ -61,7 +61,7 @@ test("an ongoing service completion shows a blocking rating prompt and Maybe lat
 
   const dialog = page.getByTestId("service-completed-dialog");
   await expect(dialog).toBeVisible({ timeout: 8_000 });
-  await expect(dialog.getByRole("heading", { name: "Your service is completed" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Your service is complete" })).toBeVisible();
   // It asks the customer to rate the cleaner by name.
   await expect(dialog).toContainText("Please rate Test");
   await expect(dialog.getByRole("button", { name: "Rate 5 stars" })).toBeVisible();

@@ -83,7 +83,7 @@ export function AgentVerification() {
               {/* KYC details section */}
               <div className="mt-4 rounded-2xl border border-line bg-surface/60 p-3">
                 <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                  <CreditCard className="size-3.5 text-primary" /> Aadhar: {a.aadharNumber || "—"}
+                  <CreditCard className="size-3.5 text-primary" /> Aadhaar: {a.aadharNumber || "—"}
                 </p>
 
                 {(a.aadharFrontUrl || a.aadharBackUrl) ? (
@@ -101,7 +101,7 @@ export function AgentVerification() {
                             rel="noreferrer"
                             className="block overflow-hidden rounded-xl border border-line hover:border-primary/50 transition-colors"
                           >
-                            <img src={doc.url} alt={`Aadhar ${doc.label}`} className="aspect-[4/3] w-full object-cover" />
+                            <img src={doc.url} alt={`Aadhaar ${doc.label}`} className="aspect-[4/3] w-full object-cover" />
                           </a>
                         ),
                     )}

@@ -54,13 +54,17 @@ async function setup(page: Page, rejectFirst = false) {
   };
 }
 
-for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 }]) {
+for (const viewport of [{ width: 1280, height: 720 }, { width: 390, height: 844 }, { width: 320, height: 480 }, { width: 844, height: 390 }]) {
   test(`socket offer opens the popup at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
     const socket = await setup(page);
     await socket.emit("job_offer", offer());
     await expect(page.getByText("New wash request", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Accept job" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Accept job" })).toBeInViewport();
+    await expect(page.getByText("Your payout", { exact: true })).toBeVisible();
+    await expect(page.getByText("₹150", { exact: true })).toBeVisible();
+    const box = (await page.getByRole("button", { name: "Accept job" }).boundingBox())!;
+    expect(viewport.height - box.y - box.height).toBeGreaterThanOrEqual(viewport.width < 1024 ? 48 : 12);
     await page.getByRole("button", { name: "Decline", exact: true }).click();
     await expect(page.getByText("New wash request", { exact: true })).toHaveCount(0);
   });

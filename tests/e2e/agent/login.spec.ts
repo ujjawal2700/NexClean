@@ -9,11 +9,11 @@ test.describe("Agent login", () => {
     await expect(page.locator("h1")).toContainText("👋");
   });
 
-  test("phone step shows the expected copy and demo hint", async ({ page }) => {
+  test("phone step shows the expected copy without demo account hints", async ({ page }) => {
     await page.goto("/agent/login");
     await expect(page.locator("h1")).toHaveText("Welcome, specialist");
     await expect(page.getByText("Agent Login")).toBeVisible();
-    await expect(page.getByText("Demo agent: 9000000001")).toBeVisible();
+    await expect(page.getByText("Demo agent: 9000000001")).toHaveCount(0);
   });
 
   test("rejects a malformed phone number client-side", async ({ page }) => {

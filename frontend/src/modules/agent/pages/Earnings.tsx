@@ -61,7 +61,7 @@ export function Earnings() {
       </GlassCard>
 
       <section>
-        <h2 className="mb-2.5 font-display text-lg font-semibold text-ink">Payout history</h2>
+        <h2 className="mb-2.5 font-display text-lg font-semibold text-ink">Earnings history</h2>
         {isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (

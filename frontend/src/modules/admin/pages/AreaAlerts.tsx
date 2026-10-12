@@ -176,7 +176,7 @@ export function AreaAlerts() {
           </GlassCard>
 
           <GlassCard>
-            <p className="font-display text-lg font-semibold text-ink">Trigger triggered history</p>
+            <p className="font-display text-lg font-semibold text-ink">Alert history</p>
             <div className="mt-4 space-y-3">
               {triggered.map((t) => (
                 <div key={t.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface/60 p-3">

@@ -46,7 +46,7 @@ test.describe("Admin Agent Detail", () => {
     await expect(page.locator("table")).toBeVisible();
   });
 
-  test("Aadhar docs view/hide toggle changes visible state (local, no API call)", async ({ page, request }) => {
+  test("Aadhaar docs view/hide toggle changes visible state (local, no API call)", async ({ page, request }) => {
     const { token: adminToken } = await loginAsAdminApi(request);
     const id = await findAgentIdByPhone(request, adminToken, SEED_AGENT_PHONE);
 

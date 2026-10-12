@@ -32,14 +32,14 @@ export function DetailModal({
   // otherwise trapped in that card (backdrop-filter makes it the containing
   // block), so the dimmed backdrop covered only the card, not the page.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="safe-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
         data-testid={testId}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-2xl border border-line bg-surface shadow-xl"
+        className="flex max-h-full w-full max-w-xl flex-col rounded-2xl border border-line bg-surface shadow-xl"
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-6 py-4">
           <div className="min-w-0">
@@ -50,7 +50,7 @@ export function DetailModal({
             <X className="size-5" />
           </button>
         </div>
-        <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5" data-lenis-prevent="true">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5" data-lenis-prevent="true">
           {children}
         </div>
         {footer && <div className="shrink-0 border-t border-line px-6 py-4">{footer}</div>}

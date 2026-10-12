@@ -60,20 +60,20 @@ function OfferCard({
 
   return (
     <motion.div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 p-4 sm:p-6 backdrop-blur-md"
+      className="safe-modal-overlay fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="w-full max-w-lg overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl"
+        className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-2xl"
         initial={{ y: 20, opacity: 0, scale: 0.95 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: 20, opacity: 0, scale: 0.95 }}
         transition={{ type: "spring", stiffness: 280, damping: 24 }}
       >
         {/* Header with countdown */}
-        <div className="flex items-center justify-between gap-3 bg-gradient-to-br from-primary to-accent px-5 py-4 text-white">
+        <div className="flex shrink-0 items-center justify-between gap-3 bg-gradient-to-br from-primary to-accent px-5 py-4 text-white">
           <div className="flex items-center gap-2">
             <span className="relative flex size-2.5">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-white/70" />
@@ -104,7 +104,7 @@ function OfferCard({
         </div>
 
         {/* Body */}
-        <div className="space-y-4 p-5">
+        <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-5" data-lenis-prevent>
           <div className="space-y-3 rounded-2xl border border-line bg-surface-muted/40 p-4">
             <div className="flex items-start gap-3">
               <User className="mt-0.5 size-5 shrink-0 text-primary" />
@@ -138,7 +138,8 @@ function OfferCard({
             <span className="font-display text-2xl font-bold text-emerald-700">{formatMoney(offer.payout)}</span>
           </div>
 
-          <div className="flex gap-3 pt-1">
+        </div>
+          <div className="flex shrink-0 gap-3 border-t border-line p-5">
             <Button variant="outline" className="flex-1 cursor-pointer" onClick={decline} disabled={accepting}>
               <X className="size-4" /> Decline
             </Button>
@@ -150,7 +151,6 @@ function OfferCard({
               <Check className="size-4" /> {expired ? "Expired" : accepting ? "Accepting…" : "Accept job"}
             </Button>
           </div>
-        </div>
       </motion.div>
     </motion.div>
   );
