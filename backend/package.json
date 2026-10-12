@@ -2,16 +2,16 @@
   "name": "@nexclean/backend",
   "private": true,
   "version": "0.0.0",
-  "description": "NexClean API — Node + Express + TypeScript + MongoDB, role-based modules.",
+  "description": "NexClean API \u2014 Node + Express + TypeScript + MongoDB, role-based modules.",
   "type": "commonjs",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "node --watch --import tsx src/index.ts",
+    "dev": "node api.js && node --watch --import tsx src/index.ts",
     "test-start": "node --import tsx src/index.ts",
     "cleanup": "node --import tsx src/scripts/cleanup.ts",
     "delete-customers": "node --import tsx src/scripts/delete-all-customers.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "build": "node api.js && tsc -p tsconfig.json",
+    "start": "node api.js && node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
