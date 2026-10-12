@@ -35,7 +35,8 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   // (edit profile, refer & earn, vehicles, wallet, notifications, help…) have
   // their own back button, and the bar there only competed with it.
   const path = location.pathname.replace(/\/+$/, "") || "/";
-  const showMobileNav = NAV.some((item) => item.to === path);
+  const bookingFlow = path === "/app/book";
+  const showMobileNav = !bookingFlow && NAV.some((item) => item.to === path);
 
   /** Guests never reach a locked screen: the tap goes straight to the login. */
   const goToLogin = (from?: string) => navigate("/app/login", { state: from ? { from } : undefined });
@@ -65,7 +66,10 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh overflow-x-clip bg-bg">
       {/* top bar */}
-      <header className="sticky top-0 z-30 hidden border-b border-line/70 bg-surface/80 backdrop-blur-xl md:block">
+      <header className={cn(
+        "sticky top-0 z-30 hidden border-b border-line/70 bg-surface/80 backdrop-blur-xl",
+        bookingFlow ? "lg:block" : "md:block",
+      )}>
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-5">
           <button onClick={() => navigate("/app")} className="text-[1.1rem] cursor-pointer" aria-label="Dashboard">
             <Logo variant="full" />
@@ -151,8 +155,10 @@ export function CustomerLayout({ children }: { children: ReactNode }) {
       {/* content */}
       <main
         className={cn(
-          "mx-auto max-w-6xl px-4 pt-6 sm:px-5 sm:pt-8",
-          showMobileNav ? "mobile-content-with-nav" : "pb-8",
+          "mx-auto max-w-6xl",
+          bookingFlow
+            ? "min-h-0"
+            : cn("px-4 pt-6 sm:px-5 sm:pt-8", showMobileNav ? "mobile-content-with-nav" : "pb-8"),
         )}
       >
         {children}

@@ -5,12 +5,12 @@ export const STEP_LABELS = ["Vehicle", "Package", "Schedule", "Address", "Paymen
 
 export function Stepper({ current }: { current: number }) {
   return (
-    <ol className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+    <ol aria-label="Booking progress" className="flex min-w-0 items-center gap-1.5 sm:gap-2">
       {STEP_LABELS.map((label, i) => {
         const done = i < current;
         const active = i === current;
         return (
-          <li key={label} className="flex min-w-0 flex-1 items-center gap-1 last:flex-none sm:gap-2">
+          <li key={label} aria-current={active ? "step" : undefined} aria-label={`${label}${done ? ", completed" : ""}`} className="flex min-w-0 flex-1 items-center gap-1 last:flex-none sm:gap-2">
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <span
                 className={cn(

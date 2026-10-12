@@ -244,6 +244,30 @@
   padding-bottom: calc(max(var(--mobile-system-bottom), 48px) + 1rem);
 }
 
+.booking-flow {
+  height: var(--booking-viewport-height, 100dvh);
+}
+
+.booking-flow-header {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+}
+
+.booking-flow-actions {
+  padding-bottom: calc(max(var(--mobile-system-bottom), 48px) + 0.75rem);
+}
+
+@media (min-width: 1024px) {
+  .booking-flow {
+    height: calc(var(--booking-viewport-height, 100dvh) - 4rem);
+  }
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+  .booking-flow-actions {
+    padding-bottom: calc(var(--mobile-system-bottom) + 0.75rem);
+  }
+}
+
 @media (min-width: 640px) {
   .schedule-sheet-actions {
     padding-bottom: calc(var(--mobile-system-bottom) + 1.5rem);

@@ -184,6 +184,32 @@ export function BookingFlow() {
   const [processing, setProcessing] = useState(false);
   const [confirmed, setConfirmed] = useState<Booking | null>(null);
   const [priceChanged, setPriceChanged] = useState<number | null>(null);
+  const flowRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Android's keyboard can resize the visual viewport without changing vh.
+  // Fit the booking shell to the visible area so the actions stay reachable.
+  useEffect(() => {
+    if (confirmed) return;
+    const update = () => {
+      flowRef.current?.style.setProperty(
+        "--booking-viewport-height",
+        `${window.visualViewport?.height ?? window.innerHeight}px`,
+      );
+    };
+    update();
+    window.visualViewport?.addEventListener("resize", update);
+    window.addEventListener("resize", update);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [confirmed]);
+
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    setPayError("");
+  }, [step]);
 
   // Someone else's draft on this device (they logged out, another customer
   // logged in): never offer it.
@@ -491,120 +517,131 @@ export function BookingFlow() {
     }
   };
 
-  if (confirmed) return <Confirmation booking={confirmed} />;
+  if (confirmed) return <div className="px-4 pb-[calc(var(--mobile-system-bottom)+3rem)]"><Confirmation booking={confirmed} /></div>;
 
   return (
-    <div className="mx-auto max-w-4xl overflow-x-clip">
-      <div className="sticky top-0 z-20 -mx-4 mb-3 flex items-center gap-3 bg-bg/95 px-4 py-3 backdrop-blur-xl md:top-16 sm:-mx-5 sm:px-5">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex shrink-0 items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer"
-          aria-label="Back">
-          <ArrowLeft className="size-4" />
-        </button>
-        <h1 className="font-display text-xl font-semibold text-ink sm:text-2xl">
-          Book a cleaning
-        </h1>
+    <div ref={flowRef} className="booking-flow mx-auto flex min-h-0 max-w-4xl flex-col overflow-hidden" data-testid="booking-flow">
+      <header className="booking-flow-header shrink-0 border-b border-line bg-surface px-4 pb-3 sm:px-6">
+        <div className="mb-3 flex items-center gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            disabled={processing}
+            className="flex shrink-0 items-center justify-center size-9 rounded-xl border border-line bg-surface text-ink-soft hover:text-primary transition-colors cursor-pointer"
+            aria-label="Leave booking">
+            <ArrowLeft className="size-4" />
+          </button>
+          <h1 className="font-display text-xl font-semibold text-ink sm:text-2xl">
+            Book a cleaning
+          </h1>
+          <span className="ml-auto shrink-0 text-xs font-medium text-muted" role="status">
+            {step + 1} / {STEP_LABELS.length}
+          </span>
+        </div>
+        <Stepper current={step} />
+      </header>
+
+      <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-6" data-lenis-prevent data-testid="booking-step-content">
+        <div className="grid items-start gap-6 lg:grid-cols-[1.6fr_1fr]">
+          {/* step body */}
+          <div className="min-w-0">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={step}
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -24 }}
+                transition={{ duration: 0.2 }}
+                onAnimationComplete={() => {
+                  contentRef.current?.querySelector<HTMLElement>("[data-booking-step-heading]")?.focus({ preventScroll: true });
+                }}>
+                {step === 0 && (
+                  <VehicleStep
+                    draft={draft}
+                    set={set}
+                    vehicles={vehicles}
+                    categoryLabel={categoryLabel}
+                  />
+                )}
+                {step === 1 && (
+                  <PackageStep draft={draft} set={set} categories={categories} />
+                )}
+                {step === 2 && <ScheduleStep draft={draft} set={set} />}
+                {step === 3 && (
+                  <AddressStep draft={draft} set={set} addresses={addresses} />
+                )}
+                {step === 4 && (
+                  <PaymentSummary
+                    draft={draft}
+                    categoryLabel={categoryLabel}
+                    subtotal={total}
+                    total={payable}
+                    tax={taxQuote}
+                    taxLabel={taxLabel}
+                    discountInput={discountInput}
+                    setDiscountInput={setDiscountInput}
+                    appliedDiscount={appliedDiscount}
+                    discountError={discountError}
+                    applyDiscount={applyDiscount}
+                    clearDiscount={clearDiscount}
+                    applying={previewDiscount.isPending}
+                    walletCoins={walletCoins}
+                    coinsUsed={coinsToRedeem}
+                    coinDiscount={appliedDiscount?.coinDiscount ?? 0}
+                    toggleCoins={toggleCoins}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* live summary */}
+          <OrderSummary
+            draft={draft}
+            total={payable}
+            tax={taxQuote}
+            taxLabel={taxLabel}
+            discount={appliedDiscount}
+            step={step}
+            address={address?.label}
+          />
+        </div>
       </div>
 
-      <Stepper current={step} />
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        {/* step body */}
-        <div className="min-w-0">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={step}
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -24 }}
-              transition={{ duration: 0.3 }}>
-              {step === 0 && (
-                <VehicleStep
-                  draft={draft}
-                  set={set}
-                  vehicles={vehicles}
-                  categoryLabel={categoryLabel}
-                />
-              )}
-              {step === 1 && (
-                <PackageStep draft={draft} set={set} categories={categories} />
-              )}
-              {step === 2 && <ScheduleStep draft={draft} set={set} />}
-              {step === 3 && (
-                <AddressStep draft={draft} set={set} addresses={addresses} />
-              )}
-              {step === 4 && (
-                <PaymentSummary
-                  draft={draft}
-                  categoryLabel={categoryLabel}
-                  subtotal={total}
-                  total={payable}
-                  tax={taxQuote}
-                  taxLabel={taxLabel}
-                  discountInput={discountInput}
-                  setDiscountInput={setDiscountInput}
-                  appliedDiscount={appliedDiscount}
-                  discountError={discountError}
-                  applyDiscount={applyDiscount}
-                  clearDiscount={clearDiscount}
-                  applying={previewDiscount.isPending}
-                  walletCoins={walletCoins}
-                  coinsUsed={coinsToRedeem}
-                  coinDiscount={appliedDiscount?.coinDiscount ?? 0}
-                  toggleCoins={toggleCoins}
-                />
-              )}
-            </motion.div>
-          </AnimatePresence>
-
-          {/* nav */}
-          <div className="mt-6 flex items-center justify-between gap-3">
+      <footer className="booking-flow-actions shrink-0 border-t border-line bg-surface px-4 pt-3 sm:px-6" data-testid="booking-actions">
+        {payError && (
+          <p className="mb-3 max-h-20 overflow-y-auto text-sm text-red-500" role="alert">{payError}</p>
+        )}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+            disabled={step === 0 || processing}
+            className="min-h-[48px] flex-1">
+            <ArrowLeft className="size-4" /> Back
+          </Button>
+          {step < 4 ? (
             <Button
-              variant="ghost"
-              onClick={() => setStep((s) => Math.max(0, s - 1))}
-              disabled={step === 0}
-              className="shrink-0">
-              <ArrowLeft className="size-4" /> Back
+              onClick={() => setStep((s) => s + 1)}
+              disabled={!canContinue}
+              className="min-h-[48px] flex-[2]">
+              Continue <ArrowRight className="size-4" />
             </Button>
-            {step < 4 ? (
-              <Button
-                onClick={() => setStep((s) => s + 1)}
-                disabled={!canContinue}>
-                Continue <ArrowRight className="size-4" />
-              </Button>
-            ) : (
-              <Button
-                onClick={pay}
-                disabled={processing}
-                className="min-w-36 sm:min-w-44">
-                {processing ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Processing…
-                  </>
-                ) : (
-                  <>Pay {formatMoney(payable)}</>
-                )}
-              </Button>
-            )}
-          </div>
-          {payError && (
-            <p className="mt-3 text-right text-sm text-red-500">{payError}</p>
+          ) : (
+            <Button
+              onClick={pay}
+              disabled={processing}
+              className="min-h-[48px] flex-[2]">
+              {processing ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Processing…
+                </>
+              ) : (
+                <>Pay {formatMoney(payable)}</>
+              )}
+            </Button>
           )}
         </div>
-
-        {/* live summary */}
-        <OrderSummary
-          draft={draft}
-          total={payable}
-          tax={taxQuote}
-          taxLabel={taxLabel}
-          discount={appliedDiscount}
-          step={step}
-          address={address?.label}
-        />
-      </div>
-
+      </footer>
       {resumeOffer && (
         <ResumeBookingDialog
           saved={resumeOffer}
@@ -786,7 +823,7 @@ function PriceChangedDialog({
 function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="mb-5">
-      <h2 className="font-display text-xl font-semibold text-ink">{title}</h2>
+      <h2 tabIndex={-1} data-booking-step-heading className="font-display text-xl font-semibold text-ink outline-none">{title}</h2>
       <p className="mt-1 text-sm text-muted">{subtitle}</p>
     </div>
   );
@@ -1507,7 +1544,7 @@ function OrderSummary({
   ];
 
   return (
-    <GlassCard className="hidden h-fit p-4 lg:block lg:sticky lg:top-24">
+    <GlassCard className="hidden h-fit p-4 lg:block lg:sticky lg:top-0">
       <p className="font-display text-lg font-semibold text-ink">Summary</p>
       <p className="mt-1 text-xs text-muted">
         Step {step + 1} of {STEP_LABELS.length}
