@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { MapPin, User, Sparkles, Check, X } from "lucide-react";
 import { Button } from "@shared/ui/Button";
+import { formatMoney } from "@shared/lib/format";
 import type { AgentDispatch } from "../hooks/useAgentDispatch";
 
 /** Full-screen incoming-offer popup with a live countdown (Uber/food-delivery style). */
@@ -128,6 +129,13 @@ function OfferCard({
                 <p className="font-display font-semibold text-ink">{offer.packageName}</p>
               </div>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-2xl bg-emerald-500/10 px-4 py-3">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700">
+              <Sparkles className="size-4" /> Your payout
+            </span>
+            <span className="font-display text-2xl font-bold text-emerald-700">{formatMoney(offer.payout)}</span>
           </div>
 
           <div className="flex gap-3 pt-1">
