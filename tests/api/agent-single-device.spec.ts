@@ -88,7 +88,7 @@ test.describe("Agent — one phone at a time", () => {
     expect((await me(request, first.token!)).ok()).toBeTruthy();
   });
 
-  test("switching phones drops only the other phone's push token, and pushReady follows", async ({ request }) => {
+  test("switching phones revokes push registrations, and the new phone can register again", async ({ request }) => {
     const phone = await newCleaner(request);
     const a = await login(request, phone, PHONE_A);
     const reg = await request.post(apiUrl("/notifications/register-token"), {
@@ -121,6 +121,71 @@ test.describe("Agent — one phone at a time", () => {
       data: { token: "web-placeholder-token-789" },
     });
     expect((await (await me(request, cs.token!)).json()).data.pushReady).toBe(false);
+  });
+
+  test("switching phones removes legacy push tokens without device mappings", async ({ request }) => {
+    const phone = await newCleaner(request);
+    const legacy = await login(request, phone, {});
+    const reg = await request.post(apiUrl("/notifications/register-token"), {
+      headers: { Authorization: `Bearer ${legacy.token}` },
+      data: { token: "legacy-unmapped-fcm-token-123" },
+    });
+    expect(reg.ok()).toBeTruthy();
+    expect((await (await me(request, legacy.token!)).json()).data.pushReady).toBe(true);
+
+    await login(request, phone, PHONE_A);
+    const b = await login(request, phone, PHONE_B);
+    const confirm = await request.post(apiUrl("/auth/agent/confirm-device-switch"), {
+      headers: PHONE_B, data: { switchTicket: b.switchTicket },
+    });
+    expect(confirm.ok()).toBeTruthy();
+    const tokenB = (await confirm.json()).data.token;
+    expect((await (await me(request, tokenB)).json()).data.pushReady).toBe(false);
+    expect((await request.post(apiUrl("/notifications/register-token"), {
+      headers: { ...PHONE_A, Authorization: `Bearer ${legacy.token}` },
+      data: { token: "legacy-unmapped-fcm-token-123" },
+    })).status()).toBe(401);
+  });
+
+  test("logout without a client push token revokes registrations and the old session", async ({ request }) => {
+    const phone = await newCleaner(request);
+    const a = await login(request, phone, PHONE_A);
+    expect((await request.post(apiUrl("/notifications/register-token"), {
+      headers: { ...PHONE_A, Authorization: `Bearer ${a.token}` },
+      data: { token: "native-rotated-token-not-in-local-storage" },
+    })).ok()).toBeTruthy();
+    expect((await request.post(apiUrl("/auth/logout"), {
+      headers: { ...PHONE_A, Authorization: `Bearer ${a.token}` }, data: { role: "agent" },
+    })).ok()).toBeTruthy();
+    expect((await me(request, a.token!)).status()).toBe(401);
+    expect((await request.post(apiUrl("/notifications/register-token"), {
+      headers: { ...PHONE_A, Authorization: `Bearer ${a.token}` },
+      data: { token: "native-rotated-token-not-in-local-storage" },
+    })).status()).toBe(401);
+    const b = await login(request, phone, PHONE_B);
+    expect(b.token).toBeTruthy();
+    expect((await (await me(request, b.token!)).json()).data.pushReady).toBe(false);
+  });
+
+  test("an old phone cannot register with the new session or log the new phone out", async ({ request }) => {
+    const phone = await newCleaner(request);
+    const a = await login(request, phone, PHONE_A);
+    const b = await login(request, phone, PHONE_B);
+    const confirm = await request.post(apiUrl("/auth/agent/confirm-device-switch"), {
+      headers: PHONE_B, data: { switchTicket: b.switchTicket },
+    });
+    const tokenB = (await confirm.json()).data.token;
+    expect((await request.post(apiUrl("/notifications/register-token"), {
+      headers: { ...PHONE_A, Authorization: `Bearer ${tokenB}` }, data: { token: "wrong-phone-native-token" },
+    })).status()).toBe(401);
+    expect((await request.post(apiUrl("/notifications/register-token"), {
+      headers: { ...PHONE_B, Authorization: `Bearer ${tokenB}` }, data: { token: "new-phone-native-token" },
+    })).ok()).toBeTruthy();
+    await request.post(apiUrl("/auth/logout"), {
+      headers: { ...PHONE_A, Authorization: `Bearer ${a.token}` }, data: { role: "agent" },
+    });
+    expect((await me(request, tokenB)).ok()).toBeTruthy();
+    expect((await (await me(request, tokenB)).json()).data.pushReady).toBe(true);
   });
 
   test("after logging out, another phone logs in without the prompt", async ({ request }) => {

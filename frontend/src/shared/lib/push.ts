@@ -14,6 +14,7 @@
 import { getPublicRuntimeConfig, type FirebasePublicConfig } from "./runtimeConfig";
 
 const KEY = "nexclean-device-token";
+const NATIVE_KEY = "nexclean-native-push-token";
 
 /** A stable per-device synthetic token (fallback / mock mode). */
 export function getOrCreateDeviceToken(): string {
@@ -68,6 +69,11 @@ export function saveDeviceToken(token: string): void {
  */
 export async function getPushToken(options?: { requestPermission?: boolean }): Promise<string> {
   const fallback = getOrCreateDeviceToken();
+  // The store app's token must win over a browser token or placeholder,
+  // including when the native bridge fires while runtime config is loading.
+  const preferredToken = () => localStorage.getItem(NATIVE_KEY) || fallback;
+  const nativeToken = localStorage.getItem(NATIVE_KEY);
+  if (nativeToken) return nativeToken;
   const { firebase } = await getPublicRuntimeConfig();
   const config: Omit<FirebasePublicConfig, "vapidKey"> | null = firebase
     ? {
@@ -88,18 +94,18 @@ export async function getPushToken(options?: { requestPermission?: boolean }): P
     !("serviceWorker" in navigator) ||
     typeof Notification === "undefined"
   ) {
-    saveDeviceToken(fallback);
-    return fallback;
+    saveDeviceToken(preferredToken());
+    return preferredToken();
   }
 
   if (Notification.permission === "denied") {
-    saveDeviceToken(fallback);
-    return fallback;
+    saveDeviceToken(preferredToken());
+    return preferredToken();
   }
 
   if (Notification.permission !== "granted" && !options?.requestPermission) {
-    saveDeviceToken(fallback);
-    return fallback;
+    saveDeviceToken(preferredToken());
+    return preferredToken();
   }
 
   try {
@@ -108,8 +114,8 @@ export async function getPushToken(options?: { requestPermission?: boolean }): P
       permission = await Notification.requestPermission();
     }
     if (permission !== "granted") {
-      saveDeviceToken(fallback);
-      return fallback;
+      saveDeviceToken(preferredToken());
+      return preferredToken();
     }
 
     const firebase = await loadFirebaseSdk();
@@ -121,7 +127,7 @@ export async function getPushToken(options?: { requestPermission?: boolean }): P
     const registration = await navigator.serviceWorker.register(swUrl);
 
     const token: string = await messaging.getToken({ vapidKey, serviceWorkerRegistration: registration });
-    const finalToken = token || fallback;
+    const finalToken = localStorage.getItem(NATIVE_KEY) || token || fallback;
 
     // Persist active FCM / device token to localStorage so local storage and DB stay in sync
     saveDeviceToken(finalToken);
@@ -159,8 +165,8 @@ export async function getPushToken(options?: { requestPermission?: boolean }): P
     return finalToken;
   } catch (err) {
     console.info("FCM token retrieval note:", err);
-    saveDeviceToken(fallback);
-    return fallback;
+    saveDeviceToken(preferredToken());
+    return preferredToken();
   }
 }
 
@@ -172,6 +178,7 @@ export function getStoredDeviceToken(): string | null {
 export function clearStoredDeviceToken(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(KEY);
+  localStorage.removeItem(NATIVE_KEY);
 }
 
 export async function isFirebaseConfigured(): Promise<boolean> {
@@ -248,6 +255,7 @@ export function installNativePushBridge(register: (token: string) => Promise<unk
   w.registerNativePushToken = async (token: string) => {
     const t = typeof token === "string" ? token.trim() : "";
     if (t.length < 8) return false;
+    localStorage.setItem(NATIVE_KEY, t);
     saveDeviceToken(t);
     try {
       await register(t);

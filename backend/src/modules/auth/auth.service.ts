@@ -199,20 +199,14 @@ export async function confirmAgentDeviceSwitch(ticket: string, deviceId = "") {
   if (!claims || claims.dev !== deviceId) {
     throw ApiError.badRequest("This login request has expired. Please sign in again.");
   }
-  const current = await User.findById(claims.sub).select("deviceTokens pushTokenDevices");
-  // The other phones' push tokens go, or a signed-out phone would keep ringing
-  // with offers. Only tokens known to belong to another install, plus useless
-  // placeholders — a token this phone registered (or one we can't attribute)
-  // stays: the store app hands its native token over when it decides to, not
-  // on demand, so deleting it can leave the cleaner with no push at all.
-  const otherPhones = (current?.pushTokenDevices ?? []).filter((d) => d.deviceId !== deviceId).map((d) => d.token);
-  const stale = [...otherPhones, ...(current?.deviceTokens ?? []).filter((t) => !isRealPushToken(t))];
+  // Revoke every push registration with the old session, including legacy
+  // tokens with no device mapping. The new phone re-registers its saved token
+  // after login; an unattributed token must never keep a signed-out phone ringing.
   const user = await User.findOneAndUpdate(
     { _id: claims.sub, role: "agent", status: { $ne: "suspended" }, tokenVersion: claims.ver },
     {
       $inc: { tokenVersion: 1 },
-      $set: { agentDeviceId: deviceId || null, online: false },
-      $pull: { deviceTokens: { $in: stale }, pushTokenDevices: { token: { $in: stale } } },
+      $set: { agentDeviceId: deviceId || null, online: false, deviceTokens: [], pushTokenDevices: [] },
     },
     { new: true },
   );
@@ -231,19 +225,19 @@ export async function confirmAgentDeviceSwitch(ticket: string, deviceId = "") {
 export async function releaseAgentDevice(
   userId: string,
   tokenVersion: number,
-  deviceId: string,
-  pushToken = "",
 ): Promise<void> {
-  // Signing out means no more jobs on this phone: off duty, and this phone's
-  // push token dropped so a closed app doesn't keep ringing. Only for the
-  // account's current session — a phone already signed out by a switch must
-  // not knock the new phone offline.
-  const current = { _id: userId, role: "agent", tokenVersion };
-  await User.updateOne(current, {
-    $set: { online: false },
-    ...(pushToken ? { $pull: { deviceTokens: pushToken, pushTokenDevices: { token: pushToken } } } : {}),
-  });
-  if (deviceId) await User.updateOne({ ...current, agentDeviceId: deviceId }, { agentDeviceId: null });
+  // Revoke the session and all registrations atomically. Native tokens may
+  // rotate or never reach localStorage, so client tokens are not authoritative.
+  // A replaced session matches nothing and cannot sign the new phone out.
+  const user = await User.findOneAndUpdate(
+    { _id: userId, role: "agent", tokenVersion },
+    {
+      $inc: { tokenVersion: 1 },
+      $set: { online: false, agentDeviceId: null, deviceTokens: [], pushTokenDevices: [] },
+    },
+    { new: true },
+  );
+  if (user) await endUserSessions(user.id, "session_replaced", user.tokenVersion ?? 0);
 }
 
 /**

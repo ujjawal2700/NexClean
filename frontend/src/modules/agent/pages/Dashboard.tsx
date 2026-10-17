@@ -141,47 +141,49 @@ export function Dashboard() {
         <section>
           <div className="mb-3 flex items-center gap-2">
             <Zap className="size-4 text-amber-500" />
-            <h2 className="font-display text-base font-semibold text-ink sm:text-lg">
+            <h2 className="font-display text-[max(1.25rem,20px)] font-semibold text-ink">
               Available now
             </h2>
-            <span className="ml-auto rounded-pill bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-600">
+            <span className="ml-auto rounded-pill bg-amber-500/10 px-3 py-1 text-[max(0.875rem,14px)] font-semibold text-amber-600">
               {availableJobs.length} open
             </span>
           </div>
           <div className="space-y-3">
             {availableJobs.map((j) => (
-              <GlassCard key={j.id} className="flex items-center gap-3 p-4">
-                <div className="w-16 shrink-0">
-                  <CarSilhouette type={j.vehicleType} uid={`avail-${j.id}`} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-display font-semibold text-ink">{j.vehicleName}</p>
-                  <p className="text-xs text-muted">{j.packageName}</p>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-ink-soft">
-                    <span className="flex items-center gap-1">
-                      <Clock className="size-3 text-primary" />{j.slot}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="size-3 text-primary" />{j.addressLabel}
-                    </span>
-                    {j.distanceKm != null && (
-                      <span className="flex items-center gap-1">
-                        <Navigation className="size-3 text-primary" />{j.distanceKm} km
-                      </span>
-                    )}
+              <GlassCard key={j.id} className="p-4 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-14 shrink-0 sm:w-16">
+                    <CarSilhouette type={j.vehicleType} uid={`avail-${j.id}`} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-[max(1.125rem,18px)] font-semibold leading-snug text-ink [overflow-wrap:anywhere]">{j.vehicleName}</p>
+                    <p className="mt-1 text-[max(0.875rem,14px)] leading-relaxed text-ink-soft [overflow-wrap:anywhere]">{j.packageName}</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2 shrink-0">
-                  <p className="font-display text-base font-bold text-emerald-600">{formatMoney(j.payout)}</p>
+                <p className="mt-3 text-[max(1rem,16px)] font-semibold leading-relaxed text-ink [overflow-wrap:anywhere]">{j.customerName}</p>
+                <div className="mt-3 space-y-2 border-t border-line/60 pt-3 text-[max(1rem,16px)] leading-relaxed text-ink-soft">
+                  <span className="flex items-start gap-2">
+                    <Clock className="mt-1 size-4 shrink-0 text-primary" /><span className="min-w-0 [overflow-wrap:anywhere]">{j.slot}</span>
+                  </span>
+                  <span className="flex items-start gap-2">
+                    <MapPin className="mt-1 size-4 shrink-0 text-primary" /><span className="min-w-0 [overflow-wrap:anywhere]">{j.addressLabel}</span>
+                  </span>
+                  {j.distanceKm != null && (
+                    <span className="flex items-start gap-2">
+                      <Navigation className="mt-1 size-4 shrink-0 text-primary" /><span>{j.distanceKm} km away</span>
+                    </span>
+                  )}
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line/60 pt-3">
+                  <p className="font-display text-[max(1.25rem,20px)] font-bold text-emerald-600">{formatMoney(j.payout)}</p>
                   <Button
-                    size="sm"
-                    className="bg-amber-500 hover:bg-amber-600 text-white text-xs px-3"
+                    className="min-h-[44px] bg-amber-500 hover:bg-amber-600 text-white text-[max(1rem,16px)] px-5"
                     disabled={claimJob.isPending}
                     onClick={() => claimJob.mutate(j.id)}
                   >
                     {claimJob.isPending && claimJob.variables === j.id
-                      ? <Loader2 className="size-3 animate-spin" />
-                      : <><Zap className="size-3" /> Claim</>}
+                      ? <Loader2 className="size-4 animate-spin" />
+                      : <><Zap className="size-4" /> Claim</>}
                   </Button>
                 </div>
               </GlassCard>

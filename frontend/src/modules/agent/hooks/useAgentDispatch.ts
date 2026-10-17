@@ -168,6 +168,7 @@ export function useAgentDispatch(): AgentDispatch {
       offerEventVersionRef.current += 1;
       setOffer(null);
       setSessionReplaced(true);
+      socket.disconnect();
     });
     // The server refuses a reconnect from a revoked session. Re-reading the
     // profile turns that into a 401, which the route guard sends to login.

@@ -10,7 +10,7 @@ export async function registerToken(req: Request, res: Response): Promise<Respon
   const parsed = tokenSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("A valid device token is required");
   const deviceId = String(req.get("x-device-id") ?? "").trim().slice(0, 100);
-  await service.registerToken(req.userId!, parsed.data.token, deviceId);
+  await service.registerToken(req.userId!, parsed.data.token, deviceId, req.tokenVersion ?? 0);
   return ok(res, { registered: true }, "Device registered");
 }
 

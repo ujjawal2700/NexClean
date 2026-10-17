@@ -73,8 +73,7 @@ export async function logout(req: Request, res: Response): Promise<Response> {
       const raw = readSessionToken(req);
       const payload = raw ? verifyToken(raw) : null;
       if (payload?.role === "agent") {
-        const pushToken = typeof req.body?.pushToken === "string" ? req.body.pushToken.slice(0, 4096) : "";
-        await authService.releaseAgentDevice(payload.sub, payload.ver ?? 0, deviceIdOf(req), pushToken);
+        await authService.releaseAgentDevice(payload.sub, payload.ver ?? 0);
       }
     } catch {
       /* expired or foreign token — nothing of ours to release */
