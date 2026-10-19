@@ -266,10 +266,13 @@ in VS Code before 2026-07-21, or built it after 2026-08-31, is in scope.
       `cp scripts/pre-commit .git/hooks/pre-commit`
 - [ ] Consider running it in CI as well, since a local hook is bypassable with
       `--no-verify` and does not protect against a direct push.
-- [ ] Note `.vscode/` is gitignored in this repo, so a `tasks.json` dropped
-      locally is invisible to both `git status` and this scanner, which reads
-      tracked files. That gap closes by keeping the machine clean, not by the
-      scanner.
+- [x] The worktree scanner now includes untracked source and ignored `.vscode/`
+      files. The supplied pre-commit hook checks the worktree and staged blobs;
+      the pre-push hook checks the worktree. Install hooks in each checkout;
+      adding hook scripts to Git does not activate them automatically.
+- [x] The repository security workflow scans each push and pull request and runs
+      scanner regression tests. Binary assets are checked against format
+      signatures; adding a NUL byte no longer bypasses source inspection.
 
 ---
 

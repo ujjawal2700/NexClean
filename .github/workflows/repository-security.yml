@@ -1,0 +1,23 @@
+name: Repository security
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  malware-scan:
+    name: Repository malware scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Scan source and editor files before running tests
+        run: node scripts/scan-malware.mjs --worktree
+      - name: Verify scanner regressions
+        run: node --test scripts/scan-malware.test.mjs
