@@ -157,6 +157,8 @@ export function useAgentDispatch(): AgentDispatch {
       refreshJobs();
     });
 
+    socket.on("job_rescheduled", refreshJobs);
+
     // A job of ours was cancelled — tell the cleaner now, not on the next refresh.
     socket.on("job_cancelled", ({ bookingId }: { bookingId: string }) => {
       if (bookingId) setCancelledJobId(bookingId);

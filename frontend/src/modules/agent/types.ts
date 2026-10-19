@@ -57,6 +57,7 @@ export type Job = {
   vehicleColor?: string;
   vehicleColorHex?: string;
   packageName: string;
+  rescheduleConfirmationToken?: string | null;
   date: string; // ISO
   slot: string;
   addressLabel: string;

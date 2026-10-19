@@ -110,6 +110,8 @@ const bookingSchema = new Schema(
     assignedAgent: { type: Types.ObjectId, ref: "User", default: null, index: true },
     agentName: { type: String, default: null },
     assignedAt: { type: Date, default: null },
+    // A new token for each customer move; agents must answer for this exact schedule.
+    rescheduleConfirmationToken: { type: String, default: null },
     jobStatus: {
       type: String,
       enum: ["assigned", "enroute", "arrived", "in_progress", "completed"],

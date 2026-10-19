@@ -72,6 +72,7 @@ function mapJob(b: BookingDocument, payoutOf: PayoutOf, agentPoint?: LngLat) {
     packageName: b.packageName,
     date: b.date,
     slot: b.slot,
+    rescheduleConfirmationToken: b.status === "upcoming" ? b.rescheduleConfirmationToken ?? null : null,
     addressLabel: b.addressLabel,
     addressLine: b.addressLine,
     society: b.society,
@@ -125,6 +126,9 @@ async function getWorkableJob(agentId: string, bookingId: string) {
   if (booking.status === "cancelled") {
     throw ApiError.badRequest("This booking was cancelled. There's nothing more to do on it.");
   }
+  if (booking.rescheduleConfirmationToken) {
+    throw ApiError.conflict("The customer rescheduled this job. Confirm availability for the new time first.");
+  }
   return booking;
 }
 
@@ -167,7 +171,20 @@ export async function advanceStatus(agentId: string, bookingId: string) {
     booking.agentPayout = payoutOf(booking.price, booking.isSubscriptionWash);
     await User.updateOne({ _id: agentId }, { $inc: { jobsDone: 1 } });
   }
-  await booking.save();
+  // A customer may have moved the slot after getWorkableJob read it. Refuse
+  // that stale transition rather than starting work with an unanswered prompt.
+  booking.$where = {
+    assignedAgent: booking.assignedAgent, status: "upcoming", jobStatus: current,
+    rescheduleConfirmationToken: null,
+  };
+  try {
+    await booking.save();
+  } catch (err) {
+    if (err instanceof Error && err.name === "DocumentNotFoundError") {
+      throw ApiError.conflict("This job changed just now — refresh and check its schedule.");
+    }
+    throw err;
+  }
   logBookingEvent(booking._id, {
     type: next === "in_progress" ? "started" : (next as "enroute" | "arrived" | "completed"),
     agentId,
@@ -509,4 +526,17 @@ export async function claimJob(agentId: string, bookingId: string) {
 
   const payoutOf = await payoutCalculator();
   return mapJob(booking, payoutOf, agentPoint);
+}
+
+/** Compare the request token so a stale popup cannot confirm a later move. */
+export async function confirmRescheduledJob(agentId: string, bookingId: string, token: string) {
+  const booking = await Booking.findOneAndUpdate(
+    { _id: bookingId, assignedAgent: agentId, status: "upcoming", jobStatus: "assigned", rescheduleConfirmationToken: token },
+    { $set: { rescheduleConfirmationToken: null } },
+    { new: true },
+  );
+  if (!booking) throw ApiError.conflict("This job changed just now — refresh and check its new schedule.");
+  emitToUser(agentId, "job_assigned", { bookingId });
+  broadcastJobStatus(booking);
+  return { ok: true };
 }

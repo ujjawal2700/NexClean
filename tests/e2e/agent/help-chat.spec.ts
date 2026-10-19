@@ -28,7 +28,7 @@ test.describe("Agent Help & Support", () => {
     const sent = page.waitForResponse((r) => /\/chat\/tickets\/.+\/messages$/.test(r.url()) && r.request().method() === "POST");
     await page.getByRole("button", { name: "Send" }).click();
     await sent;
-    await expect(page.getByText(text)).toBeVisible();
+    await expect(page.getByRole("paragraph").filter({ hasText: text })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Message" })).toHaveValue("");
   });
 });

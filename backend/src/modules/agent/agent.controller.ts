@@ -142,3 +142,16 @@ export async function requestPayout(req: Request, res: Response): Promise<Respon
   if (!parsed.success) throw ApiError.badRequest("Enter a valid amount");
   return ok(res, await payoutRequestService.createPayoutRequest(req.userId!, parsed.data.amount), "Payout requested");
 }
+
+const rescheduleResponseSchema = z.object({ token: z.string().uuid(), available: z.boolean() });
+export async function respondToReschedule(req: Request, res: Response): Promise<Response> {
+  const parsed = rescheduleResponseSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Provide the reschedule token and your availability");
+  const { token, available } = parsed.data;
+  const bookingId = String(req.params.id);
+  if (!/^[a-f0-9]{24}$/i.test(bookingId)) throw ApiError.notFound("Job not found");
+  const result = available
+    ? await service.confirmRescheduledJob(req.userId!, bookingId, token)
+    : await dispatch.releaseJob(req.userId!, bookingId, "Unavailable at the customer's rescheduled time", token);
+  return ok(res, result, available ? "New schedule confirmed" : "Job released");
+}

@@ -173,7 +173,7 @@ async function drainPendingOffers(request: APIRequestContext, agentToken: string
  */
 export async function seedAssignedJob(
   request: APIRequestContext,
-): Promise<{ agentToken: string; agentId: string; bookingId: string }> {
+): Promise<{ agentToken: string; agentId: string; bookingId: string; customerToken: string }> {
   const { token: agentToken, userId: agentId } = await loginAsAgent(request);
   await completeAnyOpenJobsForAgent(request, agentToken);
   await goOnlineNear(request, agentToken);
@@ -214,7 +214,7 @@ export async function seedAssignedJob(
   const accept = await request.post(`/agent/offers/${bookingId}/accept`, { headers: authHeader(agentToken) });
   expect(accept.ok()).toBeTruthy();
 
-  return { agentToken, agentId, bookingId };
+  return { agentToken, agentId, bookingId, customerToken };
 }
 
 export { SEED_AGENT_PHONE };

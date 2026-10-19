@@ -26,6 +26,8 @@ test.describe("Agent — one phone at a time", () => {
     await pageB.getByTestId("device-switch-confirm").click();
     await expect(pageB).toHaveURL(/\/agent$/, { timeout: 15_000 });
 
+    // Return to Phone A before interacting; background tabs throttle animation frames.
+    await page.bringToFront();
     // Phone A is told straight away, without a refresh, and OK sends it to login.
     const notice = page.getByTestId("booking-cancelled-dialog");
     await expect(notice).toContainText("logged in on another phone", { timeout: 15_000 });

@@ -16,6 +16,7 @@ import {
 } from "../api/agent.api";
 import { useAgentDispatch } from "../hooks/useAgentDispatch";
 import { useOnlineSwitch } from "../hooks/useOnlineSwitch";
+import { RescheduledJobDialog } from "./RescheduledJobDialog";
 import { OfferOverlay } from "./OfferOverlay";
 import { useAgentSession } from "../store/sessionStore";
 import { BookingCancelledDialog } from "@shared/components/BookingCancelledDialog";
@@ -179,7 +180,8 @@ export function AgentLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh overflow-x-clip bg-bg">
       {/* Incoming-offer popup — rendered above everything, on every page. */}
-      <OfferOverlay dispatch={dispatch} />
+      {!dispatch.sessionReplaced && <OfferOverlay dispatch={dispatch} />}
+      {!dispatch.sessionReplaced && !dispatch.cancelledJobId && <RescheduledJobDialog />}
 
       {/* This account was signed in on another phone — takes priority over everything. */}
       {dispatch.sessionReplaced ? (

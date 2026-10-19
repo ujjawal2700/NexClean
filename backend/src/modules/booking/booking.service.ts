@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { emitToUser } from "../../shared/services/socket";
 import { Booking, type BookingDocument } from "./booking.model";
 import { computeTax } from "../bookkeeping/tax";
 import { getTaxSettings } from "../bookkeeping/bookkeepingConfig.service";
@@ -460,21 +462,36 @@ export async function rescheduleOwnBooking(
   }
 
   const previous = { date: booking.date, slot: booking.slot };
+  const previousConfirmationToken = booking.rescheduleConfirmationToken ?? null;
   booking.date = newDate;
   booking.slot = input.slot;
   booking.lastRescheduledAt = new Date();
   // New slot, new reminder windows — the ones already sent were for the old time.
   booking.remindersSent = [];
 
-  // Re-enter dispatch exactly as the admin path does: the old offer is void and
-  // the agent lock has to be released, or the cleaner keeps a job at a time the
-  // customer has moved away from.
+  // Keep an accepted cleaner reserved until they confirm the new schedule.
+  // An unanswered dispatch offer, however, belongs to the old slot and is void.
+  const assignedAgentId = booking.assignedAgent ? String(booking.assignedAgent) : null;
+  booking.rescheduleConfirmationToken = assignedAgentId ? randomUUID() : null;
   const prevOfferAgent = booking.currentOfferAgent ? String(booking.currentOfferAgent) : null;
-  booking.dispatchStatus = "searching";
+  booking.dispatchStatus = assignedAgentId ? "assigned" : "searching";
   booking.currentOfferAgent = null;
   booking.offerExpiresAt = null;
   booking.set("declinedAgents", []);
-  await booking.save();
+  // Do not overwrite an agent setting off, releasing the job, or another move
+  // while pricing/payment validation was in flight.
+  booking.$where = {
+    status: "upcoming", jobStatus: "assigned", assignedAgent: booking.assignedAgent,
+    date: previous.date, slot: previous.slot, rescheduleConfirmationToken: previousConfirmationToken,
+  };
+  try {
+    await booking.save();
+  } catch (err) {
+    if (err instanceof Error && err.name === "DocumentNotFoundError") {
+      throw ApiError.conflict("This booking changed just now — refresh and try again.");
+    }
+    throw err;
+  }
   logBookingEvent(booking._id, {
     type: "rescheduled",
     actor: "customer",
@@ -514,10 +531,22 @@ export async function rescheduleOwnBooking(
     );
   }
 
+  if (assignedAgentId) {
+    emitToUser(assignedAgentId, "job_rescheduled", { bookingId });
+    void notifyUser(assignedAgentId, {
+      type: "booking",
+      title: "Customer rescheduled the job",
+      body: `${booking.packageName} is now on ${newDate.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })} at ${input.slot}. Are you available at the new time? Open the app to confirm or decline.`,
+      data: { bookingId, role: "agent", url: `/agent/jobs/${bookingId}` },
+    }).catch((err) => console.error("reschedule notification failed:", (err as Error).message));
+  }
+  broadcastJobStatus(booking);
   emitDispatchUpdate();
-  void offerNext(bookingId).catch((err) =>
-    console.error("offerNext after customer reschedule failed:", (err as Error).message),
-  );
+  if (!assignedAgentId) {
+    void offerNext(bookingId).catch((err) =>
+      console.error("offerNext after customer reschedule failed:", (err as Error).message),
+    );
+  }
 
   return { booking: counted ?? booking, quote };
 }

@@ -369,6 +369,7 @@ export async function acceptOffer(agentId: string, bookingId: string) {
     {
       $set: {
         assignedAgent: agent._id,
+        rescheduleConfirmationToken: null,
         agentName: agent.name,
         dispatchStatus: "assigned",
         jobStatus: "assigned",
@@ -423,7 +424,7 @@ export async function declineOffer(agentId: string, bookingId: string) {
  * scheduler, which assigns someone ahead of the slot. The customer is told,
  * and the reason is kept on the booking for admins.
  */
-export async function releaseJob(agentId: string, bookingId: string, reason: string) {
+export async function releaseJob(agentId: string, bookingId: string, reason: string, rescheduleToken?: string) {
   if (!Types.ObjectId.isValid(bookingId)) throw ApiError.notFound("Job not found");
   const agent = await User.findById(agentId).select("name");
   const current = await Booking.findOne({ _id: bookingId, assignedAgent: agentId }).select("status jobStatus");
@@ -444,11 +445,13 @@ export async function releaseJob(agentId: string, bookingId: string, reason: str
       assignedAgent: agentId,
       status: "upcoming",
       jobStatus: { $in: ["assigned", "enroute", "arrived"] },
+      ...(rescheduleToken ? { rescheduleConfirmationToken: rescheduleToken } : {}),
     },
     [
       {
         $set: {
           assignedAgent: null,
+          rescheduleConfirmationToken: null,
           agentName: null,
           assignedAt: null,
           jobStatus: "assigned",
@@ -591,6 +594,7 @@ export async function assignAgentToBooking(
   const previousAssignedAgent = booking.assignedAgent ? String(booking.assignedAgent) : null;
 
   booking.assignedAgent = agent.id;
+  booking.rescheduleConfirmationToken = null;
   booking.agentName = agent.name;
   booking.dispatchStatus = "assigned";
   if (booking.jobStatus === "completed") booking.jobStatus = "assigned";
