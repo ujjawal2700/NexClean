@@ -103,3 +103,18 @@ way (see `git log` on `backend/src/shared/middleware/auth.ts`,
 `frontend/src/modules/customer/pages/{Login,Signup}.tsx`, and
 `frontend/src/modules/admin/components/BarChart.tsx`). Check `npm run report`
 for the trace/screenshot before changing an assertion.
+
+## MongoDB Socket.IO cluster check
+
+`unit/mongo-socket-cluster.spec.ts` starts four independent API socket processes
+and verifies cross-worker user-room events, inter-worker messages, socket lookup,
+and session disconnection without Redis. It requires an explicitly selected
+**disposable local replica set**, never the production Atlas database:
+
+```bash
+SOCKET_TEST_MONGODB_URI='mongodb://127.0.0.1:27018/nexclean-socket-test?replicaSet=nexcleanSocketTest' \
+  npx playwright test --project=unit mongo-socket-cluster.spec.ts
+```
+
+The test rejects non-local hosts and database names outside `nexclean-socket-test`.
+Without this opt-in URI, only this integration case is skipped.

@@ -1,5 +1,6 @@
 import { Server, Socket } from "socket.io";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
+import { attachMongoSocketAdapter } from "./socketMongoAdapter";
 import { createClient } from "redis";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { verifyToken } from "../utils/jwt";
@@ -34,7 +35,12 @@ interface AuthenticatedSocket extends Socket {
   };
 }
 
-export async function initSocket(server: any) {
+export async function initSocket(server: any, databaseReady?: Promise<void>) {
+  clusterAdapterReady = false;
+  const adapterKind = env.socketAdapter === "auto"
+    ? (env.redisUrl ? "redis" : "local") : env.socketAdapter;
+  if (!["local", "redis", "mongo"].includes(adapterKind)) throw new Error("SOCKET_ADAPTER must be auto, local, redis or mongo");
+  let adapterReady: Promise<void> = Promise.resolve();
   io = new Server(server, {
     cors: {
       origin(origin, callback) {
@@ -108,6 +114,10 @@ export async function initSocket(server: any) {
 
   // Authentication Middleware
   io.use(async (socket: AuthenticatedSocket, next) => {
+    // Admitting sockets before replacing the adapter would lose their rooms.
+    try { await adapterReady; } catch {
+      return next(new Error("Authentication error: Socket cluster is not ready"));
+    }
     // Browser clients authenticate with the httpOnly session cookie, which the
     // handshake carries when the client sets withCredentials — they can no
     // longer read a token to pass explicitly. auth/query are kept for
@@ -265,14 +275,14 @@ export async function initSocket(server: any) {
     });
   });
 
-  // Register authentication and room handlers before waiting for Redis.
+  // Register authentication and room handlers before waiting for an adapter.
   // The HTTP server is already listening while the adapter connects.
   // In single-process mode this is a no-op — events already reach every
   // connected client directly. Under PM2 cluster mode, each worker only
   // knows about its own sockets, so without this adapter io.to(room).emit()
   // (dispatch offers, chat, notifications) would silently miss clients
   // connected to a different worker.
-  if (env.redisUrl) {
+  if (adapterKind === "redis") {
     // Fail this startup attempt promptly. The redis client's default is to
     // retry forever. Local authenticated sockets and HTTP reconciliation
     // keep the app functional when Redis is unavailable.
@@ -306,6 +316,19 @@ export async function initSocket(server: any) {
     } finally {
       if (connectTimer) clearTimeout(connectTimer);
     }
+  }
+
+  if (adapterKind === "mongo") {
+    const socketServer = io;
+    adapterReady = (async () => {
+      if (databaseReady) await databaseReady;
+      const db = mongoose.connection.db;
+      if (!db || mongoose.connection.readyState !== 1) throw new Error("MongoDB must be connected before enabling the Socket.IO MongoDB adapter");
+      await attachMongoSocketAdapter(socketServer, db);
+      clusterAdapterReady = true;
+      console.log("🔌 Socket.IO using MongoDB adapter for cross-worker broadcast");
+    })();
+    await adapterReady;
   }
 
   return io;
@@ -427,8 +450,8 @@ export async function endUserSessions(userId: string, event: string, currentVers
  * Send an event to every OTHER API worker (never back to this one).
  *
  * Used for cache invalidation that has to be fleet-wide. Requires the Redis
- * adapter; with the default in-memory adapter there are no peers and this is
- * correctly a no-op, because a single process has already done the work
+ * or MongoDB adapter; the default in-memory adapter has no peers, so this is
+ * correctly a no-op because a single process has already done the work
  * locally.
  */
 export function broadcastToWorkers(event: string, ...args: unknown[]) {

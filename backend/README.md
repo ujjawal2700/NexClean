@@ -31,10 +31,25 @@ They share the port from `backend/.env` (`4000` by default), so nginx continues
 proxying to one port. The working directory is pinned to `backend`, where the
 application loads `.env`. Production credentials must be configured there.
 
-Set `REDIS_URL` in `.env` to your Redis connection URL, for example
-`REDIS_URL=redis://127.0.0.1:6379` when Redis runs locally. The existing Socket.IO
-Redis adapter carries job offers, chat, notifications, and tracking events
-between workers. Only worker `0` runs the dispatch/scheduling loop.
+The ecosystem file sets `SOCKET_ADAPTER=mongo`. Socket.IO uses your existing
+`MONGODB_URI` Atlas connection to relay job offers, reschedule prompts, chat,
+notifications, tracking, and cache invalidation between all four workers.
+Redis is not required; `REDIS_URL` can stay empty. Only worker `0` runs the
+dispatch/scheduling loop.
+
+The Atlas database user needs read/write access to the application database,
+including index creation and change streams on `socket_io_events`. Event records
+have a 60-second TTL index; MongoDB removes expired records asynchronously.
+Adapter initialization fails visibly if the connection or change-stream permissions
+are unavailable, rather than reporting that cross-worker delivery is ready.
+
+For a normal local standalone MongoDB, use `SOCKET_ADAPTER=auto` (the default)
+or `local` when running `npm run dev`. The MongoDB adapter requires a replica
+set or sharded cluster, as provided by Atlas. `auto` selects Redis if `REDIS_URL`
+is set, otherwise local sockets. The PM2 ecosystem explicitly selects MongoDB.
+After updating the code, run `npm ci`, `npm run build`, then
+`pm2 startOrReload ecosystem.config.js --only nexclean-api --update-env` and
+`pm2 save`. Confirm the worker logs contain `Socket.IO using MongoDB adapter`.
 
 If `nexclean-api` already exists as a single fork-mode process, replace that
 old process once before starting the ecosystem file:

@@ -30,16 +30,23 @@ const server = app.listen(env.port, "0.0.0.0", () => {
   console.log(`   Health: http://localhost:${env.port}/api/health`);
 });
 
-// Initialize Sockets
-initSocket(server).catch((err: unknown) => {
+// Socket authentication waits for the Atlas adapter before admitting clients.
+const databaseReady = connectDb();
+const socketsReady = initSocket(server, databaseReady);
+socketsReady.catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
   console.error(`✗ Socket.IO init failed: ${message}`);
+  // An Atlas cluster must not remain online with broken cross-worker delivery.
+  if (env.socketAdapter === "mongo") process.exit(1);
 });
 
 // Connect to MongoDB after the server is already listening so the health
 // endpoint stays available even if the database is temporarily unreachable.
-connectDb()
-  .then(() => seedDemoData())
+databaseReady
+  .then(async () => {
+    await socketsReady;
+    await seedDemoData();
+  })
   .then(async () => {
     // Index setup is idempotent, so every instance can run it safely.
     await ensureNotificationRetention();

@@ -12,6 +12,7 @@ module.exports = {
       instance_var: "NODE_APP_INSTANCE",
       env: {
         NODE_ENV: "production",
+        SOCKET_ADAPTER: "mongo",
       },
       autorestart: true,
       watch: false,
