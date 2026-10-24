@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import {
@@ -26,6 +27,8 @@ import {
 } from "@shared/lib/push";
 import { IosPushHint } from "@shared/components/IosPushHint";
 import {
+  useAgentMe,
+  meKey,
   useAgentNotifications,
   useMarkAgentNotificationsRead,
   useRegisterToken,
@@ -55,6 +58,9 @@ const ICON_STYLE: Record<AgentNotification["type"], string> = {
  */
 export function Notifications() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { data: me } = useAgentMe();
+  const [registeredHere, setRegisteredHere] = useState(false);
   const { data: items = [], isLoading } = useAgentNotifications();
   const markRead = useMarkAgentNotificationsRead();
   const registerToken = useRegisterToken();
@@ -62,6 +68,19 @@ export function Notifications() {
   const [permission, setPermission] = useState(() => getNotificationPermission());
   const [enabling, setEnabling] = useState(false);
   const [enableError, setEnableError] = useState("");
+
+  // Android WebViews may not expose the browser Notification API. The
+  // server's single-device agent registration also covers native FCM tokens.
+  const pushReady = registeredHere || me?.pushReady === true;
+
+  useEffect(() => {
+    const refresh = () => {
+      setPermission(getNotificationPermission());
+      void qc.invalidateQueries({ queryKey: meKey });
+    };
+    window.addEventListener("nexclean:push-registered", refresh);
+    return () => window.removeEventListener("nexclean:push-registered", refresh);
+  }, [qc]);
 
   // Opening the inbox is the act of reading it.
   useEffect(() => {
@@ -78,18 +97,24 @@ export function Notifications() {
     try {
       await asked;
       const token = await getPushToken({ requestPermission: true });
+      if (token.startsWith("web-")) {
+        setPermission(getNotificationPermission());
+        throw new Error("Background alerts could not be registered on this device. Check notification settings and reopen the app. If this continues, contact support.");
+      }
       saveDeviceToken(token);
       await registerToken.mutateAsync(token);
+      setRegisteredHere(true);
+      void qc.invalidateQueries({ queryKey: meKey });
 
       const next = getNotificationPermission();
       setPermission(next);
-      if (next !== "granted") {
+      if (next === "denied") {
         setEnableError(
           "Notifications are still blocked. Allow them for this site in your browser settings, then try again.",
         );
       }
-    } catch {
-      setEnableError("Couldn't turn on notifications. Try again in a moment.");
+    } catch (error) {
+      setEnableError(error instanceof Error ? error.message : "Couldn't turn on notifications. Try again in a moment.");
     } finally {
       setEnabling(false);
     }
@@ -113,9 +138,8 @@ export function Notifications() {
 
       <IosPushHint appName="NexClean Partner" />
 
-      {/* Push opt-in. Only shown when it can change something — no point
-          offering it on a browser that can't do push, or when it's already on. */}
-      {isPushSupported() && permission !== "granted" && (
+      {/* Permission alone is not evidence of a registered push token. */}
+      {!pushReady && (
         <GlassCard className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-amber-500/10 text-amber-600">
             <BellOff className="size-5" />
@@ -123,7 +147,9 @@ export function Notifications() {
           <div className="min-w-0 flex-1">
             <p className="font-display font-semibold text-ink">Turn on push notifications</p>
             <p className="mt-0.5 text-sm text-muted">
-              Without this you'll only see new jobs while the app is open on screen.
+              {isPushSupported()
+                ? "Without this you'll only see new jobs while the app is open on screen."
+                : "Background job alerts are not set up for this app. Allow notifications in Android settings and reopen the app. If this continues, contact support."}
             </p>
             {enableError && (
               <p className="mt-1.5 text-xs font-medium text-amber-600 [overflow-wrap:anywhere]" data-testid="push-enable-error">
@@ -134,7 +160,7 @@ export function Notifications() {
           <Button
             size="sm"
             onClick={enablePush}
-            disabled={enabling || permission === "denied"}
+            disabled={enabling || permission === "denied" || !isPushSupported()}
             data-testid="enable-push"
             className="shrink-0"
           >
@@ -151,13 +177,13 @@ export function Notifications() {
         </GlassCard>
       )}
 
-      {permission === "granted" && (
+      {pushReady && (
         <p
           className="mb-4 flex items-center gap-2 rounded-2xl bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-700"
           data-testid="push-enabled"
         >
           <ShieldCheck className="size-4 shrink-0" />
-          Push notifications are on for this device.
+          This device is registered for push notifications.
         </p>
       )}
 

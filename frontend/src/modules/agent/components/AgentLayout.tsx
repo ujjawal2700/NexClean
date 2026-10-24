@@ -6,7 +6,7 @@ import { LayoutDashboard, ListChecks, Wallet, User, Bell } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { LiquidTabBar } from "@shared/components/LiquidTabBar";
 import { Logo } from "@shared/components/brand/Logo";
-import { getPushToken, saveDeviceToken } from "@shared/lib/push";
+import { getPushToken } from "@shared/lib/push";
 import {
   meKey,
   useAgentMe,
@@ -39,20 +39,37 @@ function useRegisterPushToken() {
   }, [qc]);
 
   useEffect(() => {
-    if (registered.current) return;
-    registered.current = true;
-    // Signed in now: tell the store app the bridge is ready again, so a token
-    // it offered before sign-in (when registering it couldn't work) is resent.
-    window.dispatchEvent(new Event("nexclean:push-bridge-ready"));
-    // No requestPermission here on purpose: prompting on page load is how you
-    // get permanently denied. This only picks up a real token when the user has
-    // already granted permission; the Notifications screen does the asking.
-    getPushToken()
-      .then((t) => {
-        saveDeviceToken(t);
-        registerToken.mutate(t, { onSuccess: () => qc.invalidateQueries({ queryKey: meKey }) });
-      })
-      .catch(() => {});
+    let inFlight = false;
+    let disposed = false;
+    const register = async () => {
+      if (registered.current || inFlight || disposed) return;
+      inFlight = true;
+      // Ask the store app to resend its native token after sign-in/resume.
+      window.dispatchEvent(new Event("nexclean:push-bridge-ready"));
+      try {
+        const token = await getPushToken();
+        if (disposed || token.startsWith("web-")) return;
+        await registerToken.mutateAsync(token);
+        registered.current = true;
+        void qc.invalidateQueries({ queryKey: meKey });
+      } catch {
+        // Retry on the next resume/network recovery rather than marking a
+        // failed first attempt as registered for the entire session.
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void register();
+    };
+    void register();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", register);
+    return () => {
+      disposed = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", register);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }

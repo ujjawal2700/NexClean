@@ -40,3 +40,11 @@ test("a native token arriving during config loading cannot be overwritten by a p
   expect(await pending).toBe("native-phone-token-456");
   expect(localStorage.getItem("nexclean-device-token")).toBe("native-phone-token-456");
 });
+
+test("the native bridge rejects a browser placeholder without replacing the native token", async () => {
+  const { push, window, localStorage } = pushModule(async () => ({ firebase: null }));
+  expect(await window.registerNativePushToken("native-phone-token-789")).toBe(true);
+  expect(await window.registerNativePushToken("web-placeholder-token")).toBe(false);
+  expect(await push.getPushToken()).toBe("native-phone-token-789");
+  expect(localStorage.getItem("nexclean-native-push-token")).toBe("native-phone-token-789");
+});

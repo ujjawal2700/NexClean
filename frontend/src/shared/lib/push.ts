@@ -48,6 +48,11 @@ function loadFirebaseSdk(): Promise<any> {
     }
     return (window as any).firebase;
   })();
+  // A temporary CDN failure must not disable token retrieval until reload.
+  sdkPromise = sdkPromise.catch((error) => {
+    sdkPromise = null;
+    throw error;
+  });
   return sdkPromise;
 }
 
@@ -254,7 +259,7 @@ export function installNativePushBridge(register: (token: string) => Promise<unk
   const w = window as unknown as { registerNativePushToken?: (token: string) => Promise<boolean> };
   w.registerNativePushToken = async (token: string) => {
     const t = typeof token === "string" ? token.trim() : "";
-    if (t.length < 8) return false;
+    if (t.length < 8 || t.startsWith("web-")) return false;
     localStorage.setItem(NATIVE_KEY, t);
     saveDeviceToken(t);
     try {

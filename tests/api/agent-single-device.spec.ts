@@ -112,6 +112,12 @@ test.describe("Agent — one phone at a time", () => {
       data: { token: "fcm-phone-b-real-token-456" },
     });
     expect((await (await me(request, tokenB)).json()).data.pushReady).toBe(true);
+    const fallback = await request.post(apiUrl("/notifications/register-token"), {
+      headers: { ...PHONE_B, Authorization: `Bearer ${tokenB}` },
+      data: { token: "web-delayed-fallback-token" },
+    });
+    expect(fallback.status()).toBe(400);
+    expect((await (await me(request, tokenB)).json()).data.pushReady).toBe(true);
 
     // A placeholder token is not a way to receive pushes.
     const c = await newCleaner(request);

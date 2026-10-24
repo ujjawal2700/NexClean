@@ -3,6 +3,7 @@ import { User } from "../user/user.model";
 import { sendPush, type PushPayload } from "../../shared/services/fcm";
 import { ApiError } from "../../shared/utils/ApiError";
 import { emitToUser } from "../../shared/services/socket";
+import { isRealPushToken } from "../user/presence";
 
 type NotifyInput = PushPayload & { type?: "booking" | "area_alert" | "system" | "coupon" };
 
@@ -48,6 +49,12 @@ export async function registerToken(userId: string, token: string, deviceId: str
   const isAgent = user.role === "agent";
   if (isAgent && (user.agentDeviceId ?? "") !== deviceId) {
     throw ApiError.unauthorized("Session expired. Please sign in again.");
+  }
+
+  // A delayed browser fallback must never replace the native token for this
+  // agent's phone. Placeholders cannot receive FCM while the WebView is closed.
+  if (isAgent && !isRealPushToken(token)) {
+    throw ApiError.badRequest("A real device push token is required for background job alerts");
   }
 
   // A token belongs to one account. Validate first so a stale request cannot

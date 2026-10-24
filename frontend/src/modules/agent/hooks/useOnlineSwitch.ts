@@ -29,8 +29,10 @@ export function useOnlineSwitch() {
       void requestPushPermission()
         .then(() => getPushToken())
         .then(async (token) => {
+          if (token.startsWith("web-")) return;
           saveDeviceToken(token);
           await apiFetch("/notifications/register-token", { method: "POST", body: { token } });
+          void qc.invalidateQueries({ queryKey: meKey });
         })
         .catch(() => {});
     }
@@ -42,7 +44,7 @@ export function useOnlineSwitch() {
     } finally {
       useAvailability.setState({ pending: false });
     }
-  }, [mutation]);
+  }, [mutation, qc]);
 
   return {
     ...state, online, setOnline,
