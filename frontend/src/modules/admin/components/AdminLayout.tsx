@@ -168,17 +168,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    // GST, invoices and the accounting view of every booking.
-    id: "bookkeeping",
-    label: "Bookkeeping",
-    items: [
-      { to: "/admin/bookkeeping", label: "Overview", icon: BookOpenCheck, permission: "bookkeeping" },
-      { to: "/admin/bookkeeping/invoices", label: "Invoices", icon: ReceiptText, permission: "bookkeeping" },
-      { to: "/admin/bookkeeping/settings", label: "GST & Business", icon: Percent, permission: "bookkeeping" },
-      { to: "/admin/bookkeeping/template", label: "Invoice Template", icon: LayoutTemplate, permission: "bookkeeping" },
-    ],
-  },
-  {
     // Every money-related screen lives here — payments, the refunds queue,
     // agent payouts, and pricing/plans — so tracking the app's finances end
     // to end never means hopping to a different part of the sidebar.
@@ -287,6 +276,17 @@ const NAV_GROUPS: NavGroup[] = [
         icon: FileText,
         permission: "content",
       },
+    ],
+  },
+  {
+    // GST, invoices and the accounting view of every booking.
+    id: "bookkeeping",
+    label: "Bookkeeping",
+    items: [
+      { to: "/admin/bookkeeping", label: "Overview", icon: BookOpenCheck, permission: "bookkeeping" },
+      { to: "/admin/bookkeeping/invoices", label: "Invoices", icon: ReceiptText, permission: "bookkeeping" },
+      { to: "/admin/bookkeeping/settings", label: "GST & Business", icon: Percent, permission: "bookkeeping" },
+      { to: "/admin/bookkeeping/template", label: "Invoice Template", icon: LayoutTemplate, permission: "bookkeeping" },
     ],
   },
   {

@@ -14,6 +14,8 @@ const planSchema = new Schema(
     tagline: { type: String, trim: true, default: "" },
     description: { type: String, trim: true, default: "" },
     keyPoints: { type: [String], default: [] },
+    packageId: { type: String },
+    discountPercentage: { type: Number, min: 0, max: 100 },
     active: { type: Boolean, default: true },
   },
   {

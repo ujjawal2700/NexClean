@@ -278,6 +278,8 @@ export type AdminPlan = {
   prices: PlanPrices;
   /** Cheapest vehicle price — used for "from ₹X" display and MRR estimates. */
   price: number;
+  packageId?: string;
+  discountPercentage?: number;
   washesPerMonth: number;
   /** One-line pitch under the plan name. */
   tagline: string;

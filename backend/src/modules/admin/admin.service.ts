@@ -16,11 +16,9 @@ import { ApiError } from "../../shared/utils/ApiError";
 import { isAgentLive } from "../user/presence";
 import * as dispatch from "../dispatch/dispatch.service";
 import * as planService from "../catalog/plan.service";
-import type { PlanDetails } from "../catalog/plan.service";
 import { logBookingEvent, adminName, getBookingTimeline } from "../booking/bookingEvent.service";
 import { getReviewForBooking, reviewsByBooking } from "../review/review.service";
 import type { PlanDoc } from "../catalog/plan.model";
-import type { PlanPrices } from "../catalog/catalog.data";
 import { listCategories } from "../catalog/category.service";
 import { ServiceZone } from "../location/location.model";
 import { normalize as normalizePhone } from "../auth/auth.service";
@@ -513,6 +511,8 @@ async function mapPlanWithSubscribers(p: PlanDoc) {
     prices,
     price,
     washesPerMonth: p.washesPerMonth,
+    packageId: p.packageId,
+    discountPercentage: p.discountPercentage,
     tagline: p.tagline ?? "",
     description: p.description ?? "",
     keyPoints: p.keyPoints ?? [],
@@ -526,14 +526,14 @@ export async function listPlans() {
   return Promise.all(plans.map((p) => mapPlanWithSubscribers(p)));
 }
 
-export async function createPlan(input: { name: string; prices: PlanPrices; washesPerMonth: number } & PlanDetails) {
+export async function createPlan(input: planService.CreatePlanInput) {
   const plan = await planService.createPlan(input);
   return mapPlanWithSubscribers(plan);
 }
 
 export async function updatePlan(
   id: string,
-  patch: { name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean } & PlanDetails,
+  patch: planService.PlanPatch,
 ) {
   const plan = await planService.updatePlan(id, patch);
   return mapPlanWithSubscribers(plan);

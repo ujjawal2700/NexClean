@@ -145,28 +145,36 @@ test.describe("Admin — plans", () => {
       data: { name: `Test Plan ${Date.now()}`, prices: { hatchback: 500 } },
     });
     expect(res.status()).toBe(400);
-    expect((await res.json()).message).toBe("Name, per-vehicle prices and washes per month are required");
+    expect((await res.json()).message).toBe("Name, wash package, discount percentage and positive washes per month are required");
   });
 
   test("full plan lifecycle: create → update → delete", async ({ request }) => {
     const { token } = await loginAsAdminApi(request);
     const name = `Test Plan ${Date.now()}`;
+    const pricing = (await (await request.get(apiUrl("/admin/pricing"), { headers: authHeader(token) })).json()).data;
+    const pkg = pricing.packages.find((p: { active: boolean }) => p.active !== false);
 
     const create = await request.post(apiUrl("/admin/plans"), {
       headers: authHeader(token),
-      data: { name, prices: { hatchback: 500, sedan: 600 }, washesPerMonth: 4 },
+      data: { name, packageId: pkg.id, discountPercentage: 20, washesPerMonth: 4 },
     });
     expect(create.status()).toBe(201);
     const created = (await create.json()).data;
     expect(created.name).toBe(name);
     expect(created.washesPerMonth).toBe(4);
+    expect(created.packageId).toBe(pkg.id);
+    expect(created.discountPercentage).toBe(20);
+    const perWash = Math.round(pricing.base.hatchback * pkg.factor / 10) * 10;
+    expect(created.prices.hatchback).toBe(Math.round(perWash * 4 * 0.8 * 100) / 100);
 
     const update = await request.patch(apiUrl(`/admin/plans/${created.id}`), {
       headers: authHeader(token),
       data: { washesPerMonth: 6 },
     });
     expect(update.ok()).toBeTruthy();
-    expect((await update.json()).data.washesPerMonth).toBe(6);
+    const updated = (await update.json()).data;
+    expect(updated.washesPerMonth).toBe(6);
+    expect(updated.prices.hatchback).toBe(Math.round(perWash * 6 * 0.8 * 100) / 100);
 
     const del = await request.delete(apiUrl(`/admin/plans/${created.id}`), { headers: authHeader(token) });
     expect(del.ok()).toBeTruthy();

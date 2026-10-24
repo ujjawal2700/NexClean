@@ -2,6 +2,7 @@ import { User } from "../user/user.model";
 import { logBookingEvent } from "../booking/bookingEvent.service";
 import { Booking } from "../booking/booking.model";
 import { Plan } from "../catalog/plan.model";
+import { getPackageRecord } from "../pricing/pricing.service";
 import { ApiError } from "../../shared/utils/ApiError";
 import { isValidActivePlan } from "../catalog/plan.service";
 import { maybeCreditReferrer } from "../promotions/referral.service";
@@ -211,10 +212,9 @@ export async function scheduleSubscriptionWash(
   const address = user.addresses.find((a) => String(a._id) === input.addressId);
   if (!address) throw ApiError.notFound("Address not found");
 
-  // Validate package matching user's subscription tier. Plans an admin adds
-  // later have no entry here; they get the entry-level wash rather than a
-  // customer-facing "package mapping not found" that blocks scheduling.
-  const pkg = PLAN_PACKAGE_MAP[plan.id] ?? PLAN_PACKAGE_MAP.basic;
+  // Validate package matching user's subscription tier
+  const pkg = plan.packageId ? await getPackageRecord(plan.packageId) : (PLAN_PACKAGE_MAP[plan.id] ?? PLAN_PACKAGE_MAP.basic);
+  if (!pkg) throw ApiError.badRequest("Package mapping not found for subscription");
 
   // Check wash limit for the current cycle
   const used = await Booking.countDocuments({

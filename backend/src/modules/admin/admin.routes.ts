@@ -93,6 +93,7 @@ adminRouter.patch("/payout-requests/:id/paid", requirePermission("payout-request
 adminRouter.get("/pricing", requirePermission("pricing"), asyncHandler(c.pricing));
 adminRouter.put("/pricing", requirePermission("pricing"), asyncHandler(c.updatePricingCtl));
 
+adminRouter.get("/plans/options", requirePermission("plans"), asyncHandler(c.planOptions));
 adminRouter.get("/plans", requirePermission("plans"), asyncHandler(c.plans));
 adminRouter.get("/subscriptions", requirePermission("plans"), asyncHandler(c.subscriptionOverview));
 adminRouter.post("/plans", requirePermission("plans"), asyncHandler(c.createPlan));

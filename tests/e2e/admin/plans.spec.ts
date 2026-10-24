@@ -19,19 +19,9 @@ test.describe("Admin subscription plans", () => {
     await page.locator('input[name="name"]').fill(planName);
     await page.locator('input[name="washesPerMonth"]').fill("4");
 
-    // Per-category price inputs are unnamed and required to be > 0 by the
-    // backend (`z.number().positive()`) — leaving them blank (→ 0) makes
-    // the create request fail validation with a 400, silently leaving the
-    // form open. Fill every one of them.
-    const newPlanForm = page.locator(".glass").filter({ hasText: "New plan" });
-    const priceInputs = newPlanForm.locator('input[type="number"]:not([name="washesPerMonth"])');
-    // The per-category inputs render only once vehicle categories have loaded.
-    // Counting before then found none, filled nothing, and the create 400'd.
-    await expect(priceInputs.first()).toBeVisible({ timeout: 15_000 });
-    const priceInputCount = await priceInputs.count();
-    for (let i = 0; i < priceInputCount; i++) {
-      await priceInputs.nth(i).fill("199");
-    }
+    await page.getByLabel("Wash type").selectOption({ index: 1 });
+    await page.getByLabel("Discount (%)").fill("20");
+    await expect(page.getByRole("status", { name: /monthly price/ }).first()).toBeVisible();
 
     const createResponse = page.waitForResponse(
       (res) => res.url().includes("/admin/plans") && res.request().method() === "POST",
@@ -46,7 +36,7 @@ test.describe("Admin subscription plans", () => {
 
     // Edit: bump washes per month.
     await card.getByRole("button", { name: "Edit" }).click();
-    const washesInput = card.locator('input[type="number"]').last();
+    const washesInput = card.getByLabel("Washes / month");
     await washesInput.fill("8");
     const updateResponse = page.waitForResponse(
       (res) => /\/admin\/plans\//.test(res.url()) && res.request().method() === "PATCH",

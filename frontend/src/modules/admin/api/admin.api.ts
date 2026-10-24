@@ -13,7 +13,6 @@ import type {
   AgentActivity,
   AdminPlan,
   PlanDetails,
-  PlanPrices,
   Pricing,
   AlertSettings,
   TriggeredAlert,
@@ -262,6 +261,7 @@ export const useAgentLocation = (id: string, enabled: boolean) =>
     refetchInterval: enabled ? 5_000 : false,
   });
 export const usePricing = () => useAuthedQuery<Pricing>(keys.pricing, "/admin/pricing");
+export const usePlanOptions = () => useAuthedQuery<{ pricing: Pricing; categories: VehicleCategory[] }>(["admin", "plan-options"], "/admin/plans/options", { staleTime: 0 });
 export const usePlans = () => useAuthedQuery<AdminPlan[]>(keys.plans, "/admin/plans");
 export const useCampaigns = () => useAuthedQuery<Campaign[]>(keys.campaigns, "/admin/campaigns");
 export const useAlertSettings = () => useAuthedQuery<AlertSettings>(keys.settings, "/area-alerts/settings");
@@ -767,7 +767,7 @@ export function useUpdateAgentArea() {
 export function useCreatePlan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (vars: { name: string; prices: PlanPrices; washesPerMonth: number } & Partial<PlanDetails>) =>
+    mutationFn: (vars: { name: string; packageId: string; discountPercentage: number; washesPerMonth: number } & Partial<PlanDetails>) =>
       apiFetch<AdminPlan>("/admin/plans", { method: "POST", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.plans }),
   });
@@ -776,9 +776,7 @@ export function useCreatePlan() {
 export function useUpdatePlan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (
-      vars: { id: string; name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean } & Partial<PlanDetails>,
-    ) =>
+    mutationFn: (vars: { id: string; name?: string; packageId?: string; discountPercentage?: number; washesPerMonth?: number; active?: boolean } & Partial<PlanDetails>) =>
       apiFetch<AdminPlan>(`/admin/plans/${vars.id}`, { method: "PATCH", body: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.plans }),
   });

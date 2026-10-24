@@ -1,6 +1,8 @@
 import { Plan } from "./plan.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { PLANS, type PlanPrices } from "./catalog.data";
+import { getPricing } from "../pricing/pricing.service";
+import { calculatePlanPrices } from "./plan-pricing";
 
 /** Seed the Plan collection from the static catalog on first access, and backfill legacy docs. */
 async function ensureSeeded() {
@@ -50,24 +52,57 @@ function slugify(name: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-/** Admin-editable descriptive copy for a plan. */
 export type PlanDetails = { tagline?: string; description?: string; keyPoints?: string[] };
 
-export async function createPlan(input: { name: string; prices: PlanPrices; washesPerMonth: number } & PlanDetails) {
+export type CreatePlanInput = PlanDetails & {
+  name: string;
+  packageId: string;
+  discountPercentage: number;
+  washesPerMonth: number;
+};
+export type PlanPatch = Partial<CreatePlanInput> & { prices?: PlanPrices; active?: boolean };
+
+async function pricedPlan(input: Omit<CreatePlanInput, "name">, requireActive = true) {
+  const pricing = await getPricing();
+  const pkg = pricing.packages.find((p) => p.id === input.packageId);
+  if (!pkg || (requireActive && pkg.active === false)) {
+    throw ApiError.badRequest("Select an active wash package from Pricing");
+  }
+  try {
+    return calculatePlanPrices(pricing.base as Record<string, number>, pkg.factor!, input.washesPerMonth, input.discountPercentage);
+  } catch (error) {
+    throw ApiError.badRequest((error as Error).message);
+  }
+}
+
+export async function createPlan(input: CreatePlanInput) {
   await ensureSeeded();
   const id = slugify(input.name);
   if (!id) throw ApiError.badRequest("Invalid plan name");
   const existing = await Plan.findById(id);
   if (existing) throw ApiError.badRequest("A plan with that name already exists");
-  return Plan.create({ _id: id, ...input, active: true });
+  const prices = await pricedPlan(input);
+  return Plan.create({ _id: id, ...input, prices, active: true });
 }
 
-export async function updatePlan(
-  id: string,
-  patch: { name?: string; prices?: PlanPrices; washesPerMonth?: number; active?: boolean } & PlanDetails,
-) {
-  const plan = await Plan.findByIdAndUpdate(id, patch, { new: true });
+export async function updatePlan(id: string, patch: PlanPatch) {
+  const plan = await Plan.findById(id);
   if (!plan) throw ApiError.notFound("Plan not found");
+  const packageId = patch.packageId ?? plan.packageId;
+  const discountPercentage = patch.discountPercentage ?? plan.discountPercentage;
+  const pricingChanged = patch.packageId !== undefined || patch.discountPercentage !== undefined ||
+    patch.washesPerMonth !== undefined || patch.prices !== undefined;
+  if (packageId && discountPercentage != null && pricingChanged) {
+    patch.prices = await pricedPlan({
+      packageId,
+      discountPercentage,
+      washesPerMonth: patch.washesPerMonth ?? plan.washesPerMonth,
+    }, patch.packageId !== undefined);
+  } else if (patch.packageId !== undefined || patch.discountPercentage !== undefined) {
+    throw ApiError.badRequest("Wash package and discount percentage are required together");
+  }
+  plan.set(patch);
+  await plan.save();
   return plan;
 }
 

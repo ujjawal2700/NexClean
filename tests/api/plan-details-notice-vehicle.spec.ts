@@ -65,11 +65,14 @@ test.describe("Plan details (tagline, description, key points)", () => {
   test("admin creates and edits plan copy; the customer catalog serves it", async ({ request }) => {
     const { token } = await loginAsAdmin(request);
     const name = `Detail Plan ${Date.now()}`;
+    const options = (await (await request.get(apiUrl("/admin/plans/options"), { headers: authHeader(token) })).json()).data;
+    const pkg = options.pricing.packages.find((p: { active?: boolean }) => p.active !== false);
     const create = await request.post(apiUrl("/admin/plans"), {
       headers: authHeader(token),
       data: {
         name,
-        prices: { hatchback: 900 },
+        packageId: pkg.id,
+        discountPercentage: 20,
         washesPerMonth: 4,
         tagline: "  Great for city cars  ",
         description: "Four washes a month.\nInterior included.",
@@ -104,7 +107,7 @@ test.describe("Plan details (tagline, description, key points)", () => {
 
   test("rejects more than 12 key points and over-long copy", async ({ request }) => {
     const { token } = await loginAsAdmin(request);
-    const base = { name: `Bad Plan ${Date.now()}`, prices: { hatchback: 900 }, washesPerMonth: 4 };
+    const base = { name: `Bad Plan ${Date.now()}`, packageId: "express", discountPercentage: 20, washesPerMonth: 4 };
     const tooMany = await request.post(apiUrl("/admin/plans"), {
       headers: authHeader(token),
       data: { ...base, keyPoints: Array.from({ length: 13 }, (_, i) => `Point ${i}`) },

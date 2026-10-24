@@ -26,9 +26,6 @@ import { hashPassword, verifyPassword } from "../../shared/utils/crypto";
 import { isValidSlot, slotList } from "../../shared/slots";
 import { deleteConversationsForUser } from "../internalMessage/internalMessage.service";
 
-/** A positive price per vehicle category key — keys are admin-managed, not a fixed set. */
-const pricesSchema = z.record(z.string(), z.number().positive());
-
 const adminNameSchema = z.object({
   name: z
     .string()
@@ -426,21 +423,30 @@ const planDetailsSchema = z.object({
     .optional(),
 });
 
+/** Read-only inputs for plan editors, available with the plans permission. */
+export async function planOptions(_req: Request, res: Response): Promise<Response> {
+  const pricing = await getPricing();
+  const categories = await categoryService.listCategories();
+  return ok(res, { pricing, categories });
+}
+
 const createPlanSchema = planDetailsSchema.extend({
-  name: z.string().min(1),
-  prices: pricesSchema,
-  washesPerMonth: z.number().int(),
+  name: z.string().trim().min(1),
+  packageId: z.string().trim().min(1),
+  discountPercentage: z.number().min(0).max(100),
+  washesPerMonth: z.number().int().positive(),
 });
 export async function createPlan(req: Request, res: Response): Promise<Response> {
   const parsed = createPlanSchema.safeParse(req.body);
-  if (!parsed.success) throw ApiError.badRequest("Name, per-vehicle prices and washes per month are required");
+  if (!parsed.success) throw ApiError.badRequest("Name, wash package, discount percentage and positive washes per month are required");
   return created(res, await service.createPlan(parsed.data), "Plan created");
 }
 
 const updatePlanSchema = planDetailsSchema.extend({
-  name: z.string().min(1).optional(),
-  prices: pricesSchema.optional(),
-  washesPerMonth: z.number().int().optional(),
+  name: z.string().trim().min(1).optional(),
+  packageId: z.string().trim().min(1).optional(),
+  discountPercentage: z.number().min(0).max(100).optional(),
+  washesPerMonth: z.number().int().positive().optional(),
   active: z.boolean().optional(),
 });
 export async function updatePlan(req: Request, res: Response): Promise<Response> {
