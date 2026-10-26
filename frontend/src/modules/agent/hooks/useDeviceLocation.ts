@@ -30,8 +30,10 @@ export type DeviceFix = {
 type State = { fix: DeviceFix | null; error: string | null };
 
 let watchId: number | null = null;
+let initialDeadline: ReturnType<typeof setTimeout> | null = null;
 let latest: DeviceFix | null = null;
 let lastError: string | null = null;
+let fixVersion = 0;
 let stopPermissionWatch: (() => void) | null = null;
 const subscribers = new Set<(state: State) => void>();
 
@@ -59,16 +61,35 @@ export function requestCurrentDeviceFix(): Promise<DeviceFix> {
     return Promise.reject(new Error("This device can't share its location."));
   }
   return new Promise((resolve, reject) => {
+    const requestedVersion = fixVersion;
+    let settled = false;
+    const fail = (message: string, denied = false) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(deadline);
+      // A simultaneous watch/read may already have supplied a working fix.
+      if (!denied && latest && fixVersion !== requestedVersion) {
+        resolve(latest);
+        return;
+      }
+      if (!denied && latest && Date.now() - latest.at < 60_000) {
+        reject(new Error(message));
+        return;
+      }
+      latest = null;
+      lastError = message;
+      publish();
+      reject(new Error(message));
+    };
     // Browser timeouts can exclude time spent waiting for permission. Keep our
     // own deadline so an unanswered prompt cannot leave the UI waiting forever.
     const deadline = window.setTimeout(() => {
-      latest = null;
-      lastError = "Still waiting for location. Allow location access and turn on your device's location, then try again.";
-      publish();
-      reject(new Error(lastError));
+      fail("Couldn't get your location. Check that device location is on, then try again.");
     }, 12_000);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (settled) return;
+        settled = true;
         window.clearTimeout(deadline);
         const fix: DeviceFix = {
           lat: pos.coords.latitude,
@@ -78,16 +99,13 @@ export function requestCurrentDeviceFix(): Promise<DeviceFix> {
           at: Date.now(),
         };
         latest = fix;
+        fixVersion++;
         lastError = null;
         publish();
         resolve(fix);
       },
       (err) => {
-        window.clearTimeout(deadline);
-        latest = null;
-        lastError = describeError(err);
-        publish();
-        reject(new Error(describeError(err)));
+        fail(describeError(err), err.code === err.PERMISSION_DENIED);
       },
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
     );
@@ -103,6 +121,9 @@ function startWatch() {
   }
 
   const onFix = (pos: GeolocationPosition) => {
+    if (initialDeadline !== null) clearTimeout(initialDeadline);
+    initialDeadline = null;
+    fixVersion++;
     lastError = null;
     latest = {
       lat: pos.coords.latitude,
@@ -117,6 +138,11 @@ function startWatch() {
   };
 
   const onError = (err: GeolocationPositionError) => {
+    if (initialDeadline !== null) clearTimeout(initialDeadline);
+    initialDeadline = null;
+    // GPS timeouts do not mean permission was revoked. Keep a recent working
+    // fix while the watch continues; a denial always invalidates it.
+    if (err.code !== err.PERMISSION_DENIED && latest && Date.now() - latest.at < 60_000) return;
     latest = null;
     lastError = describeError(err);
     publish();
@@ -138,9 +164,16 @@ function startWatch() {
   // An immediate read alongside the watch: `watchPosition` alone can take
   // seconds to produce its first callback, and the map should not sit empty
   // through that when a cached fix would do.
+  initialDeadline = setTimeout(() => {
+    initialDeadline = null;
+    if (latest) return;
+    lastError = "Couldn't get your location. Check that device location is on and access is allowed, then try again.";
+    publish();
+  }, 25_000);
   navigator.geolocation.getCurrentPosition(onFix, onInitialError, {
     enableHighAccuracy: true,
-    timeout: 8_000,
+      timeout: 8_000,
+      maximumAge: 30_000,
   });
   // maximumAge 0 — a fix cached from before this job started would put the
   // cleaner where they were, not where they are.
@@ -156,7 +189,7 @@ function startWatch() {
   const changed = () => {
     if (permission?.state === "granted") {
       void requestCurrentDeviceFix().catch(() => {});
-    } else {
+    } else if (permission?.state === "denied") {
       latest = null;
       lastError = "Location access is required. Allow location in your browser or app settings, then try again.";
       publish();
@@ -176,6 +209,8 @@ function startWatch() {
 
 function stopWatchIfIdle() {
   if (subscribers.size > 0 || watchId === null) return;
+  if (initialDeadline !== null) clearTimeout(initialDeadline);
+  initialDeadline = null;
   navigator.geolocation.clearWatch(watchId);
   watchId = null;
   stopPermissionWatch?.();

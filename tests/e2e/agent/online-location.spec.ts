@@ -5,14 +5,17 @@ async function setup(page: Page, denyLocation = false, pendingVerification = fal
     localStorage.setItem("nexclean-agent-session", JSON.stringify({ state: { authenticated: true }, version: 0 }));
     localStorage.setItem("nexclean-cookie-consent", JSON.stringify({ version: 1, necessary: true, functional: false }));
     const fixes: PositionCallback[] = [];
+    const failures: PositionErrorCallback[] = [];
     const position = { coords: { latitude: 22.7196, longitude: 75.8577, heading: null, speed: null }, timestamp: Date.now() } as GeolocationPosition;
     Object.defineProperty(navigator, "geolocation", { value: {
       getCurrentPosition: (success: PositionCallback, failure: PositionErrorCallback) => {
+        failures.push(failure);
         if (denied) failure({ code: 1, PERMISSION_DENIED: 1 } as GeolocationPositionError);
         else if (immediate) success(position);
         else fixes.push(success); // Simulate a permission dialog left unanswered.
       },
       watchPosition: (success: PositionCallback, failure: PositionErrorCallback) => {
+        failures.push(failure);
         if (denied) failure({ code: 1, PERMISSION_DENIED: 1 } as GeolocationPositionError);
         fixes.push(success);
         if (!denied && immediate) success(position);
@@ -20,6 +23,9 @@ async function setup(page: Page, denyLocation = false, pendingVerification = fal
       },
       clearWatch: () => {},
     } });
+    (window as any).failTestLocation = (code: number) => {
+      failures.slice().forEach((fn) => fn({ code, PERMISSION_DENIED: 1, TIMEOUT: 3 } as GeolocationPositionError));
+    };
     (window as any).allowTestLocation = () => {
       denied = false;
       fixes.forEach((fn) => fn(position));
@@ -54,7 +60,7 @@ async function setup(page: Page, denyLocation = false, pendingVerification = fal
     });
   });
   await page.goto("/agent");
-  if (!allowImmediately) await expect(page.getByTestId("agent-location-gate")).toBeVisible();
+  if (!allowImmediately) await expect(page.getByTestId(denyLocation ? "agent-location-gate" : "agent-location-checking")).toBeVisible();
   else if (pendingVerification) await expect(page.getByRole("heading", { name: "Application under review" })).toBeVisible();
   else await expect(page.getByTestId("duty-switch")).toBeVisible();
   return { verify: () => { agentStatus = "verified"; }, changes, coordinates };
@@ -62,10 +68,11 @@ async function setup(page: Page, denyLocation = false, pendingVerification = fal
 
 test("location is required before accessing the dashboard or a direct job link", async ({ page }) => {
   const api = await setup(page);
-  await expect(page.getByRole("heading", { name: "Location access required" })).toBeVisible();
+  await expect(page.getByTestId("agent-location-checking")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Location access required" })).toHaveCount(0);
   await expect(page.getByTestId("duty-switch")).toHaveCount(0);
   await page.goto("/agent/jobs");
-  await expect(page.getByTestId("agent-location-gate")).toBeVisible();
+  await expect(page.getByTestId("agent-location-checking")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Jobs", exact: true })).toHaveCount(0);
   expect(api.changes).toEqual([]);
 });
@@ -92,16 +99,16 @@ test("allowing location unlocks the app and online sends current coordinates", a
   await expect.poll(() => api.coordinates.some((fix) => fix.lat === 22.7196 && fix.lng === 75.8577)).toBeTruthy();
 });
 
-test("revoking location blocks an open page and takes an online agent offline", async ({ page, context }) => {
+test("revoking location blocks an open page and takes an online agent offline", async ({ page }) => {
   const api = await setup(page, false, false, true);
   await page.getByTestId("duty-switch").click();
   await expect.poll(() => api.changes).toEqual([true]);
   await expect(page.getByTestId("duty-switch")).toHaveAttribute("aria-checked", "true");
-  await context.clearPermissions();
+  await page.evaluate(() => (window as any).failTestLocation(1));
   await expect(page.getByTestId("agent-location-gate")).toBeVisible();
   await expect(page.getByTestId("duty-switch")).toHaveCount(0);
   await expect.poll(() => api.changes).toEqual([true, false]);
-  await context.grantPermissions(["geolocation"]);
+  await page.evaluate(() => (window as any).allowTestLocation());
   await expect(page.getByTestId("agent-location-gate")).toHaveCount(0);
   await expect(page.getByTestId("duty-switch")).toHaveAttribute("aria-checked", "false");
 });
@@ -118,4 +125,11 @@ test("admin approval unlocks a newly signed-up agent without a reload", async ({
   api.verify();
   await expect(page.getByTestId("duty-switch")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("heading", { name: "Application under review" })).toHaveCount(0);
+});
+
+test("a transient GPS timeout does not block a device with a recent working location", async ({ page }) => {
+  await setup(page, false, false, true);
+  await page.evaluate(() => (window as any).failTestLocation(3));
+  await expect(page.getByTestId("agent-location-gate")).toHaveCount(0);
+  await expect(page.getByTestId("duty-switch")).toBeVisible();
 });

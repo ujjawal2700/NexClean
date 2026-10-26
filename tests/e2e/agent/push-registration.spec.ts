@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 test.use({ permissions: ["geolocation"], geolocation: { latitude: 22.7196, longitude: 75.8577 } });
 
-async function setup(page: Page, options: { nativeToken?: string; failFirst?: boolean; webView?: boolean } = {}) {
+async function setup(page: Page, options: { nativeToken?: string; failFirst?: boolean; webView?: boolean; registrationBarrier?: Promise<void> } = {}) {
   await page.context().grantPermissions(["geolocation"]);
   await page.addInitScript(({ nativeToken, webView }) => {
     localStorage.setItem("nexclean-agent-session", JSON.stringify({ state: { authenticated: true }, version: 0 }));
@@ -11,7 +11,7 @@ async function setup(page: Page, options: { nativeToken?: string; failFirst?: bo
     if (webView) Object.defineProperty(window, "Notification", { value: undefined, configurable: true });
     // Model permission independently of the headless browser/host OS policy.
     else Object.defineProperty(Notification, "permission", { get: () => "granted", configurable: true });
-  }, options);
+  }, { nativeToken: options.nativeToken, webView: options.webView });
   const registrations: string[] = [];
   let pushReady = false;
   await page.route("**/api/**", async (route) => {
@@ -24,6 +24,7 @@ async function setup(page: Page, options: { nativeToken?: string; failFirst?: bo
         await route.fulfill({ status: 503, json: { success: false, message: "Temporary outage" } });
         return;
       }
+      await options.registrationBarrier;
       pushReady = true;
       data = { registered: true };
     } else if (path === "/api/auth/me") {
@@ -70,4 +71,17 @@ test("failed automatic registration retries when the network returns", async ({ 
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expect(page.getByTestId("push-enabled")).toBeVisible();
   expect(registrations).toEqual(["native-android-retry-token", "native-android-retry-token"]);
+});
+
+test("the dashboard waits for native push registration before showing a warning", async ({ page }) => {
+  let finishRegistration!: () => void;
+  const registrationBarrier = new Promise<void>((resolve) => { finishRegistration = resolve; });
+  const registrations = await setup(page, { nativeToken: "native-startup-token", webView: true, registrationBarrier });
+  await expect.poll(() => registrations.length).toBe(1);
+  await page.getByRole("link", { name: "Today", exact: true }).first().click();
+  await expect(page.getByTestId("duty-card")).toBeVisible();
+  await expect(page.getByTestId("push-off-warning")).toHaveCount(0);
+  finishRegistration();
+  await expect(page.getByTestId("duty-card")).toContainText("You'll get new job alerts even if you close the app.");
+  await expect(page.getByTestId("push-off-warning")).toHaveCount(0);
 });

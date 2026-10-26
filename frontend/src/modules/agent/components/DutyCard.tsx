@@ -4,6 +4,7 @@ import { cn } from "@shared/lib/utils";
 import { GlassCard } from "@shared/ui/GlassCard";
 import { useOnlineSwitch } from "../hooks/useOnlineSwitch";
 import { useAgentMe } from "../api/agent.api";
+import { usePushRegistrationPending } from "../hooks/pushRegistrationContext";
 
 /**
  * The cleaner's on-duty switch, front and centre on Today. Online stays on
@@ -17,7 +18,8 @@ export function DutyCard({ disabled }: { disabled?: boolean }) {
   // From the server: whether it holds a real push token for this cleaner —
   // what actually decides if an offer reaches a closed app. A guess from this
   // page's local storage can disagree with it.
-  const pushOff = me?.pushReady === false;
+  const checkingPush = usePushRegistrationPending();
+  const pushOff = !checkingPush && me?.pushReady === false;
 
   return (
     <GlassCard
@@ -34,7 +36,9 @@ export function DutyCard({ disabled }: { disabled?: boolean }) {
           </p>
           <p className={cn("mt-1 text-sm leading-5", online ? "text-emerald-800/80" : "text-amber-800/80")}>
             {online
-              ? "You'll get new job alerts even if you close the app. Go offline when you're done for the day."
+              ? me?.pushReady === true
+                ? "You'll get new job alerts even if you close the app. Go offline when you're done for the day."
+                : "You're available for new jobs. Keep the app open while background alerts are being set up."
               : "Go online to start getting new jobs nearby."}
           </p>
         </div>
@@ -64,7 +68,7 @@ export function DutyCard({ disabled }: { disabled?: boolean }) {
         >
           <BellOff className="mt-0.5 size-4 shrink-0" />
           <span>
-            <span className="font-semibold">Job alerts can't reach this phone when the app is closed.</span> Keep the app
+            <span className="font-semibold">Background job alerts aren't registered yet.</span> Keep the app
             open to get new jobs. Tap for notification settings.
           </span>
         </Link>

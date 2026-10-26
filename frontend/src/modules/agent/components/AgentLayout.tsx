@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "@shared/lib/api";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -16,6 +16,7 @@ import {
 } from "../api/agent.api";
 import { useAgentDispatch } from "../hooks/useAgentDispatch";
 import { useOnlineSwitch } from "../hooks/useOnlineSwitch";
+import { PushRegistrationContext } from "../hooks/pushRegistrationContext";
 import { RescheduledJobDialog } from "./RescheduledJobDialog";
 import { OfferOverlay } from "./OfferOverlay";
 import { useAgentSession } from "../store/sessionStore";
@@ -26,6 +27,7 @@ const HEARTBEAT_INTERVAL_MS = 25_000;
 
 /** Registers this device for push once per session so offers ping when backgrounded. */
 function useRegisterPushToken() {
+  const [checking, setChecking] = useState(true);
   const registerToken = useRegisterToken();
   const registered = useRef(false);
   const qc = useQueryClient();
@@ -44,6 +46,7 @@ function useRegisterPushToken() {
     const register = async () => {
       if (registered.current || inFlight || disposed) return;
       inFlight = true;
+      setChecking(true);
       // Ask the store app to resend its native token after sign-in/resume.
       window.dispatchEvent(new Event("nexclean:push-bridge-ready"));
       try {
@@ -51,12 +54,13 @@ function useRegisterPushToken() {
         if (disposed || token.startsWith("web-")) return;
         await registerToken.mutateAsync(token);
         registered.current = true;
-        void qc.invalidateQueries({ queryKey: meKey });
+        await qc.invalidateQueries({ queryKey: meKey });
       } catch {
         // Retry on the next resume/network recovery rather than marking a
         // failed first attempt as registered for the entire session.
       } finally {
         inFlight = false;
+        if (!disposed) setChecking(false);
       }
     };
     const onVisible = () => {
@@ -72,6 +76,7 @@ function useRegisterPushToken() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  return checking;
 }
 
 /** Keeps the agent's "live" status fresh on the server for as long as this layout is mounted. */
@@ -183,7 +188,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   useAgentHeartbeat();
-  useRegisterPushToken();
+  const pushRegistrationPending = useRegisterPushToken();
   const dispatch = useAgentDispatch();
   const availability = useOnlineSwitch();
   const clearSession = useAgentSession((s) => s.clear);
@@ -195,6 +200,7 @@ export function AgentLayout({ children }: { children: ReactNode }) {
   const showMobileNav = ["/agent", "/agent/jobs", "/agent/earnings", "/agent/profile"].includes(normalizedPath);
 
   return (
+    <PushRegistrationContext.Provider value={pushRegistrationPending}>
     <div className="min-h-dvh overflow-x-clip bg-bg">
       {/* Incoming-offer popup — rendered above everything, on every page. */}
       {!dispatch.sessionReplaced && <OfferOverlay dispatch={dispatch} />}
@@ -278,5 +284,6 @@ export function AgentLayout({ children }: { children: ReactNode }) {
         )}
       </AnimatePresence>
     </div>
+    </PushRegistrationContext.Provider>
   );
 }

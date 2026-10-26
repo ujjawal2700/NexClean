@@ -51,6 +51,17 @@ export function LocationGate({ children }: { children: ReactNode }) {
 
   if (fix && !error) return <>{children}</>;
 
+  // A permitted device still needs time to obtain its first GPS reading.
+  // Only show settings guidance after location actually reports a failure.
+  if (!error && !retryError) return (
+    <main className="grid min-h-dvh place-items-center bg-bg px-5 py-10" data-testid="agent-location-checking" aria-live="polite">
+      <div className="text-center">
+        <Loader2 className="mx-auto size-7 animate-spin text-primary" />
+        <p className="mt-4 text-sm text-muted">Getting your location…</p>
+      </div>
+    </main>
+  );
+
   return (
     <main className="grid min-h-dvh place-items-center bg-bg px-5 py-10" data-testid="agent-location-gate">
       <div className="w-full max-w-md text-center">
