@@ -39,6 +39,7 @@ test.describe("Vehicle colour", () => {
     await page.getByPlaceholder("e.g. Creta").fill("Creta");
     await page.locator("select").selectOption("suv");
     await page.locator('input[name="vplate"]').fill("gj 01 ab 1234");
+    await page.locator('input[name="vplate"]').blur();
     await expect(page.locator('input[name="vplate"]')).toHaveValue("GJ 01 AB 1234");
 
     await page.getByRole("radio", { name: "Red" }).click();
@@ -62,6 +63,7 @@ test.describe("Vehicle colour", () => {
 
     await expect(page.getByText("Vehicle details")).toBeVisible();
     await page.locator('input[name="vehiclePlate"]').fill("mp 09 xy 4321");
+    await page.locator('input[name="vehiclePlate"]').blur();
     await expect(page.locator('input[name="vehiclePlate"]')).toHaveValue("MP 09 XY 4321");
     await page.getByRole("radio", { name: "Blue" }).click();
     await expect(page.getByRole("radio", { name: "Blue" })).toHaveAttribute("aria-checked", "true");

@@ -404,7 +404,7 @@ export function BookingFlow() {
     const bookingInput = {
       vehicleType: draft.vehicleType,
       vehicleName: draft.vehicleName || categoryLabel(draft.vehicleType),
-      vehiclePlate: draft.vehiclePlate.trim() || undefined,
+      vehiclePlate: draft.vehiclePlate.trim().toUpperCase() || undefined,
       vehicleColor: draft.vehicleColor.trim() || undefined,
       vehicleColorHex: draft.vehicleColorHex || undefined,
       packageId: pkg.id,
@@ -940,8 +940,15 @@ function VehicleStep({
             label="Vehicle number"
             placeholder="GJ 01 AB 1234"
             maxLength={20}
+            className="uppercase"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
             value={draft.vehiclePlate}
-            onChange={(e) => set({ vehiclePlate: e.target.value.toUpperCase() })}
+            // Preserve the keyboard's composing text; rewriting it while typing
+            // can disrupt mobile IMEs and move the caret during middle edits.
+            onChange={(e) => set({ vehiclePlate: e.target.value })}
+            onBlur={(e) => set({ vehiclePlate: e.target.value.toUpperCase() })}
           />
           <VehicleColorPicker
             idPrefix="booking"

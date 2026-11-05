@@ -39,7 +39,7 @@ export function Vehicles() {
         type: selection.categoryKey,
         brand: selection.brand,
         model: selection.model,
-        plate: vPlate.trim() || "—",
+        plate: vPlate.trim().toUpperCase() || "—",
         color: vColor.color.trim() || undefined,
         colorHex: vColor.colorHex || undefined,
       },
@@ -83,8 +83,14 @@ export function Vehicles() {
               label="Vehicle number"
               placeholder="GJ 01 AB 1234"
               maxLength={20}
+              className="uppercase"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
               value={vPlate}
-              onChange={(e) => setVPlate(e.target.value.toUpperCase())}
+              // Keep mobile keyboard composition and the caret intact.
+              onChange={(e) => setVPlate(e.target.value)}
+              onBlur={(e) => setVPlate(e.target.value.toUpperCase())}
             />
             <div className="sm:col-span-2">
               <VehicleColorPicker value={vColor} onChange={setVColor} idPrefix="garage" />
