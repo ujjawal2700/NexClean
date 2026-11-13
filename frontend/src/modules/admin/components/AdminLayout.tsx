@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 import {
   LayoutDashboard,
   CalendarRange,
+  CalendarPlus,
   Users,
   Contact2,
   Wallet,
@@ -98,6 +99,12 @@ const NAV_GROUPS: NavGroup[] = [
     id: "operations",
     label: "Operations",
     items: [
+      {
+        to: "/admin/book-a-service",
+        label: "Book a service",
+        icon: CalendarPlus,
+        permission: "bookings",
+      },
       {
         to: "/admin/bookings",
         label: "Bookings",

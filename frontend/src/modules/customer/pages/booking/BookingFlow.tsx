@@ -52,7 +52,7 @@ import {
 import { loadRazorpay, openRazorpay } from "@shared/lib/razorpay";
 import type { PreviewAmountResponse } from "../../api/mutations";
 import { ServicePinPicker } from "@shared/components/map/ServicePinPicker";
-import { AddAddressModal } from "@shared/components/address/AddAddressModal";
+import { type AddressInput, AddAddressModal } from "@shared/components/address/AddAddressModal";
 import type { LatLng } from "@shared/lib/maps";
 import {
   PACKAGES,
@@ -71,7 +71,7 @@ import { formatMoney } from "@shared/lib/format";
 import { Stepper, STEP_LABELS } from "./Stepper";
 import { functionalStorageAllowed } from "@shared/lib/cookieConsent";
 
-type Draft = {
+export type Draft = {
   vehicleType: CarType | null;
   vehicleName: string;
   /** Number plate and colour, so the cleaner can find the car. */
@@ -93,7 +93,7 @@ type Draft = {
   pin: LatLng | null;
 };
 
-const EMPTY: Draft = {
+export const EMPTY: Draft = {
   vehicleType: null,
   vehicleName: "",
   vehiclePlate: "",
@@ -829,7 +829,7 @@ function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
   );
 }
 
-function VehicleStep({
+export function VehicleStep({
   draft,
   set,
   vehicles,
@@ -851,6 +851,7 @@ function VehicleStep({
         vehicleType: selection.categoryKey,
         vehicleName: `${selection.brand} ${selection.model}`,
       });
+    else set({ vehicleType: null, vehicleName: "" });
   };
 
   return (
@@ -961,7 +962,7 @@ function VehicleStep({
   );
 }
 
-function PackageStep({
+export function PackageStep({
   draft,
   set,
   categories,
@@ -1036,7 +1037,7 @@ function PackageStep({
   );
 }
 
-function ScheduleStep({
+export function ScheduleStep({
   draft,
   set,
 }: {
@@ -1164,14 +1165,18 @@ function ScheduleStep({
   );
 }
 
-function AddressStep({
+export function AddressStep({
   draft,
   set,
   addresses,
+  onCreateAddress,
+  onAddressAdded,
 }: {
   draft: Draft;
   set: (p: Partial<Draft>) => void;
   addresses: Address[];
+  onCreateAddress?: (input: AddressInput) => Promise<Address>;
+  onAddressAdded?: (address: Address) => void;
 }) {
   const [showAddModal, setShowAddModal] = useState(false);
 
@@ -1288,17 +1293,19 @@ function AddressStep({
           data-testid="add-new-address-btn">
           <Plus className="size-4" /> Add a new address
         </Button>
-        <Link
+        {!onCreateAddress && <Link
           to="/app/profile/addresses?add=true"
           className="text-xs text-muted hover:text-primary transition-colors">
           Manage all saved addresses
-        </Link>
+        </Link>}
       </div>
 
       {showAddModal && (
         <AddAddressModal
+          onCreate={onCreateAddress}
           onClose={() => setShowAddModal(false)}
           onSuccess={(newAddr) => {
+            onAddressAdded?.(newAddr);
             set({ addressId: newAddr.id });
           }}
         />

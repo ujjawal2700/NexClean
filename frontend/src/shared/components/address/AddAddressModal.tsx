@@ -17,7 +17,10 @@ import { useAddAddress, useUpdateAddress, useRequestArea } from "@modules/custom
 import { checkServiceCoverage } from "@modules/customer/api/public";
 import type { Address } from "@modules/customer/types";
 
+export type AddressInput = { label: string; line: string; society?: string; lat?: number; lng?: number; placeId?: string };
+
 type Props = {
+  onCreate?: (input: AddressInput) => Promise<Address>;
   onClose: () => void;
   onSuccess?: (newAddress: Address) => void;
   initialCoords?: LatLng | null;
@@ -49,7 +52,7 @@ function parseInitialLine(line?: string, society?: string) {
   return { hNo, bSoc, sLandmark, cty, pincodeVal };
 }
 
-export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddress }: Props) {
+export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddress, onCreate }: Props) {
   const addAddress = useAddAddress();
   const updateAddress = useUpdateAddress();
   const requestArea = useRequestArea();
@@ -88,6 +91,7 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
     editingAddress?.label && !["Home", "Office"].includes(editingAddress.label) ? editingAddress.label : "",
   );
 
+  const [savingExternal, setSavingExternal] = useState(false);
   const [formError, setFormError] = useState("");
 
   // "Fetch my location" state, kept apart from formError so a geolocation
@@ -272,6 +276,19 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
       placeId: placeId || undefined,
     };
 
+    if (onCreate && !isEditing) {
+      setSavingExternal(true);
+      try {
+        const created = await onCreate(payload);
+        onSuccess?.(created);
+        onClose();
+      } catch (error) {
+        setFormError(error instanceof Error ? error.message : "Failed to save address.");
+      } finally {
+        setSavingExternal(false);
+      }
+      return;
+    }
     if (isEditing && editingAddress) {
       updateAddress.mutate(
         { id: editingAddress.id, data: payload },
@@ -307,7 +324,7 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
     }
   };
 
-  const isPending = addAddress.isPending || updateAddress.isPending;
+  const isPending = savingExternal || addAddress.isPending || updateAddress.isPending;
 
   return (
     <div
@@ -573,7 +590,7 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
                       </p>
                     </div>
                   </div>
-                  <Button
+                  {!onCreate && <Button
                     type="button"
                     size="sm"
                     variant="outline"
@@ -589,7 +606,7 @@ export function AddAddressModal({ onClose, onSuccess, initialCoords, editingAddr
                     ) : (
                       "Request this area"
                     )}
-                  </Button>
+                  </Button>}
                 </>
               ) : (
                 <p

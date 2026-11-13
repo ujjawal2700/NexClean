@@ -112,6 +112,10 @@ export function BookingDetail() {
   return (
     <div className="mx-auto max-w-4xl space-y-3 pb-6">
       {header}
+      {booking.bookingSource === "staff" && <GlassCard className="mb-4 space-y-2 text-sm">
+        <p className="font-medium">Booked for you by {booking.createdByName || "NexClean staff"}</p>
+        {booking.staffPayment?.status === "paid" ? <p>Payment received: {formatMoney(booking.staffPayment.amount)} by {booking.staffPayment.collectedByName} via {booking.staffPayment.collectionMethod?.toUpperCase()}.</p> : booking.staffPayment?.status === "refunded" ? <p>Payment refunded.</p> : booking.status !== "cancelled" && <p>Pay {formatMoney(booking.staffPayment?.amount ?? bookingAmountDue(booking))} to the admin or employee handling your booking by cash or UPI. Ask them to record your payment here. Your receipt will appear once they confirm collection.</p>}
+      </GlassCard>}
 
       {canRate && (
         <RateServiceCard

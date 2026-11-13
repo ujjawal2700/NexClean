@@ -16,6 +16,9 @@ export type VehicleCategory = {
 export type BookingStatus = "upcoming" | "in_progress" | "completed" | "cancelled";
 
 export type AdminBooking = {
+  bookingSource?: "customer" | "staff";
+  createdByName?: string;
+
   id: string;
   customerName: string;
   vehicleType: CarType;
@@ -74,7 +77,18 @@ export type BookingTimelineEntry = {
   derived?: boolean;
 };
 
+export type StaffPaymentRecord = {
+  amount: number;
+  status: "created" | "paid" | "refunded" | "mock";
+  collectedByName: string;
+  collectedAt: string | null;
+  collectionMethod: "cash" | "upi" | null;
+  collectionReference: string;
+};
 export type AdminBookingDetail = {
+  bookingSource?: "customer" | "staff";
+  createdByName?: string;
+  staffPayment?: StaffPaymentRecord | null;
   id: string;
   status: BookingStatus;
   rawStatus: "upcoming" | "completed" | "cancelled";
@@ -391,6 +405,12 @@ export type PaymentStatus = "created" | "paid" | "mock" | "refunded";
 export type SettlementStatus = "pending" | "settled";
 
 export type AdminPayment = {
+  collectionChannel?: "staff" | "cleaner";
+  collectedByName?: string;
+  collectedAt?: string | null;
+  collectionMethod?: "cash" | "upi" | null;
+  collectionReference?: string;
+
   id: string;
   customerId: string;
   customerName: string;

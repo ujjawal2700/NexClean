@@ -1,3 +1,4 @@
+import * as staffBooking from "./staffBooking.controller";
 import { Router } from "express";
 import * as bk from "../bookkeeping/bookkeeping.controller";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
@@ -29,6 +30,14 @@ adminRouter.post("/internal-messages/conversations/:conversationId/messages", re
 adminRouter.get("/stats", requirePermission("dashboard"), asyncHandler(c.stats));
 adminRouter.get("/reports", requirePermission("reports"), asyncHandler(c.reports));
 
+// Booking operators can look up only the customer data needed for booking.
+adminRouter.get("/booking-customers", requirePermission("bookings"), asyncHandler(staffBooking.search));
+adminRouter.get("/booking-customers/:id", requirePermission("bookings"), asyncHandler(staffBooking.details));
+adminRouter.post("/booking-customers/:id/addresses", requirePermission("bookings"), asyncHandler(staffBooking.saveAddress));
+adminRouter.get("/booking-options", requirePermission("bookings"), asyncHandler(staffBooking.options));
+adminRouter.post("/bookings/quote", requirePermission("bookings"), asyncHandler(staffBooking.quote));
+adminRouter.post("/bookings", requirePermission("bookings"), asyncHandler(staffBooking.create));
+adminRouter.post("/bookings/:id/collect", requirePermission("bookings"), asyncHandler(staffBooking.collect));
 adminRouter.get("/bookings", requirePermission("bookings"), asyncHandler(c.bookings));
 adminRouter.get("/bookings/:id", requirePermission("bookings"), asyncHandler(c.bookingDetail));
 adminRouter.patch("/bookings/:id/cancel", requirePermission("bookings"), asyncHandler(c.cancelBooking));

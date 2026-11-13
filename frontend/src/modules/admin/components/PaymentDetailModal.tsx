@@ -114,7 +114,7 @@ export function PaymentDetailModal({
               <dd className="text-ink font-medium break-all">{payment.orderId}</dd>
               <dt className="text-muted">Payment ID</dt>
               <dd className="text-ink font-medium break-all">
-                {payment.paymentId ?? <span className="text-muted font-normal">Not collected yet</span>}
+                {(payment.collectionChannel === "staff" && payment.status === "paid" ? `${payment.collectionMethod?.toUpperCase()} · ${payment.collectedByName}${payment.collectionReference ? ` · ${payment.collectionReference}` : ""}` : payment.paymentId) ?? <span className="text-muted font-normal">Not collected yet</span>}
               </dd>
               <dt className="text-muted">Amount</dt>
               <dd className="text-ink font-medium">{formatMoney(payment.amount)}</dd>

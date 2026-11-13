@@ -341,6 +341,7 @@ export function Bookings() {
         Vehicle: b.vehicleName,
         Category: categoryLabel(b.vehicleType),
         Customer: b.customerName,
+        "Booked by": b.bookingSource === "staff" ? b.createdByName ?? "Staff" : "Customer",
         Date: formatDate(b.date),
         Slot: b.slot,
         Society: b.society,
@@ -379,6 +380,7 @@ export function Bookings() {
             status.
           </p>
         </div>
+        <Link to="/admin/book-a-service"><Button size="sm">Book a service</Button></Link>
         <Button
           variant="outline"
           size="sm"
@@ -450,6 +452,7 @@ export function Bookings() {
                         #{b.id}
                       </Link>
                     </p>
+                    {b.bookingSource === "staff" && <p className="mt-1 text-xs font-medium text-primary">Staff booking · {b.createdByName}</p>}
                     {b.offPeakLocked && (
                       <span
                         className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700"

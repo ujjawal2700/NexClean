@@ -127,6 +127,10 @@ export type BookingReview = {
 
 /** One booking with its cleaner — the customer booking detail page. */
 export type BookingDetail = Booking & {
+  bookingSource?: "customer" | "staff";
+  createdByName?: string;
+  staffPayment?: { amount: number; status: string; collectedByName: string; collectionMethod: string | null; collectedAt: string | null } | null;
+
   agent: { id: string; name: string; rating: number; ratingCount: number; jobsDone: number } | null;
 };
 

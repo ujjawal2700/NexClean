@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useVehicleBrands, useVehicleModels, useVehicleCategories } from "../api/queries";
 
 export type VehicleSelection = { brand: string; model: string; categoryKey: string };
@@ -17,6 +17,7 @@ const selectClass =
  * to a manual name + category entry if their car isn't in the catalog yet.
  */
 export function BrandModelSelect({ onResolved }: Props) {
+  const id = useId();
   const { data: brands = [], isLoading: loadingBrands } = useVehicleBrands();
   const [brandId, setBrandId] = useState("");
   const [modelId, setModelId] = useState("");
@@ -58,26 +59,29 @@ export function BrandModelSelect({ onResolved }: Props) {
     return (
       <>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-ink">Brand</label>
+          <label htmlFor={`${id}-brand`} className="mb-1.5 block text-sm font-medium text-ink">Brand</label>
           <input
             className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-ink outline-none focus:border-primary/50"
+            id={`${id}-brand`}
             placeholder="e.g. Hyundai"
             value={manualBrand}
             onChange={(e) => updateManual({ brand: e.target.value })}
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-ink">Model</label>
+          <label htmlFor={`${id}-model`} className="mb-1.5 block text-sm font-medium text-ink">Model</label>
           <input
             className="h-12 w-full rounded-2xl border border-line bg-surface px-4 text-ink outline-none focus:border-primary/50"
+            id={`${id}-model`}
             placeholder="e.g. Creta"
             value={manualModel}
             onChange={(e) => updateManual({ model: e.target.value })}
           />
         </div>
         <div className="sm:col-span-2">
-          <label className="mb-1.5 block text-sm font-medium text-ink">Vehicle category</label>
+          <label htmlFor={`${id}-category`} className="mb-1.5 block text-sm font-medium text-ink">Vehicle category</label>
           <select
+            id={`${id}-category`}
             value={manualCategory}
             onChange={(e) => updateManual({ category: e.target.value })}
             className={selectClass}
@@ -107,8 +111,8 @@ export function BrandModelSelect({ onResolved }: Props) {
   return (
     <>
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-ink">Brand</label>
-        <select value={brandId} onChange={(e) => pickBrand(e.target.value)} className={selectClass}>
+        <label htmlFor={`${id}-brand`} className="mb-1.5 block text-sm font-medium text-ink">Brand</label>
+        <select id={`${id}-brand`} value={brandId} onChange={(e) => pickBrand(e.target.value)} className={selectClass}>
           <option value="">{loadingBrands ? "Loading…" : "Select brand"}</option>
           {brands.map((b) => (
             <option key={b.id} value={b.id}>
@@ -118,8 +122,8 @@ export function BrandModelSelect({ onResolved }: Props) {
         </select>
       </div>
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-ink">Model</label>
-        <select value={modelId} onChange={(e) => pickModel(e.target.value)} disabled={!brandId} className={selectClass}>
+        <label htmlFor={`${id}-model`} className="mb-1.5 block text-sm font-medium text-ink">Model</label>
+        <select id={`${id}-model`} value={modelId} onChange={(e) => pickModel(e.target.value)} disabled={!brandId} className={selectClass}>
           <option value="">{!brandId ? "Choose a brand first" : loadingModels ? "Loading…" : "Select model"}</option>
           {models.map((m) => (
             <option key={m.id} value={m.id}>

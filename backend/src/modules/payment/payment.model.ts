@@ -3,6 +3,12 @@ import { Schema, model, Types, type HydratedDocument, type InferSchemaType } fro
 const paymentSchema = new Schema(
   {
     user: { type: Types.ObjectId, ref: "User", required: true, index: true },
+    collectionChannel: { type: String, enum: ["cleaner", "staff"], default: "cleaner" },
+    collectedBy: { type: Types.ObjectId, ref: "User", default: null },
+    collectedByName: { type: String, default: "" },
+    collectedAt: { type: Date, default: null },
+    collectionMethod: { type: String, enum: ["cash", "upi"], default: null },
+    collectionReference: { type: String, default: "" },
     customerName: { type: String, default: null },
     booking: { type: Types.ObjectId, ref: "Booking" },
     orderId: { type: String, required: true },

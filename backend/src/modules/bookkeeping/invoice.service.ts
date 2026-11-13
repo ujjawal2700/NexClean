@@ -76,10 +76,12 @@ async function financialsFor(b: BookingLike, sac: string) {
   }
   const adjustmentTotal = paise(reclaimed + (b.peakUpgradeFeeCharged ?? 0));
 
-  const paid = await Payment.find({ booking: b._id, status: "paid" }).select("amount paymentId orderId kind").lean();
+  const paid = await Payment.find({ booking: b._id, status: "paid" }).select("amount paymentId orderId kind collectionChannel collectionMethod").lean();
   const amountPaid = paise(paid.reduce((s, p) => s + (p.amount ?? 0), 0));
   const paymentMethod = b.isSubscriptionWash
     ? "Subscription"
+    : paid.some((p) => p.collectionChannel === "staff")
+      ? paid.find((p) => p.collectionChannel === "staff")?.collectionMethod === "upi" ? "UPI to staff" : "Cash to staff"
     : paid.some((p) => p.paymentId)
       ? "Online"
       : paid.length > 0

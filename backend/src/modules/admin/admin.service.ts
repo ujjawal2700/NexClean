@@ -45,6 +45,8 @@ function mapBooking(b: BookingDoc) {
   const customerName = (user && typeof user === "object" && user.name) || (b as any).customerName || "Customer";
   return {
     id: b.id,
+    bookingSource: b.bookingSource ?? "customer",
+    createdByName: b.createdByName ?? "",
     customerName,
     vehicleType: b.vehicleType,
     vehicleName: b.vehicleName,
@@ -1118,6 +1120,11 @@ function mapPayment(p: PaymentDocument) {
     agentId: assignedAgent ? String(assignedAgent) : null,
     orderId: p.orderId,
     paymentId: p.paymentId,
+    collectionChannel: p.collectionChannel,
+    collectedByName: p.collectedByName,
+    collectionMethod: p.collectionMethod,
+    collectedAt: p.collectedAt,
+    collectionReference: p.collectionReference,
     amount: p.amount,
     currency: p.currency,
     status: p.status,
@@ -1216,7 +1223,7 @@ export async function refundPayment(id: string, input: { amount?: number; reason
   // refund policy) to expect it in 5–7 days while nothing was ever sent.
   // Marking the record only after the gateway confirms keeps the two in sync;
   // a failure surfaces to the admin instead of silently "succeeding".
-  if (paymentsLive && payment.paymentId) {
+  if (paymentsLive && payment.paymentId && payment.collectionChannel !== "staff") {
     try {
       await createRazorpayRefund(payment.paymentId, amount);
     } catch (err) {
@@ -1505,6 +1512,9 @@ export async function getBookingDetail(id: string) {
 
   return {
     id: booking.id,
+    bookingSource: booking.bookingSource ?? "customer",
+    createdByName: booking.createdByName ?? "",
+    staffPayment: booking.bookingSource === "staff" ? await Payment.findOne({ booking: booking._id, kind: "booking" }).select("amount status collectedByName collectedAt collectionMethod collectionReference").lean() : null,
     status: displayStatus(booking),
     rawStatus: booking.status,
     jobStatus: booking.jobStatus,

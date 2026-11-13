@@ -25,7 +25,7 @@ import { createRazorpayOrder, verifyRazorpaySignature, razorpayKeyId, paymentsLi
  */
 export async function markPaymentCollected(bookingId: string): Promise<void> {
   await Payment.updateOne(
-    { booking: bookingId, status: "created" },
+    { booking: bookingId, status: "created", collectionChannel: { $ne: "staff" } },
     { status: "paid", paymentId: `cash_${bookingId}` },
   );
 }

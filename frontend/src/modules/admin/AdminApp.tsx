@@ -5,6 +5,7 @@ import { AdminLayout } from "./components/AdminLayout";
 import { PermissionGuard } from "./components/PermissionGuard";
 import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
+import { BookService } from "./pages/BookService";
 import { Bookings } from "./pages/Bookings";
 import { BookingDetail } from "./pages/BookingDetail";
 import { Dispatch } from "./pages/Dispatch";
@@ -66,6 +67,14 @@ export function AdminApp() {
             element={
               <PermissionGuard permission="dashboard">
                 <Dashboard />
+              </PermissionGuard>
+            }
+          />
+          <Route
+            path="book-a-service"
+            element={
+              <PermissionGuard permission="bookings">
+                <BookService />
               </PermissionGuard>
             }
           />

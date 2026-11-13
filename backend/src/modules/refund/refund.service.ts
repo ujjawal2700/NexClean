@@ -191,7 +191,8 @@ export async function listRefunds(status?: RefundStatus) {
 }
 
 /** How a payment was made, from its ids — what the admin needs to see before refunding. */
-function paymentMode(p: { paymentId?: string | null; orderId?: string; status?: string }): string {
+function paymentMode(p: { paymentId?: string | null; orderId?: string; status?: string; collectionChannel?: string; collectionMethod?: string | null }): string {
+  if (p.collectionChannel === "staff") return p.collectionMethod === "upi" ? "UPI to staff" : "Cash to staff";
   if (p.paymentId?.startsWith("pay_")) return "Online · Razorpay";
   if (p.paymentId?.startsWith("cash_") || p.orderId?.startsWith("cash")) return "Cash to cleaner";
   if (p.status === "mock" || p.orderId?.includes("mock")) return "Online · test mode (no real money)";

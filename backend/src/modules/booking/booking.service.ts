@@ -1,3 +1,4 @@
+import { Payment } from "../payment/payment.model";
 import { randomUUID } from "node:crypto";
 import { emitToUser } from "../../shared/services/socket";
 import { Booking, type BookingDocument } from "./booking.model";
@@ -115,6 +116,7 @@ export async function getOwnBooking(userId: string, bookingId: string) {
   ]);
   return {
     ...booking.toJSON(),
+    staffPayment: booking.bookingSource === "staff" ? await Payment.findOne({ booking: booking._id, kind: "booking" }).select("amount status collectedByName collectedAt collectionMethod collectionReference").lean() : null,
     review,
     agent: agent
       ? {
@@ -231,6 +233,7 @@ export async function createBooking(
   // snapshot stored with a gateway order, never a value accepted from a
   // browser request.
   pricedAtOrder?: ComputedBookingPrice,
+  staff?: { id: string; name: string },
 ) {
   // A paid order was checked for notice when it was created (createOrder); the
   // customer has paid since, so it isn't turned away for the minutes that took.
@@ -265,6 +268,9 @@ export async function createBooking(
   // No instant assignment — the booking enters the real-time dispatch pipeline.
   const booking = await Booking.create({
     user: userId,
+    bookingSource: staff ? "staff" : "customer",
+    createdBy: staff?.id,
+    createdByName: staff?.name,
     vehicleType: input.vehicleType,
     vehicleName: input.vehicleName,
     vehiclePlate: input.vehiclePlate && input.vehiclePlate !== "—" ? input.vehiclePlate : "",
@@ -300,10 +306,19 @@ export async function createBooking(
     jobStatus: "assigned",
     dispatchStatus: "searching",
   });
+  if (staff) {
+    try {
+      await Payment.create({ user: userId, booking: booking._id, orderId: `staff_${booking.id}`,
+        amount: tax.payableAmount, status: "created", collectionChannel: "staff" });
+    } catch (error) {
+      await Booking.deleteOne({ _id: booking._id });
+      throw error;
+    }
+  }
   logBookingEvent(booking._id, {
     type: "created",
-    actor: "customer",
-    actorName: customer?.name ?? "",
+    actor: staff ? "admin" : "customer",
+    actorName: staff?.name ?? customer?.name ?? "",
     meta: { slot: input.slot, date: new Date(input.date).toISOString(), price, payable: tax.payableAmount },
   });
 

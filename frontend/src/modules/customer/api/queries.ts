@@ -90,6 +90,7 @@ export function useBookingDetail(id: string) {
     queryKey: bookingDetailKey(id),
     queryFn: () => apiFetch<BookingDetail>(`/bookings/${id}`),
     enabled: authenticated && !!id,
+    refetchInterval: (query) => query.state.data?.staffPayment?.status === "created" && query.state.data.status !== "cancelled" ? 10_000 : false,
   });
 }
 

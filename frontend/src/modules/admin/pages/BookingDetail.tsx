@@ -1,3 +1,4 @@
+import { StaffPayment } from "../components/StaffPayment";
 import { useMemo, useState } from "react";
 import { useBookingInvoiceAdmin } from "../api/bookkeeping.api";
 import { downloadInvoicePdf } from "@shared/lib/invoicePdf";
@@ -523,6 +524,7 @@ export function BookingDetail() {
       {/* ── money ──────────────────────────────────────────────────────── */}
       <GlassCard>
         <SectionTitle icon={Wallet}>Payment</SectionTitle>
+        <StaffPayment booking={booking} />
         <dl className="mt-3 space-y-2.5 text-sm">
           {(() => {
             const taxable = booking.taxableAmount ?? booking.price;
