@@ -47,9 +47,16 @@ export async function registerToken(userId: string, token: string, deviceId: str
     throw ApiError.unauthorized("Session expired. Please sign in again.");
   }
   const isAgent = user.role === "agent";
-  if (isAgent && (user.agentDeviceId ?? "") !== deviceId) {
+  // The Play Store app registers its FCM token from native (Dart) code, which
+  // carries the session JWT but not the WebView's X-Device-Id header. Rejecting
+  // that left every agent phone without a push token, so new jobs never rang.
+  // A current-version JWT already proves this is the agent's signed-in phone
+  // (signing in elsewhere bumps tokenVersion), so a missing id is accepted and
+  // attributed to that phone. A *different* id is still a stale install.
+  if (isAgent && deviceId && (user.agentDeviceId ?? "") !== deviceId) {
     throw ApiError.unauthorized("Session expired. Please sign in again.");
   }
+  if (isAgent && !deviceId) deviceId = user.agentDeviceId ?? "";
 
   // A delayed browser fallback must never replace the native token for this
   // agent's phone. Placeholders cannot receive FCM while the WebView is closed.
