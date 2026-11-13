@@ -10,7 +10,7 @@ import { TriggeredAlert } from "../area-alert/areaAlert.model";
  *                      through notifyUser is also saved here)
  *  - Campaign        — the admin's history of push campaigns sent
  *  - TriggeredAlert  — the log of Smart Area Alert pushes
- * Pushes sent with pushToUser alone (job offers, live updates) are never
+ * Pushes sent with pushToUser alone (live updates) are never
  * stored, so there is nothing of theirs to clear.
  *
  * Override with NOTIFICATION_RETENTION_DAYS; defaults to one week.

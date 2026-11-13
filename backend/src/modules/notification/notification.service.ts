@@ -73,6 +73,22 @@ export async function registerToken(userId: string, token: string, deviceId: str
       : { $addToSet: { deviceTokens: token, ...(deviceId ? { pushTokenDevices: { token, deviceId } } : {}) } },
   );
   if (!result.matchedCount) throw ApiError.unauthorized("Session expired. Please sign in again.");
+
+  // One install holds one token. When a browser or app rotates its token, the
+  // old one used to stay registered beside the new one and the same phone got
+  // every push twice. Drop whatever this install registered before.
+  if (!isAgent && deviceId) {
+    const prior = await User.findById(userId).select("pushTokenDevices");
+    const stale = (prior?.pushTokenDevices ?? [])
+      .filter((p) => p.deviceId === deviceId && p.token !== token)
+      .map((p) => p.token);
+    if (stale.length) {
+      await User.updateOne(
+        { _id: userId },
+        { $pull: { deviceTokens: { $in: stale }, pushTokenDevices: { deviceId, token: { $in: stale } } } },
+      );
+    }
+  }
 }
 
 export async function unregisterToken(userId: string, token: string) {

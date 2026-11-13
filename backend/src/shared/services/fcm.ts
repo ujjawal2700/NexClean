@@ -136,9 +136,13 @@ export async function sendPush(tokens: string[], payload: PushPayload): Promise<
       // keeps an undeliverable push from arriving hours late and stale.
       webpush: {
         headers: { Urgency: "high", TTL: String(ttl) },
+        // The browser's Firebase SDK displays this itself (the service worker
+        // no longer draws a second copy), so every display option lives here.
         notification: {
           icon: "/logo.png",
           badge: "/logo.png",
+          // Collapse repeated updates for the same booking into one notification.
+          ...(stringifiedData.bookingId ? { tag: stringifiedData.bookingId, renotify: true } : {}),
           ...(payload.jobOffer ? { requireInteraction: true, vibrate: [600, 250, 600, 250, 600] } : {}),
         },
       },

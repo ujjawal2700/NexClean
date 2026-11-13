@@ -6,7 +6,7 @@ import { LayoutDashboard, ListChecks, Wallet, User, Bell } from "lucide-react";
 import { cn } from "@shared/lib/utils";
 import { LiquidTabBar } from "@shared/components/LiquidTabBar";
 import { Logo } from "@shared/components/brand/Logo";
-import { getPushToken } from "@shared/lib/push";
+import { getNotificationPermission, getPushToken, requestPushPermission } from "@shared/lib/push";
 import {
   meKey,
   useAgentMe,
@@ -42,9 +42,16 @@ function useRegisterPushToken() {
 
   useEffect(() => {
     let inFlight = false;
+    let retryAfterFlight = false;
     let disposed = false;
-    const register = async () => {
-      if (registered.current || inFlight || disposed) return;
+    const register = async (): Promise<void> => {
+      if (registered.current || disposed) return;
+      // A request arriving mid-flight (e.g. permission just granted) must run
+      // after the current attempt, which may have read the old permission.
+      if (inFlight) {
+        retryAfterFlight = true;
+        return;
+      }
       inFlight = true;
       setChecking(true);
       // Ask the store app to resend its native token after sign-in/resume.
@@ -62,15 +69,33 @@ function useRegisterPushToken() {
         inFlight = false;
         if (!disposed) setChecking(false);
       }
+      if (retryAfterFlight) {
+        retryAfterFlight = false;
+        await register();
+      }
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") void register();
     };
+    // A cleaner who is already online never taps "Go online" again, so the
+    // permission prompt there never runs and this phone was left without a
+    // push token — new jobs then never alerted them. Ask on the first tap
+    // anywhere instead: browsers (Safari strictly) only prompt from a gesture.
+    const onFirstGesture = () => {
+      if (getNotificationPermission() !== "default") return;
+      void requestPushPermission().then((permission) => {
+        if (permission === "granted") void register();
+      });
+    };
+    if (getNotificationPermission() === "default") {
+      window.addEventListener("pointerdown", onFirstGesture, { once: true, capture: true });
+    }
     void register();
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", register);
     return () => {
       disposed = true;
+      window.removeEventListener("pointerdown", onFirstGesture, { capture: true });
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", register);
     };

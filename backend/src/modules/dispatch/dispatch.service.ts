@@ -3,7 +3,7 @@ import { Booking, type BookingDocument } from "../booking/booking.model";
 import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { isAgentLive } from "../user/presence";
-import { notifyUser, pushToUser } from "../notification/notification.service";
+import { notifyUser } from "../notification/notification.service";
 import { emitToUser, emitToAdmins, emitToRoom } from "../../shared/services/socket";
 import { haversineMeters, type LngLat } from "../../shared/geo";
 import { buildDispatchTiers, findAcrossTiers, findNearestEligibleAgents, type NearbyAgent } from "./dispatch.query";
@@ -130,17 +130,20 @@ async function sendOffer(b: BookingDocument, candidate: NearbyAgent) {
   const payload = await buildOfferPayload(b, candidate.distanceM);
   emitToUser(candidate.id, "job_offer", payload);
   // The push is what reaches an online cleaner whose app is closed or swiped
-  // away. Push-only (no feed row). It lives only as long as the offer: a "new
-  // job" arriving after it has gone to someone else is worse than none.
+  // away. The OS push lives only as long as the offer: a "new job" arriving
+  // after it has gone to someone else is worse than none. The offer is also
+  // kept in the cleaner's notification feed, so a new booking is never
+  // invisible when the phone has no push token or the push was missed.
   const ttlSeconds = b.offerExpiresAt
     ? Math.max(1, Math.round((b.offerExpiresAt.getTime() - Date.now()) / 1000))
     : undefined;
   const push = buildOfferPush(payload);
-  void pushToUser(candidate.id, {
+  void notifyUser(candidate.id, {
     ...push,
+    type: "booking",
     jobOffer: true,
     ttlSeconds,
-  }).catch((err) => console.error("offer push failed:", (err as Error).message));
+  }).catch((err) => console.error("offer notification failed:", (err as Error).message));
 }
 
 /**
@@ -631,10 +634,8 @@ export async function assignAgentToBooking(
 
   // Tell the assigned cleaner.
   emitToUser(String(agent._id), "job_assigned", { bookingId: String(booking._id) });
-  // notifyUser rather than pushToUser: an offer is ephemeral and rightly stays
-  // out of the feed, but an assignment is work the cleaner is now accountable
-  // for. It has to survive a missed push and be readable later, which is
-  // exactly what a stored notification is for.
+  // A stored notification: an assignment is work the cleaner is now
+  // accountable for. It has to survive a missed push and be readable later.
   await notifyUser(String(agent._id), {
     type: "booking",
     title: "🧽 New job assigned",
