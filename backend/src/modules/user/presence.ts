@@ -33,7 +33,12 @@ export function reachableAgentFilter(now = Date.now()) {
     online: true,
     $or: [
       { lastSeenAt: { $gte: new Date(now - AGENT_APP_ACTIVE_MS) } },
-      { deviceTokens: { $elemMatch: { $not: /^web-/ } } },
+      // Any token that isn't a "web-" placeholder. Written as a plain regex
+      // on the array (matches if any element matches) because Mongoose's
+      // strictQuery (config/db.ts) cast `$elemMatch: { $not: … }` on this
+      // string array to an empty `$elemMatch: {}` that never matches — so a
+      // cleaner whose app was closed was never offered a job, push or not.
+      { deviceTokens: /^(?!web-)./ },
     ],
   };
 }
