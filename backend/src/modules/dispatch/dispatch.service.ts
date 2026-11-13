@@ -4,6 +4,7 @@ import { User } from "../user/user.model";
 import { ApiError } from "../../shared/utils/ApiError";
 import { isAgentLive } from "../user/presence";
 import { notifyUser } from "../notification/notification.service";
+import { sendPush } from "../../shared/services/fcm";
 import { emitToUser, emitToAdmins, emitToRoom } from "../../shared/services/socket";
 import { haversineMeters, type LngLat } from "../../shared/geo";
 import { buildDispatchTiers, findAcrossTiers, findNearestEligibleAgents, type NearbyAgent } from "./dispatch.query";
@@ -144,6 +145,53 @@ async function sendOffer(b: BookingDocument, candidate: NearbyAgent) {
     jobOffer: true,
     ttlSeconds,
   }).catch((err) => console.error("offer notification failed:", (err as Error).message));
+  keepRingingOffer(String(b._id), candidate.id, push);
+}
+
+/**
+ * Re-send the job-offer push every few seconds while the offer is still open.
+ *
+ * A single push only rings once — on a locked phone that is one short tone and
+ * a screen that lights up for a second, which cleaners simply missed. Each
+ * repeat carries the same tag (the booking id), so it replaces the existing
+ * notification and rings again instead of stacking duplicates — like an
+ * incoming call. It stops the moment the offer is accepted, declined, revoked,
+ * passed to someone else or expires. Push only: the feed row was stored once.
+ */
+const OFFER_RING_INTERVAL_MS = Number(process.env.DISPATCH_OFFER_RING_INTERVAL_MS ?? 10_000);
+
+function keepRingingOffer(
+  bookingId: string,
+  agentId: string,
+  push: ReturnType<typeof buildOfferPush>,
+): void {
+  if (!(OFFER_RING_INTERVAL_MS > 0)) return;
+  const ringAgain = async () => {
+    // Skip a ring that would land in the offer's last moments: the job is
+    // about to move on and the push would arrive after it has.
+    const live = await Booking.findOne({
+      _id: bookingId,
+      status: "upcoming",
+      dispatchStatus: "offered",
+      currentOfferAgent: agentId,
+      offerExpiresAt: { $gt: new Date(Date.now() + 3_000) },
+    })
+      .select("offerExpiresAt")
+      .lean();
+    if (!live?.offerExpiresAt) return;
+    const agent = await User.findById(agentId).select("deviceTokens").lean();
+    if (!agent?.deviceTokens?.length) return;
+    const ttlSeconds = Math.max(1, Math.round((new Date(live.offerExpiresAt).getTime() - Date.now()) / 1000));
+    await sendPush(agent.deviceTokens, { ...push, jobOffer: true, ttlSeconds });
+    schedule();
+  };
+  const schedule = () => {
+    const timer = setTimeout(() => {
+      void ringAgain().catch((err) => console.error("offer re-ring failed:", (err as Error).message));
+    }, OFFER_RING_INTERVAL_MS);
+    if (typeof timer.unref === "function") timer.unref();
+  };
+  schedule();
 }
 
 /**

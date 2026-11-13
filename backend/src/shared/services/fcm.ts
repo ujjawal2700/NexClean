@@ -152,6 +152,8 @@ export async function sendPush(tokens: string[], payload: PushPayload): Promise<
         headers: {
           "apns-priority": "10",
           "apns-push-type": "alert",
+          // A repeated job-offer ring replaces the previous alert instead of stacking.
+          ...(payload.jobOffer && stringifiedData.bookingId ? { "apns-collapse-id": stringifiedData.bookingId } : {}),
           "apns-expiration": String(Math.floor(Date.now() / 1000) + ttl),
         },
         payload: {
@@ -168,7 +170,13 @@ export async function sendPush(tokens: string[], payload: PushPayload): Promise<
         priority: "high",
         ttl: ttl * 1000,
         notification: payload.jobOffer
-          ? { channelId: "job_offers", sound: "job_offer", priority: "max", visibility: "public", defaultVibrateTimings: false, vibrateTimingsMillis: [0, 600, 250, 600, 250, 600] }
+          ? {
+              channelId: "job_offers", sound: "job_offer", priority: "max", visibility: "public",
+              defaultVibrateTimings: false, vibrateTimingsMillis: [0, 600, 250, 600, 250, 600],
+              // Same tag on every ring of one offer: Android replaces the
+              // notification and alerts again, rather than stacking copies.
+              ...(stringifiedData.bookingId ? { tag: stringifiedData.bookingId } : {}),
+            }
           : { sound: "default" },
       },
     });
