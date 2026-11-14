@@ -49,41 +49,33 @@ export function LocationGate({ children }: { children: ReactNode }) {
     }
   };
 
-  if (fix && !error) return <>{children}</>;
-
-  // A permitted device still needs time to obtain its first GPS reading.
-  // Only show settings guidance after location actually reports a failure.
-  if (!error && !retryError) return (
-    <main className="grid min-h-dvh place-items-center bg-bg px-5 py-10" data-testid="agent-location-checking" aria-live="polite">
-      <div className="text-center">
-        <Loader2 className="mx-auto size-7 animate-spin text-primary" />
-        <p className="mt-4 text-sm text-muted">Getting your location…</p>
-      </div>
-    </main>
-  );
-
-  return (
-    <main className="grid min-h-dvh place-items-center bg-bg px-5 py-10" data-testid="agent-location-gate">
-      <div className="w-full max-w-md text-center">
-        <div className="mb-8 flex justify-center"><Logo variant="full" /></div>
-        <div className="rounded-card border border-line bg-surface p-6 shadow-lg sm:p-8">
-          <span className="mx-auto grid size-14 place-items-center rounded-full bg-primary/10 text-primary"><MapPin className="size-6" /></span>
-          <h1 className="mt-5 text-2xl text-ink">Location access required</h1>
-          <p className="mt-3 text-sm text-muted">Allow location access and turn on your device's location to use the agent app. We need your current location for nearby jobs and live service tracking.</p>
-          {(retryError || error) && <p role="alert" className="mt-4 text-sm text-red-600">{retryError || error}</p>}
-          <Button className="mt-6 w-full" disabled={pending} onClick={() => void retry()}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            {pending ? "Getting location…" : "Enable location"}
-          </Button>
-          <p className="mt-3 text-xs text-muted">If access is blocked, allow Location for NexClean in your browser or app settings, then try again.</p>
-          <Button variant="outline" className="mt-4 w-full" onClick={() => {
-            resetDeviceLocation();
-            clear();
-            qc.clear();
-            navigate("/agent/login", { replace: true });
-          }}>Log out</Button>
+  // Only show the blocking screen if location access is explicitly denied or failed.
+  if (error || retryError) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-bg px-5 py-10" data-testid="agent-location-gate">
+        <div className="w-full max-w-md text-center">
+          <div className="mb-8 flex justify-center"><Logo variant="full" /></div>
+          <div className="rounded-card border border-line bg-surface p-6 shadow-lg sm:p-8">
+            <span className="mx-auto grid size-14 place-items-center rounded-full bg-primary/10 text-primary"><MapPin className="size-6" /></span>
+            <h1 className="mt-5 text-2xl text-ink">Location access required</h1>
+            <p className="mt-3 text-sm text-muted">Allow location access and turn on your device's location to use the agent app. We need your current location for nearby jobs and live service tracking.</p>
+            <p role="alert" className="mt-4 text-sm text-red-600">{retryError || error}</p>
+            <Button className="mt-6 w-full" disabled={pending} onClick={() => void retry()}>
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              {pending ? "Getting location…" : "Enable location"}
+            </Button>
+            <p className="mt-3 text-xs text-muted">If access is blocked, allow Location for NexClean in your browser or app settings, then try again.</p>
+            <Button variant="outline" className="mt-4 w-full" onClick={() => {
+              resetDeviceLocation();
+              clear();
+              qc.clear();
+              navigate("/agent/login", { replace: true });
+            }}>Log out</Button>
+          </div>
         </div>
-      </div>
-    </main>
-  );
+      </main>
+    );
+  }
+
+  return <>{children}</>;
 }
