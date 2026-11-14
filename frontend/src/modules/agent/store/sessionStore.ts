@@ -38,6 +38,7 @@ export const useAgentSession = create<SessionState>()(
           method: "POST",
           body: { role: "agent", pushToken: getStoredDeviceToken() ?? "" },
         }).catch(() => {});
+        localStorage.removeItem("nexclean_last_device_fix");
         set({ token: null, authenticated: false });
       },
     }),

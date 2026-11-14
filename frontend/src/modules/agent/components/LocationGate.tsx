@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, MapPin } from "lucide-react";
 import { Button } from "@shared/ui/Button";
 import { Logo } from "@shared/components/brand/Logo";
-import { requestCurrentDeviceFix, useDeviceLocation } from "../hooks/useDeviceLocation";
+import { requestCurrentDeviceFix, useDeviceLocation, resetDeviceLocation } from "../hooks/useDeviceLocation";
 import { useAgentSession } from "../store/sessionStore";
 import { useAgentMe, useToggleOnline } from "../api/agent.api";
 
@@ -77,6 +77,7 @@ export function LocationGate({ children }: { children: ReactNode }) {
           </Button>
           <p className="mt-3 text-xs text-muted">If access is blocked, allow Location for NexClean in your browser or app settings, then try again.</p>
           <Button variant="outline" className="mt-4 w-full" onClick={() => {
+            resetDeviceLocation();
             clear();
             qc.clear();
             navigate("/agent/login", { replace: true });

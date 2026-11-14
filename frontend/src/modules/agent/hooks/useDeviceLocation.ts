@@ -27,11 +27,52 @@ export type DeviceFix = {
   at: number;
 };
 
+const STORAGE_KEY = "nexclean_last_device_fix";
+
+function loadStoredFix(): DeviceFix | null {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      typeof parsed?.lat === "number" &&
+      typeof parsed?.lng === "number" &&
+      Number.isFinite(parsed.lat) &&
+      Number.isFinite(parsed.lng)
+    ) {
+      return {
+        lat: parsed.lat,
+        lng: parsed.lng,
+        heading: typeof parsed.heading === "number" && Number.isFinite(parsed.heading) ? parsed.heading : null,
+        speed: typeof parsed.speed === "number" && Number.isFinite(parsed.speed) ? parsed.speed : null,
+        at: typeof parsed.at === "number" ? parsed.at : Date.now(),
+      };
+    }
+  } catch {
+    /* ignore parse errors */
+  }
+  return null;
+}
+
+function saveStoredFix(fix: DeviceFix | null): void {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    if (fix) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(fix));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
 type State = { fix: DeviceFix | null; error: string | null };
 
 let watchId: number | null = null;
 let initialDeadline: ReturnType<typeof setTimeout> | null = null;
-let latest: DeviceFix | null = null;
+let latest: DeviceFix | null = loadStoredFix();
 let lastError: string | null = null;
 let fixVersion = 0;
 let stopPermissionWatch: (() => void) | null = null;
@@ -76,7 +117,10 @@ export function requestCurrentDeviceFix(): Promise<DeviceFix> {
         reject(new Error(message));
         return;
       }
-      latest = null;
+      if (denied) {
+        latest = null;
+        saveStoredFix(null);
+      }
       lastError = message;
       publish();
       reject(new Error(message));
@@ -99,6 +143,7 @@ export function requestCurrentDeviceFix(): Promise<DeviceFix> {
           at: Date.now(),
         };
         latest = fix;
+        saveStoredFix(fix);
         fixVersion++;
         lastError = null;
         publish();
@@ -134,6 +179,7 @@ function startWatch() {
       speed: Number.isFinite(pos.coords.speed) ? pos.coords.speed : null,
       at: Date.now(),
     };
+    saveStoredFix(latest);
     publish();
   };
 
@@ -143,6 +189,9 @@ function startWatch() {
     // GPS timeouts do not mean permission was revoked. Keep a recent working
     // fix while the watch continues; a denial always invalidates it.
     if (err.code !== err.PERMISSION_DENIED && latest && Date.now() - latest.at < 60_000) return;
+    if (err.code === err.PERMISSION_DENIED) {
+      saveStoredFix(null);
+    }
     latest = null;
     lastError = describeError(err);
     publish();
@@ -191,6 +240,7 @@ function startWatch() {
       void requestCurrentDeviceFix().catch(() => {});
     } else if (permission?.state === "denied") {
       latest = null;
+      saveStoredFix(null);
       lastError = "Location access is required. Allow location in your browser or app settings, then try again.";
       publish();
     }
@@ -215,7 +265,7 @@ function stopWatchIfIdle() {
   watchId = null;
   stopPermissionWatch?.();
   stopPermissionWatch = null;
-  latest = null;
+  latest = loadStoredFix();
   lastError = null;
 }
 
@@ -223,6 +273,7 @@ function stopWatchIfIdle() {
 export function resetDeviceLocation(): void {
   subscribers.clear();
   latest = null;
+  saveStoredFix(null);
   lastError = null;
   stopWatchIfIdle();
 }
